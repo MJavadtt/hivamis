@@ -1,0 +1,143 @@
+# Hiva OS — سیستم‌عامل سازمانی
+
+An enterprise operating platform for the Hiva advertising agency, built directly from the
+process documentation in [`Doc_H/`](Doc_H). It unifies CRM, Sales, Account Management, PMO,
+Traffic, Creative/Production operations, Quality Control, Proposal & Pricing, Contracts,
+Finance and Customer Success into one governed system.
+
+The product thesis is narrow and deliberate: agency tools already do projects, resourcing and
+invoicing. **None of them enforce the operating rules an agency actually runs on.** Hiva OS makes
+those rules structurally impossible to bypass.
+
+---
+
+## What makes this different
+
+Doc_H's `قوانین و دستورالعمل حاکم بر فرآیند اجرای پروژه‌ها` is not documentation here — it is
+executable. Fifteen governing rules are enforced by the server on every write:
+
+| Doc_H rule | How it is enforced |
+|---|---|
+| §2 — Sales / Account separation | Permission model: no sales role holds `pricing.set_price`, `project.authorize`, or `qc.account`; no account role holds `crm.lead.convert` |
+| §6 — No valid verbal task | `Task.sourceType` + `sourceRef` are non-null; a task cannot exist without tracing to one of six authorised source documents |
+| §8 — Change control | An out-of-scope change cannot reach the customer until all six impact dimensions are recorded, nor be implemented before customer approval |
+| §9 — Three-level QC | Each QC level requires a different permission; nothing reaches the client without a passing Account QC |
+| §10 — Revision governance | `Revision.reason` is non-null; a failed QC automatically raises a revision carrying its reason |
+| §12 — Financial separation | Execution units may declare cost but the sale price needs `pricing.set_price`, and approval needs a *different* person holding `pricing.approve` |
+| §13 — Project start authorization | A project cannot go ACTIVE without a live `ExecutionAuthorization` on one of three legal bases |
+| §15 — Project closure | Eight closure conditions are checked as a gate, not a checklist |
+
+These are covered by 21 dedicated tests in [`apps/api/tests/001-governance.test.ts`](apps/api/tests/001-governance.test.ts).
+
+---
+
+## Quick start
+
+**Prerequisites:** Node 22+, pnpm 10+, PostgreSQL 17+ running locally.
+
+```bash
+pnpm install
+createdb hiva_os
+cp apps/api/.env.example apps/api/.env
+# set DATABASE_URL, and generate a secret: openssl rand -base64 48
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
+
+- Web UI — <http://localhost:5173>
+- API — <http://localhost:4000>
+- Health — <http://localhost:4000/health/ready>
+
+### Development sign-in
+
+The seed creates fifteen demo accounts across every role. They share the password
+`Hiva@Dev2026!` and exist **only for local development** — never deploy this seed to production.
+
+| Account | Role | Use it to see |
+|---|---|---|
+| `admin@hiva.local` | System Administrator | Everything, plus the audit trail |
+| `ceo@hiva.local` | CEO | Executive control tower |
+| `deputy@hiva.local` | Deputy CEO | Project authorization, pricing approval |
+| `sales@hiva.local` | Sales Representative | Leads, opportunities, briefs — and the permissions Sales does *not* have |
+| `account.manager@hiva.local` | Account Manager | Brief control, proposals, Project 360, QC |
+| `creative@hiva.local` | Unit Manager (Creative) | Work orders, unit QC, cost declaration |
+| `designer@hiva.local` | Unit Specialist | Task execution and revisions |
+| `finance@hiva.local` | Finance Manager | Invoices, payments, settlement |
+| `legal@hiva.local` | Legal Manager | Contract lifecycle |
+| `pmo@hiva.local` | PMO Manager | Traffic, capacity, lessons learned |
+
+---
+
+## Running with Docker
+
+```bash
+cp .env.docker.example .env
+# set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up -d --build
+```
+
+The stack serves the SPA on `http://localhost:8080` with the API proxied at `/api`.
+Migrations run automatically on API start. Only the web container publishes a port.
+
+---
+
+## Repository layout
+
+```
+apps/
+  api/                 Fastify + Prisma API, workflow engine, form engine, SLA engine, AI layer
+    prisma/            Schema, migrations, seed
+    src/workflow/      State machines, Doc_H guards, transition effects
+    src/forms/         130-form engine, validator, typed bindings
+    src/sla/           Business-calendar SLA engine
+    src/ai/            Permission-aware, audited AI subsystem
+    tests/             109 tests: governance, lifecycle, security, engines
+  web/                 React 19 + Vite SPA — RTL Persian, Jalali dates
+packages/
+  contracts/           Shared source of truth: enums, permissions, workflows, SLA catalogue, 130 forms
+infrastructure/
+  docker/              Dockerfiles + nginx config
+  database/            Backup and restore scripts
+docs/                  Architecture, ADRs, API, traceability, operations, user guide
+Doc_H/                 The organisation's own process documentation (input, unmodified)
+```
+
+---
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Run API and web together |
+| `pnpm build` | Type-check and build every package |
+| `pnpm test` | Run the full test suite (109 tests) |
+| `pnpm typecheck` | Type-check without emitting |
+| `pnpm db:migrate` | Create and apply a migration |
+| `pnpm db:seed` | Load reference data + demo dataset (idempotent) |
+
+---
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [Architecture](docs/architecture.md) | System design, data model, engines, security model |
+| [Decisions](docs/decisions.md) | Architecture Decision Records with alternatives and trade-offs |
+| [Business processes](docs/business-processes.md) | The Doc_H lifecycle as implemented, with state machines |
+| [Requirements traceability](docs/traceability.md) | Every Doc_H requirement → code → test |
+| [API reference](docs/api.md) | Endpoints, auth, errors, conventions |
+| [Operations](docs/operations.md) | Deployment, backup, monitoring, troubleshooting |
+| [User guide](docs/user-guide.md) | Per-role walkthrough of daily work |
+| [Market analysis](docs/market-analysis.md) | Competitive benchmark and the gap this fills |
+
+---
+
+## Status
+
+Implemented and verified: the full Doc_H lifecycle from Lead through Closure and back into
+Cross-sell, all 130 forms, the workflow/SLA/form engines, three-level QC, change control,
+contract and finance flows, Customer 360, Project 360, the traffic board, six report surfaces,
+the audited AI layer, and RBAC with an immutable audit trail.
+
+See [Known limitations](docs/operations.md#known-limitations) for what is deliberately out of scope.

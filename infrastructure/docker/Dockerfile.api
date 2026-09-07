@@ -1,0 +1,37 @@
+# ── build ─────────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS build
+RUN corepack enable
+WORKDIR /repo
+
+COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY packages/contracts/package.json packages/contracts/
+COPY apps/api/package.json apps/api/
+RUN pnpm install --frozen-lockfile=false
+
+COPY packages/contracts packages/contracts
+COPY apps/api apps/api
+RUN pnpm --filter @hiva/api db:generate && pnpm --filter @hiva/api build
+
+# Drop dev dependencies from the layer that ships.
+RUN pnpm --filter @hiva/api --prod deploy /out && \
+    cp -r apps/api/dist /out/dist && \
+    cp -r apps/api/prisma /out/prisma
+
+# ── runtime ───────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS runtime
+RUN apk add --no-cache tini curl && addgroup -S hiva && adduser -S hiva -G hiva
+WORKDIR /app
+
+COPY --from=build --chown=hiva:hiva /out ./
+RUN mkdir -p /app/storage && chown -R hiva:hiva /app/storage
+
+ENV NODE_ENV=production PORT=4000 HOST=0.0.0.0 STORAGE_DIR=/app/storage
+EXPOSE 4000
+USER hiva
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:4000/health/ready || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+# Migrations are applied on start so a deploy is a single, ordered step.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

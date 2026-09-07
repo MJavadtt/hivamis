@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Environment — never commit secrets. Only *.example files belong in the repo.
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Uploaded documents and local test artefacts
+storage/
+storage-test/
+backups/
+
+*.log
+.DS_Store
+playwright-report/
+test-results/

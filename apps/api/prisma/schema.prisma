@@ -1,0 +1,1473 @@
+// Hiva OS — data model
+// Traceability: every model below maps to an entity named in Doc_H
+// («الگوریتم جامع مسیر مشتری»، «قوانین و دستورالعمل حاکم»، «دسته‌بندی فرم‌ها»، RACI matrix).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* ═══════════════════════ Identity & organisation ═══════════════════════ */
+
+model Organization {
+  id            String   @id @default(uuid())
+  name          String
+  legalName     String?
+  currency      String   @default("IRR")
+  timezone      String   @default("Asia/Tehran")
+  workingDays   Int[]    @default([6, 0, 1, 2, 3])
+  workStartHour Int      @default(9)
+  workEndHour   Int      @default(18)
+  breakHours    Int      @default(1)
+  settings      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  departments Department[]
+  users       User[]
+  companies   Company[]
+  holidays    Holiday[]
+
+  @@map("organizations")
+}
+
+model Holiday {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  date           DateTime     @db.Date
+  title          String
+
+  @@unique([organizationId, date])
+  @@map("holidays")
+}
+
+model Department {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String
+  nameFa         String
+  nameEn         String
+  isExecutionalUnit Boolean   @default(false)
+  managerId      String?
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  users User[]
+
+  @@unique([organizationId, code])
+  @@map("departments")
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  nameFa      String
+  nameEn      String
+  description String?
+  isSystem    Boolean @default(true)
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  code   String @unique
+  nameFa String
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                  String       @id @default(uuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departmentId        String?
+  department          Department?  @relation(fields: [departmentId], references: [id])
+  email               String       @unique
+  fullName            String
+  passwordHash        String
+  jobTitle            String?
+  phone               String?
+  isActive            Boolean      @default(true)
+  mustChangePassword  Boolean      @default(false)
+  weeklyCapacityHours Decimal      @default(40) @db.Decimal(6, 2)
+  lastLoginAt         DateTime?
+  failedLoginCount    Int          @default(0)
+  lockedUntil         DateTime?
+  locale              String       @default("fa")
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  deletedAt           DateTime?
+
+  roles                UserRole[]
+  sessions             Session[]
+  ownedLeads           Lead[]              @relation("LeadOwner")
+  ownedOpportunities   Opportunity[]       @relation("OpportunityOwner")
+  accountCompanies     Company[]           @relation("CompanyAccountOwner")
+  salesCompanies       Company[]           @relation("CompanySalesOwner")
+  accountProjects      Project[]           @relation("ProjectAccountOwner")
+  assignedTasks        Task[]              @relation("TaskAssignee")
+  workOrderOwnerships  WorkOrder[]         @relation("WorkOrderOwner")
+  allocations          Allocation[]
+  auditEvents          AuditEvent[]
+  notifications        Notification[]
+  formSubmissions      FormSubmission[]    @relation("FormSubmitter")
+  formAssignments      FormSubmission[]    @relation("FormAssignee")
+  formApprovals        FormApproval[]
+  qcReviews            QcReview[]
+  revisionsAssigned    Revision[]          @relation("RevisionAssignee")
+  ownedRisks           Risk[]
+  ownedIssues          Issue[]
+  decisions            Decision[]
+  stateTransitions     StateTransition[]
+  aiInteractions       AiInteraction[]
+  raciAssignments      RaciAssignment[]
+  documents            Document[]
+  comments             Comment[]
+
+  @@index([organizationId, departmentId])
+  @@index([email])
+  @@map("users")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Session {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String   @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/* ═══════════════════════ CRM ═══════════════════════ */
+
+model Company {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  legalName      String
+  brandName      String?
+  industry       String?
+  nationalId     String?
+  economicCode   String?
+  website        String?
+  phone          String?
+  address        String?
+  accountOwnerId String?
+  accountOwner   User?        @relation("CompanyAccountOwner", fields: [accountOwnerId], references: [id])
+  salesOwnerId   String?
+  salesOwner     User?        @relation("CompanySalesOwner", fields: [salesOwnerId], references: [id])
+  healthScore    Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  contacts      Contact[]
+  leads         Lead[]
+  opportunities Opportunity[]
+  projects      Project[]
+  contracts     Contract[]
+  invoices      Invoice[]
+  activities    Activity[]
+  meetings      Meeting[]
+  documents     Document[]
+  formSubmissions FormSubmission[]
+
+  @@index([organizationId])
+  @@map("companies")
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fullName  String
+  jobTitle  String?
+  email     String?
+  phone     String?
+  isPrimary Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@map("contacts")
+}
+
+model Lead {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique
+  name           String
+  companyName    String
+  companyId      String?
+  company        Company?  @relation(fields: [companyId], references: [id])
+  contactName    String?
+  phone          String?
+  email          String?
+  source         String
+  estimatedValue Decimal?  @db.Decimal(20, 2)
+  need           String?
+  state          String    @default("NEW")
+  ownerId        String?
+  owner          User?     @relation("LeadOwner", fields: [ownerId], references: [id])
+  disqualifyReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  opportunities Opportunity[]
+
+  @@index([organizationId, state])
+  @@map("leads")
+}
+
+model Opportunity {
+  id                String    @id @default(uuid())
+  organizationId    String
+  code              String    @unique
+  title             String
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leadId            String?
+  lead              Lead?     @relation(fields: [leadId], references: [id])
+  estimatedValue    Decimal   @db.Decimal(20, 2)
+  expectedCloseDate DateTime?
+  servicesNeeded    String[]  @default([])
+  description       String?
+  state             String    @default("NEW")
+  ownerId           String?
+  owner             User?     @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  lostReason        String?
+  wonAt             DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  briefs     Brief[]
+  activities Activity[]
+  projects   Project[]
+  formSubmissions FormSubmission[]
+
+  @@index([organizationId, state])
+  @@index([companyId])
+  @@map("opportunities")
+}
+
+model Activity {
+  id            String       @id @default(uuid())
+  organizationId String
+  companyId     String?
+  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          String
+  occurredAt    DateTime
+  summary       String
+  nextStep      String?
+  nextStepDue   DateTime?
+  createdById   String
+  createdAt     DateTime     @default(now())
+
+  @@index([companyId])
+  @@index([opportunityId])
+  @@map("activities")
+}
+
+/* ═══════════════════════ Brief → Proposal → Pricing ═══════════════════════ */
+
+model Brief {
+  id                   String      @id @default(uuid())
+  organizationId       String
+  code                 String      @unique
+  opportunityId        String
+  opportunity          Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  title                String
+  businessObjective    String?
+  targetAudience       String?
+  scope                String?
+  expectedDeliverables String?
+  budgetRange          Decimal?    @db.Decimal(20, 2)
+  desiredDeadline      DateTime?
+  unitsNeeded          String[]    @default([])
+  competitorContext    String?
+  constraints          String?
+  successCriteria      String?
+  state                String      @default("DRAFT")
+  /** Populated by the completeness guard; drives the KPI "Brief Completeness". */
+  completenessScore    Int         @default(0)
+  missingItems         String[]    @default([])
+  returnReason         String?
+  returnCount          Int         @default(0)
+  submittedById        String?
+  reviewedById         String?
+  approvedAt           DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  deletedAt            DateTime?
+
+  proposals Proposal[]
+  projects  Project[]
+
+  @@index([organizationId, state])
+  @@map("briefs")
+}
+
+model Proposal {
+  id                  String   @id @default(uuid())
+  organizationId      String
+  code                String   @unique
+  briefId             String
+  brief               Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  title               String
+  version             Int      @default(1)
+  executiveSummary    String?
+  approach            String?
+  deliverablesSummary String?
+  timelineSummary     String?
+  state               String   @default("DRAFT")
+
+  // Pricing — Doc_H §12: totalCost is declared by units, salePrice/margin only via pricing.set_price
+  totalCost           Decimal? @db.Decimal(20, 2)
+  salePrice           Decimal? @db.Decimal(20, 2)
+  marginPercent       Decimal? @db.Decimal(7, 2)
+  paymentTerms        String?
+  contractScaleBand   String?
+  pricingRationale    String?
+  pricedById          String?
+  pricedAt            DateTime?
+  pricingApprovedById String?
+  pricingApprovedAt   DateTime?
+
+  clientFeedback      String?
+  clientDecision      String?
+  revisionCount       Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  workOrders  WorkOrder[]
+  qcReviews   QcReview[]
+  costDeclarations CostDeclaration[]
+  revisions   Revision[]
+  contracts   Contract[]
+  projects    Project[]
+  versions    ProposalVersion[]
+  deliverables Deliverable[]
+
+  @@index([organizationId, state])
+  @@map("proposals")
+}
+
+model ProposalVersion {
+  id          String   @id @default(uuid())
+  proposalId  String
+  proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    Json
+  changeNote  String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([proposalId, version])
+  @@map("proposal_versions")
+}
+
+model CostDeclaration {
+  id             String     @id @default(uuid())
+  organizationId String
+  proposalId     String?
+  proposal       Proposal?  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  workOrderId    String?
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  departmentCode String
+  internalCost   Decimal    @db.Decimal(20, 2)
+  externalCost   Decimal    @default(0) @db.Decimal(20, 2)
+  items          Json       @default("[]")
+  assumptions    String?
+  declaredById   String
+  createdAt      DateTime   @default(now())
+
+  @@index([proposalId])
+  @@index([workOrderId])
+  @@map("cost_declarations")
+}
+
+/* ═══════════════════════ Handoff (Doc_H rule 2) ═══════════════════════ */
+
+model Handoff {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  code               String   @unique
+  companyId          String
+  projectId          String?
+  project            Project? @relation(fields: [projectId], references: [id])
+  contractId         String?
+  salesOwnerId       String
+  accountOwnerId     String
+  commitmentsMade    String
+  clientExpectations String
+  sensitivities      String?
+  openItems          String?
+  state              String   @default("DRAFT")
+  acceptedAt         DateTime?
+  returnReason       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, state])
+  @@map("handoffs")
+}
+
+/* ═══════════════════════ Project & execution ═══════════════════════ */
+
+model Project {
+  id             String       @id @default(uuid())
+  organizationId String
+  code           String       @unique
+  name           String
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  briefId        String?
+  brief          Brief?       @relation(fields: [briefId], references: [id])
+  proposalId     String?
+  proposal       Proposal?    @relation(fields: [proposalId], references: [id])
+  opportunityId  String?
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id])
+  accountOwnerId String
+  accountOwner   User         @relation("ProjectAccountOwner", fields: [accountOwnerId], references: [id])
+  objective      String?
+  inScope        String?
+  outOfScope     String?
+  plannedStart   DateTime?
+  plannedEnd     DateTime?
+  actualStart    DateTime?
+  actualEnd      DateTime?
+  plannedBudget  Decimal?     @db.Decimal(20, 2)
+  contractValue  Decimal?     @db.Decimal(20, 2)
+  state          String       @default("DRAFT")
+  healthStatus   String       @default("GREEN")
+  closedAt       DateTime?
+  cancelReason   String?
+  holdReason     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  authorizations   ExecutionAuthorization[]
+  milestones       Milestone[]
+  deliverables     Deliverable[]
+  workOrders       WorkOrder[]
+  tasks            Task[]
+  raciAssignments  RaciAssignment[]
+  changeRequests   ChangeRequest[]
+  risks            Risk[]
+  issues           Issue[]
+  decisions        Decision[]
+  meetings         Meeting[]
+  statusReports    StatusReport[]
+  contracts        Contract[]
+  invoices         Invoice[]
+  payments         Payment[]
+  allocations      Allocation[]
+  outsourceRequests OutsourceRequest[]
+  documents        Document[]
+  feedbacks        Feedback[]
+  lessonsLearned   LessonLearned[]
+  closureChecklist ClosureChecklist?
+  activities       Activity[]
+  handoffs         Handoff[]
+  formSubmissions  FormSubmission[]
+  comments         Comment[]
+
+  @@index([organizationId, state])
+  @@index([companyId])
+  @@map("projects")
+}
+
+/// Doc_H §13 — a project may not enter execution without one of the three authorisation bases.
+model ExecutionAuthorization {
+  id                String    @id @default(uuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  basis             String
+  contractId        String?
+  invoiceId         String?
+  referenceDocument String
+  notes             String?
+  authorizedById    String
+  authorizedAt      DateTime  @default(now())
+  revokedAt         DateTime?
+  revokeReason      String?
+
+  @@index([projectId])
+  @@map("execution_authorizations")
+}
+
+model Milestone {
+  id          String    @id @default(uuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  dueDate     DateTime
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+model RaciAssignment {
+  id             String  @id @default(uuid())
+  projectId      String
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  activity       String
+  departmentCode String
+  raciRole       String
+  userId         String?
+  user           User?   @relation(fields: [userId], references: [id])
+
+  @@index([projectId])
+  @@map("raci_assignments")
+}
+
+model WorkOrder {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  code                 String    @unique
+  projectId            String
+  project              Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposalId           String?
+  proposal             Proposal? @relation(fields: [proposalId], references: [id])
+  targetDepartmentCode String
+  title                String
+  scopeOfWork          String
+  brief                String
+  expectedOutput       String
+  outputFormat         String
+  deadline             DateTime
+  ownerId              String
+  owner                User      @relation("WorkOrderOwner", fields: [ownerId], references: [id])
+  budget               Decimal?  @db.Decimal(20, 2)
+  requiredResources    String?
+  priority             String    @default("NORMAL")
+  state                String    @default("DRAFT")
+  acceptedAt           DateTime?
+  acceptedById         String?
+  committedDate        DateTime?
+  clarificationNote    String?
+  submittedAt          DateTime?
+  cancelReason         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  tasks            Task[]
+  deliverables     Deliverable[]
+  costDeclarations CostDeclaration[]
+  qcReviews        QcReview[]
+  outsourceRequests OutsourceRequest[]
+
+  @@index([organizationId, state])
+  @@index([projectId])
+  @@index([targetDepartmentCode, state])
+  @@map("work_orders")
+}
+
+model Task {
+  id             String     @id @default(uuid())
+  organizationId String
+  code           String     @unique
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workOrderId    String?
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  deliverableId  String?
+  deliverable    Deliverable? @relation(fields: [deliverableId], references: [id])
+  title          String
+  description    String?
+  departmentCode String
+  assigneeId     String?
+  assignee       User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  dueDate        DateTime?
+  estimateHours  Decimal?   @db.Decimal(8, 2)
+  actualHours    Decimal?   @db.Decimal(8, 2)
+  priority       String     @default("NORMAL")
+  state          String     @default("CREATED")
+  /// Doc_H §6 — no verbal task: every task must trace to one of six authorised source documents.
+  sourceType     String
+  sourceRef      String
+  blockReason    String?
+  acceptedAt     DateTime?
+  submittedAt    DateTime?
+  closedAt       DateTime?
+  createdById    String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  dependsOn    TaskDependency[] @relation("DependentTask")
+  dependedOnBy TaskDependency[] @relation("PrerequisiteTask")
+  qcReviews    QcReview[]
+  revisions    Revision[]
+  comments     Comment[]
+
+  @@index([organizationId, state])
+  @@index([projectId, state])
+  @@index([assigneeId, state])
+  @@index([departmentCode, state])
+  @@map("tasks")
+}
+
+model TaskDependency {
+  id             String @id @default(uuid())
+  taskId         String
+  task           Task   @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  prerequisiteId String
+  prerequisite   Task   @relation("PrerequisiteTask", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  kind           String @default("FINISH_TO_START")
+
+  @@unique([taskId, prerequisiteId])
+  @@map("task_dependencies")
+}
+
+model Deliverable {
+  id             String     @id @default(uuid())
+  organizationId String
+  code           String     @unique
+  projectId      String
+  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposalId     String?
+  proposal       Proposal?  @relation(fields: [proposalId], references: [id])
+  workOrderId    String?
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id])
+  name           String
+  description    String?
+  departmentCode String
+  format         String?
+  version        String     @default("v1")
+  dueDate        DateTime?
+  state          String     @default("PLANNED")
+  submittedAt    DateTime?
+  deliveredAt    DateTime?
+  acceptedAt     DateTime?
+  rejectReason   String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  qcReviews QcReview[]
+  revisions Revision[]
+  tasks     Task[]
+  documents Document[]
+
+  @@index([organizationId, state])
+  @@index([projectId, state])
+  @@map("deliverables")
+}
+
+/* ═══════════════════════ Quality control (Doc_H §9, §10) ═══════════════════════ */
+
+model QcReview {
+  id             String       @id @default(uuid())
+  organizationId String
+  code           String       @unique
+  level          String
+  deliverableId  String?
+  deliverable    Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  workOrderId    String?
+  workOrder      WorkOrder?   @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  proposalId     String?
+  proposal       Proposal?    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  taskId         String?
+  task           Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  checklist      Json         @default("{}")
+  verdict        String       @default("PENDING")
+  findings       String?
+  reviewerId     String
+  reviewer       User         @relation(fields: [reviewerId], references: [id])
+  reviewedAt     DateTime     @default(now())
+
+  revisions Revision[]
+
+  @@index([organizationId, level, verdict])
+  @@index([deliverableId])
+  @@map("qc_reviews")
+}
+
+model Revision {
+  id                       String       @id @default(uuid())
+  organizationId           String
+  code                     String       @unique
+  deliverableId            String?
+  deliverable              Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  proposalId               String?
+  proposal                 Proposal?    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  taskId                   String?
+  task                     Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  qcReviewId               String?
+  qcReview                 QcReview?    @relation(fields: [qcReviewId], references: [id])
+  /// Doc_H §10 — mandatory, non-null: no revision may exist without a recorded reason.
+  reason                   String
+  requiredCorrection       String
+  responsibleDepartmentCode String
+  assigneeId               String?
+  assignee                 User?        @relation("RevisionAssignee", fields: [assigneeId], references: [id])
+  dueDate                  DateTime
+  state                    String       @default("REQUESTED")
+  round                    Int          @default(1)
+  resolvedAt               DateTime?
+  rejectNote               String?
+  requestedById            String
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  @@index([organizationId, state])
+  @@index([responsibleDepartmentCode, state])
+  @@map("revisions")
+}
+
+/* ═══════════════════════ Change control (Doc_H §8) ═══════════════════════ */
+
+model ChangeRequest {
+  id             String   @id @default(uuid())
+  organizationId String
+  code           String   @unique
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title          String
+  requestedChange String
+  requestedBy    String
+  requestedDate  DateTime
+  priority       String   @default("NORMAL")
+  state          String   @default("SUBMITTED")
+
+  scopeVerdict   String   @default("UNDETERMINED")
+  scopeRationale String?
+  scopeReviewedById String?
+  scopeReviewedAt DateTime?
+
+  // Doc_H §8 — the six mandatory impact dimensions
+  timeImpactDays   Decimal? @db.Decimal(8, 2)
+  costImpact       Decimal? @db.Decimal(20, 2)
+  resourceImpact   String?
+  scopeImpact      String?
+  qualityImpact    String?
+  contractImpact   String?
+  proposedPrice    Decimal? @db.Decimal(20, 2)
+  impactAssessedById String?
+  impactAssessedAt DateTime?
+
+  customerDecision String?
+  customerDecidedAt DateTime?
+  rejectReason     String?
+  closedAt         DateTime?
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  amendments Amendment[]
+
+  @@index([organizationId, state])
+  @@index([projectId, state])
+  @@map("change_requests")
+}
+
+/* ═══════════════════════ Contract & legal ═══════════════════════ */
+
+model Contract {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique
+  contractNumber String?
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  proposalId     String?
+  proposal       Proposal? @relation(fields: [proposalId], references: [id])
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  title          String
+  contractValue  Decimal   @db.Decimal(20, 2)
+  startDate      DateTime
+  endDate        DateTime
+  scopeSummary   String?
+  paymentTerms   String?
+  state          String    @default("REQUESTED")
+  legalReviewNote String?
+  revisionNote   String?
+  signedDate     DateTime?
+  registeredAt   DateTime?
+  terminateReason String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  amendments Amendment[]
+  invoices   Invoice[]
+  documents  Document[]
+
+  @@index([organizationId, state])
+  @@index([companyId])
+  @@map("contracts")
+}
+
+model Amendment {
+  id                String         @id @default(uuid())
+  contractId        String
+  contract          Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  changeRequestId   String?
+  changeRequest     ChangeRequest? @relation(fields: [changeRequestId], references: [id])
+  amendmentNumber   String
+  effectiveDate     DateTime
+  changes           String
+  valueDelta        Decimal        @default(0) @db.Decimal(20, 2)
+  durationDeltaDays Int            @default(0)
+  createdById       String
+  createdAt         DateTime       @default(now())
+
+  @@index([contractId])
+  @@map("amendments")
+}
+
+/* ═══════════════════════ Finance ═══════════════════════ */
+
+model Invoice {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique
+  kind           String
+  number         String
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  contractId     String?
+  contract       Contract? @relation(fields: [contractId], references: [id])
+  issueDate      DateTime
+  dueDate        DateTime?
+  lines          Json      @default("[]")
+  subtotal       Decimal   @db.Decimal(20, 2)
+  taxPercent     Decimal   @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal   @default(0) @db.Decimal(20, 2)
+  total          Decimal   @db.Decimal(20, 2)
+  paidAmount     Decimal   @default(0) @db.Decimal(20, 2)
+  state          String    @default("DRAFT")
+  notes          String?
+  cancelReason   String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  payments Payment[]
+
+  @@index([organizationId, state])
+  @@index([companyId])
+  @@map("invoices")
+}
+
+model Payment {
+  id             String    @id @default(uuid())
+  organizationId String
+  invoiceId      String?
+  invoice        Invoice?  @relation(fields: [invoiceId], references: [id])
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  supplierId     String?
+  supplier       Supplier? @relation(fields: [supplierId], references: [id])
+  direction      String
+  amount         Decimal   @db.Decimal(20, 2)
+  occurredAt     DateTime
+  method         String    @default("TRANSFER")
+  reference      String?
+  description    String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, direction])
+  @@index([invoiceId])
+  @@index([projectId])
+  @@map("payments")
+}
+
+model Settlement {
+  id             String   @id @default(uuid())
+  projectId      String   @unique
+  totalInvoiced  Decimal  @db.Decimal(20, 2)
+  totalReceived  Decimal  @db.Decimal(20, 2)
+  balance        Decimal  @db.Decimal(20, 2)
+  status         String
+  notes          String?
+  settledById    String
+  settledAt      DateTime @default(now())
+
+  @@map("settlements")
+}
+
+/* ═══════════════════════ Resources & suppliers (Doc_H §5) ═══════════════════════ */
+
+model Supplier {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  kind           String
+  departmentCode String?
+  specialty      String?
+  contactName    String?
+  phone          String?
+  email          String?
+  dayRate        Decimal? @db.Decimal(20, 2)
+  averageRating  Decimal? @db.Decimal(3, 2)
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  evaluations       SupplierEvaluation[]
+  outsourceRequests OutsourceRequest[]
+  payments          Payment[]
+
+  @@index([organizationId, kind])
+  @@map("suppliers")
+}
+
+model SupplierEvaluation {
+  id            String   @id @default(uuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  projectId     String?
+  quality       Int
+  timeliness    Int
+  communication Int
+  costValue     Int
+  wouldReuse    Boolean
+  comments      String?
+  evaluatedById String
+  createdAt     DateTime @default(now())
+
+  @@index([supplierId])
+  @@map("supplier_evaluations")
+}
+
+model OutsourceRequest {
+  id                   String     @id @default(uuid())
+  organizationId       String
+  code                 String     @unique
+  projectId            String
+  project              Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workOrderId          String?
+  workOrder            WorkOrder? @relation(fields: [workOrderId], references: [id])
+  kind                 String
+  supplierId           String?
+  supplier             Supplier?  @relation(fields: [supplierId], references: [id])
+  proposedSupplierName String?
+  scopeOfWork          String
+  estimatedCost        Decimal    @db.Decimal(20, 2)
+  neededBy             DateTime
+  justification        String
+  state                String     @default("REQUESTED")
+  approvedById         String?
+  approvedAt           DateTime?
+  rejectReason         String?
+  requestedById        String
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@index([organizationId, state])
+  @@map("outsource_requests")
+}
+
+model Allocation {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromDate     DateTime @db.Date
+  toDate       DateTime @db.Date
+  hoursPerDay  Decimal  @db.Decimal(5, 2)
+  notes        String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, fromDate, toDate])
+  @@index([projectId])
+  @@map("allocations")
+}
+
+/* ═══════════════════════ Governance registers ═══════════════════════ */
+
+model Risk {
+  id           String    @id @default(uuid())
+  organizationId String
+  code         String    @unique
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  probability  String
+  impact       String
+  mitigation   String?
+  state        String    @default("OPEN")
+  ownerId      String
+  owner        User      @relation(fields: [ownerId], references: [id])
+  closedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([projectId, state])
+  @@map("risks")
+}
+
+model Issue {
+  id               String    @id @default(uuid())
+  organizationId   String
+  code             String    @unique
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String
+  description      String
+  severity         String
+  state            String    @default("OPEN")
+  ownerId          String
+  owner            User      @relation(fields: [ownerId], references: [id])
+  targetResolution DateTime?
+  resolvedAt       DateTime?
+  resolution       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([projectId, state])
+  @@map("issues")
+}
+
+model Decision {
+  id           String   @id @default(uuid())
+  organizationId String
+  code         String   @unique
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  context      String
+  decision     String
+  alternatives String?
+  decidedById  String
+  decidedBy    User     @relation(fields: [decidedById], references: [id])
+  decidedAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+  @@map("decisions")
+}
+
+model Meeting {
+  id          String   @id @default(uuid())
+  organizationId String
+  code        String   @unique
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind        String
+  subject     String
+  heldAt      DateTime
+  attendees   String
+  agenda      String?
+  decisions   String?
+  actions     Json     @default("[]")
+  minutesRecordedAt DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@map("meetings")
+}
+
+model StatusReport {
+  id              String   @id @default(uuid())
+  organizationId  String
+  code            String   @unique
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  period          String
+  progress        String
+  completed       String?
+  inProgress      String?
+  next            String?
+  timelineStatus  String?
+  risks           String?
+  issues          String?
+  decisionsNeeded String?
+  financialStatus String?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  @@index([projectId])
+  @@map("status_reports")
+}
+
+/* ═══════════════════════ Closure & customer success (Doc_H §15) ═══════════════════════ */
+
+model ClosureChecklist {
+  id                        String   @id @default(uuid())
+  projectId                 String   @unique
+  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allDeliverablesDelivered  Boolean  @default(false)
+  finalQcDone               Boolean  @default(false)
+  clientApprovalRecorded    Boolean  @default(false)
+  closureReportDone         Boolean  @default(false)
+  financialStatusClear      Boolean  @default(false)
+  feedbackRecorded          Boolean  @default(false)
+  lessonsLearnedRecorded    Boolean  @default(false)
+  closedInSystem            Boolean  @default(false)
+  notes                     String?
+  updatedById               String?
+  updatedAt                 DateTime @updatedAt
+  createdAt                 DateTime @default(now())
+
+  @@map("closure_checklists")
+}
+
+model Feedback {
+  id                  String   @id @default(uuid())
+  organizationId      String
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  csat                Int
+  nps                 Int
+  qualityRating       Int?
+  timelinessRating    Int?
+  communicationRating Int?
+  positives           String?
+  improvements        String?
+  futureNeeds         String?
+  recordedById        String
+  createdAt           DateTime @default(now())
+
+  @@index([projectId])
+  @@map("feedbacks")
+}
+
+model LessonLearned {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title          String
+  category       String
+  situation      String
+  lesson         String
+  recommendation String
+  recordedById   String
+  createdAt      DateTime @default(now())
+
+  @@index([projectId])
+  @@map("lessons_learned")
+}
+
+/* ═══════════════════════ Form engine ═══════════════════════ */
+
+model FormDefinition {
+  id             String   @id @default(uuid())
+  organizationId String
+  no             Int
+  code           String   @unique
+  nameFa         String
+  nameEn         String
+  category       String
+  module         String
+  senderDepts    String[] @default([])
+  receiverDepts  String[] @default([])
+  approverRoles  String[] @default([])
+  slaCode        String?
+  binding        String?
+  nextProcessFa  String?
+  schema         Json
+  isActive       Boolean  @default(true)
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  submissions FormSubmission[]
+
+  @@index([organizationId, category])
+  @@index([module])
+  @@map("form_definitions")
+}
+
+model FormSubmission {
+  id             String         @id @default(uuid())
+  organizationId String
+  code           String         @unique
+  definitionId   String
+  definition     FormDefinition @relation(fields: [definitionId], references: [id])
+  data           Json
+  state          String         @default("DRAFT")
+  submittedById  String
+  submittedBy    User           @relation("FormSubmitter", fields: [submittedById], references: [id])
+  assignedToId   String?
+  assignedTo     User?          @relation("FormAssignee", fields: [assignedToId], references: [id])
+  projectId      String?
+  project        Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId      String?
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunityId  String?
+  opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  /// The domain record this submission created or drove, when the form has a typed binding.
+  boundEntity    String?
+  boundEntityId  String?
+  submittedAt    DateTime?
+  decidedAt      DateTime?
+  returnReason   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  approvals FormApproval[]
+  documents Document[]
+
+  @@index([organizationId, state])
+  @@index([definitionId, state])
+  @@index([assignedToId, state])
+  @@index([projectId])
+  @@map("form_submissions")
+}
+
+model FormApproval {
+  id           String         @id @default(uuid())
+  submissionId String
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  approverId   String
+  approver     User           @relation(fields: [approverId], references: [id])
+  decision     String
+  comment      String?
+  decidedAt    DateTime       @default(now())
+
+  @@index([submissionId])
+  @@map("form_approvals")
+}
+
+/* ═══════════════════════ SLA engine ═══════════════════════ */
+
+model SlaPolicy {
+  id             String   @id @default(uuid())
+  organizationId String
+  code           String   @unique
+  labelFa        String
+  labelEn        String
+  hours          Decimal  @db.Decimal(8, 2)
+  warnAt         Decimal  @default(0.75) @db.Decimal(4, 3)
+  docRef         String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clocks SlaClock[]
+
+  @@map("sla_policies")
+}
+
+model SlaClock {
+  id           String    @id @default(uuid())
+  organizationId String
+  policyId     String
+  policy       SlaPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  entityType   String
+  entityId     String
+  startedAt    DateTime  @default(now())
+  dueAt        DateTime
+  stoppedAt    DateTime?
+  pausedAt     DateTime?
+  pausedSeconds Int      @default(0)
+  state        String    @default("RUNNING")
+  warnedAt     DateTime?
+  breachedAt   DateTime?
+  ownerId      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([organizationId, state])
+  @@index([entityType, entityId])
+  @@index([state, dueAt])
+  @@map("sla_clocks")
+}
+
+/* ═══════════════════════ Documents ═══════════════════════ */
+
+model Document {
+  id             String          @id @default(uuid())
+  organizationId String
+  fileName       String
+  storedName     String          @unique
+  mimeType       String
+  sizeBytes      Int
+  checksum       String?
+  version        Int             @default(1)
+  projectId      String?
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId      String?
+  company        Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contractId     String?
+  contract       Contract?       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  deliverableId  String?
+  deliverable    Deliverable?    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  submissionId   String?
+  submission     FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  tags           String[]        @default([])
+  uploadedById   String
+  uploadedBy     User            @relation(fields: [uploadedById], references: [id])
+  createdAt      DateTime        @default(now())
+  deletedAt      DateTime?
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@map("documents")
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  entityType  String
+  entityId    String
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  body        String
+  mentions    String[] @default([])
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@map("comments")
+}
+
+/* ═══════════════════════ Audit, workflow log, notifications, AI ═══════════════════════ */
+
+model AuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  action         String
+  entityType     String
+  entityId       String?
+  actorId        String?
+  actor          User?    @relation(fields: [actorId], references: [id])
+  before         Json?
+  after          Json?
+  reason         String?
+  ipAddress      String?
+  userAgent      String?
+  requestId      String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@map("audit_events")
+}
+
+model StateTransition {
+  id         String   @id @default(uuid())
+  organizationId String
+  entityType String
+  entityId   String
+  fromState  String
+  toState    String
+  action     String
+  reason     String?
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@map("state_transitions")
+}
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?
+  severity   String    @default("INFO")
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// Doc_H-derived AI governance: every AI call is recorded with its actor, scope and grounding.
+model AiInteraction {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  capability     String
+  entityType     String?
+  entityId       String?
+  model          String
+  promptSummary  String
+  responseText   String?
+  groundingRefs  Json     @default("[]")
+  tokensIn       Int?
+  tokensOut      Int?
+  latencyMs      Int?
+  succeeded      Boolean  @default(true)
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@map("ai_interactions")
+}
+
+model Counter {
+  id     String @id @default(uuid())
+  scope  String @unique
+  value  Int    @default(0)
+
+  @@map("counters")
+}

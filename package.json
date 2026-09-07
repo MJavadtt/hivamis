@@ -1,0 +1,21 @@
+{
+  "name": "hiva-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hiva OS — Enterprise Operating Platform (CRM + Account + PMO + Traffic + QC + Proposal/Pricing + Contract + Finance + Customer Success)",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter @hiva/contracts build && pnpm --filter @hiva/api build && pnpm --filter @hiva/web build",
+    "db:generate": "pnpm --filter @hiva/api db:generate",
+    "db:migrate": "pnpm --filter @hiva/api db:migrate",
+    "db:push": "pnpm --filter @hiva/api db:push",
+    "db:seed": "pnpm --filter @hiva/api db:seed",
+    "db:reset": "pnpm --filter @hiva/api db:reset",
+    "test": "pnpm --filter @hiva/api test",
+    "test:e2e": "pnpm --filter @hiva/api test:e2e",
+    "typecheck": "pnpm -r typecheck",
+    "start": "pnpm --filter @hiva/api start"
+  },
+  "packageManager": "pnpm@10.26.2"
+}

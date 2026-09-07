@@ -1,0 +1,65 @@
+# Full stack: PostgreSQL + API + SPA behind nginx.
+# Copy .env.docker.example to .env and set the secrets before `docker compose up -d`.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hiva}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-hiva_os}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infrastructure/database/backup:/backup
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-hiva} -d ${POSTGRES_DB:-hiva_os}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published to the host: only the API reaches the database.
+    expose:
+      - '5432'
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hiva}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hiva_os}?schema=public
+      NODE_ENV: production
+      PORT: '4000'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-7d}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_MODEL: ${AI_MODEL:-claude-sonnet-4-5}
+      JOBS_ENABLED: 'true'
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+    volumes:
+      - storage:/app/storage
+    expose:
+      - '4000'
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-8080}:80'
+
+volumes:
+  db-data:
+  storage:

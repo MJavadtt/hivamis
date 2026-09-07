@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: hiva
+          POSTGRES_PASSWORD: hiva
+          POSTGRES_DB: hiva_os_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U hiva"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://hiva:hiva@localhost:5432/hiva_os_test?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile=false
+
+      - name: Generate Prisma client
+        run: pnpm --filter @hiva/api db:generate
+
+      - name: Type-check every package
+        run: pnpm -r typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Prepare test environment
+        working-directory: apps/api
+        run: |
+          cp .env.example .env.test
+          sed -i "s#^DATABASE_URL=.*#DATABASE_URL=\"$DATABASE_URL\"#" .env.test
+          sed -i 's#^JWT_SECRET=.*#JWT_SECRET=ci-only-secret-not-for-production-0123456789abcdef#' .env.test
+          sed -i 's#^NODE_ENV=.*#NODE_ENV=test#' .env.test
+          sed -i 's#^LOG_LEVEL=.*#LOG_LEVEL=silent#' .env.test
+          sed -i 's#^JOBS_ENABLED=.*#JOBS_ENABLED=false#' .env.test
+          sed -i 's#^RATE_LIMIT_MAX=.*#RATE_LIMIT_MAX=100000#' .env.test
+          sed -i 's#^LOGIN_RATE_LIMIT_MAX=.*#LOGIN_RATE_LIMIT_MAX=100000#' .env.test
+
+      - name: Run the full test suite
+        working-directory: apps/api
+        run: pnpm test
+
+      - name: Audit dependencies for known vulnerabilities
+        run: pnpm audit --audit-level high
+        continue-on-error: true
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f infrastructure/docker/Dockerfile.api -t hiva-os-api:ci .
+      - name: Build web image
+        run: docker build -f infrastructure/docker/Dockerfile.web -t hiva-os-web:ci .
