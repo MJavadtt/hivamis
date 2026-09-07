@@ -185,7 +185,7 @@ reshaping the schema.
 | Password storage | Argon2id, 19 MiB / 2 iterations / 1 lane (OWASP) |
 | Session | 15-minute access JWT; opaque refresh token stored only as SHA-256 digest; rotated single-use |
 | Brute force | Login rate limit plus account lock after 5 failures |
-| Authorization | 90 permissions across 16 roles, checked per route and again inside the workflow engine |
+| Authorization | 103 permissions across 16 roles, checked per route and again inside the workflow engine |
 | Audit | Every consequential mutation writes who / what / when / before / after / why; sensitive fields redacted |
 | Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list |
 | Upload | MIME allow-list, size cap, generated storage names, path-traversal check, `Content-Disposition: attachment` with `nosniff` |
