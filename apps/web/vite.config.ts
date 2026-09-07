@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // Bind on all interfaces so the dev server is reachable at localhost, 127.0.0.1
+    // and over the LAN (handy for checking the RTL layout on a phone).
+    host: true,
     proxy: {
       // The SPA talks to a same-origin /api path in dev, matching the production reverse proxy.
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
