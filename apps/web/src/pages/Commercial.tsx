@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import {
   Badge, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
   Table, Td, Th, Tr,
@@ -62,7 +63,12 @@ export function ContractDetail() {
           {data.contractNumber && <span className="ltr">{data.contractNumber}</span>}
           <Link to={`/companies/${data.company.id}`} className="text-brand-600 hover:underline">{data.company.legalName}</Link>
         </span>}
-        actions={<WorkflowActions entity="contract" id={data.id} transitions={data.availableTransitions} />}
+        actions={
+          <>
+            <PdfButton kind="contract" id={data.id} />
+            <WorkflowActions entity="contract" id={data.id} transitions={data.availableTransitions} />
+          </>
+        }
       />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title="اطلاعات قرارداد" className="lg:col-span-1">

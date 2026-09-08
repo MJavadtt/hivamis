@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
   Modal, Select, StateBadge, Table, Tabs, Td, Textarea, Th, Tr, useToast, cx, IconPlus, IconSearch,
@@ -528,7 +529,7 @@ function Submissions({ awaitingMe, mine }: { awaitingMe?: boolean; mine?: boolea
             <thead className="bg-ink-50/60">
               <tr>
                 <Th>فرم</Th><Th>دسته</Th><Th>ثبت‌کننده</Th><Th>پروژه</Th>
-                <Th>زمان</Th><Th>وضعیت</Th>{awaitingMe && <Th>اقدام</Th>}
+                <Th>زمان</Th><Th>وضعیت</Th><Th>خروجی</Th>{awaitingMe && <Th>اقدام</Th>}
               </tr>
             </thead>
             <tbody>
@@ -540,6 +541,7 @@ function Submissions({ awaitingMe, mine }: { awaitingMe?: boolean; mine?: boolea
                   <Td className="text-xs">{s.project?.name ?? '—'}</Td>
                   <Td className="text-xs">{formatDateTime(s.createdAt)}</Td>
                   <Td><StateBadge state={s.state} /></Td>
+                  <Td><PdfButton kind="form-submission" id={s.id} label="PDF" variant="ghost" /></Td>
                   {awaitingMe && (
                     <Td>
                       <Button size="sm" variant="primary" onClick={() => setDecide(s)}>بررسی</Button>
@@ -591,6 +593,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       title={`بررسی: ${submission.definition.nameFa}`}
       footer={
         <>
+          <PdfButton kind="form-submission" id={submission.id} />
           <Button variant="ghost" onClick={onClose}>انصراف</Button>
           <Button variant="secondary" loading={busy} disabled={!comment.trim()} onClick={() => void decide('RETURN')}>
             بازگشت برای اصلاح

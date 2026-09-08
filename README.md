@@ -128,6 +128,7 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 | [Requirements traceability](docs/traceability.md) | Every Doc_H requirement → code → test |
 | [API reference](docs/api.md) | Endpoints, auth, errors, conventions |
 | [Operations](docs/operations.md) | Deployment, backup, monitoring, troubleshooting |
+| [docs/pdf-export.md](docs/pdf-export.md) — خروجی PDF اسناد و ترتیب دسترسی
 | [User guide](docs/user-guide.md) | Per-role walkthrough of daily work |
 | [Market analysis](docs/market-analysis.md) | Competitive benchmark and the gap this fills |
 

@@ -5,6 +5,7 @@ import { apiGet, apiPatch } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, Count, EntityList, HealthDot, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -150,7 +151,15 @@ export function ProjectDetail() {
             <span>مالک اکانت: {p.accountOwner.fullName}</span>
           </span>
         }
-        actions={<WorkflowActions entity="project" id={p.id} transitions={data.availableTransitions} />}
+        actions={
+          <>
+            <PdfButton kind="project" id={p.id} label="پرونده پروژه" />
+            {['COMPLETED', 'PENDING_CLOSURE', 'CLOSED'].includes(p.state) && (
+              <PdfButton kind="closure-report" id={p.id} label="گزارش پایان" />
+            )}
+            <WorkflowActions entity="project" id={p.id} transitions={data.availableTransitions} />
+          </>
+        }
       />
 
       {!authorized && ['ACTIVE', 'PLANNING'].includes(p.state) && (

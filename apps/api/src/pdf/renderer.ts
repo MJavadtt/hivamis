@@ -1,0 +1,218 @@
+import { chromium, type Browser } from 'playwright-core';
+import { readFile } from 'node:fs/promises';
+import { existsSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { AppError } from '../lib/errors.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Persian requires contextual glyph shaping and bidirectional layout. No pure-JS PDF writer
+ * gets this right, so documents are laid out by a real browser engine and printed to PDF.
+ */
+let browserPromise: Promise<Browser> | null = null;
+
+/**
+ * Locate a Chromium binary without depending on Playwright's own revision bookkeeping:
+ * an explicit override wins, then Playwright's browser cache, then a system Chrome.
+ * Keeps dev (cached Chromium) and production (image-provided Chrome) on the same code path.
+ */
+function resolveExecutable(): string | undefined {
+  const override = process.env.PDF_BROWSER_PATH;
+  if (override) {
+    if (!existsSync(override)) {
+      throw new AppError(500, 'PDF_BROWSER_MISSING', `مسیر مرورگر تعیین‌شده وجود ندارد: ${override}`);
+    }
+    return override;
+  }
+
+  const cacheRoot =
+    process.env.PLAYWRIGHT_BROWSERS_PATH ||
+    (process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library/Caches/ms-playwright')
+      : path.join(os.homedir(), '.cache/ms-playwright'));
+
+  if (existsSync(cacheRoot)) {
+    // Highest revision first, so an upgraded cache is picked up without code changes.
+    const dirs = readdirSync(cacheRoot)
+      .filter((d) => d.startsWith('chromium'))
+      .sort((a, b) => (Number(b.split('-')[1]) || 0) - (Number(a.split('-')[1]) || 0));
+    for (const dir of dirs) {
+      for (const rel of [
+        'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
+        'chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
+        'chrome-linux/chrome',
+        'chrome-win/chrome.exe',
+      ]) {
+        const p = path.join(cacheRoot, dir, rel);
+        if (existsSync(p)) return p;
+      }
+    }
+  }
+
+  for (const p of [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+  ]) {
+    if (existsSync(p)) return p;
+  }
+  return undefined; // let Playwright try its own default
+}
+
+async function getBrowser(): Promise<Browser> {
+  browserPromise ??= chromium
+    .launch({
+      executablePath: resolveExecutable(),
+      args: ['--no-sandbox', '--disable-dev-shm-usage', '--font-render-hinting=none'],
+    })
+    .catch((err) => {
+      browserPromise = null; // allow a later request to retry
+      throw new AppError(
+        503,
+        'PDF_ENGINE_UNAVAILABLE',
+        'موتور تولید PDF در دسترس نیست. راهنمای راه‌اندازی: docs/pdf-export.md',
+        { cause: err instanceof Error ? err.message : String(err) },
+      );
+    });
+  return browserPromise;
+}
+
+let fontCache: { regular: string; bold: string } | null = null;
+
+/** Base64 the bundled Vazirmatn faces so a PDF renders identically on a host with no Persian fonts. */
+async function fonts(): Promise<{ regular: string; bold: string }> {
+  if (fontCache) return fontCache;
+  const dir = path.join(here, 'assets');
+  const [regular, bold] = await Promise.all([
+    readFile(path.join(dir, 'Vazirmatn-Regular.woff2')),
+    readFile(path.join(dir, 'Vazirmatn-Bold.woff2')),
+  ]);
+  fontCache = { regular: regular.toString('base64'), bold: bold.toString('base64') };
+  return fontCache;
+}
+
+export interface RenderOptions {
+  /** Right-hand header line, typically the document code. */
+  headerRight?: string;
+  landscape?: boolean;
+  footerNote?: string;
+}
+
+/**
+ * Render a document body to a PDF buffer.
+ *
+ * The page is rendered with networking disabled: every asset is inlined, so a value that
+ * contained markup could never trigger an outbound request from the render host.
+ */
+export async function renderPdf(bodyHtml: string, opts: RenderOptions = {}): Promise<Buffer> {
+  const browser = await getBrowser();
+  const context = await browser.newContext({
+    locale: 'fa-IR',
+    timezoneId: 'Asia/Tehran',
+    offline: true,
+    javaScriptEnabled: false,
+  });
+
+  try {
+    const page = await context.newPage();
+    await page.route('**/*', (route) =>
+      route.request().url().startsWith('data:') ? route.continue() : route.abort(),
+    );
+
+    const { regular, bold } = await fonts();
+    await page.setContent(shell(bodyHtml, regular, bold), { waitUntil: 'load', timeout: 15_000 });
+
+    return await page.pdf({
+      format: 'A4',
+      landscape: opts.landscape ?? false,
+      printBackground: true,
+      margin: { top: '22mm', bottom: '20mm', left: '14mm', right: '14mm' },
+      displayHeaderFooter: true,
+      headerTemplate: headerTemplate(opts.headerRight ?? ''),
+      footerTemplate: footerTemplate(opts.footerNote ?? ''),
+    });
+  } finally {
+    await context.close().catch(() => undefined);
+  }
+}
+
+const headerTemplate = (right: string) => `
+<div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
+            padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
+  <span>هیوا — سامانه عملیات سازمانی</span><span>${right}</span>
+</div>`;
+
+const footerTemplate = (note: string) => `
+<div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
+            padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
+  <span>${note}</span>
+  <span>صفحه <span class="pageNumber"></span> از <span class="totalPages"></span></span>
+</div>`;
+
+/** Document chrome: embedded fonts, RTL root, and the print stylesheet shared by every template. */
+function shell(body: string, regular: string, bold: string): string {
+  return `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Vazirmatn;font-weight:400;font-style:normal;font-display:block;
+  src:url(data:font/woff2;base64,${regular}) format('woff2');}
+@font-face{font-family:Vazirmatn;font-weight:700;font-style:normal;font-display:block;
+  src:url(data:font/woff2;base64,${bold}) format('woff2');}
+*{box-sizing:border-box;}
+body{font-family:Vazirmatn,sans-serif;font-size:9.5pt;line-height:1.75;color:#0f172a;margin:0;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;}
+h1{font-size:15pt;margin:0 0 2mm;font-weight:700;}
+h2{font-size:11pt;margin:7mm 0 2.5mm;padding-bottom:1.5mm;border-bottom:1.5px solid #e2e8f0;
+  font-weight:700;color:#1e293b;page-break-after:avoid;}
+h3{font-size:9.5pt;margin:4mm 0 1.5mm;font-weight:700;color:#334155;page-break-after:avoid;}
+p{margin:0 0 2mm;}
+.doc-head{border-bottom:2.5px solid #0f172a;padding-bottom:4mm;margin-bottom:5mm;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;}
+.brand{font-size:8pt;color:#64748b;letter-spacing:.4px;}
+.code{font-family:ui-monospace,monospace;font-size:9pt;color:#475569;direction:ltr;text-align:left;}
+.chip{display:inline-block;padding:.6mm 2.4mm;border-radius:2.5mm;font-size:7.5pt;
+  background:#f1f5f9;color:#334155;border:.4px solid #cbd5e1;}
+.chip-ok{background:#dcfce7;color:#166534;border-color:#86efac;}
+.chip-warn{background:#fef3c7;color:#92400e;border-color:#fcd34d;}
+.chip-bad{background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+table{width:100%;border-collapse:collapse;margin:2mm 0 4mm;font-size:8.5pt;page-break-inside:auto;}
+th,td{border:.4px solid #cbd5e1;padding:1.6mm 2.2mm;text-align:right;vertical-align:top;}
+th{background:#f8fafc;font-weight:700;color:#334155;}
+tr{page-break-inside:avoid;}
+.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:2.5mm 5mm;margin:3mm 0 5mm;
+  background:#f8fafc;border:.4px solid #e2e8f0;border-radius:2mm;padding:3.5mm 4mm;}
+.meta div{font-size:8.5pt;}
+.meta .k{color:#64748b;font-size:7.5pt;display:block;margin-bottom:.4mm;}
+.meta .v{font-weight:700;color:#0f172a;}
+.field{margin-bottom:3mm;page-break-inside:avoid;}
+.field .k{color:#64748b;font-size:7.5pt;display:block;margin-bottom:.6mm;}
+.field .v{white-space:pre-wrap;}
+.redacted{color:#94a3b8;font-style:italic;font-size:8pt;}
+.num{font-variant-numeric:tabular-nums;direction:ltr;display:inline-block;}
+.muted{color:#64748b;}
+.rule{background:#fffbeb;border:.4px solid #fcd34d;border-right:2.5px solid #f59e0b;
+  padding:2.5mm 3mm;border-radius:1.5mm;margin:3mm 0;font-size:8pt;color:#78350f;}
+.sig{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm;margin-top:10mm;page-break-inside:avoid;}
+.sig div{border-top:.6px solid #94a3b8;padding-top:2mm;font-size:8pt;color:#475569;min-height:16mm;}
+.empty{color:#94a3b8;font-style:italic;}
+</style></head><body>${body}</body></html>`;
+}
+
+export async function shutdownPdfEngine(): Promise<void> {
+  const p = browserPromise;
+  browserPromise = null;
+  if (p) await p.then((b) => b.close()).catch(() => undefined);
+}
+
+/** True when a browser can actually be launched — surfaced on the health endpoint. */
+export async function pdfEngineHealthy(): Promise<boolean> {
+  try {
+    await getBrowser();
+    return true;
+  } catch {
+    return false;
+  }
+}

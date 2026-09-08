@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -315,6 +316,7 @@ export function CompanyDetail() {
             سلامت مشتری: {toPersianDigits(c.healthScore)}
           </Badge>
         )}
+        actions={<PdfButton kind="company" id={c.id} label="پرونده مشتری" />}
       />
 
       <div className="border-b border-ink-200 bg-white px-2">

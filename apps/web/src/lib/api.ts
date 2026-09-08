@@ -111,3 +111,44 @@ export interface Page<T> {
   pageSize: number;
   pageCount: number;
 }
+
+/**
+ * Download a generated PDF.
+ *
+ * The export endpoint is permission-gated and returns a Bearer-authenticated binary, so it cannot
+ * be reached with a plain link; the response is buffered to a blob and handed to the browser.
+ * The server sets the Persian filename via RFC 5987, which is preferred over the ASCII fallback.
+ */
+export async function downloadPdf(kind: string, id: string): Promise<void> {
+  const url = new URL(`/api/v1/pdf/${kind}/${id}`, window.location.origin);
+
+  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+
+  let res = await send();
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+
+  if (!res.ok) {
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    try {
+      const parsed = await res.json();
+      if (parsed?.error) body = parsed.error;
+    } catch { /* binary or empty body — keep the fallback */ }
+    throw new ApiError(res.status, body);
+  }
+
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  const ascii = /filename="([^"]+)"/i.exec(disposition);
+  const filename = utf8 ? decodeURIComponent(utf8[1]) : (ascii?.[1] ?? `${kind}-${id}.pdf`);
+
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoke on the next tick; revoking synchronously can cancel the download in Safari.
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}

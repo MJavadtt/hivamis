@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, LoadingBlock, Modal,
   Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, useToast,
@@ -197,7 +198,10 @@ function RevisionsTable({ rows }: { rows: any[] }) {
                 <p className="text-[11px] text-ink-400">{formatRelative(r.dueDate)}</p>
               </Td>
               <Td><StateBadge state={r.state} /></Td>
-              <Td><WorkflowActions entity="revision" id={r.id} transitions={r.availableTransitions} /></Td>
+              <Td className="flex items-center gap-1">
+                <PdfButton kind="revision" id={r.id} label="PDF" variant="ghost" />
+                <WorkflowActions entity="revision" id={r.id} transitions={r.availableTransitions} />
+              </Td>
             </Tr>
           );
         })}

@@ -24,6 +24,7 @@ import adminRoutes from './routes/admin.js';
 import documentRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
 import searchRoutes from './routes/search.js';
+import pdfRoutes from './routes/pdf.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -130,6 +131,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(documentRoutes);
     await api.register(aiRoutes);
     await api.register(searchRoutes);
+    await api.register(pdfRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

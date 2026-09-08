@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -145,6 +146,7 @@ export function WorkOrderDetail() {
             {can('pricing.declare_cost') && (
               <Button variant="secondary" onClick={() => setCosting(true)}>اعلام قیمت تمام‌شده</Button>
             )}
+            <PdfButton kind="work-order" id={data.id} />
             <WorkflowActions entity="workOrder" id={data.id} transitions={data.availableTransitions} />
           </>
         }

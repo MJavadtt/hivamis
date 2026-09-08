@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { PdfButton } from '../components/PdfButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -73,7 +74,12 @@ export function BriefDetail() {
         badge={<StateBadge state={data.state} />}
         subtitle={<span className="flex items-center gap-2"><Code>{data.code}</Code>
           {data.opportunity && <Link to={`/opportunities/${data.opportunity.id}`} className="text-brand-600 hover:underline">{data.opportunity.title}</Link>}</span>}
-        actions={<WorkflowActions entity="brief" id={data.id} transitions={data.availableTransitions} />}
+        actions={
+          <>
+            <PdfButton kind="brief" id={data.id} />
+            <WorkflowActions entity="brief" id={data.id} transitions={data.availableTransitions} />
+          </>
+        }
       />
       <PageBody className="space-y-5">
         {!complete && (
@@ -224,6 +230,7 @@ export function ProposalDetail() {
                 تأیید قیمت‌گذاری
               </Button>
             )}
+            <PdfButton kind="proposal" id={data.id} />
             <WorkflowActions entity="proposal" id={data.id} transitions={data.availableTransitions} />
           </>
         }
