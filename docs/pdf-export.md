@@ -26,13 +26,32 @@ pnpm --filter @hiva/api exec playwright install chromium
 
 ### در Docker
 
+`infrastructure/docker/Dockerfile.api` این کار را انجام می‌دهد و نیازی به تغییر نیست:
+
 ```dockerfile
-RUN apt-get update && apt-get install -y chromium fonts-liberation \
+FROM node:22-bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      chromium ca-certificates openssl tini curl \
  && rm -rf /var/lib/apt/lists/*
 ENV PDF_BROWSER_PATH=/usr/bin/chromium
 ```
 
-نیازی به نصب قلم فارسی روی ایمیج نیست؛ قلم داخل سند جاسازی می‌شود.
+هر دو مرحلهٔ build و runtime روی Debian هستند، نه Alpine — به دو دلیل:
+
+1. Playwright رسماً Debian و Ubuntu را پشتیبانی می‌کند؛ Alpine در فهرست پشتیبانی‌شده نیست.
+2. `@node-rs/argon2` و موتور Prisma باینری وابسته به پلتفرم دارند. ساخت روی musl و اجرا روی
+   glibc (یا برعکس) کانتینری می‌سازد که هنگام راه‌اندازی شکست می‌خورد؛ بنابراین هر دو مرحله
+   باید یک libc مشترک داشته باشند.
+
+نیازی به نصب قلم فارسی روی ایمیج نیست؛ `renderer.ts` وزیرمتن را به‌صورت base64 داخل هر سند
+جاسازی می‌کند، پس خروجی روی میزبانی بدون هیچ قلم فارسی هم یکسان است. بستهٔ `fonts-liberation`
+لازم نیست.
+
+بررسی اینکه مرورگر در ایمیج کار می‌کند:
+
+```bash
+docker run --rm --entrypoint sh hiva-api:latest -c '$PDF_BROWSER_PATH --version'
+```
 
 ## بررسی سلامت
 

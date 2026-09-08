@@ -52,6 +52,8 @@ on first sign-in), then deactivate the demo users.
 | `REFRESH_TOKEN_TTL` | no | 7d | |
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
 | `MAX_UPLOAD_MB` | no | 25 | |
+| `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
+| `PDF_BROWSER_PATH` | no | — | Chromium binary for PDF export. Unset locally (the renderer probes the Playwright cache and system paths); the Docker image pins it to `/usr/bin/chromium`. Without a resolvable browser, `/api/v1/pdf/*` returns 503 and the rest of the platform is unaffected. |
 | `RATE_LIMIT_MAX` | no | 300 | Requests/minute per user or IP |
 | `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts/minute per IP |
 | `JOBS_ENABLED` | no | true | SLA ticking and digests |
@@ -83,6 +85,51 @@ The script demands you type `RESTORE` — it overwrites the target database.
 
 **Test your restore.** A backup you have never restored is a hypothesis, not a backup. Restore
 into a scratch database quarterly and check `/health/ready` plus a project 360 view.
+
+## Production readiness checklist
+
+Every item is checkable; none is advisory.
+
+**1. No demo accounts.** The seed's demo phase requires `SEED_DEMO_DATA=true` *and* a
+non-production `NODE_ENV`, so a production seed cannot create them. Verify anyway — a database
+restored from a development dump carries them:
+
+```bash
+curl -s localhost:4000/health/ready    # demoAccounts must be 0
+```
+
+A non-zero count is also logged at `fatal` on startup, naming each account. Deactivate with
+`POST /api/v1/users/:id/deactivate` (this revokes their sessions).
+
+**2. `JWT_SECRET` rotated.** It must not be `CHANGE_ME` or any value from an example file.
+Rotating it invalidates every existing session, which is the intent on first deploy:
+
+```bash
+openssl rand -base64 48
+```
+
+**3. `CORS_ORIGIN` is the real origin.** The default `http://localhost:5173` will refuse the
+browser in production. Set it to the deployed origin, comma-separated if several.
+
+**4. TLS terminated upstream.** The `web` container serves plain HTTP on `:8080` by design.
+Put a TLS proxy in front of it and add HSTS there — not in `nginx.conf`, which has no
+certificate. See "Reverse proxy and headers" below.
+
+**5. Backups scheduled *and* a restore rehearsed.** A backup that has never been restored is
+an assumption, not a backup:
+
+```bash
+DATABASE_URL=… STORAGE_DIR=./storage ./infrastructure/database/backup.sh
+# then, against a scratch database, prove it comes back:
+./infrastructure/database/restore.sh <dump>
+```
+
+**6. `PDF_BROWSER_PATH` resolves.** Confirm the engine is reachable inside the image:
+
+```bash
+docker compose exec api sh -c '$PDF_BROWSER_PATH --version'
+```
+
 
 ## Monitoring
 

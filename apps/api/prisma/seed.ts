@@ -18,6 +18,84 @@ const prisma = new PrismaClient();
 /** Development-only shared password for the demo accounts. Never use outside local dev. */
 const DEV_PASSWORD = 'Hiva@Dev2026!';
 
+/**
+ * Demo data is opt-in and never loads in production. Both conditions are required so that
+ * neither a stray flag nor a mis-set NODE_ENV alone can put the published demo password
+ * into a live database.
+ */
+function demoSeedAllowed(): boolean {
+  return process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO_DATA === 'true';
+}
+
+/**
+ * The fifteen demo accounts. Development only — they share a password that is published in
+ * README.md, so they must never exist in a production database. Called solely from the
+ * demo phase, which {@link demoSeedAllowed} gates.
+ */
+async function seedDemoUsers(
+  org: { id: string },
+  departments: Map<DepartmentCode, string>,
+  roleIds: Map<RoleCode, string>,
+): Promise<Map<string, { id: string; dept: DepartmentCode }>> {
+  console.log('→ seeding users …');
+  const passwordHash = await hashPassword(DEV_PASSWORD);
+  const userSpecs: { email: string; fullName: string; dept: DepartmentCode; roles: RoleCode[]; title: string }[] = [
+    { email: 'admin@hiva.local', fullName: 'مدیر سیستم', dept: 'M', roles: ['SUPER_ADMIN'], title: 'مدیر سیستم' },
+    { email: 'ceo@hiva.local', fullName: 'سارا مدیری', dept: 'M', roles: ['CEO'], title: 'مدیرعامل' },
+    { email: 'deputy@hiva.local', fullName: 'کامران راد', dept: 'M', roles: ['DEPUTY'], title: 'قائم‌مقام' },
+    { email: 'sales.manager@hiva.local', fullName: 'نیما فروزان', dept: 'S', roles: ['SALES_MANAGER'], title: 'مدیر فروش' },
+    { email: 'sales@hiva.local', fullName: 'الهام کریمی', dept: 'S', roles: ['SALES_REP'], title: 'کارشناس فروش' },
+    { email: 'account.manager@hiva.local', fullName: 'رضا شریفی', dept: 'A', roles: ['ACCOUNT_MANAGER'], title: 'مدیر اکانت' },
+    { email: 'account@hiva.local', fullName: 'مینا رستمی', dept: 'A', roles: ['ACCOUNT_EXEC'], title: 'کارشناس اکانت' },
+    { email: 'strategy@hiva.local', fullName: 'آرش نیک‌بین', dept: 'ST', roles: ['UNIT_MANAGER'], title: 'مدیر استراتژی' },
+    { email: 'creative@hiva.local', fullName: 'سپیده آذر', dept: 'CR', roles: ['UNIT_MANAGER'], title: 'مدیر خلاقیت' },
+    { email: 'designer@hiva.local', fullName: 'بهراد مهرنیا', dept: 'CR', roles: ['UNIT_MEMBER'], title: 'طراح ارشد' },
+    { email: 'media@hiva.local', fullName: 'حمید صابری', dept: 'ME', roles: ['UNIT_MANAGER'], title: 'مدیر رسانه' },
+    { email: 'digital@hiva.local', fullName: 'نگار حیدری', dept: 'DM', roles: ['UNIT_MANAGER'], title: 'مدیر دیجیتال مارکتینگ' },
+    { email: 'pmo@hiva.local', fullName: 'فرشاد بهرامی', dept: 'OP', roles: ['PMO_MANAGER'], title: 'مدیر عملیات / PMO' },
+    { email: 'finance@hiva.local', fullName: 'لیلا موسوی', dept: 'FI', roles: ['FINANCE_MANAGER'], title: 'مدیر مالی' },
+    { email: 'legal@hiva.local', fullName: 'سعید تقوی', dept: 'LG', roles: ['LEGAL_MANAGER'], title: 'مدیر حقوقی' },
+  ];
+
+  const users = new Map<string, { id: string; dept: DepartmentCode }>();
+  for (const spec of userSpecs) {
+    const user = await prisma.user.upsert({
+      where: { email: spec.email },
+      create: {
+        organizationId: org.id,
+        departmentId: departments.get(spec.dept)!,
+        email: spec.email,
+        fullName: spec.fullName,
+        jobTitle: spec.title,
+        passwordHash,
+        weeklyCapacityHours: 40,
+      },
+      update: { fullName: spec.fullName, jobTitle: spec.title, departmentId: departments.get(spec.dept)! },
+    });
+    await prisma.userRole.deleteMany({ where: { userId: user.id } });
+    await prisma.userRole.createMany({
+      data: spec.roles.map((r) => ({ userId: user.id, roleId: roleIds.get(r)! })),
+      skipDuplicates: true,
+    });
+    users.set(spec.email, { id: user.id, dept: spec.dept });
+  }
+
+  // Unit managers own their departments.
+  for (const [code, email] of [
+    ['S', 'sales.manager@hiva.local'], ['A', 'account.manager@hiva.local'],
+    ['ST', 'strategy@hiva.local'], ['CR', 'creative@hiva.local'],
+    ['ME', 'media@hiva.local'], ['DM', 'digital@hiva.local'],
+    ['OP', 'pmo@hiva.local'], ['FI', 'finance@hiva.local'],
+    ['LG', 'legal@hiva.local'], ['M', 'ceo@hiva.local'],
+  ] as const) {
+    await prisma.department.update({
+      where: { id: departments.get(code)! },
+      data: { managerId: users.get(email)!.id },
+    });
+  }
+  return users;
+}
+
 async function main() {
   console.log('→ seeding organisation …');
   const org = await prisma.organization.upsert({
@@ -135,64 +213,25 @@ async function main() {
     });
   }
 
-  console.log('→ seeding users …');
-  const passwordHash = await hashPassword(DEV_PASSWORD);
-  const userSpecs: { email: string; fullName: string; dept: DepartmentCode; roles: RoleCode[]; title: string }[] = [
-    { email: 'admin@hiva.local', fullName: 'مدیر سیستم', dept: 'M', roles: ['SUPER_ADMIN'], title: 'مدیر سیستم' },
-    { email: 'ceo@hiva.local', fullName: 'سارا مدیری', dept: 'M', roles: ['CEO'], title: 'مدیرعامل' },
-    { email: 'deputy@hiva.local', fullName: 'کامران راد', dept: 'M', roles: ['DEPUTY'], title: 'قائم‌مقام' },
-    { email: 'sales.manager@hiva.local', fullName: 'نیما فروزان', dept: 'S', roles: ['SALES_MANAGER'], title: 'مدیر فروش' },
-    { email: 'sales@hiva.local', fullName: 'الهام کریمی', dept: 'S', roles: ['SALES_REP'], title: 'کارشناس فروش' },
-    { email: 'account.manager@hiva.local', fullName: 'رضا شریفی', dept: 'A', roles: ['ACCOUNT_MANAGER'], title: 'مدیر اکانت' },
-    { email: 'account@hiva.local', fullName: 'مینا رستمی', dept: 'A', roles: ['ACCOUNT_EXEC'], title: 'کارشناس اکانت' },
-    { email: 'strategy@hiva.local', fullName: 'آرش نیک‌بین', dept: 'ST', roles: ['UNIT_MANAGER'], title: 'مدیر استراتژی' },
-    { email: 'creative@hiva.local', fullName: 'سپیده آذر', dept: 'CR', roles: ['UNIT_MANAGER'], title: 'مدیر خلاقیت' },
-    { email: 'designer@hiva.local', fullName: 'بهراد مهرنیا', dept: 'CR', roles: ['UNIT_MEMBER'], title: 'طراح ارشد' },
-    { email: 'media@hiva.local', fullName: 'حمید صابری', dept: 'ME', roles: ['UNIT_MANAGER'], title: 'مدیر رسانه' },
-    { email: 'digital@hiva.local', fullName: 'نگار حیدری', dept: 'DM', roles: ['UNIT_MANAGER'], title: 'مدیر دیجیتال مارکتینگ' },
-    { email: 'pmo@hiva.local', fullName: 'فرشاد بهرامی', dept: 'OP', roles: ['PMO_MANAGER'], title: 'مدیر عملیات / PMO' },
-    { email: 'finance@hiva.local', fullName: 'لیلا موسوی', dept: 'FI', roles: ['FINANCE_MANAGER'], title: 'مدیر مالی' },
-    { email: 'legal@hiva.local', fullName: 'سعید تقوی', dept: 'LG', roles: ['LEGAL_MANAGER'], title: 'مدیر حقوقی' },
-  ];
-
-  const users = new Map<string, { id: string; dept: DepartmentCode }>();
-  for (const spec of userSpecs) {
-    const user = await prisma.user.upsert({
-      where: { email: spec.email },
-      create: {
-        organizationId: org.id,
-        departmentId: departments.get(spec.dept)!,
-        email: spec.email,
-        fullName: spec.fullName,
-        jobTitle: spec.title,
-        passwordHash,
-        weeklyCapacityHours: 40,
-      },
-      update: { fullName: spec.fullName, jobTitle: spec.title, departmentId: departments.get(spec.dept)! },
-    });
-    await prisma.userRole.deleteMany({ where: { userId: user.id } });
-    await prisma.userRole.createMany({
-      data: spec.roles.map((r) => ({ userId: user.id, roleId: roleIds.get(r)! })),
-      skipDuplicates: true,
-    });
-    users.set(spec.email, { id: user.id, dept: spec.dept });
-  }
-
-  // Unit managers own their departments.
-  for (const [code, email] of [
-    ['S', 'sales.manager@hiva.local'], ['A', 'account.manager@hiva.local'],
-    ['ST', 'strategy@hiva.local'], ['CR', 'creative@hiva.local'],
-    ['ME', 'media@hiva.local'], ['DM', 'digital@hiva.local'],
-    ['OP', 'pmo@hiva.local'], ['FI', 'finance@hiva.local'],
-    ['LG', 'legal@hiva.local'], ['M', 'ceo@hiva.local'],
-  ] as const) {
-    await prisma.department.update({
-      where: { id: departments.get(code)! },
-      data: { managerId: users.get(email)!.id },
-    });
-  }
-
   await syncCounters();
+
+  // ── demo phase ────────────────────────────────────────────────────────────
+  // Everything above is reference data and is always safe to load. Everything below
+  // creates accounts and business records that must not exist in production.
+  if (!demoSeedAllowed()) {
+    const why =
+      process.env.NODE_ENV === 'production'
+        ? 'محیط تولید است'
+        : 'متغیر SEED_DEMO_DATA تنظیم نشده است';
+    console.log(
+      `→ داده نمونه بارگذاری نشد — ${why}.\n` +
+      '→ Demo data skipped. To load it, set SEED_DEMO_DATA=true outside production.',
+    );
+    await summary();
+    return;
+  }
+
+  const users = await seedDemoUsers(org, departments, roleIds);
 
   const existingCompanies = await prisma.company.count();
   if (existingCompanies > 0) {
@@ -762,8 +801,14 @@ async function summary() {
   ]);
   console.log('\n✓ seed complete');
   console.table({ users, formDefinitions: forms, slaPolicies: slas, companies, projects, tasks });
-  console.log(`\n  Development login (all demo accounts): ${DEV_PASSWORD}`);
-  console.log('  Sign in as admin@hiva.local, account.manager@hiva.local, sales@hiva.local, …\n');
+  // Only advertise the shared password when the demo phase actually ran; printing it after a
+  // production seed would suggest accounts exist that deliberately do not.
+  if (demoSeedAllowed()) {
+    console.log(`\n  Development login (all demo accounts): ${DEV_PASSWORD}`);
+    console.log('  Sign in as admin@hiva.local, account.manager@hiva.local, sales@hiva.local, …\n');
+  } else {
+    console.log('\n  Reference data only. Create the first administrator before signing in.\n');
+  }
 }
 
 main()

@@ -1,5 +1,13 @@
+# Both stages run Debian, not Alpine, and that is deliberate on two counts:
+#
+#  1. The PDF engine drives Chromium through playwright-core. Playwright supports Debian and
+#     Ubuntu; Alpine is not a supported platform. A headline feature should not run on one.
+#  2. @node-rs/argon2 and Prisma's query engine ship platform-specific binaries. Building on
+#     musl and running on glibc (or the reverse) yields a container that fails at startup, so
+#     the two stages must share a libc regardless of which one is chosen.
+
 # ── build ─────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /repo
 
@@ -18,20 +26,39 @@ RUN pnpm --filter @hiva/api --prod deploy /out && \
     cp -r apps/api/prisma /out/prisma
 
 # ── runtime ───────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runtime
-RUN apk add --no-cache tini curl && addgroup -S hiva && adduser -S hiva -G hiva
+FROM node:22-bookworm-slim AS runtime
+
+# chromium: the PDF engine. openssl: required by Prisma's query engine.
+# No Persian font package is needed — apps/api/src/pdf/renderer.ts embeds Vazirmatn as
+# base64 in every document, so output is identical on a host with no fonts installed.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      chromium \
+      ca-certificates \
+      openssl \
+      tini \
+      curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system hiva \
+    && useradd --system --gid hiva --create-home --home-dir /home/hiva hiva
+
 WORKDIR /app
 
 COPY --from=build --chown=hiva:hiva /out ./
 RUN mkdir -p /app/storage && chown -R hiva:hiva /app/storage
 
-ENV NODE_ENV=production PORT=4000 HOST=0.0.0.0 STORAGE_DIR=/app/storage
+# Pinned explicitly so browser resolution never depends on probing the filesystem.
+ENV NODE_ENV=production \
+    PORT=4000 \
+    HOST=0.0.0.0 \
+    STORAGE_DIR=/app/storage \
+    PDF_BROWSER_PATH=/usr/bin/chromium
+
 EXPOSE 4000
 USER hiva
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:4000/health/ready || exit 1
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 # Migrations are applied on start so a deploy is a single, ordered step.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

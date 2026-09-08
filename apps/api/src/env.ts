@@ -11,6 +11,12 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL: z.string().default('7d'),
   STORAGE_DIR: z.string().default('./storage'),
+  /**
+   * Absolute path to the Chromium/Chrome binary the PDF engine drives. Left unset in local
+   * development, where the renderer probes the Playwright cache and the usual system paths;
+   * set explicitly in the container so resolution never depends on a filesystem probe.
+   */
+  PDF_BROWSER_PATH: z.string().optional(),
   MAX_UPLOAD_MB: z.coerce.number().int().default(25),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   AI_MODEL: z.string().default('claude-sonnet-4-5'),

@@ -1,5 +1,38 @@
 @import 'tailwindcss';
 
+
+/* Self-hosted Vazirmatn (SIL OFL 1.1 — see public/fonts/OFL.txt).
+   Four weights, matching what the SPA uses: 400 body, 500 (×56), 600 (×21), 700 (×2).
+   Shipping only 400/700 would make the browser snap 500→400 and 600→700. */
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
   Design tokens. A single restrained palette drives the whole UI: slate for structure,
   indigo for interaction, and a status scale reused everywhere a state is shown, so a

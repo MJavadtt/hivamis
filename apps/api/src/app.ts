@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { env } from './env.js';
 import { prisma } from './db.js';
+import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
 import authPlugin from './auth/plugin.js';
 import authRoutes from './routes/auth.js';
@@ -108,10 +109,16 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get('/health/ready', async (_req, reply) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return { status: 'ready', database: 'up' };
     } catch {
       return reply.code(503).send({ status: 'not-ready', database: 'down' });
     }
+    // Non-blocking: seeded demo accounts are a deployment defect, not an outage. Reported so
+    // monitoring can alert on a non-zero count without the service failing its readiness probe.
+    const demoAccounts =
+      env.NODE_ENV === 'production'
+        ? await findActiveDemoAccounts().then((r) => r.count).catch(() => null)
+        : 0;
+    return { status: 'ready', database: 'up', demoAccounts };
   });
 
   app.get('/health/live', async () => ({ status: 'alive' }));

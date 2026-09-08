@@ -45,6 +45,8 @@ services:
       JOBS_ENABLED: 'true'
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+      # Chromium ships in the image; pinned so the renderer never probes the filesystem.
+      PDF_BROWSER_PATH: ${PDF_BROWSER_PATH:-/usr/bin/chromium}
     volumes:
       - storage:/app/storage
     expose:

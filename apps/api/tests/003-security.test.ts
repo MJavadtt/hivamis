@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { app, call, closeApp, get, login, post, patch, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
+import { findActiveDemoAccounts } from '../src/lib/demo-accounts.js';
 
 /** Security controls: authentication, authorization, IDOR, injection, upload and session handling. */
 let T: Record<string, string>;
@@ -280,5 +281,41 @@ describe('Document handling', () => {
     expect(res.headers['content-type']).toBe('application/octet-stream');
     expect(res.headers['content-disposition']).toContain('attachment');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+});
+
+describe('Demo account exposure', () => {
+  /**
+   * The seeded demo accounts share a password published in README.md. Production must be able
+   * to detect them; the check is surfaced on /health/ready so monitoring can alert on it.
+   */
+  it('reports the active demo-account count', async () => {
+    const report = await findActiveDemoAccounts();
+    // The test database is seeded with demo data, so the detector must actually find them —
+    // a detector that always returns zero would pass a naive assertion.
+    expect(report.count).toBe(15);
+    expect(report.emails).toContain('admin@hiva.local');
+    expect(report.emails.every((e) => e.endsWith('@hiva.local'))).toBe(true);
+  });
+
+  it('excludes deactivated accounts from the count', async () => {
+    const before = await findActiveDemoAccounts();
+    const victim = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
+    await prisma.user.update({ where: { id: victim.id }, data: { isActive: false } });
+    try {
+      const after = await findActiveDemoAccounts();
+      expect(after.count).toBe(before.count - 1);
+      expect(after.emails).not.toContain('designer@hiva.local');
+    } finally {
+      await prisma.user.update({ where: { id: victim.id }, data: { isActive: true } });
+    }
+  });
+
+  it('health/ready carries the field', async () => {
+    const a = await app();
+    const res = await a.inject({ method: 'GET', url: '/health/ready' });
+    expect(res.statusCode).toBe(200);
+    // Outside production the probe short-circuits to 0 rather than querying on every call.
+    expect(res.json()).toHaveProperty('demoAccounts');
   });
 });

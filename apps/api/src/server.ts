@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { env } from './env.js';
 import { prisma } from './db.js';
 import { startJobs } from './jobs/runner.js';
+import { warnOnDemoAccounts } from './lib/demo-accounts.js';
 
 const app = await buildApp();
 const boss = await startJobs(app.log).catch((err) => {
@@ -18,6 +19,10 @@ const shutdown = async (signal: string) => {
 };
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+
+if (env.NODE_ENV === 'production') {
+  await warnOnDemoAccounts(app.log).catch(() => undefined);
+}
 
 try {
   await app.listen({ port: env.PORT, host: env.HOST });
