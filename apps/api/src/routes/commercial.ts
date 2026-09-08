@@ -43,7 +43,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const input = parse(createAmendmentSchema, { ...(req.body as object), contractId: id });
 
-    const contract = await prisma.contract.findUnique({ where: { id } });
+    const contract = await prisma.contract.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!contract) throw notFound('قرارداد');
     if (!['SIGNED', 'REGISTERED'].includes(contract.state)) {
       throw badRequest('CONTRACT_NOT_ACTIVE', 'الحاقیه فقط برای قرارداد امضاشده/ثبت‌شده قابل صدور است.');
@@ -106,9 +106,9 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   app.get('/invoices/:id', {
     preHandler: [app.authenticate, app.requirePermissions('finance.read')],
   }, async (req) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
+    const invoice = await prisma.invoice.findFirst({ where: { id, organizationId: actor.organizationId },
       include: { company: true, project: true, contract: true, payments: true },
     });
     if (!invoice) throw notFound('سند مالی');
@@ -190,7 +190,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
           where: { invoiceId: input.invoiceId, direction: 'IN' }, _sum: { amount: true },
         });
         const paid = Number(agg._sum.amount ?? 0);
-        const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
+        const invoice = await tx.invoice.findFirst({ where: { id: input.invoiceId, organizationId: actor.organizationId } });
         if (invoice) {
           const total = Number(invoice.total);
           await tx.invoice.update({
@@ -221,7 +221,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const { notes } = (req.body ?? {}) as { notes?: string };
 
-    const project = await prisma.project.findUnique({ where: { id } });
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!project) throw notFound('پروژه');
 
     const invoices = await prisma.invoice.findMany({
@@ -263,8 +263,9 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   app.get('/projects/:id/finance', {
     preHandler: [app.authenticate, app.requirePermissions('finance.read')],
   }, async (req) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const project = await prisma.project.findUnique({ where: { id } });
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!project) throw notFound('پروژه');
 
     const [invoices, payments, costs, settlement] = await Promise.all([

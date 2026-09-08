@@ -173,8 +173,12 @@ Deliberately **not** implemented as full SaaS multi-tenancy. Doc_H describes one
 Building tenant provisioning, per-tenant configuration and isolation testing would be complexity
 with no current buyer.
 
-What *is* in place: `organizationId` on every scoped table, automatically applied to reads and
-writes by the CRUD factory, plus organisation-level calendar, working hours and holidays.
+What *is* in place: `organizationId` on every scoped table, applied by the data layer to every
+lookup — list, detail, update, delete, workflow transitions, PDF export and AI grounding — plus
+an organisation-level calendar, working hours and holidays, cached per organisation. A
+cross-tenant read returns 404 rather than 403, since a 403 would confirm the record exists.
+What is *not* in place is tenant resolution: `organizationId` comes from the actor's token, not
+from the request. See ADR-008 for the full list of what SaaS would still require.
 Turning this into multi-tenant SaaS means adding tenant resolution and provisioning — not
 reshaping the schema.
 

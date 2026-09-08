@@ -7,6 +7,7 @@ import { prisma } from '../src/db.js';
  * These are the tests that distinguish a governed platform from a CRUD app.
  */
 let tokens: Record<string, string>;
+const ORG = '00000000-0000-4000-8000-000000000001';
 
 beforeAll(async () => {
   tokens = {
@@ -305,5 +306,114 @@ describe('Rule 6 — no valid verbal task', () => {
       sourceType: 'ORDER_FORM', sourceRef: wo!.code,
     });
     expect(res.status).toBe(201);
+  });
+});
+
+describe('State is written only through the engine', () => {
+  /**
+   * ADR-002 rests on there being one write path. These cover the three routes that previously
+   * wrote `state` directly, each of which skipped something the engine does.
+   */
+
+  it('refuses to convert a lead that has not been qualified', async () => {
+    const lead = await prisma.lead.create({
+      data: {
+        organizationId: ORG, code: `LEAD-T${Date.now() % 100000}`,
+        name: 'تست تبدیل', companyName: 'شرکت آزمایشی', source: 'INBOUND', state: 'NEW',
+      },
+    });
+    const res = await post(`/leads/${lead.id}/convert`, tokens.sales, { title: 'فرصت آزمایشی' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('ILLEGAL_TRANSITION');
+    // The engine reports what would have been legal from here.
+    expect(res.body.error.details.allowed).toContain('contact');
+    // Nothing was created on the way to the refusal.
+    expect(await prisma.opportunity.count({ where: { leadId: lead.id } })).toBe(0);
+    await prisma.lead.delete({ where: { id: lead.id } });
+  });
+
+  it('converts a qualified lead and records the move in its history', async () => {
+    const lead = await prisma.lead.create({
+      data: {
+        organizationId: ORG, code: `LEAD-T${(Date.now() + 1) % 100000}`,
+        name: 'تست تبدیل ۲', companyName: 'شرکت آزمایشی ۲', source: 'REFERRAL', state: 'QUALIFIED',
+      },
+    });
+    const res = await post(`/leads/${lead.id}/convert`, tokens.sales, { title: 'فرصت معتبر' });
+    expect(res.status).toBe(201);
+    expect(res.body.leadId).toBe(lead.id);
+
+    const after = await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(after.state).toBe('CONVERTED');
+    // The engine set companyId via the effect, so the lead points at what was created.
+    expect(after.companyId).toBe(res.body.companyId);
+
+    const moves = await prisma.stateTransition.findMany({
+      where: { entityType: 'lead', entityId: lead.id },
+    });
+    expect(moves).toHaveLength(1);
+    expect(moves[0]!.fromState).toBe('QUALIFIED');
+    expect(moves[0]!.toState).toBe('CONVERTED');
+    expect(moves[0]!.actorId).not.toBeNull();
+  });
+
+  it('leaves a deliverable’s failed-QC move visible in its own history', async () => {
+    const deliverable = await prisma.deliverable.findFirstOrThrow({
+      where: { state: { in: ['SUBMITTED', 'IN_QC', 'APPROVED'] } },
+    });
+    // Put it where a level-2 QC legitimately happens.
+    if (deliverable.state !== 'IN_QC') {
+      await prisma.deliverable.update({ where: { id: deliverable.id }, data: { state: 'IN_QC' } });
+    }
+    const before = await prisma.stateTransition.count({
+      where: { entityType: 'deliverable', entityId: deliverable.id },
+    });
+
+    const res = await post('/qc-reviews', tokens.accountManager, {
+      level: 'ACCOUNT', deliverableId: deliverable.id, verdict: 'FAILED',
+      checklist: { matchesBrief: false }, findings: 'مغایرت با بریف',
+    });
+    expect(res.status).toBe(201);
+
+    const moves = await prisma.stateTransition.findMany({
+      where: { entityType: 'deliverable', entityId: deliverable.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(moves.length).toBe(before + 1);
+    expect(moves[0]!.toState).toBe('REVISION_REQUIRED');
+    expect(moves[0]!.fromState).toBe('IN_QC');
+    expect(moves[0]!.actorId).not.toBeNull();
+    expect(moves[0]!.reason).toContain('بریف');
+  });
+
+  it('records the opportunity’s cascade when a brief is approved', async () => {
+    // A brief that satisfies the completeness guard, so the approval reaches the cascade.
+    const opportunity = await prisma.opportunity.findFirstOrThrow();
+    const brief = await prisma.brief.create({
+      data: {
+        organizationId: ORG, code: `BRF-T${Date.now() % 100000}`,
+        opportunityId: opportunity.id, title: 'بریف آزمایشی کامل',
+        businessObjective: 'افزایش آگاهی از برند', targetAudience: 'مدیران کسب‌وکار',
+        scope: 'کمپین دیجیتال', expectedDeliverables: 'کی‌ویژوال و پلن رسانه',
+        budgetRange: 1_000_000_000, desiredDeadline: new Date(Date.now() + 30 * 86_400_000),
+        state: 'UNDER_REVIEW',
+      },
+    });
+
+    const before = await prisma.stateTransition.count({
+      where: { entityType: 'opportunity', entityId: opportunity.id },
+    });
+    const res = await move('brief', brief.id, 'approve', tokens.accountManager);
+    expect(res.status, JSON.stringify(res.body?.error ?? {})).toBe(200);
+
+    const moves = await prisma.stateTransition.findMany({
+      where: { entityType: 'opportunity', entityId: opportunity.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    // The cascade is no longer silent: the opportunity's own history shows why it moved.
+    expect(moves.length).toBe(before + 1);
+    expect(moves[0]!.toState).toBe('BRIEF_COMPLETED');
+    expect(moves[0]!.action).toBe('brief_approved');
+    expect(moves[0]!.actorId).not.toBeNull();
   });
 });

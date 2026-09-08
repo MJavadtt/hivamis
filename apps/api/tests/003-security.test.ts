@@ -615,3 +615,72 @@ describe('State vocabulary is enforced by the database', () => {
     expect(rows.length).toBe(Object.keys(WORKFLOWS).length + 2);
   });
 });
+
+describe('Tenant isolation', () => {
+  /**
+   * ADR-008 calls the schema multi-tenant-ready. That held for list queries, which the CRUD
+   * factory scoped, but detail/update/delete and the workflow engine looked records up by id
+   * alone. This seeds a second organisation and proves its records are unreachable.
+   */
+  const OTHER_ORG = '00000000-0000-4000-8000-0000000000b2';
+  let foreignProjectId: string;
+  let foreignCompanyId: string;
+
+  beforeAll(async () => {
+    await prisma.organization.upsert({
+      where: { id: OTHER_ORG },
+      create: { id: OTHER_ORG, name: 'سازمان دوم', currency: 'IRR' },
+      update: {},
+    });
+    const owner = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
+    const company = await prisma.company.create({
+      data: { organizationId: OTHER_ORG, legalName: 'مشتری سازمان دوم' },
+    });
+    foreignCompanyId = company.id;
+    const project = await prisma.project.create({
+      data: {
+        organizationId: OTHER_ORG, code: `PRJ-X${Date.now() % 100000}`,
+        name: 'پروژه سازمان دوم', companyId: company.id, accountOwnerId: owner.id,
+      },
+    });
+    foreignProjectId = project.id;
+  });
+
+  afterAll(async () => {
+    await prisma.project.deleteMany({ where: { organizationId: OTHER_ORG } });
+    await prisma.company.deleteMany({ where: { organizationId: OTHER_ORG } });
+    await prisma.organization.deleteMany({ where: { id: OTHER_ORG } });
+  });
+
+  it('hides another organisation’s record from detail, update and delete', async () => {
+    // 404, never 403: a 403 would confirm the id exists.
+    expect((await get(`/projects/${foreignProjectId}`, T.admin)).status).toBe(404);
+    expect((await patch(`/projects/${foreignProjectId}`, T.admin, { name: 'ربوده‌شده' })).status).toBe(404);
+    const unchanged = await prisma.project.findUniqueOrThrow({ where: { id: foreignProjectId } });
+    expect(unchanged.name).toBe('پروژه سازمان دوم');
+  });
+
+  it('keeps it out of list results', async () => {
+    const res = await get('/projects', T.admin, { pageSize: '200' });
+    expect(res.body.items.map((p: { id: string }) => p.id)).not.toContain(foreignProjectId);
+  });
+
+  it('refuses a workflow transition against it', async () => {
+    const res = await post(`/workflow/project/${foreignProjectId}/transitions`, T.admin, {
+      action: 'request_authorization',
+    });
+    expect(res.status).toBe(404);
+    const unchanged = await prisma.project.findUniqueOrThrow({ where: { id: foreignProjectId } });
+    expect(unchanged.state).toBe('DRAFT');
+  });
+
+  it('refuses its history, available transitions and PDF export', async () => {
+    expect((await get(`/workflow/project/${foreignProjectId}/available`, T.admin)).status).toBe(404);
+    expect((await get(`/companies/${foreignCompanyId}`, T.admin)).status).toBe(404);
+    const pdf = await (await app()).inject({
+      method: 'GET', url: `/api/v1/pdf/project/${foreignProjectId}`,
+      headers: { authorization: `Bearer ${T.admin}` },
+    });
+    expect(pdf.statusCode).toBe(404);
+  });
+});

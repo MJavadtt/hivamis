@@ -85,9 +85,9 @@ const formRoutes: FastifyPluginAsync = async (app) => {
   app.get('/forms/submissions/:id', {
     preHandler: [app.authenticate, app.requirePermissions('form.read')],
   }, async (req) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const submission = await prisma.formSubmission.findUnique({
-      where: { id },
+    const submission = await prisma.formSubmission.findFirst({ where: { id, organizationId: actor.organizationId },
       include: {
         definition: true,
         submittedBy: { select: { id: true, fullName: true, email: true } },

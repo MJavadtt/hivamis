@@ -100,7 +100,9 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(updateUserSchema, req.body);
-    const before = await prisma.user.findUnique({ where: { id } });
+    const before = await prisma.user.findFirst({
+      where: { id, organizationId: actor.organizationId },
+    });
     if (!before) throw notFound('کاربر');
 
     const data: Record<string, unknown> = {};
@@ -161,6 +163,11 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     if (id === actor.id) throw badRequest('SELF_DEACTIVATE', 'غیرفعال‌سازی حساب خودتان مجاز نیست.');
+    const target = await prisma.user.findFirst({
+      where: { id, organizationId: actor.organizationId },
+      select: { id: true },
+    });
+    if (!target) throw notFound('کاربر');
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({ where: { id }, data: { isActive: false } });
       await tx.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });

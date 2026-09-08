@@ -70,12 +70,26 @@ export interface TransitionOutcome {
  * than merely documented.
  */
 export async function transition(input: TransitionInput): Promise<TransitionOutcome> {
+  return prisma.$transaction((tx) => transitionWithin(tx, input), { timeout: 20_000 });
+}
+
+/**
+ * The engine body, for callers that must change state atomically with other writes — converting
+ * a lead creates a Company and an Opportunity in the same breath, and a failed QC review raises
+ * a revision alongside the deliverable's move.
+ *
+ * Prisma has no nested interactive transactions, so those callers join this rather than calling
+ * `transition()` from inside their own. Same enforcement, same audit, same SLA effects: this is
+ * an entry point, not an escape hatch.
+ */
+export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<TransitionOutcome> {
   const { entity, id, action, actor } = input;
   const payload = input.payload ?? {};
 
-  return prisma.$transaction(async (tx) => {
+  {
     const model = delegate(tx, entity);
-    const record = await model.findUnique({ where: { id } });
+    // Scoped to the actor's organisation: a record from another tenant must read as absent.
+    const record = await model.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!record) throw notFound('رکورد');
 
     const fromState: string = record.state;
@@ -183,7 +197,67 @@ export async function transition(input: TransitionInput): Promise<TransitionOutc
         labelEn: t.labelEn,
       })),
     };
-  }, { timeout: 20_000 });
+  }
+}
+
+export interface CascadeInput {
+  entity: string;
+  id: string;
+  toState: string;
+  action: string;
+  actorId: string;
+  organizationId: string;
+  reason?: string;
+}
+
+/**
+ * A state change on a SECOND entity, caused by a transition on a first — approving a brief moves
+ * its opportunity to BRIEF_COMPLETED, returning one moves it back to BRIEF_REQUESTED.
+ *
+ * Guards and permissions are deliberately not run: the cascade is a consequence of a move that
+ * was already authorised and already passed its guards, and re-checking would demand that the
+ * actor hold permissions on an entity they are not acting on directly. What a cascade must not
+ * skip is traceability, so this writes the StateTransition row and the AuditEvent that an
+ * inline `tx.<model>.update({ state })` silently omitted, leaving gaps in the entity's history.
+ *
+ * This is the only sanctioned way to cascade. Effects must call it rather than writing `state`.
+ */
+export async function cascadeState(tx: Tx, input: CascadeInput): Promise<void> {
+  const { entity, id, toState, action, actorId, organizationId, reason } = input;
+  const model = delegate(tx, entity);
+
+  const record = await model.findFirst({
+    where: { id, organizationId },
+    select: { id: true, state: true },
+  });
+  // A cascade target that has gone missing must not abort the transition that caused it.
+  if (!record || record.state === toState) return;
+
+  await model.update({ where: { id }, data: { state: toState } });
+
+  await tx.stateTransition.create({
+    data: {
+      organizationId,
+      entityType: entity,
+      entityId: id,
+      fromState: record.state,
+      toState,
+      action,
+      reason: reason ?? 'cascaded from a related transition',
+      actorId,
+    },
+  });
+
+  await audit({
+    organizationId,
+    actorId,
+    action: 'STATE_TRANSITION',
+    entityType: entity,
+    entityId: id,
+    before: { state: record.state },
+    after: { state: toState },
+    reason: reason ?? `cascade: ${action}`,
+  }, tx);
 }
 
 /** Best-effort owner for SLA notifications, in order of how directly they own the clock. */

@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { cascadeState } from './engine.js';
 
 export interface EffectContext {
   tx: Tx;
@@ -18,25 +19,29 @@ export interface EffectContext {
 export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string, unknown>>> = {
   'lead.disqualify': async ({ reason }) => ({ disqualifyReason: reason ?? null }),
 
-  'lead.convert': async () => ({}),
+  // The converting route supplies the company it created or was given; the lead points at it.
+  'lead.convert': async ({ payload }) => (
+    payload.companyId ? { companyId: payload.companyId as string } : {}
+  ),
 
   'opportunity.win': async () => ({ wonAt: new Date() }),
   'opportunity.lose': async ({ reason }) => ({ lostReason: reason ?? null }),
 
-  'brief.return_incomplete': async ({ tx, id, record, reason }) => {
+  'brief.return_incomplete': async ({ tx, record, reason, actorId, organizationId }) => {
     // Doc_H cycle 1 — the brief goes back to Sales; the return count feeds the "Brief Completeness" KPI.
-    await tx.opportunity.update({
-      where: { id: record.opportunityId },
-      data: { state: 'BRIEF_REQUESTED' },
-    }).catch(() => undefined);
+    await cascadeState(tx, {
+      entity: 'opportunity', id: record.opportunityId, toState: 'BRIEF_REQUESTED',
+      action: 'brief_returned', actorId, organizationId,
+      reason: reason ? `بریف ناقص بازگردانده شد: ${reason}` : 'بریف ناقص بازگردانده شد',
+    });
     return { returnReason: reason ?? null, returnCount: { increment: 1 } };
   },
 
-  'brief.approve': async ({ tx, record }) => {
-    await tx.opportunity.update({
-      where: { id: record.opportunityId },
-      data: { state: 'BRIEF_COMPLETED' },
-    }).catch(() => undefined);
+  'brief.approve': async ({ tx, record, actorId, organizationId }) => {
+    await cascadeState(tx, {
+      entity: 'opportunity', id: record.opportunityId, toState: 'BRIEF_COMPLETED',
+      action: 'brief_approved', actorId, organizationId, reason: 'بریف تأیید شد',
+    });
     return { approvedAt: new Date() };
   },
 

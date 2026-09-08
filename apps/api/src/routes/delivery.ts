@@ -41,8 +41,9 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
   app.post('/briefs/:id/recalculate', {
     preHandler: [app.authenticate, app.requirePermissions('brief.read')],
   }, async (req) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const brief = await prisma.brief.findUnique({ where: { id } });
+    const brief = await prisma.brief.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!brief) throw notFound('بریف');
     const { score, missing } = briefCompleteness(brief as unknown as Record<string, unknown>);
     return prisma.brief.update({
@@ -83,7 +84,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const input = parse(declareCostSchema, req.body);
 
-    const proposal = await prisma.proposal.findUnique({ where: { id } });
+    const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
 
     const declaration = await prisma.$transaction(async (tx) => {
@@ -126,7 +127,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const input = parse(setPricingSchema, req.body);
 
-    const proposal = await prisma.proposal.findUnique({ where: { id } });
+    const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
     if (proposal.totalCost == null) {
       throw new GovernanceError(
@@ -171,7 +172,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const proposal = await prisma.proposal.findUnique({ where: { id } });
+    const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
     if (proposal.salePrice == null) {
       throw badRequest('NO_PRICE', 'قیمتی برای تأیید ثبت نشده است.');
@@ -219,14 +220,14 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const input = parse(authorizeProjectSchema, req.body);
 
-    const project = await prisma.project.findUnique({ where: { id } });
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!project) throw notFound('پروژه');
 
     if (input.basis === 'CONTRACT') {
       if (!input.contractId) {
         throw new GovernanceError('Doc_H §13', 'مبنای «قرارداد» بدون انتخاب قرارداد معتبر نیست.');
       }
-      const contract = await prisma.contract.findUnique({ where: { id: input.contractId } });
+      const contract = await prisma.contract.findFirst({ where: { id: input.contractId, organizationId: actor.organizationId } });
       if (!contract || !['SIGNED', 'REGISTERED'].includes(contract.state)) {
         throw new GovernanceError('Doc_H §13', 'قرارداد انتخاب‌شده هنوز امضا/ثبت نشده است.');
       }
@@ -342,8 +343,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const canSeeFinance = actor.permissions.includes('finance.read');
 
-    const project = await prisma.project.findUnique({
-      where: { id },
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId },
       include: {
         company: true,
         accountOwner: { select: { id: true, fullName: true, email: true } },
@@ -466,7 +466,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(declareCostSchema, req.body);
-    const wo = await prisma.workOrder.findUnique({ where: { id } });
+    const wo = await prisma.workOrder.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!wo) throw notFound('سفارش کار');
 
     const declaration = await prisma.costDeclaration.create({

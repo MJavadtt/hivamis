@@ -59,8 +59,7 @@ function renderFormValue(f: FormDef['fields'][number], raw: unknown): string {
 }
 
 async function buildFormSubmission(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const sub = await prisma.formSubmission.findUnique({
-    where: { id },
+  const sub = await prisma.formSubmission.findFirst({ where: { id, organizationId: orgId },
     include: {
       definition: true,
       submittedBy: { select: { fullName: true, jobTitle: true } },
@@ -125,8 +124,7 @@ async function buildFormSubmission(id: string, orgId: string, user: AccessTokenC
 /* ══════════════════════════ brief ══════════════════════════ */
 
 async function buildBrief(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const b = await prisma.brief.findUnique({
-    where: { id },
+  const b = await prisma.brief.findFirst({ where: { id, organizationId: orgId },
     include: { opportunity: { include: { company: { select: { legalName: true } }, owner: { select: { fullName: true } } } } },
   });
   if (!b || b.organizationId !== orgId) throw notFound('بریف');
@@ -171,8 +169,7 @@ const SANCTIONED = new Set(['APPROVED', 'DELIVERED_TO_SALES', 'PRESENTED_TO_CLIE
   'CLIENT_REVISION_REQUESTED', 'CLIENT_APPROVED', 'CLIENT_REJECTED']);
 
 async function buildProposal(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const p = await prisma.proposal.findUnique({
-    where: { id },
+  const p = await prisma.proposal.findFirst({ where: { id, organizationId: orgId },
     include: {
       brief: { include: { opportunity: { include: { company: { select: { legalName: true } } } } } },
       costDeclarations: true,
@@ -229,8 +226,7 @@ async function buildProposal(id: string, orgId: string, user: AccessTokenClaims)
 /* ══════════════════════════ contract ══════════════════════════ */
 
 async function buildContract(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const c = await prisma.contract.findUnique({
-    where: { id },
+  const c = await prisma.contract.findFirst({ where: { id, organizationId: orgId },
     include: {
       company: { select: { legalName: true, nationalId: true, economicCode: true, address: true } },
       amendments: { orderBy: { effectiveDate: 'asc' } },
@@ -275,8 +271,7 @@ async function buildContract(id: string, orgId: string, user: AccessTokenClaims)
 /* ══════════════════════════ invoice ══════════════════════════ */
 
 async function buildInvoice(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const inv = await prisma.invoice.findUnique({
-    where: { id },
+  const inv = await prisma.invoice.findFirst({ where: { id, organizationId: orgId },
     include: {
       company: { select: { legalName: true, nationalId: true, economicCode: true, address: true } },
       project: { select: { code: true, name: true } },

@@ -35,6 +35,30 @@ single-write-path rule for `state` and by `packages/contracts` as a shared sourc
 `workflow/engine.ts` is the only code that writes `state`, and the CRUD factory strips `state`
 from every PATCH body.
 
+Precisely, there are two sanctioned entry points and no others:
+
+- **`transition()` / `transitionWithin()`** for a move the actor initiates. Both run the same
+  body — permission, mandatory reason, Doc_H guards, effects, `StateTransition`, audit, SLA.
+  The second exists because Prisma has no nested interactive transactions and some moves must be
+  atomic with other writes: converting a lead also creates a Company and an Opportunity, and a
+  failed QC review raises a revision alongside the deliverable's move. Those callers join the
+  engine's transaction rather than opening their own around it.
+- **`cascadeState()`** for a move on a *second* entity caused by the first — approving a brief
+  moves its opportunity to `BRIEF_COMPLETED`. Guards and permissions are deliberately skipped:
+  the causing transition was already authorised and already passed its guards, and re-checking
+  would demand the actor hold permissions on an entity they are not acting on. Traceability is
+  not skipped — the `StateTransition` row and the audit event are written, which is exactly what
+  the inline `tx.<model>.update({ state })` calls this replaced were omitting.
+
+Three code paths previously wrote `state` directly. Converting a lead skipped the declared
+`QUALIFIED → CONVERTED` precondition entirely, so a brand-new lead could be converted. A failed
+QC forced a deliverable to `REVISION_REQUIRED` from any state and left no row in its history. And
+the brief cascades moved their opportunity silently, leaving gaps in that opportunity's own
+timeline. All three now go through the entry points above.
+
+Since ADR-016, the vocabulary is also a database constraint, so a direct `UPDATE` or a data
+import cannot introduce an undeclared state either.
+
 **Alternatives considered.** Temporal and Camunda were considered and rejected: both are excellent
 for long-running distributed orchestration, but they would add an external service and a second
 programming model to enforce rules that are fundamentally *database constraints with permissions*.
@@ -126,12 +150,30 @@ than structural.
 
 ## ADR-008 — Single-organisation now, multi-tenant-ready by construction
 
-**Decision.** `organizationId` on every scoped table and applied automatically by the data layer,
-but no tenant provisioning, per-tenant branding or isolation test suite.
+**Decision.** `organizationId` on every scoped table and applied by the data layer to every
+lookup — list, detail, update, delete, workflow transition, PDF export and AI grounding — but no
+tenant provisioning, per-tenant branding or resolution middleware.
 
 **Rationale.** Doc_H describes one organisation. Building SaaS multi-tenancy now would be
 speculative complexity. Carrying the column costs nothing and avoids the migration that would
 otherwise be required.
+
+**What was actually true until recently.** Only *list* queries were scoped. Detail, update and
+delete looked records up by id alone, as did the workflow engine, the admin user routes and the
+AI and PDF layers — so with a second organisation present, a known id would have crossed the
+boundary. The SLA calendar cache was a single process-wide slot, so a second organisation would
+have inherited the first one's working week and holidays for up to a minute, silently
+miscomputing every due date. Both are fixed; a cross-tenant suite in `003-security.test.ts` seeds
+a second organisation and asserts its records are unreachable.
+
+Cross-tenant reads return **404, never 403** — a 403 confirms the id exists, which is itself what
+tenancy withholds.
+
+**Still not in place**, and required before this could be sold as SaaS: tenant resolution from
+the request (there is no subdomain or header mapping — `organizationId` comes from the actor's
+own token), provisioning, per-tenant branding, and per-tenant form and workflow overrides.
+`FormDefinition.code` and `SlaPolicy.code` are also globally unique rather than unique per
+organisation, which a second tenant with its own form catalogue would collide on.
 
 ---
 

@@ -10,6 +10,7 @@ import { actorFrom, page, parse } from '../lib/http.js';
 import { notFound, badRequest } from '../lib/errors.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
+import { transitionWithin } from '../workflow/engine.js';
 
 const crmRoutes: FastifyPluginAsync = async (app) => {
   registerCrud(app, {
@@ -91,9 +92,10 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const { companyId, title, estimatedValue } = (req.body ?? {}) as Record<string, any>;
 
-    const lead = await prisma.lead.findUnique({ where: { id } });
+    const lead = await prisma.lead.findFirst({
+      where: { id, organizationId: actor.organizationId },
+    });
     if (!lead) throw notFound('سرنخ');
-    if (lead.state === 'CONVERTED') throw badRequest('ALREADY_CONVERTED', 'این سرنخ قبلاً تبدیل شده است.');
 
     const result = await prisma.$transaction(async (tx) => {
       let targetCompanyId: string = companyId;
@@ -120,21 +122,30 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
           ownerId: lead.ownerId ?? actor.id,
         },
       });
-      await tx.lead.update({ where: { id }, data: { state: 'CONVERTED', companyId: targetCompanyId } });
-      await tx.stateTransition.create({
-        data: {
-          organizationId: actor.organizationId, entityType: 'lead', entityId: id,
-          fromState: lead.state, toState: 'CONVERTED', action: 'convert', actorId: actor.id,
+
+      /**
+       * The lead's own state moves through the engine rather than an inline UPDATE, so the
+       * declared precondition applies: LEAD_WORKFLOW allows `convert` only from QUALIFIED.
+       * Previously a NEW or CONTACTED lead could be converted directly, skipping the lifecycle.
+       *
+       * It joins this transaction rather than calling transition() — the Company and Opportunity
+       * above must be created atomically with the conversion, and Prisma has no nested
+       * interactive transactions.
+       */
+      await transitionWithin(tx, {
+        entity: 'lead',
+        id,
+        action: 'convert',
+        payload: { companyId: targetCompanyId },
+        actor: {
+          id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions,
+          ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
         },
       });
+
       return opportunity;
     });
 
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'STATE_TRANSITION',
-      entityType: 'lead', entityId: id, after: { state: 'CONVERTED', opportunityId: result.id },
-      ipAddress: actor.ipAddress, requestId: actor.requestId,
-    });
     return reply.code(201).send(result);
   });
 
@@ -179,8 +190,7 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const canSeeFinance = actor.permissions.includes('finance.read');
 
-    const company = await prisma.company.findUnique({
-      where: { id },
+    const company = await prisma.company.findFirst({ where: { id, organizationId: actor.organizationId },
       include: {
         accountOwner: { select: { id: true, fullName: true } },
         salesOwner: { select: { id: true, fullName: true } },

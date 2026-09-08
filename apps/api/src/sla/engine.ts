@@ -2,12 +2,18 @@ import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { addBusinessHours, DEFAULT_CALENDAR, type Calendar } from '../lib/business-calendar.js';
 
-let cachedCalendar: { at: number; cal: Calendar } | null = null;
+/**
+ * Keyed by organisation, not a single slot. The cache previously held one calendar for the whole
+ * process, so a second organisation would inherit the first one's working week and holidays for
+ * up to a minute — and SLA due dates computed from the wrong calendar are silently wrong.
+ */
+const cachedCalendars = new Map<string, { at: number; cal: Calendar }>();
 const CALENDAR_TTL_MS = 60_000;
 
 /** Loads the organisation's working week + holidays; cached briefly to keep the tick cheap. */
 export async function loadCalendar(organizationId: string, tx: Tx = prisma): Promise<Calendar> {
-  if (cachedCalendar && Date.now() - cachedCalendar.at < CALENDAR_TTL_MS) return cachedCalendar.cal;
+  const hit = cachedCalendars.get(organizationId);
+  if (hit && Date.now() - hit.at < CALENDAR_TTL_MS) return hit.cal;
   const org = await tx.organization.findUnique({
     where: { id: organizationId },
     include: { holidays: true },
@@ -21,12 +27,12 @@ export async function loadCalendar(organizationId: string, tx: Tx = prisma): Pro
         holidays: new Set(org.holidays.map((h) => h.date.toISOString().slice(0, 10))),
       }
     : DEFAULT_CALENDAR;
-  cachedCalendar = { at: Date.now(), cal };
+  cachedCalendars.set(organizationId, { at: Date.now(), cal });
   return cal;
 }
 
 export function resetCalendarCache(): void {
-  cachedCalendar = null;
+  cachedCalendars.clear();
 }
 
 export interface StartSlaInput {

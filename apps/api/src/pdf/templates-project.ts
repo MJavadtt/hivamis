@@ -9,8 +9,7 @@ import type { BuiltDocument } from './templates.js';
 /* ══════════════════════════ Project 360 ══════════════════════════ */
 
 export async function buildProject(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const p = await prisma.project.findUnique({
-    where: { id },
+  const p = await prisma.project.findFirst({ where: { id, organizationId: orgId },
     include: {
       company: { select: { legalName: true } },
       accountOwner: { select: { fullName: true } },
@@ -124,8 +123,7 @@ export async function buildProject(id: string, orgId: string, user: AccessTokenC
 /* ══════════════════════════ Customer 360 ══════════════════════════ */
 
 export async function buildCompany(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const c = await prisma.company.findUnique({
-    where: { id },
+  const c = await prisma.company.findFirst({ where: { id, organizationId: orgId },
     include: {
       contacts: { where: { deletedAt: null } },
       accountOwner: { select: { fullName: true } },
@@ -198,8 +196,7 @@ export async function buildCompany(id: string, orgId: string, user: AccessTokenC
 /* ══════════════════════════ smaller records ══════════════════════════ */
 
 export async function buildWorkOrder(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const w = await prisma.workOrder.findUnique({
-    where: { id },
+  const w = await prisma.workOrder.findFirst({ where: { id, organizationId: orgId },
     include: {
       project: { select: { code: true, name: true, company: { select: { legalName: true } } } },
       owner: { select: { fullName: true } },
@@ -244,8 +241,7 @@ export async function buildWorkOrder(id: string, orgId: string, user: AccessToke
 }
 
 export async function buildQcReview(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const q = await prisma.qcReview.findUnique({
-    where: { id },
+  const q = await prisma.qcReview.findFirst({ where: { id, organizationId: orgId },
     include: {
       reviewer: { select: { fullName: true, jobTitle: true } },
       deliverable: { select: { code: true, name: true } },
@@ -294,8 +290,7 @@ export async function buildQcReview(id: string, orgId: string, user: AccessToken
 }
 
 export async function buildRevision(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const r = await prisma.revision.findUnique({
-    where: { id },
+  const r = await prisma.revision.findFirst({ where: { id, organizationId: orgId },
     include: {
       assignee: { select: { fullName: true } },
       deliverable: { select: { code: true, name: true } },
@@ -329,8 +324,7 @@ export async function buildRevision(id: string, orgId: string, user: AccessToken
 }
 
 export async function buildChangeRequest(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const c = await prisma.changeRequest.findUnique({
-    where: { id },
+  const c = await prisma.changeRequest.findFirst({ where: { id, organizationId: orgId },
     include: {
       project: { select: { code: true, name: true, company: { select: { legalName: true } } } },
       amendments: true,
@@ -380,8 +374,7 @@ export async function buildChangeRequest(id: string, orgId: string, user: Access
 }
 
 export async function buildDeliverable(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const d = await prisma.deliverable.findUnique({
-    where: { id },
+  const d = await prisma.deliverable.findFirst({ where: { id, organizationId: orgId },
     include: {
       project: { select: { code: true, name: true } },
       qcReviews: { include: { reviewer: { select: { fullName: true } } }, orderBy: { reviewedAt: 'asc' } },
@@ -418,8 +411,7 @@ export async function buildDeliverable(id: string, orgId: string, user: AccessTo
 }
 
 export async function buildStatusReport(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const r = await prisma.statusReport.findUnique({
-    where: { id },
+  const r = await prisma.statusReport.findFirst({ where: { id, organizationId: orgId },
     include: { project: { select: { code: true, name: true, company: { select: { legalName: true } } } } },
   });
   if (!r || r.organizationId !== orgId) throw notFound('گزارش وضعیت');
@@ -450,8 +442,7 @@ export async function buildStatusReport(id: string, orgId: string, user: AccessT
 }
 
 export async function buildMeeting(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const m = await prisma.meeting.findUnique({
-    where: { id },
+  const m = await prisma.meeting.findFirst({ where: { id, organizationId: orgId },
     include: {
       project: { select: { code: true, name: true } },
       company: { select: { legalName: true } },
@@ -489,8 +480,7 @@ export async function buildMeeting(id: string, orgId: string, user: AccessTokenC
 /* ══════════════════════════ closure report (Doc_H §15) ══════════════════════════ */
 
 export async function buildClosureReport(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
-  const p = await prisma.project.findUnique({
-    where: { id },
+  const p = await prisma.project.findFirst({ where: { id, organizationId: orgId },
     include: {
       company: { select: { legalName: true } },
       accountOwner: { select: { fullName: true } },

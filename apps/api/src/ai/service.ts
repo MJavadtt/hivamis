@@ -144,8 +144,7 @@ async function gatherContext(
   switch (capability) {
     case 'BRIEF_ANALYSIS': {
       if (!entityId) throw notFound('بریف');
-      const brief = await prisma.brief.findUnique({
-        where: { id: entityId }, include: { opportunity: { include: { company: true } } },
+      const brief = await prisma.brief.findFirst({ where: { id: entityId, organizationId: actor.organizationId }, include: { opportunity: { include: { company: true } } },
       });
       if (!brief) throw notFound('بریف');
       grounding.push({ entity: 'brief', id: brief.id, label: brief.code });
@@ -178,8 +177,7 @@ async function gatherContext(
     case 'STATUS_REPORT_DRAFT':
     case 'NEXT_BEST_ACTION': {
       if (!entityId) throw notFound('پروژه');
-      const project = await prisma.project.findUnique({
-        where: { id: entityId },
+      const project = await prisma.project.findFirst({ where: { id: entityId, organizationId: actor.organizationId },
         include: {
           company: { select: { legalName: true } },
           accountOwner: { select: { fullName: true } },
@@ -274,8 +272,7 @@ async function gatherContext(
 
     case 'CHANGE_IMPACT_ANALYSIS': {
       if (!entityId) throw notFound('درخواست تغییر');
-      const cr = await prisma.changeRequest.findUnique({
-        where: { id: entityId },
+      const cr = await prisma.changeRequest.findFirst({ where: { id: entityId, organizationId: actor.organizationId },
         include: { project: { select: { id: true, code: true, name: true, inScope: true, outOfScope: true, contractValue: true, plannedEnd: true } } },
       });
       if (!cr) throw notFound('درخواست تغییر');
@@ -305,8 +302,7 @@ async function gatherContext(
 
     case 'QC_COMPARISON': {
       if (!entityId) throw notFound('خروجی');
-      const deliverable = await prisma.deliverable.findUnique({
-        where: { id: entityId },
+      const deliverable = await prisma.deliverable.findFirst({ where: { id: entityId, organizationId: actor.organizationId },
         include: {
           project: { select: { id: true, code: true, inScope: true, outOfScope: true, brief: true } },
           qcReviews: { orderBy: { reviewedAt: 'desc' } },
@@ -350,8 +346,7 @@ async function gatherContext(
 
     case 'CUSTOMER_HEALTH': {
       if (!entityId) throw notFound('مشتری');
-      const company = await prisma.company.findUnique({
-        where: { id: entityId },
+      const company = await prisma.company.findFirst({ where: { id: entityId, organizationId: actor.organizationId },
         include: {
           projects: { where: { deletedAt: null } },
           opportunities: { where: { deletedAt: null } },

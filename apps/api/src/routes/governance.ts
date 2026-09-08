@@ -128,7 +128,7 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
         update: { feedbackRecorded: true, updatedById: actor.id },
       });
       // Keep the customer health score aligned with the latest satisfaction signal.
-      const project = await tx.project.findUnique({ where: { id: input.projectId } });
+      const project = await tx.project.findFirst({ where: { id: input.projectId, organizationId: actor.organizationId } });
       if (project) {
         await tx.company.update({
           where: { id: project.companyId },

@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound, GovernanceError } from '../lib/errors.
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
 import { allowedFor } from '../workflow/engine.js';
+import { transitionWithin } from '../workflow/engine.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
 const LEVEL_PERMISSION = { UNIT: 'qc.unit', ACCOUNT: 'qc.account', FINAL: 'qc.final' } as const;
@@ -83,7 +84,9 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
       // Doc_H §10: a failed QC must produce a revision carrying its reason.
       let revision = null;
       if (input.verdict === 'FAILED' && input.deliverableId) {
-        const deliverable = await tx.deliverable.findUnique({ where: { id: input.deliverableId } });
+        const deliverable = await tx.deliverable.findFirst({
+          where: { id: input.deliverableId, organizationId: actor.organizationId },
+        });
         if (deliverable) {
           revision = await tx.revision.create({
             data: {
@@ -98,15 +101,37 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
               requestedById: actor.id,
             },
           });
-          await tx.deliverable.update({
-            where: { id: deliverable.id }, data: { state: 'REVISION_REQUIRED' },
-          });
+          /**
+           * The deliverable's move goes through the engine, not an inline UPDATE. Previously
+           * this wrote REVISION_REQUIRED from any state and left no StateTransition row, so the
+           * change was invisible in the deliverable's own history — a gap in the single source
+           * of truth Doc_H §7 requires.
+           *
+           * Only levels 2 and 3 move it. A failed level-1 QC is internal to the unit, which has
+           * not handed the output to Account yet (Doc_H §9), so putting the deliverable into an
+           * Account-facing state would misreport where the work actually is; the revision alone
+           * records the finding.
+           */
+          if (input.level !== 'UNIT') {
+            await transitionWithin(tx, {
+              entity: 'deliverable',
+              id: deliverable.id,
+              action: 'qc_reject',
+              reason: input.findings ?? `عدم تأیید در QC — ${review.code}`,
+              actor: {
+                id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions,
+                ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+              },
+            });
+          }
         }
       }
 
       // Doc_H §15: a passing Final QC satisfies one of the eight closure conditions.
       if (input.verdict === 'PASSED' && input.level === 'FINAL' && input.deliverableId) {
-        const d = await tx.deliverable.findUnique({ where: { id: input.deliverableId } });
+        const d = await tx.deliverable.findFirst({
+          where: { id: input.deliverableId, organizationId: actor.organizationId },
+        });
         if (d) {
           await tx.closureChecklist.upsert({
             where: { projectId: d.projectId },
@@ -179,7 +204,7 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(scopeReviewSchema, req.body);
-    const cr = await prisma.changeRequest.findUnique({ where: { id } });
+    const cr = await prisma.changeRequest.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!cr) throw notFound('درخواست تغییر');
     if (!['SUBMITTED', 'SCOPE_REVIEW'].includes(cr.state)) {
       throw badRequest('WRONG_STATE', 'بررسی Scope فقط در مرحله بررسی Scope ممکن است.');
@@ -207,7 +232,7 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(commercialImpactSchema, req.body);
-    const cr = await prisma.changeRequest.findUnique({ where: { id } });
+    const cr = await prisma.changeRequest.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!cr) throw notFound('درخواست تغییر');
     if (cr.scopeVerdict !== 'OUT_OF_SCOPE') {
       throw new GovernanceError(
