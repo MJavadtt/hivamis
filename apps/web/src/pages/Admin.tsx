@@ -8,6 +8,7 @@ import {
   Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
+import { useAuth } from '../lib/auth';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
@@ -38,17 +39,29 @@ export default function Admin() {
 }
 
 function Users() {
+  const { can } = useAuth();
   const { data, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/users'], queryFn: () => apiGet('/users', { pageSize: 100 }),
   });
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
 
+  // This page is reachable with admin.audit alone (CEO and Deputy hold it), but roles,
+  // capacity, last sign-in and account status need admin.users and are simply absent from the
+  // response otherwise. Render the columns the caller actually receives.
+  const detailed = can('admin.users');
+
   return (
-    <Card title="کاربران سازمان">
+    <Card
+      title="کاربران سازمان"
+      subtitle={detailed ? undefined : 'برای مشاهده نقش‌ها و وضعیت حساب، دسترسی مدیریت کاربران لازم است.'}
+    >
       <Table>
         <thead className="bg-ink-50/60">
-          <tr><Th>نام</Th><Th>ایمیل</Th><Th>واحد</Th><Th>نقش‌ها</Th><Th>ظرفیت هفتگی</Th><Th>آخرین ورود</Th><Th>وضعیت</Th></tr>
+          <tr>
+            <Th>نام</Th><Th>ایمیل</Th><Th>واحد</Th>
+            {detailed && <><Th>نقش‌ها</Th><Th>ظرفیت هفتگی</Th><Th>آخرین ورود</Th><Th>وضعیت</Th></>}
+          </tr>
         </thead>
         <tbody>
           {data?.items.map((u: any) => (
@@ -56,14 +69,18 @@ function Users() {
               <Td><p className="text-sm font-medium">{u.fullName}</p><p className="text-[11px] text-ink-400">{u.jobTitle}</p></Td>
               <Td className="ltr text-xs">{u.email}</Td>
               <Td className="text-xs">{u.department?.nameFa ?? '—'}</Td>
-              <Td>
-                <div className="flex flex-wrap gap-1">
-                  {u.roles.map((r: any) => <Badge key={r.role.code} tone="progress">{r.role.nameFa}</Badge>)}
-                </div>
-              </Td>
-              <Td className="nums text-xs">{toPersianDigits(Number(u.weeklyCapacityHours))} ساعت</Td>
-              <Td className="text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : '—'}</Td>
-              <Td>{u.isActive ? <Badge tone="success">فعال</Badge> : <Badge tone="neutral">غیرفعال</Badge>}</Td>
+              {detailed && (
+                <>
+                  <Td>
+                    <div className="flex flex-wrap gap-1">
+                      {(u.roles ?? []).map((r: any) => <Badge key={r.role.code} tone="progress">{r.role.nameFa}</Badge>)}
+                    </div>
+                  </Td>
+                  <Td className="nums text-xs">{toPersianDigits(Number(u.weeklyCapacityHours ?? 0))} ساعت</Td>
+                  <Td className="text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : '—'}</Td>
+                  <Td>{u.isActive ? <Badge tone="success">فعال</Badge> : <Badge tone="neutral">غیرفعال</Badge>}</Td>
+                </>
+              )}
             </Tr>
           ))}
         </tbody>
