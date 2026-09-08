@@ -101,16 +101,63 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.post('/auth/refresh', async (req) => {
+  app.post('/auth/refresh', {
+    // Rotation makes this endpoint a credential-guessing surface of its own; it is limited
+    // on the same budget as login rather than left on the 300/min global allowance.
+    config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
+  }, async (req) => {
     const { refreshToken } = (req.body ?? {}) as { refreshToken?: string };
     if (!refreshToken) throw badRequest('MISSING_TOKEN', 'توکن تازه‌سازی ارسال نشده است.');
     const session = await prisma.session.findUnique({
       where: { refreshTokenHash: hashToken(refreshToken) },
     });
-    if (!session || session.revokedAt || session.expiresAt < new Date()) {
+    if (!session) throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+
+    /**
+     * Reuse detection (OAuth 2.1 BCP). Rotation makes each refresh token single-use, so a
+     * second presentation means the token was captured: either the attacker is replaying what
+     * the victim already spent, or the victim is replaying what the attacker spent. Which of
+     * the two cannot be told apart, so the whole family goes.
+     *
+     * Revocation is user-wide rather than per-device-chain. That needs no schema change, and
+     * at this scale — tens of staff, a few devices each — forcing everyone on the account to
+     * sign in again is the correct response to a stolen credential, not collateral damage.
+     */
+    if (session.revokedAt) {
+      const { count } = await prisma.session.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      const owner = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { organizationId: true },
+      });
+      await audit({
+        organizationId: owner?.organizationId ?? '',
+        actorId: session.userId,
+        action: 'REFRESH_TOKEN_REUSE',
+        entityType: 'user',
+        entityId: session.userId,
+        after: { revokedSessions: count, reusedSessionId: session.id },
+        reason: 'a revoked refresh token was presented — every session for this user was revoked',
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] ?? null,
+        requestId: req.id,
+      }).catch(() => undefined);
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
-    const { claims } = await claimsFor(session.userId);
+
+    if (session.expiresAt < new Date()) {
+      throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+    }
+
+    const { user: sessionUser, claims } = await claimsFor(session.userId);
+    // Login rejects a deactivated or deleted user; refresh must agree, or a revoked employee
+    // keeps minting access tokens until the refresh token expires days later.
+    if (!sessionUser.isActive || sessionUser.deletedAt) {
+      await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+      throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+    }
     // Rotate: the presented refresh token is single-use.
     const next = generateRefreshToken();
     await prisma.$transaction([

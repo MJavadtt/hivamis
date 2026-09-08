@@ -7,7 +7,12 @@ import { runGuards } from './guards.js';
 import { EFFECTS } from './effects.js';
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
-function delegate(tx: Tx, entity: string): any {
+/**
+ * The only sanctioned way to reach a workflow entity's Prisma delegate. Exported so callers
+ * never index the client with a path parameter — `(prisma as any)[entity]` turns a URL segment
+ * into dynamic property access on the database client.
+ */
+export function delegate(tx: Tx, entity: string): any {
   const map: Record<string, any> = {
     lead: tx.lead,
     opportunity: tx.opportunity,

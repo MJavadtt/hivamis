@@ -47,6 +47,10 @@ services:
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
       # Chromium ships in the image; pinned so the renderer never probes the filesystem.
       PDF_BROWSER_PATH: ${PDF_BROWSER_PATH:-/usr/bin/chromium}
+      # The `web` nginx container is the only proxy in front of the API in this stack, so
+      # exactly one hop of X-Forwarded-For is trustworthy. Raise this only if you add another
+      # proxy in front of `web`, and count the hops.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     volumes:
       - storage:/app/storage
     expose:

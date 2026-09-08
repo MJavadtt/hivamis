@@ -5,6 +5,7 @@ import {
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
+import { hasPermission } from '../auth/plugin.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
@@ -21,15 +22,33 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       ...(roleCode ? { roles: { some: { role: { code: roleCode } } } } : {}),
       ...(q.q ? { OR: [{ fullName: { contains: q.q, mode: 'insensitive' as const } }, { email: { contains: q.q, mode: 'insensitive' as const } }] } : {}),
     };
+    /**
+     * Two shapes from one route. Assignee and owner pickers across the app need a staff
+     * directory, so the basic shape stays open to any authenticated user — name, job title,
+     * work email and unit are ordinary internal information.
+     *
+     * Everything that describes a person's standing rather than identifying them —
+     * account status, last sign-in, contracted hours, granted roles — requires `admin.users`.
+     * The write routes already do.
+     */
+    const full = hasPermission(req, 'admin.users');
+    const select = {
+      id: true, email: true, fullName: true, jobTitle: true,
+      department: { select: { code: true, nameFa: true } },
+      ...(full
+        ? {
+            isActive: true,
+            weeklyCapacityHours: true,
+            lastLoginAt: true,
+            roles: { select: { role: { select: { code: true, nameFa: true } } } },
+          }
+        : {}),
+    };
+
     const [items, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        select: {
-          id: true, email: true, fullName: true, jobTitle: true, isActive: true,
-          weeklyCapacityHours: true, lastLoginAt: true,
-          department: { select: { code: true, nameFa: true } },
-          roles: { select: { role: { select: { code: true, nameFa: true } } } },
-        },
+        select,
         orderBy: { fullName: 'asc' },
         skip: (q.page - 1) * q.pageSize, take: q.pageSize,
       }),
@@ -97,12 +116,32 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       data.departmentId = dep.id;
     }
 
+    const currentRoles = (
+      await prisma.userRole.findMany({ where: { userId: id }, include: { role: true } })
+    ).map((r) => r.role.code).sort();
+
+    let rolesChanged = false;
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({ where: { id }, data });
       if (input.roleCodes) {
         const roles = await tx.role.findMany({ where: { code: { in: input.roleCodes } } });
+        rolesChanged =
+          JSON.stringify(roles.map((r) => r.code).sort()) !== JSON.stringify(currentRoles);
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.createMany({ data: roles.map((r) => ({ userId: id, roleId: r.id })) });
+
+        /**
+         * Permissions are carried in the access token, so a demotion would otherwise leave the
+         * old grants usable until it expires. Fifteen minutes is too long a window for a
+         * privilege that has just been taken away; revoking here forces an immediate re-auth.
+         * Follows the precedent already set by change-password and deactivate.
+         */
+        if (rolesChanged) {
+          await tx.session.updateMany({
+            where: { userId: id, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+        }
       }
       return updated;
     });
@@ -110,6 +149,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
       entityType: 'user', entityId: id, before, after: user,
+      reason: rolesChanged ? 'roles changed — sessions revoked' : undefined,
       ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     return { id: user.id, email: user.email, fullName: user.fullName };

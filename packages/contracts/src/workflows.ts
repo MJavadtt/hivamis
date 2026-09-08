@@ -297,3 +297,30 @@ export function findTransition(entity: string, from: string, action: string): Tr
 export function availableTransitions(entity: string, from: string): TransitionDef[] {
   return (WORKFLOWS[entity]?.transitions ?? []).filter((t) => t.from.includes(from));
 }
+
+/**
+ * Reading an entity's lifecycle is reading the entity. State history carries the free-text
+ * `reason` on every transition — why a proposal was rejected, why an opportunity was lost, why
+ * a brief was returned — so it is gated by the same permission as the record itself. Without
+ * this, the Sales/Account separation in Doc_H §2 leaks through the history endpoint.
+ */
+export const WORKFLOW_READ_PERMISSION: Record<string, Permission> = {
+  lead: 'crm.lead.read',
+  opportunity: 'crm.opportunity.read',
+  brief: 'brief.read',
+  proposal: 'proposal.read',
+  project: 'project.read',
+  workOrder: 'workorder.read',
+  task: 'task.read',
+  deliverable: 'deliverable.read',
+  revision: 'revision.read',
+  changeRequest: 'change.read',
+  contract: 'contract.read',
+  invoice: 'finance.read',
+  outsourceRequest: 'supplier.read',
+};
+
+/** True when `entity` names a declared state machine. Guards dynamic lookups. */
+export function isWorkflowEntity(entity: string): boolean {
+  return Object.prototype.hasOwnProperty.call(WORKFLOWS, entity);
+}

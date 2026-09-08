@@ -6,7 +6,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { env } from './env.js';
+import { env, trustProxy } from './env.js';
 import { prisma } from './db.js';
 import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
@@ -39,7 +39,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,
-    trustProxy: true,
+    // Never `true` by default: with unconditional trust, any client can set X-Forwarded-For
+    // and rotate itself through rate-limit buckets. See TRUST_PROXY in env.ts.
+    trustProxy,
   });
 
   await app.register(helmet, {
@@ -53,7 +55,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: '1 minute',
-    keyGenerator: (req) => (req as any).user?.sub ?? req.ip,
+    // Keyed on IP only. @fastify/rate-limit runs in onRequest and authentication runs in
+    // preHandler, so req.user is not yet populated here — a per-user branch would be dead code
+    // that reads as a protection the limiter does not actually provide.
+    keyGenerator: (req) => req.ip,
   });
   await app.register(multipart, {
     limits: { fileSize: env.MAX_UPLOAD_MB * 1024 * 1024, files: 1 },

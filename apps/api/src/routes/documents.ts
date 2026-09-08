@@ -8,11 +8,14 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { actorFrom } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
+import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
 import { audit } from '../lib/audit.js';
 
 /** Only these types are accepted; anything executable or unknown is refused. */
 const ALLOWED_MIME = new Set([
-  'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+  // No image/svg+xml: SVG carries script. The download path forces an attachment
+  // disposition and octet-stream, but there is no need to accept the format at all.
+  'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp',
   'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -60,7 +63,18 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
 
     const hash = createHash('sha256');
     let size = 0;
-    file.file.on('data', (chunk: Buffer) => { size += chunk.length; hash.update(chunk); });
+    const headChunks: Buffer[] = [];
+    let headBytes = 0;
+    file.file.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      hash.update(chunk);
+      // Keep just enough of the leading bytes to verify the declared type; the file itself is
+      // never buffered.
+      if (headBytes < SIGNATURE_HEAD_BYTES) {
+        headChunks.push(chunk.subarray(0, SIGNATURE_HEAD_BYTES - headBytes));
+        headBytes += chunk.length;
+      }
+    });
 
     await pipeline(file.file, createWriteStream(target));
     if ((file.file as any).truncated) {
@@ -68,8 +82,41 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       throw badRequest('FILE_TOO_LARGE', `حداکثر حجم مجاز ${env.MAX_UPLOAD_MB} مگابایت است.`);
     }
 
+    // The declared Content-Type is client-controlled; confirm the bytes agree with it.
+    if (!signatureMatches(file.mimetype, Buffer.concat(headChunks))) {
+      await unlink(target).catch(() => undefined);
+      throw badRequest(
+        'UNSUPPORTED_TYPE',
+        `محتوای فایل با نوع اعلام‌شده «${file.mimetype}» مطابقت ندارد.`,
+      );
+    }
+
     const fields = (file.fields ?? {}) as Record<string, { value?: string } | undefined>;
     const val = (k: string) => fields[k]?.value || null;
+
+    /**
+     * The attachment targets arrive as multipart fields and were written straight to the row.
+     * Verify each exists inside the caller's organisation, so an upload cannot be filed against
+     * another tenant's project or a record that does not exist.
+     */
+    const links = {
+      projectId: val('projectId'), companyId: val('companyId'), contractId: val('contractId'),
+      deliverableId: val('deliverableId'), submissionId: val('submissionId'),
+    } as const;
+    const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
+      projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
+      deliverableId: prisma.deliverable, submissionId: prisma.formSubmission,
+    };
+    for (const [field, id] of Object.entries(links)) {
+      if (!id) continue;
+      const found = await owners[field as keyof typeof links].count({
+        where: { id, organizationId: actor.organizationId },
+      });
+      if (found === 0) {
+        await unlink(target).catch(() => undefined);
+        throw badRequest('UNKNOWN_REFERENCE', `ارجاع «${field}» نامعتبر است.`);
+      }
+    }
 
     const document = await prisma.document.create({
       data: {
@@ -77,9 +124,9 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
         fileName: path.basename(file.filename).slice(0, 200),
         storedName, mimeType: file.mimetype, sizeBytes: size,
         checksum: hash.digest('hex'),
-        projectId: val('projectId'), companyId: val('companyId'),
-        contractId: val('contractId'), deliverableId: val('deliverableId'),
-        submissionId: val('submissionId'),
+        projectId: links.projectId, companyId: links.companyId,
+        contractId: links.contractId, deliverableId: links.deliverableId,
+        submissionId: links.submissionId,
         tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? [],
         uploadedById: actor.id,
       },

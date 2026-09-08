@@ -209,7 +209,7 @@ export const MODULE_LABELS: Record<ModuleCode, { fa: string; en: string }> = {
 
 export const AUDIT_ACTIONS = [
   'CREATE', 'UPDATE', 'DELETE', 'STATE_TRANSITION', 'APPROVE', 'REJECT',
-  'LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'PERMISSION_DENIED', 'AI_ACTION',
+  'LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'PERMISSION_DENIED', 'REFRESH_TOKEN_REUSE', 'AI_ACTION',
   'EXPORT', 'FILE_UPLOAD', 'FILE_DOWNLOAD',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

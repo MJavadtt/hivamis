@@ -183,17 +183,18 @@ reshaping the schema.
 | Control | Implementation |
 |---|---|
 | Password storage | Argon2id, 19 MiB / 2 iterations / 1 lane (OWASP) |
-| Session | 15-minute access JWT; opaque refresh token stored only as SHA-256 digest; rotated single-use |
-| Brute force | Login rate limit plus account lock after 5 failures |
+| Session | 15-minute access JWT; opaque refresh token stored only as SHA-256 digest; rotated single-use. Refresh re-checks that the account is still active, so a deactivated user cannot keep minting access tokens. Replaying a spent token is treated as theft: every session for that user is revoked and a `REFRESH_TOKEN_REUSE` audit event is written. Changing a user's roles revokes their sessions, because permissions are carried in the access token |
+| Brute force | Login and refresh rate limits plus account lock after 5 failures. `TRUST_PROXY` defaults to trusting no proxy, so a forged `X-Forwarded-For` cannot move a client between rate-limit buckets |
 | Authorization | 103 permissions across 16 roles, checked per route and again inside the workflow engine |
 | Audit | Every consequential mutation writes who / what / when / before / after / why; sensitive fields redacted |
-| Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list |
-| Upload | MIME allow-list, size cap, generated storage names, path-traversal check, `Content-Disposition: attachment` with `nosniff` |
+| Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list. Path parameters naming an entity are validated against the declared workflow list before any dynamic delegate lookup |
+| State integrity | Each workflow table carries a CHECK constraint pinning `state` to its declared vocabulary, generated from `packages/contracts` by `prisma/generate-state-constraints.mts`. The engine remains the only sanctioned writer; the constraint means a direct UPDATE or a data import cannot introduce an undeclared state either |
+| Upload | MIME allow-list verified against the file's magic bytes (the declared Content-Type is client-controlled), size cap, generated storage names, path-traversal check, attachment targets validated against the caller's organisation, `Content-Disposition: attachment` with `nosniff`. SVG is not accepted |
 | Transport headers | Helmet on the API; CSP, HSTS-ready headers, `X-Frame-Options: DENY` at nginx |
 | Error handling | Internal detail logged, never returned; every response carries a request id |
 | Secrets | Environment-only, validated at boot; the process refuses to start on a missing or short `JWT_SECRET` |
 
-Verified by 21 security tests in [`apps/api/tests/003-security.test.ts`](../apps/api/tests/003-security.test.ts).
+Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../apps/api/tests/003-security.test.ts).
 
 ## Observability
 

@@ -26,6 +26,18 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),
   /** Login attempts per minute per IP — deliberately tight to slow credential stuffing. */
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().default(10),
+  /**
+   * Which proxies may set X-Forwarded-For. Defaults to `false` so a misconfigured deployment
+   * fails closed: with no trusted proxy, req.ip is the socket address and a forged header
+   * cannot move a client between rate-limit buckets.
+   *
+   *   false              trust nothing (default)
+   *   <n>                trust n hops — `1` behind a single reverse proxy
+   *   <cidr>[,<cidr>…]   trust these addresses only
+   *   true               trust any client-supplied header (unsafe; only behind a proxy that
+   *                      strips the header itself)
+   */
+  TRUST_PROXY: z.string().default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -37,5 +49,28 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+/**
+ * Fastify's `trustProxy` accepts a boolean, an address list, or a predicate. It has no number
+ * form in its type, so a hop count is expressed as the predicate it means: trust the first N
+ * hops of the forwarding chain and nothing beyond them.
+ *
+ * Anything unparseable resolves to `false` rather than being guessed at — silently trusting a
+ * malformed value is the exact failure this setting exists to prevent.
+ */
+export function parseTrustProxy(raw: string): boolean | string[] | ((addr: string, hop: number) => boolean) {
+  const v = raw.trim();
+  if (v === '' || v.toLowerCase() === 'false') return false;
+  if (v.toLowerCase() === 'true') return true;
+  if (/^\d+$/.test(v)) {
+    const hops = Number(v);
+    if (hops === 0) return false;
+    return (_address: string, hop: number) => hop < hops;
+  }
+  const list = v.split(',').map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : false;
+}
+
+export const trustProxy = parseTrustProxy(env.TRUST_PROXY);
 /** AI features require BOTH the flag and a key; either alone leaves the subsystem disabled. */
 export const aiEnabled = env.AI_ENABLED && env.ANTHROPIC_API_KEY.length > 0;

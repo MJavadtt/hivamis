@@ -56,6 +56,7 @@ on first sign-in), then deactivate the demo users.
 | `PDF_BROWSER_PATH` | no | — | Chromium binary for PDF export. Unset locally (the renderer probes the Playwright cache and system paths); the Docker image pins it to `/usr/bin/chromium`. Without a resolvable browser, `/api/v1/pdf/*` returns 503 and the rest of the platform is unaffected. |
 | `RATE_LIMIT_MAX` | no | 300 | Requests/minute per user or IP |
 | `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts/minute per IP |
+| `TRUST_PROXY` | no | `false` | Which proxies may set `X-Forwarded-For`. `false` trusts nothing; a number is a hop count (`1` behind one reverse proxy — what the compose stack sets); a comma-separated list trusts those addresses. Leaving it at `false` behind a proxy means every client shares one rate-limit bucket; setting it too high lets a client forge its own IP and escape the login limit entirely. |
 | `JOBS_ENABLED` | no | true | SLA ticking and digests |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required |
