@@ -4,6 +4,7 @@ import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
+import { PdfBundleButton } from '../components/PdfBundleButton';
 import {
   Badge, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
   Table, Td, Th, Tr,
@@ -66,6 +67,7 @@ export function ContractDetail() {
         actions={
           <>
             <PdfButton kind="contract" id={data.id} />
+            <PdfBundleButton kind="contract" id={data.id} />
             <WorkflowActions entity="contract" id={data.id} transitions={data.availableTransitions} />
           </>
         }

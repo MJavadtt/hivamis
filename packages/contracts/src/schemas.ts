@@ -504,3 +504,20 @@ export const aiAskSchema = z.object({
   entityId: idSchema.optional(),
   question: z.string().trim().max(4000).optional(),
 });
+
+/* ── PDF bundles ───────────────────────────────────────────────────────────── */
+
+/**
+ * Selection for a combined export. The server re-authorises every entry, so this shape only
+ * has to be well-formed — it is never trusted as evidence of access.
+ *
+ * The caps here are a payload bound, not the business limit: how many sections a single bundle
+ * may contain is MAX_BUNDLE_ITEMS on the server, which reports it with a usable message.
+ */
+export const bundleSchema = z.object({
+  items: z.array(z.object({
+    kind: z.string().trim().min(1).max(40),
+    id: idSchema,
+  })).max(100).default([]),
+  fileIds: z.array(idSchema).max(100).default([]),
+});

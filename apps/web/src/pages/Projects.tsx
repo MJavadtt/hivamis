@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, Count, EntityList, HealthDot, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
+import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -154,6 +155,7 @@ export function ProjectDetail() {
         actions={
           <>
             <PdfButton kind="project" id={p.id} label="پرونده پروژه" />
+            <PdfBundleButton kind="project" id={p.id} />
             {['COMPLETED', 'PENDING_CLOSURE', 'CLOSED'].includes(p.state) && (
               <PdfButton kind="closure-report" id={p.id} label="گزارش پایان" />
             )}

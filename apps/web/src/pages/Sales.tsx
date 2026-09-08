@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
+import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -77,6 +78,7 @@ export function BriefDetail() {
         actions={
           <>
             <PdfButton kind="brief" id={data.id} />
+            <PdfBundleButton kind="brief" id={data.id} />
             <WorkflowActions entity="brief" id={data.id} transitions={data.availableTransitions} />
           </>
         }
@@ -231,6 +233,7 @@ export function ProposalDetail() {
               </Button>
             )}
             <PdfButton kind="proposal" id={data.id} />
+            <PdfBundleButton kind="proposal" id={data.id} />
             <WorkflowActions entity="proposal" id={data.id} transitions={data.availableTransitions} />
           </>
         }

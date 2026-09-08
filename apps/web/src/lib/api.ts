@@ -152,3 +152,48 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
   // Revoke on the next tick; revoking synchronously can cancel the download in Safari.
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
+
+/** POST a selection and download the merged PDF it produces. */
+export async function downloadPdfBundle(
+  kind: string,
+  id: string,
+  body: { items: { kind: string; id: string }[]; fileIds: string[] },
+): Promise<number> {
+  const url = new URL(`/api/v1/pdf/${kind}/${id}/bundle`, window.location.origin);
+
+  const send = () => fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  let res = await send();
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+
+  if (!res.ok) {
+    let err: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    try {
+      const parsed = await res.json();
+      if (parsed?.error) err = parsed.error;
+    } catch { /* binary or empty body */ }
+    throw new ApiError(res.status, err);
+  }
+
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+  const filename = utf8 ? decodeURIComponent(utf8[1]) : `bundle-${kind}.pdf`;
+  const sections = Number(res.headers.get('x-bundle-sections') ?? 0);
+
+  const href = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  return sections;
+}

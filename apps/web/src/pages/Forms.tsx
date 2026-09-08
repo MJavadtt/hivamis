@@ -4,6 +4,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
+import { PdfBundleButton } from '../components/PdfBundleButton';
 import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
   Modal, Select, StateBadge, Table, Tabs, Td, Textarea, Th, Tr, useToast, cx, IconPlus, IconSearch,
@@ -594,6 +595,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       footer={
         <>
           <PdfButton kind="form-submission" id={submission.id} />
+          <PdfBundleButton kind="form-submission" id={submission.id} />
           <Button variant="ghost" onClick={onClose}>انصراف</Button>
           <Button variant="secondary" loading={busy} disabled={!comment.trim()} onClick={() => void decide('RETURN')}>
             بازگشت برای اصلاح

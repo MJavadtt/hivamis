@@ -210,3 +210,126 @@ describe('Export audit trail', () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 });
+
+describe('Attachment discovery', () => {
+  it('finds the records and files that travel with a project', async () => {
+    const res = await get(`/pdf/project/${ids.project}/attachments`, T.accountManager);
+    expect(res.status).toBe(200);
+    expect(res.body.totalAvailable).toBeGreaterThan(0);
+
+    const kinds = res.body.groups.flatMap((g: any) => g.items.map((i: any) => i.kind ?? 'file'));
+    // The project's own origin documents and execution records are reachable.
+    expect(kinds).toEqual(expect.arrayContaining(['brief', 'proposal', 'work-order', 'deliverable']));
+  });
+
+  /** Doc_H forms point at each other through entityRef fields; those links are followed. */
+  it('follows a form submission’s entityRef fields', async () => {
+    const linked = await prisma.formSubmission.findFirst({
+      where: { organizationId: (await prisma.organization.findFirstOrThrow()).id, projectId: { not: null } },
+    });
+    if (!linked) return; // nothing linked in this dataset
+    const res = await get(`/pdf/form-submission/${linked.id}/attachments`, T.accountManager);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.groups)).toBe(true);
+  });
+
+  it('offers each role only what it may export, and omits the rest entirely', async () => {
+    const forAccount = await get(`/pdf/project/${ids.project}/attachments`, T.accountManager);
+    const forSales = await get(`/pdf/project/${ids.project}/attachments`, T.sales);
+    const forLegal = await get(`/pdf/project/${ids.project}/attachments`, T.legal);
+
+    const kindsOf = (r: any) =>
+      r.body.groups.flatMap((g: any) => g.items.map((i: any) => i.kind ?? 'file'));
+
+    // Sales holds neither finance.read nor workorder/deliverable/qc/change read.
+    expect(kindsOf(forSales)).not.toContain('invoice');
+    expect(kindsOf(forSales)).not.toContain('work-order');
+    expect(kindsOf(forSales)).not.toContain('qc-review');
+
+    // Legal may read contracts but not finance.
+    expect(kindsOf(forLegal)).toContain('contract');
+    expect(kindsOf(forLegal)).not.toContain('invoice');
+
+    // Account sees the widest set.
+    expect(forAccount.body.totalAvailable).toBeGreaterThan(forSales.body.totalAvailable);
+  });
+});
+
+describe('Bundled export', () => {
+  it('merges the main document and its attachments into one PDF', async () => {
+    const list = await get(`/pdf/project/${ids.project}/attachments`, T.accountManager);
+    const items = list.body.groups
+      .flatMap((g: any) => g.items)
+      .filter((i: any) => i.type === 'record')
+      .slice(0, 4)
+      .map((i: any) => ({ kind: i.kind, id: i.id }));
+
+    const a = await app();
+    const res = await a.inject({
+      method: 'POST',
+      url: `/api/v1/pdf/project/${ids.project}/bundle`,
+      headers: { authorization: `Bearer ${T.accountManager}` },
+      payload: { items, fileIds: [] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('application/pdf');
+    // Main document + the four selected sections.
+    expect(Number(res.headers['x-bundle-sections'])).toBe(items.length + 1);
+    expect(res.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+    // A merged dossier is necessarily larger than the single document.
+    const single = await pdf(`/pdf/project/${ids.project}`, T.accountManager);
+    expect(res.rawPayload.length).toBeGreaterThan(single.buffer.length);
+  }, 90_000);
+
+  /** The picker is a convenience; the bundle endpoint never trusts the list it is handed. */
+  it('silently drops attachments the caller may not export', async () => {
+    const a = await app();
+    const res = await a.inject({
+      method: 'POST',
+      url: `/api/v1/pdf/project/${ids.project}/bundle`,
+      headers: { authorization: `Bearer ${T.creative}` },
+      payload: { items: [{ kind: 'invoice', id: ids.invoice }], fileIds: [] },
+    });
+    expect(res.statusCode).toBe(200);
+    // Only the main document survives — the forged invoice is not merged.
+    expect(Number(res.headers['x-bundle-sections'])).toBe(1);
+  }, 60_000);
+
+  it('refuses a bundle larger than the cap', async () => {
+    const a = await app();
+    const res = await a.inject({
+      method: 'POST',
+      url: `/api/v1/pdf/project/${ids.project}/bundle`,
+      headers: { authorization: `Bearer ${T.accountManager}` },
+      payload: {
+        items: Array.from({ length: 41 }, () => ({ kind: 'brief', id: ids.brief })),
+        fileIds: [],
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('BUNDLE_TOO_LARGE');
+  });
+
+  it('records the bundle contents in the audit trail', async () => {
+    const a = await app();
+    await a.inject({
+      method: 'POST',
+      url: `/api/v1/pdf/brief/${ids.brief}/bundle`,
+      headers: { authorization: `Bearer ${T.accountManager}` },
+      payload: { items: [], fileIds: [] },
+    });
+    const ev = await prisma.auditEvent.findFirst({
+      where: { action: 'EXPORT', entityType: 'brief', entityId: ids.brief },
+      orderBy: { createdAt: 'desc' },
+    });
+    const after = ev!.after as { format?: string; included?: unknown[] };
+    expect(after.format).toBe('pdf-bundle');
+    expect(Array.isArray(after.included)).toBe(true);
+  }, 30_000);
+
+  it('requires the main document permission to even list attachments', async () => {
+    expect((await get(`/pdf/invoice/${ids.invoice}/attachments`, T.sales)).status).toBe(403);
+    expect((await get(`/pdf/project/${ids.project}/attachments`, T.sales)).status).toBe(200);
+  });
+});
