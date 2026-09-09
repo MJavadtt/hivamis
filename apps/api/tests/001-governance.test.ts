@@ -387,8 +387,17 @@ describe('State is written only through the engine', () => {
   });
 
   it('records the opportunity’s cascade when a brief is approved', async () => {
-    // A brief that satisfies the completeness guard, so the approval reaches the cascade.
-    const opportunity = await prisma.opportunity.findFirstOrThrow();
+    // A dedicated opportunity in a known state. Reusing a shared one made this order-dependent:
+    // once another test had already moved it to BRIEF_COMPLETED, cascadeState correctly
+    // no-opped and no new row appeared.
+    const company = await prisma.company.findFirstOrThrow({ where: { deletedAt: null } });
+    const opportunity = await prisma.opportunity.create({
+      data: {
+        organizationId: ORG, code: `OPP-T${Date.now() % 100000}`,
+        title: 'فرصت آزمایشی cascade', companyId: company.id,
+        estimatedValue: 1_000_000_000, state: 'BRIEF_REQUESTED',
+      },
+    });
     const brief = await prisma.brief.create({
       data: {
         organizationId: ORG, code: `BRF-T${Date.now() % 100000}`,

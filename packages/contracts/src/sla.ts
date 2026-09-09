@@ -35,6 +35,13 @@ export const SLA_POLICIES: readonly SlaPolicyDef[] = [
   { code: 'SLA_INTEGRATION', labelFa: 'یکپارچه‌سازی خروجی‌ها', labelEn: 'Output integration', hours: 2 * D, warnAt: 0.7, docRef: 'RACI #16 — ۱ تا ۲ روز' },
   { code: 'SLA_PRICING', labelFa: 'قیمت‌گذاری', labelEn: 'Pricing', hours: 1 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۱ روز' },
   { code: 'SLA_FINAL_QC', labelFa: 'QC نهایی', labelEn: 'Final QC', hours: 1 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۱ روز' },
+  /**
+   * APPROXIMATION. Doc_H says «همان روز تأیید» — by close of business on the day the proposal is
+   * approved — which is not a fixed duration: approved at 09:00 it means eight hours, approved at
+   * 16:00 it means one. The engine only supports a duration from the start instant, so this is
+   * carried as one working day with an early warning threshold. Modelling it exactly needs a
+   * deadline kind of "end of the current working day", which the SlaPolicy shape has no room for.
+   */
   { code: 'SLA_PROPOSAL_HANDOVER', labelFa: 'تحویل Proposal به فروش', labelEn: 'Proposal handover to Sales', hours: 1 * D, warnAt: 0.6, docRef: 'SLA sheet — همان روز تأیید' },
   { code: 'SLA_PROPOSAL_REVISION', labelFa: 'اصلاح Proposal', labelEn: 'Proposal revision', hours: 2 * D, warnAt: 0.7, docRef: 'RACI #22 — طبق Revision SLA' },
   { code: 'SLA_CONTRACT_DRAFT', labelFa: 'تهیه قرارداد', labelEn: 'Contract drafting', hours: 3 * D, warnAt: 0.7, docRef: 'RACI #25 — ۱ تا ۳ روز' },
@@ -44,7 +51,9 @@ export const SLA_POLICIES: readonly SlaPolicyDef[] = [
   { code: 'SLA_STATUS_REPORT', labelFa: 'گزارش وضعیت پروژه', labelEn: 'Project status report', hours: 5 * D, warnAt: 0.8, docRef: 'SLA sheet — هفتگی' },
   { code: 'SLA_SCOPE_REVIEW', labelFa: 'بررسی Scope', labelEn: 'Scope review', hours: 4, warnAt: 0.75, docRef: 'RACI #37 — ≤ ۴ ساعت' },
   { code: 'SLA_CHANGE_REQUEST', labelFa: 'پاسخ به Change Request', labelEn: 'Change request response', hours: 1 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۱ روز' },
-  { code: 'SLA_MEETING_MINUTES', labelFa: 'ثبت صورتجلسه', labelEn: 'Meeting minutes', hours: 3 * D, warnAt: 0.7, docRef: 'SLA sheet — حداکثر ۲۴ ساعت پس از جلسه' },
+  // «۲۴ ساعت» is 24 calendar hours — by the next working day — not 24 working hours, which
+  // would be three working days and, across the Thursday–Friday weekend, nearly a week.
+  { code: 'SLA_MEETING_MINUTES', labelFa: 'ثبت صورتجلسه', labelEn: 'Meeting minutes', hours: 1 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۲۴ ساعت پس از جلسه' },
   { code: 'SLA_PROJECT_CLOSURE', labelFa: 'گزارش پایان پروژه', labelEn: 'Project closure report', hours: 3 * D, warnAt: 0.7, docRef: 'SLA sheet — حداکثر ۳ روز' },
   { code: 'SLA_FEEDBACK', labelFa: 'دریافت Feedback مشتری', labelEn: 'Collect customer feedback', hours: 7 * D, warnAt: 0.8, docRef: 'SLA sheet — حداکثر ۷ روز' },
   { code: 'SLA_PROJECT_CLOSE', labelFa: 'بستن پروژه', labelEn: 'Close project', hours: 2 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۲ روز پس از تکمیل Closure' },

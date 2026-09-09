@@ -106,14 +106,34 @@ Doc_H asks of them; they are not presented as more than that.
 ## ADR-005 — Business-hours SLA arithmetic
 
 **Context.** Doc_H states SLAs in *working* hours. A 4-working-hour SLA started at 16:00 on a
-Wednesday is due Saturday at 11:00, not Wednesday at 20:00.
+Wednesday is due Saturday at 12:00, not Wednesday at 20:00.
 
 **Decision.** A calendar-aware arithmetic module driven by the organisation's own working days,
 hours, break and holidays.
 
+**Break model.** `Organization` stores `breakHours` as a duration, not a window, so the break has
+no wall-clock position. It is modelled at the END of the working span: with 09:00–18:00 and one
+break hour, productive time is 09:00–17:00. Any fixed position yields the same total per day;
+placing it at the end keeps `addBusinessHours` and `businessHoursBetween` exact inverses and needs
+no schema change. A budget that exactly consumes the rest of a day rolls to the next working
+morning rather than landing on the closing instant, so a due date is always a moment the office is
+open.
+
 **Consequences.** SLA compliance figures are defensible. The calendar is data, so a change in
-working hours needs no code change. Verified by five calendar tests including the
-Thursday–Friday Iranian weekend.
+working hours needs no code change.
+
+**Corrected after review.** Neither `addBusinessHours` nor `businessHoursBetween` subtracted the
+break: both measured the full nine-hour span, so a "1 working day" (8h) SLA started at 09:00 came
+due at 17:00 the *same* day, and the error compounded across multi-day policies. The
+Wednesday-16:00 example above previously read "Saturday 11:00", which was that bug written into
+the ADR. Separately, the AT_RISK threshold compared wall-clock durations, so a clock opened before
+the Thursday–Friday weekend was flagged as nearly-due during the weekend having consumed no
+working time; it now compares working hours consumed against the policy's budget. Two catalogue
+entries were also wrong: `SLA_MEETING_MINUTES` read «۲۴ ساعت» as 24 *working* hours (three working
+days, nearly a calendar week) instead of one working day, and `SLA_PROPOSAL_HANDOVER` carries
+«همان روز» as a one-day approximation because "by close of business today" is not a fixed duration
+the engine can express. Covered by the calendar tests in `004-engines.test.ts`, including the
+weekend, a declared holiday, and a round-trip across a range of durations.
 
 ---
 

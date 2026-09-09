@@ -1,6 +1,6 @@
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
-import { addBusinessHours, DEFAULT_CALENDAR, type Calendar } from '../lib/business-calendar.js';
+import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, type Calendar } from '../lib/business-calendar.js';
 
 /**
  * Keyed by organisation, not a single slot. The cache previously held one calendar for the whole
@@ -130,50 +130,78 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
     where: { state: { in: ['RUNNING', 'AT_RISK'] } },
     include: { policy: true },
   });
+  if (running.length === 0) return { warned: 0, breached: 0 };
 
-  let warned = 0;
-  let breached = 0;
+  // One calendar per organisation, not one per clock: the tick spans tenants and each has its
+  // own working week and holidays.
+  const calendars = new Map<string, Calendar>();
+  for (const orgId of new Set(running.map((c) => c.organizationId))) {
+    calendars.set(orgId, await loadCalendar(orgId));
+  }
+
+  const toBreach: string[] = [];
+  const toWarn: string[] = [];
+  const notifications: { clock: (typeof running)[number]; kind: 'SLA_BREACH' | 'SLA_WARNING' }[] = [];
 
   for (const clock of running) {
-    const totalMs = clock.dueAt.getTime() - clock.startedAt.getTime();
-    const elapsedMs = now.getTime() - clock.startedAt.getTime();
-    const ratio = totalMs > 0 ? elapsedMs / totalMs : 1;
-
     if (now > clock.dueAt && clock.state !== 'BREACHED') {
-      await prisma.slaClock.update({
-        where: { id: clock.id },
-        data: { state: 'BREACHED', breachedAt: now },
-      });
-      breached++;
-      await notifyOwner(clock.ownerId, {
-        kind: 'SLA_BREACH',
-        title: `نقض SLA — ${clock.policy.labelFa}`,
-        body: `مهلت «${clock.policy.labelFa}» برای ${clock.entityType} گذشته است.`,
-        entityType: clock.entityType,
-        entityId: clock.entityId,
-        severity: 'CRITICAL',
-      });
+      toBreach.push(clock.id);
+      notifications.push({ clock, kind: 'SLA_BREACH' });
       continue;
     }
 
+    /**
+     * Consumption is measured in WORKING hours, not wall-clock.
+     *
+     * The ratio used to be (now - startedAt) / (dueAt - startedAt), both calendar durations. A
+     * clock opened Wednesday 17:00 under a 4-working-hour policy is due Saturday — so by Thursday
+     * noon the wall-clock ratio was already past warnAt and the owner was told the deadline was
+     * nearly up, in the middle of the Thursday–Friday weekend, having consumed zero working
+     * hours. False alarms teach people to ignore real ones.
+     */
+    const cal = calendars.get(clock.organizationId) ?? DEFAULT_CALENDAR;
+    const consumed = businessHoursBetween(clock.startedAt, now, cal);
+    const budget = Number(clock.policy.hours);
+    const ratio = budget > 0 ? consumed / budget : 1;
+
     if (ratio >= Number(clock.policy.warnAt) && clock.state === 'RUNNING') {
-      await prisma.slaClock.update({
-        where: { id: clock.id },
-        data: { state: 'AT_RISK', warnedAt: now },
-      });
-      warned++;
-      await notifyOwner(clock.ownerId, {
-        kind: 'SLA_WARNING',
-        title: `هشدار SLA — ${clock.policy.labelFa}`,
-        body: `مهلت «${clock.policy.labelFa}» رو به اتمام است.`,
-        entityType: clock.entityType,
-        entityId: clock.entityId,
-        severity: 'WARNING',
-      });
+      toWarn.push(clock.id);
+      notifications.push({ clock, kind: 'SLA_WARNING' });
     }
   }
 
-  return { warned, breached };
+  // Two statements instead of one UPDATE per clock.
+  if (toBreach.length) {
+    await prisma.slaClock.updateMany({
+      where: { id: { in: toBreach } },
+      data: { state: 'BREACHED', breachedAt: now },
+    });
+  }
+  if (toWarn.length) {
+    await prisma.slaClock.updateMany({
+      where: { id: { in: toWarn } },
+      data: { state: 'AT_RISK', warnedAt: now },
+    });
+  }
+
+  // Notifications stay per-clock: each names its own policy and entity.
+  for (const { clock, kind } of notifications) {
+    await notifyOwner(clock.ownerId, kind === 'SLA_BREACH'
+      ? {
+          kind: 'SLA_BREACH',
+          title: `نقض SLA — ${clock.policy.labelFa}`,
+          body: `مهلت «${clock.policy.labelFa}» برای ${clock.entityType} گذشته است.`,
+          entityType: clock.entityType, entityId: clock.entityId, severity: 'CRITICAL',
+        }
+      : {
+          kind: 'SLA_WARNING',
+          title: `هشدار SLA — ${clock.policy.labelFa}`,
+          body: `مهلت «${clock.policy.labelFa}» رو به اتمام است.`,
+          entityType: clock.entityType, entityId: clock.entityId, severity: 'WARNING',
+        });
+  }
+
+  return { warned: toWarn.length, breached: toBreach.length };
 }
 
 async function notifyOwner(

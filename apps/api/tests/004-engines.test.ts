@@ -4,6 +4,9 @@ import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla } from '../src/sla/engine.js';
 import { ALL_FORMS, SLA_POLICIES, WORKFLOWS, ALL_PERMISSIONS } from '@hiva/contracts';
+import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
+import { tickSlaClocks } from '../src/sla/engine.js';
+import { SLA_POLICIES } from '@hiva/contracts';
 
 let T: Record<string, string>;
 
@@ -224,11 +227,13 @@ describe('Business calendar', () => {
   });
 
   it('rolls over to the next working day when hours run out', () => {
-    // Sunday 16:00 + 4h: two hours remain today (18:00 close), so it lands Monday 11:00.
+    // Sunday 16:00 + 4h. One productive hour remains today (the window closes at 17:00, not
+    // 18:00 — the last hour is the break), so three carry over and it lands Monday 12:00.
+    // This previously expected 11:00, which assumed a nine-hour productive day.
     const start = new Date(2026, 8, 6, 16, 0, 0);
     const due = addBusinessHours(start, 4, cal);
     expect(due.getDay()).toBe(1);
-    expect(due.getHours()).toBe(11);
+    expect(due.getHours()).toBe(12);
   });
 
   it('skips the Iranian weekend (Thursday and Friday)', () => {
@@ -242,8 +247,9 @@ describe('Business calendar', () => {
   it('counts only working time between two instants', () => {
     const from = new Date(2026, 8, 6, 9, 0, 0);   // Sunday 09:00
     const to = new Date(2026, 8, 7, 12, 0, 0);    // Monday 12:00
-    // 9 hours to Sunday close (18:00) + 3 hours Monday morning.
-    expect(businessHoursBetween(from, to, cal)).toBeCloseTo(12, 1);
+    // 8 productive hours on Sunday (09:00–17:00) + 3 on Monday morning. This previously
+    // expected 12, counting the break hour as working time.
+    expect(businessHoursBetween(from, to, cal)).toBeCloseTo(11, 1);
   });
 
   it('excludes a non-working weekend entirely', () => {
@@ -283,17 +289,20 @@ describe('SLA engine', () => {
   it('flags a clock past its warning threshold as AT_RISK', async () => {
     const project = await prisma.project.findFirst();
     const policy = await prisma.slaPolicy.findUnique({ where: { code: 'SLA_ACCOUNT_QC' } });
+    // Fixed dates, and `now` passed in: the clock is read in working hours, so a run that
+    // happened to fall on a Thursday used to measure the weekend as elapsed time.
+    const startedAt = new Date(2026, 8, 5, 9, 0, 0);   // Saturday 09:00
     const clock = await prisma.slaClock.create({
       data: {
         organizationId: project!.organizationId, policyId: policy!.id,
         entityType: 'test', entityId: `atrisk-${Date.now()}`,
-        // 90% elapsed, warnAt is 0.75.
-        startedAt: new Date(Date.now() - 9 * 3_600_000),
-        dueAt: new Date(Date.now() + 1 * 3_600_000),
+        startedAt,
+        dueAt: addBusinessHours(startedAt, Number(policy!.hours), DEFAULT_CALENDAR),
         state: 'RUNNING',
       },
     });
-    await tickSlaClocks();
+    // Saturday 15:00 — six of the eight working hours consumed, past the 0.75 threshold.
+    await tickSlaClocks(new Date(2026, 8, 5, 15, 0, 0));
     const after = await prisma.slaClock.findUnique({ where: { id: clock.id } });
     expect(after!.state).toBe('AT_RISK');
   });
@@ -395,6 +404,103 @@ describe('AI governance', () => {
           notes: a.notes, authorizedById: a.authorizedById, authorizedAt: a.authorizedAt,
         },
       });
+    }
+  });
+});
+
+describe('Business calendar — the break hour', () => {
+  /**
+   * The Iranian working week: Saturday–Wednesday, 09:00–18:00 with one break hour, so eight
+   * productive hours a day. Both functions used to measure the full nine-hour span.
+   */
+  const cal = { ...DEFAULT_CALENDAR, holidays: new Set<string>() };
+  // 2026-09-05 is a Saturday, the first working day of the Iranian week.
+  const sat = (h: number, m = 0) => new Date(2026, 8, 5, h, m, 0, 0);
+  const wed = (h: number, m = 0) => new Date(2026, 8, 9, h, m, 0, 0);
+  const fmt = (d: Date) =>
+    `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+  it('treats a working day as eight productive hours, not nine', () => {
+    expect(hoursPerDay(cal)).toBe(8);
+    // One full working day from the start of Saturday lands at the next working morning —
+    // previously this returned Saturday 17:00, still the same day.
+    expect(fmt(addBusinessHours(sat(9), 8, cal))).toBe('Sun 09:00');
+  });
+
+  it('carries the remainder across the Thursday–Friday weekend', () => {
+    // Two hours left on Wednesday (15:00–17:00), two more on the next working day.
+    expect(fmt(addBusinessHours(wed(15), 4, cal))).toBe('Sat 11:00');
+    // Starting after the productive window, the whole budget lands on Saturday.
+    expect(fmt(addBusinessHours(wed(17), 4, cal))).toBe('Sat 13:00');
+  });
+
+  it('measures elapsed working hours over the same weekend', () => {
+    // Wednesday 15:00 → Saturday 11:00 is two working days apart on the clock but four
+    // working hours of actual capacity.
+    expect(businessHoursBetween(wed(15), new Date(2026, 8, 12, 11), cal)).toBeCloseTo(4, 5);
+    // Thursday and Friday contribute nothing.
+    expect(businessHoursBetween(wed(17), new Date(2026, 8, 11, 12), cal)).toBeCloseTo(0, 5);
+  });
+
+  it('round-trips: adding N working hours then measuring them returns N', () => {
+    for (const hours of [0.5, 2, 4, 8, 12, 20, 40, 56]) {
+      const to = addBusinessHours(sat(9), hours, cal);
+      expect(businessHoursBetween(sat(9), to, cal), `${hours}h`).toBeCloseTo(hours, 5);
+    }
+  });
+
+  it('skips a declared holiday', () => {
+    const withHoliday = { ...cal, holidays: new Set(['2026-09-06']) }; // the Sunday
+    // Eight hours from Saturday 09:00 would land Sunday; the holiday pushes it to Monday.
+    expect(fmt(addBusinessHours(sat(9), 8, withHoliday))).toBe('Mon 09:00');
+    // Saturday 09:00 → Monday 17:00 spans three calendar days but only two working ones:
+    // 8 hours each, with the Sunday holiday contributing nothing. Without it, 24.
+    const span = [sat(9), new Date(2026, 8, 7, 17)] as const;
+    expect(businessHoursBetween(...span, withHoliday)).toBeCloseTo(16, 5);
+    expect(businessHoursBetween(...span, cal)).toBeCloseTo(24, 5);
+  });
+
+  it('agrees with the durations the SLA catalogue declares', () => {
+    // Every policy is a whole number of 8-hour days or a sub-day figure; a "1 working day"
+    // policy must come due on the next working morning, matching its Doc_H docRef.
+    const oneDay = SLA_POLICIES.find((p) => p.code === 'SLA_BRIEF_REVIEW')!;
+    expect(oneDay.hours).toBe(8);
+    expect(fmt(addBusinessHours(sat(9), oneDay.hours, cal))).toBe('Sun 09:00');
+
+    const fourHour = SLA_POLICIES.find((p) => p.code === 'SLA_TASK_ACCEPTANCE')!;
+    expect(fourHour.hours).toBe(4);
+    expect(fmt(addBusinessHours(sat(9), fourHour.hours, cal))).toBe('Sat 13:00');
+  });
+});
+
+describe('SLA warnings are measured in working hours', () => {
+  /**
+   * The AT_RISK ratio used to be wall-clock, so a clock opened before the weekend was flagged
+   * during the weekend having consumed no working time at all.
+   */
+  it('does not flag a clock as at-risk across the weekend', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_TASK_ACCEPTANCE' } });
+    const startedAt = new Date(2026, 8, 9, 17, 0, 0); // Wednesday, after hours
+    const clock = await prisma.slaClock.create({
+      data: {
+        organizationId: org.id, policyId: policy.id,
+        entityType: 'task', entityId: 'weekend-probe',
+        startedAt, dueAt: new Date(2026, 8, 12, 13, 0, 0), state: 'RUNNING',
+      },
+    });
+    try {
+      // Thursday noon: 19 wall-clock hours in, zero working hours consumed.
+      await tickSlaClocks(new Date(2026, 8, 10, 12, 0, 0));
+      const midWeekend = await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } });
+      expect(midWeekend.state).toBe('RUNNING');
+
+      // Saturday 12:00: three of the four working hours are gone, past the 0.75 threshold.
+      await tickSlaClocks(new Date(2026, 8, 12, 12, 0, 0));
+      const afterWork = await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } });
+      expect(afterWork.state).toBe('AT_RISK');
+    } finally {
+      await prisma.slaClock.delete({ where: { id: clock.id } });
     }
   });
 });
