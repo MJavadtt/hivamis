@@ -57,10 +57,16 @@ docker run --rm --entrypoint sh hiva-api:latest -c '$PDF_BROWSER_PATH --version'
 
 ```bash
 curl -s localhost:4000/health/ready
+# {"status":"ready","database":"up","demoAccounts":0,"pdf":"up"}
 ```
 
-اگر موتور در دسترس نباشد، درخواست خروجی با کد `503 PDF_ENGINE_UNAVAILABLE` پاسخ داده می‌شود و
-بقیه‌ی سامانه بدون اختلال کار می‌کند.
+فیلد `pdf` وضعیت موتور رندر را گزارش می‌کند («up» یا «unavailable») و هر ۶۰ ثانیه cache می‌شود،
+چون راه‌اندازی Chromium گران است و probe آمادگی مکرر اجرا می‌شود.
+
+این فیلد **مسدودکننده نیست**: نبودِ مرورگر سرویس را not-ready نمی‌کند. طبق ADR-014 نبودِ موتور
+PDF فقط مسیرهای `/pdf/*` را با ۵۰۳ از کار می‌اندازد و بقیه پلتفرم کار می‌کند، بنابراین نباید
+باعث شود ارکستراتور کانتینر را restart کند. برای هشدار، روی مقدار `unavailable` alert بگذارید.
+
 
 ## انواع اسناد
 
@@ -236,3 +242,30 @@ FROM audit_events
 WHERE action = 'EXPORT' AND after->>'format' = 'pdf-bundle'
 ORDER BY "createdAt" DESC;
 ```
+
+---
+
+## محدودیت هم‌زمانی
+
+رندر Chromium وابسته به CPU است، پس هم‌زمانی بیشتر «صف» می‌خرد نه توان بیشتر. اندازه‌گیری روی
+دیتاست ۴۰۰ پروژه‌ای (docs/performance.md): از ۵ اتصال به بالا نرخ درخواست ثابت می‌ماند در حالی که
+تأخیر خطی بالا می‌رود و RSS فرآیند بیش از دو برابر می‌شود.
+
+- `PDF_MAX_CONCURRENCY` (پیش‌فرض ۲) — تعداد رندر هم‌زمان. هر رندر حدود ۱۵۰ مگابایت RSS می‌گیرد.
+- `PDF_QUEUE_FACTOR` (پیش‌فرض ۴) — عمق صف به‌عنوان ضریبی از مورد بالا.
+
+فراتر از `PDF_MAX_CONCURRENCY × PDF_QUEUE_FACTOR` درخواستِ در انتظار، پاسخ بلافاصله
+`503 PDF_ENGINE_BUSY` است — به‌جای پیوستن به صفی که پیش از timeout کلاینت خالی نمی‌شود.
+
+## امنیت رندر
+
+Chromium با `--no-sandbox` اجرا می‌شود، چون کانتینر با کاربر بدون امتیاز و بدون `CAP_SYS_ADMIN`
+اجرا می‌شود و sandbox setuid به آن نیاز دارد. سطح حمله با خودِ صفحه محدود شده است، نه با sandbox:
+
+- context با `offline: true` ساخته می‌شود؛
+- JavaScript غیرفعال است؛
+- یک route filter هر درخواستی جز `data:` را abort می‌کند؛
+- ورودی، HTML ساخته و escape‌شده توسط همین کدبیس است.
+
+بازگرداندن قابلیت به کانتینر و اجرای Chromium با sandbox، پوسچر قوی‌تری است و یک تصمیم استقرار
+محسوب می‌شود.

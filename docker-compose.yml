@@ -51,6 +51,9 @@ services:
       # exactly one hop of X-Forwarded-For is trustworthy. Raise this only if you add another
       # proxy in front of `web`, and count the hops.
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Each simultaneous render costs roughly 150MB; raise together with the memory limit.
+      PDF_MAX_CONCURRENCY: ${PDF_MAX_CONCURRENCY:-2}
+      PDF_QUEUE_FACTOR: ${PDF_QUEUE_FACTOR:-4}
     volumes:
       - storage:/app/storage
     expose:

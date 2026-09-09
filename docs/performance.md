@@ -98,9 +98,19 @@ The most expensive operation in the system: Chromium, landscape, multi-page.
 | 10 | 1,549ms | 2,422ms | 2,526ms | 6 |
 
 Throughput is flat from 5 connections up — the work is CPU-bound in Chromium, so added
-concurrency buys queueing rather than parallelism. Process RSS went from 200MB to 496MB across
-the run and left 20 Chromium helper processes alive, which is what the concurrency limiter and
-shutdown hook address.
+concurrency buys queueing rather than parallelism. That measurement was taken *before* the
+concurrency limiter: process RSS went from 200MB to 496MB across the run and left 20 Chromium
+helper processes alive.
+
+With `PDF_MAX_CONCURRENCY=2` and `PDF_QUEUE_FACTOR=4` in place, the same run holds latency
+comparable at 1 and 5 connections and, at 10, refuses 30 requests outright with
+`503 PDF_ENGINE_BUSY` rather than letting a queue build that cannot drain before clients time
+out. Helper processes during the run dropped from 20 to 9, and SIGTERM now reaps every one of
+them — the browser was previously leaked on each restart because nothing called
+`shutdownPdfEngine()`.
+
+Deciding between the two behaviours is a capacity question, not a correctness one: raise the
+limit alongside the container's memory, since each simultaneous render costs roughly 150MB.
 
 ## Bottleneck, and what is next
 

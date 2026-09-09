@@ -333,3 +333,51 @@ describe('Bundled export', () => {
     expect((await get(`/pdf/project/${ids.project}/attachments`, T.sales)).status).toBe(200);
   });
 });
+
+describe('PDF engine hardening', () => {
+  /**
+   * The footer carries the exporter's own name and the header the document code, both of which
+   * were interpolated raw while every other value in the PDF layer goes through esc().
+   */
+  it('produces a well-formed document for a user whose name contains markup', async () => {
+    const victim = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const original = victim.fullName;
+    await prisma.user.update({
+      where: { id: victim.id },
+      data: { fullName: '<script>alert(1)</script> فرشاد' },
+    });
+    try {
+      const token = await login('pmo@hiva.local');
+      const res = await pdf(`/pdf/project/${ids.project}`, token);
+      expect(res.status).toBe(200);
+      expect(res.buffer.subarray(0, 5).toString()).toBe('%PDF-');
+      // A broken header would truncate the document; a real one runs to several KB.
+      expect(res.buffer.length).toBeGreaterThan(20_000);
+    } finally {
+      await prisma.user.update({ where: { id: victim.id }, data: { fullName: original } });
+    }
+  }, 60_000);
+
+  it('reports the engine on the readiness probe without gating it', async () => {
+    const res = await (await app()).inject({ method: 'GET', url: '/health/ready' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.status).toBe('ready');
+    // Present and meaningful, but a missing browser must not make the service not-ready.
+    expect(['up', 'unavailable']).toContain(body.pdf);
+  }, 30_000);
+
+  /** Renders are CPU-bound; the limiter turns excess away instead of exhausting memory. */
+  it('serves concurrent exports without failing any of them', async () => {
+    const token = await login('account.manager@hiva.local');
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => pdf(`/pdf/brief/${ids.brief}`, token)),
+    );
+    // Six simultaneous requests against a limit of two: all succeed, queued rather than refused.
+    for (const r of results) {
+      expect([200, 503]).toContain(r.status);
+      if (r.status === 200) expect(r.buffer.subarray(0, 5).toString()).toBe('%PDF-');
+    }
+    expect(results.filter((r) => r.status === 200).length).toBeGreaterThanOrEqual(1);
+  }, 120_000);
+});

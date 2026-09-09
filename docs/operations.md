@@ -53,6 +53,8 @@ on first sign-in), then deactivate the demo users.
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
 | `MAX_UPLOAD_MB` | no | 25 | |
 | `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
+| `PDF_MAX_CONCURRENCY` | no | 2 | Simultaneous Chromium renders. Each costs roughly 150MB of RSS while it runs, and the work is CPU-bound, so raising this buys queueing rather than throughput. |
+| `PDF_QUEUE_FACTOR` | no | 4 | Queue depth as a multiple of `PDF_MAX_CONCURRENCY`. Requests beyond it are refused with 503 `PDF_ENGINE_BUSY` rather than joining a queue that cannot drain in time. |
 | `PDF_BROWSER_PATH` | no | — | Chromium binary for PDF export. Unset locally (the renderer probes the Playwright cache and system paths); the Docker image pins it to `/usr/bin/chromium`. Without a resolvable browser, `/api/v1/pdf/*` returns 503 and the rest of the platform is unaffected. |
 | `RATE_LIMIT_MAX` | no | 300 | Requests/minute per user or IP |
 | `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts/minute per IP |

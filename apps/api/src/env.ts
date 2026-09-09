@@ -38,6 +38,10 @@ const envSchema = z.object({
    *                      strips the header itself)
    */
   TRUST_PROXY: z.string().default('false'),
+  /** Simultaneous Chromium renders. Each costs roughly 150MB of RSS while it runs. */
+  PDF_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  /** Queue depth as a multiple of PDF_MAX_CONCURRENCY; beyond it, callers get 503 immediately. */
+  PDF_QUEUE_FACTOR: z.coerce.number().int().min(1).max(20).default(4),
 });
 
 const parsed = envSchema.safeParse(process.env);

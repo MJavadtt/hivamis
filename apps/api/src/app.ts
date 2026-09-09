@@ -10,6 +10,7 @@ import { env, trustProxy } from './env.js';
 import { prisma } from './db.js';
 import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
+import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
 import authRoutes from './routes/auth.js';
 import workflowRoutes from './routes/workflow.js';
@@ -123,7 +124,11 @@ export async function buildApp(): Promise<FastifyInstance> {
       env.NODE_ENV === 'production'
         ? await findActiveDemoAccounts().then((r) => r.count).catch(() => null)
         : 0;
-    return { status: 'ready', database: 'up', demoAccounts };
+    // Also non-blocking: a missing browser degrades PDF export to a 503 and leaves the rest of
+    // the platform working (ADR-014), so it must not fail the readiness probe. docs/pdf-export.md
+    // told operators to verify the engine here, which until now reported nothing about it.
+    const pdf = await pdfEngineHealthyCached().catch(() => false);
+    return { status: 'ready', database: 'up', demoAccounts, pdf: pdf ? 'up' : 'unavailable' };
   });
 
   app.get('/health/live', async () => ({ status: 'alive' }));

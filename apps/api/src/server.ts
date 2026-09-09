@@ -3,6 +3,7 @@ import { env } from './env.js';
 import { prisma } from './db.js';
 import { startJobs } from './jobs/runner.js';
 import { warnOnDemoAccounts } from './lib/demo-accounts.js';
+import { shutdownPdfEngine } from './pdf/renderer.js';
 
 const app = await buildApp();
 const boss = await startJobs(app.log).catch((err) => {
@@ -13,6 +14,9 @@ const boss = await startJobs(app.log).catch((err) => {
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
   await boss?.stop({ graceful: true }).catch(() => undefined);
+  // Before app.close(): the browser is a child process that outlives the Node process otherwise,
+  // so every restart leaked a Chromium.
+  await shutdownPdfEngine().catch(() => undefined);
   await app.close();
   await prisma.$disconnect();
   process.exit(0);

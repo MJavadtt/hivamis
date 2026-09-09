@@ -5,6 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { AppError } from '../lib/errors.js';
+import { env } from '../env.js';
+import { esc } from './fmt.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,6 +69,15 @@ async function getBrowser(): Promise<Browser> {
   browserPromise ??= chromium
     .launch({
       executablePath: resolveExecutable(),
+      /**
+       * --no-sandbox: the container runs as an unprivileged user without CAP_SYS_ADMIN, which
+       * Chromium's setuid sandbox requires. The exposure is bounded by what this page can do
+       * rather than by the sandbox: the render context is `offline: true`, JavaScript is
+       * disabled, and a route filter aborts every request that is not a data: URI, so the page
+       * cannot fetch, execute, or reach the network at all. Input is HTML this codebase builds
+       * and escapes. Granting the capability back would be the stronger posture; it is a
+       * deployment decision, noted in docs/pdf-export.md.
+       */
       args: ['--no-sandbox', '--disable-dev-shm-usage', '--font-render-hinting=none'],
     })
     .catch((err) => {
@@ -103,12 +114,54 @@ export interface RenderOptions {
 }
 
 /**
+ * Chromium renders are CPU-bound, so concurrency buys queueing rather than throughput: measured
+ * at 400 projects, request rate is flat from five simultaneous renders upward while latency
+ * climbs linearly and process RSS more than doubles. Unbounded, a burst of executive-report
+ * exports — landscape, multi-page, the most expensive document in the system — will exhaust
+ * container memory. This admits PDF_MAX_CONCURRENCY at a time and queues a bounded number
+ * behind them; beyond that a caller is turned away immediately rather than joining a queue that
+ * cannot drain before their client gives up.
+ */
+let activeRenders = 0;
+const renderQueue: (() => void)[] = [];
+
+async function acquireRenderSlot(): Promise<void> {
+  if (activeRenders < env.PDF_MAX_CONCURRENCY) {
+    activeRenders++;
+    return;
+  }
+  if (renderQueue.length >= env.PDF_MAX_CONCURRENCY * env.PDF_QUEUE_FACTOR) {
+    throw new AppError(
+      503,
+      'PDF_ENGINE_BUSY',
+      'تولید PDF در حال حاضر پرترافیک است. لطفاً چند لحظه بعد دوباره تلاش کنید.',
+    );
+  }
+  await new Promise<void>((resolve) => renderQueue.push(resolve));
+  activeRenders++;
+}
+
+function releaseRenderSlot(): void {
+  activeRenders--;
+  renderQueue.shift()?.();
+}
+
+/**
  * Render a document body to a PDF buffer.
  *
  * The page is rendered with networking disabled: every asset is inlined, so a value that
  * contained markup could never trigger an outbound request from the render host.
  */
 export async function renderPdf(bodyHtml: string, opts: RenderOptions = {}): Promise<Buffer> {
+  await acquireRenderSlot();
+  try {
+    return await renderPdfUnthrottled(bodyHtml, opts);
+  } finally {
+    releaseRenderSlot();
+  }
+}
+
+async function renderPdfUnthrottled(bodyHtml: string, opts: RenderOptions = {}): Promise<Buffer> {
   const browser = await getBrowser();
   const context = await browser.newContext({
     locale: 'fa-IR',
@@ -143,13 +196,13 @@ export async function renderPdf(bodyHtml: string, opts: RenderOptions = {}): Pro
 const headerTemplate = (right: string) => `
 <div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
             padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
-  <span>هیوا — سامانه عملیات سازمانی</span><span>${right}</span>
+  <span>هیوا — سامانه عملیات سازمانی</span><span>${esc(right)}</span>
 </div>`;
 
 const footerTemplate = (note: string) => `
 <div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
             padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
-  <span>${note}</span>
+  <span>${esc(note)}</span>
   <span>صفحه <span class="pageNumber"></span> از <span class="totalPages"></span></span>
 </div>`;
 
@@ -208,6 +261,20 @@ export async function shutdownPdfEngine(): Promise<void> {
 }
 
 /** True when a browser can actually be launched — surfaced on the health endpoint. */
+/**
+ * Cached for a minute, mirroring the SLA calendar cache: launching Chromium is expensive and a
+ * readiness probe runs on a short interval, so an uncached check would start a browser every time.
+ */
+let healthCache: { at: number; ok: boolean } | null = null;
+const HEALTH_TTL_MS = 60_000;
+
+export async function pdfEngineHealthyCached(): Promise<boolean> {
+  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return healthCache.ok;
+  const ok = await pdfEngineHealthy().catch(() => false);
+  healthCache = { at: Date.now(), ok };
+  return ok;
+}
+
 export async function pdfEngineHealthy(): Promise<boolean> {
   try {
     await getBrowser();
