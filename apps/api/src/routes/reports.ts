@@ -16,94 +16,169 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const org = actor.organizationId;
     const now = new Date();
+    const canSeeFinance = actor.permissions.includes('finance.read');
 
+    const OPEN_TASK = ['APPROVED', 'CLOSED', 'CANCELLED'];
+    const DONE_TASK = ['APPROVED', 'CLOSED'];
+    const LIVE_PROJECT = ['ACTIVE', 'PLANNING', 'AUTHORIZED'];
+    const DEAD_PROJECT = ['CLOSED', 'CANCELLED'];
+
+    /**
+     * Aggregated in PostgreSQL rather than in Node.
+     *
+     * This handler used to pull every project, opportunity, invoice, cost declaration, task,
+     * change request, risk, revision and feedback row into memory and reduce them in JavaScript —
+     * and projectHealth ran a tasks.filter() per project, so it was O(projects × tasks). At 400
+     * projects and 20k tasks that is 8M comparisons per request, on the CEO's landing page.
+     * Measured before this change: p95 1.06s for a single caller, 7.2s at ten concurrent.
+     *
+     * Raw SQL is used only for the two per-project roll-ups, which Prisma's groupBy cannot express
+     * (both need a join). Both are tagged templates, so every value is a bound parameter.
+     */
     const [
-      projects, opportunities, invoices, costs, tasks, changeRequests,
-      risks, breachedSlas, atRiskSlas, revisions, feedbacks, pendingForms, companies,
+      oppByState, projByState, taskByState, overdueTasks, doneWithDue, onTimeDone,
+      revisionTotal, revisionOpen, crByState, crOutOfScope, riskAgg,
+      breachedSlas, atRiskSlas, pendingForms, companies, feedbackAgg,
+      costRows, lateByProject,
     ] = await Promise.all([
-      prisma.project.findMany({
-        where: { organizationId: org, deletedAt: null },
-        include: { company: { select: { id: true, legalName: true } } },
+      prisma.opportunity.groupBy({
+        by: ['state'], where: { organizationId: org, deletedAt: null },
+        _count: { _all: true }, _sum: { estimatedValue: true },
       }),
-      prisma.opportunity.findMany({ where: { organizationId: org, deletedAt: null } }),
-      prisma.invoice.findMany({ where: { organizationId: org, state: { not: 'CANCELLED' } } }),
-      prisma.costDeclaration.findMany({
-        where: { organizationId: org },
-        include: { workOrder: { select: { projectId: true } } },
+      prisma.project.groupBy({
+        by: ['state'], where: { organizationId: org, deletedAt: null },
+        _count: { _all: true }, _sum: { contractValue: true },
       }),
-      prisma.task.findMany({ where: { organizationId: org } }),
-      prisma.changeRequest.findMany({ where: { organizationId: org } }),
-      prisma.risk.findMany({ where: { organizationId: org, state: 'OPEN' } }),
+      prisma.task.groupBy({
+        by: ['state'], where: { organizationId: org }, _count: { _all: true },
+      }),
+      prisma.task.count({
+        where: { organizationId: org, dueDate: { lt: now, not: null }, state: { notIn: OPEN_TASK } },
+      }),
+      prisma.task.count({
+        where: { organizationId: org, state: { in: DONE_TASK }, dueDate: { not: null } },
+      }),
+      // "On time" needs a column-to-column comparison, which Prisma's filter API cannot express.
+      prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT COUNT(*)::bigint AS n FROM tasks
+        WHERE "organizationId" = ${org} AND state = ANY(${DONE_TASK})
+          AND "dueDate" IS NOT NULL AND "submittedAt" IS NOT NULL AND "submittedAt" <= "dueDate"`,
+      prisma.revision.count({ where: { organizationId: org } }),
+      prisma.revision.count({
+        where: { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] } },
+      }),
+      prisma.changeRequest.count({
+        where: { organizationId: org, state: { notIn: ['CLOSED', 'REJECTED'] } },
+      }),
+      prisma.changeRequest.count({ where: { organizationId: org, scopeVerdict: 'OUT_OF_SCOPE' } }),
+      prisma.risk.groupBy({
+        by: ['impact', 'probability'], where: { organizationId: org, state: 'OPEN' },
+        _count: { _all: true },
+      }),
       prisma.slaClock.count({ where: { organizationId: org, state: 'BREACHED' } }),
       prisma.slaClock.count({ where: { organizationId: org, state: 'AT_RISK' } }),
-      prisma.revision.findMany({ where: { organizationId: org } }),
-      prisma.feedback.findMany({ where: { organizationId: org } }),
       prisma.formSubmission.count({ where: { organizationId: org, state: 'PENDING_APPROVAL' } }),
       prisma.company.count({ where: { organizationId: org, deletedAt: null } }),
+      prisma.feedback.aggregate({
+        where: { organizationId: org }, _count: { _all: true }, _avg: { csat: true, nps: true },
+      }),
+      // Cost per project — cost_declarations reach a project only through their work order.
+      prisma.$queryRaw<{ projectId: string; cost: string }[]>`
+        SELECT w."projectId" AS "projectId",
+               SUM(c."internalCost" + c."externalCost")::text AS cost
+        FROM cost_declarations c
+        JOIN work_orders w ON w.id = c."workOrderId"
+        WHERE c."organizationId" = ${org}
+        GROUP BY w."projectId"`,
+      // Late tasks per project — this is what the per-project filter() was recomputing.
+      prisma.$queryRaw<{ projectId: string; late: bigint }[]>`
+        SELECT "projectId", COUNT(*)::bigint AS late
+        FROM tasks
+        WHERE "organizationId" = ${org} AND "dueDate" < ${now}
+          AND state <> ALL(${OPEN_TASK})
+        GROUP BY "projectId"`,
     ]);
 
-    const costByProject = new Map<string, number>();
-    for (const c of costs) {
-      const pid = c.workOrder?.projectId;
-      if (!pid) continue;
-      costByProject.set(pid, (costByProject.get(pid) ?? 0) + num(c.internalCost) + num(c.externalCost));
-    }
+    // Finance is not merely hidden from an unauthorised caller — it is not computed.
+    const invoiceAgg = canSeeFinance
+      ? await prisma.invoice.aggregate({
+          where: { organizationId: org, state: { not: 'CANCELLED' } },
+          _sum: { total: true, paidAmount: true },
+        })
+      : null;
+    const overdueInvoices = canSeeFinance
+      ? await prisma.$queryRaw<{ n: bigint }[]>`
+          SELECT COUNT(*)::bigint AS n FROM invoices
+          WHERE "organizationId" = ${org} AND state <> 'CANCELLED'
+            AND "dueDate" IS NOT NULL AND "dueDate" < ${now} AND "paidAmount" < total`
+      : null;
 
-    const active = projects.filter((p) => ['ACTIVE', 'PLANNING', 'AUTHORIZED'].includes(p.state));
-    const overdueTasks = tasks.filter(
-      (t) => t.dueDate && t.dueDate < now && !['APPROVED', 'CLOSED', 'CANCELLED'].includes(t.state),
-    );
+    const costByProject = new Map(costRows.map((r) => [r.projectId, Number(r.cost)]));
+    const lateByProjectMap = new Map(lateByProject.map((r) => [r.projectId, Number(r.late)]));
 
-    const invoiced = invoices.reduce((s, i) => s + num(i.total), 0);
-    const received = invoices.reduce((s, i) => s + num(i.paidAmount), 0);
+    const sumBy = <T extends { state: string }>(
+      rows: T[], pick: (r: T) => number, match: (s: string) => boolean,
+    ) => rows.filter((r) => match(r.state)).reduce((acc, r) => acc + pick(r), 0);
+
+    const countBy = (rows: { state: string; _count: { _all: number } }[], match: (s: string) => boolean) =>
+      rows.filter((r) => match(r.state)).reduce((acc, r) => acc + r._count._all, 0);
+
+    const contractedRevenue = projByState.reduce((acc, r) => acc + num(r._sum.contractValue), 0);
     const totalCost = [...costByProject.values()].reduce((a, b) => a + b, 0);
-    const contractedRevenue = projects.reduce((s, p) => s + num(p.contractValue), 0);
 
-    const projectHealth = projects
-      .filter((p) => !['CLOSED', 'CANCELLED'].includes(p.state))
-      .map((p) => {
-        const pTasks = tasks.filter((t) => t.projectId === p.id);
-        const late = pTasks.filter(
-          (t) => t.dueDate && t.dueDate < now && !['APPROVED', 'CLOSED', 'CANCELLED'].includes(t.state),
-        ).length;
-        const cost = costByProject.get(p.id) ?? 0;
-        const revenue = num(p.contractValue);
-        const overdueProject = p.plannedEnd != null && p.plannedEnd < now && p.state !== 'COMPLETED';
-        const status = late > 2 || overdueProject ? 'RED' : late > 0 || cost > num(p.plannedBudget) ? 'AMBER' : 'GREEN';
-        return {
-          id: p.id, code: p.code, name: p.name, state: p.state,
-          company: p.company.legalName, plannedEnd: p.plannedEnd,
-          overdueTasks: late, isOverdue: overdueProject,
-          cost, revenue,
-          margin: revenue - cost,
-          marginPercent: revenue > 0 ? Number((((revenue - cost) / revenue) * 100).toFixed(1)) : null,
-          status,
-        };
-      });
+    // Only the projects that appear in the health list are loaded, and only the columns it shows.
+    const healthProjects = await prisma.project.findMany({
+      where: { organizationId: org, deletedAt: null, state: { notIn: DEAD_PROJECT } },
+      select: {
+        id: true, code: true, name: true, state: true, plannedEnd: true,
+        plannedBudget: true, contractValue: true,
+        company: { select: { legalName: true } },
+      },
+    });
 
-    const wonOpps = opportunities.filter((o) => o.state === 'WON');
-    const closedOpps = opportunities.filter((o) => ['WON', 'LOST'].includes(o.state));
+    const projectHealth = healthProjects.map((p) => {
+      const late = lateByProjectMap.get(p.id) ?? 0;
+      const cost = costByProject.get(p.id) ?? 0;
+      const revenue = num(p.contractValue);
+      const overdueProject = p.plannedEnd != null && p.plannedEnd < now && p.state !== 'COMPLETED';
+      const status = late > 2 || overdueProject ? 'RED' : late > 0 || cost > num(p.plannedBudget) ? 'AMBER' : 'GREEN';
+      return {
+        id: p.id, code: p.code, name: p.name, state: p.state,
+        company: p.company.legalName, plannedEnd: p.plannedEnd,
+        overdueTasks: late, isOverdue: overdueProject,
+        cost, revenue,
+        margin: revenue - cost,
+        marginPercent: revenue > 0 ? Number((((revenue - cost) / revenue) * 100).toFixed(1)) : null,
+        status,
+      };
+    });
+
+    const openOpps = countBy(oppByState, (s) => !['WON', 'LOST'].includes(s));
+    const wonCount = countBy(oppByState, (s) => s === 'WON');
+    const closedCount = countBy(oppByState, (s) => ['WON', 'LOST'].includes(s));
+    const totalTasks = taskByState.reduce((acc, r) => acc + r._count._all, 0);
+    const onTime = Number(onTimeDone[0]?.n ?? 0);
+    const invoiced = num(invoiceAgg?._sum.total);
+    const received = num(invoiceAgg?._sum.paidAmount);
 
     return {
       pipeline: {
-        openOpportunities: opportunities.filter((o) => !['WON', 'LOST'].includes(o.state)).length,
-        pipelineValue: opportunities
-          .filter((o) => !['WON', 'LOST'].includes(o.state))
-          .reduce((s, o) => s + num(o.estimatedValue), 0),
-        wonValue: wonOpps.reduce((s, o) => s + num(o.estimatedValue), 0),
-        winRate: closedOpps.length ? Math.round((wonOpps.length / closedOpps.length) * 100) : null,
+        openOpportunities: openOpps,
+        pipelineValue: sumBy(oppByState, (r) => num(r._sum.estimatedValue), (s) => !['WON', 'LOST'].includes(s)),
+        wonValue: sumBy(oppByState, (r) => num(r._sum.estimatedValue), (s) => s === 'WON'),
+        winRate: closedCount ? Math.round((wonCount / closedCount) * 100) : null,
       },
       projects: {
-        total: projects.length,
-        active: active.length,
-        pendingAuthorization: projects.filter((p) => p.state === 'PENDING_AUTHORIZATION').length,
-        onHold: projects.filter((p) => p.state === 'ON_HOLD').length,
-        closed: projects.filter((p) => p.state === 'CLOSED').length,
+        total: countBy(projByState, () => true),
+        active: countBy(projByState, (s) => LIVE_PROJECT.includes(s)),
+        pendingAuthorization: countBy(projByState, (s) => s === 'PENDING_AUTHORIZATION'),
+        onHold: countBy(projByState, (s) => s === 'ON_HOLD'),
+        closed: countBy(projByState, (s) => s === 'CLOSED'),
         red: projectHealth.filter((p) => p.status === 'RED').length,
         amber: projectHealth.filter((p) => p.status === 'AMBER').length,
         green: projectHealth.filter((p) => p.status === 'GREEN').length,
       },
-      finance: actor.permissions.includes('finance.read')
+      finance: canSeeFinance
         ? {
             contractedRevenue, totalCost,
             grossMargin: contractedRevenue - totalCost,
@@ -111,40 +186,31 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
               ? Number((((contractedRevenue - totalCost) / contractedRevenue) * 100).toFixed(1))
               : null,
             invoiced, received, outstanding: invoiced - received,
-            overdueInvoices: invoices.filter(
-              (i) => i.dueDate && i.dueDate < now && num(i.paidAmount) < num(i.total),
-            ).length,
+            overdueInvoices: Number(overdueInvoices?.[0]?.n ?? 0),
           }
         : null,
       delivery: {
-        openTasks: tasks.filter((t) => !['APPROVED', 'CLOSED', 'CANCELLED'].includes(t.state)).length,
-        overdueTasks: overdueTasks.length,
-        onTimeRate: (() => {
-          const done = tasks.filter((t) => ['APPROVED', 'CLOSED'].includes(t.state) && t.dueDate);
-          if (!done.length) return null;
-          const onTime = done.filter((t) => t.submittedAt && t.dueDate && t.submittedAt <= t.dueDate).length;
-          return Math.round((onTime / done.length) * 100);
-        })(),
-        revisionRate: tasks.length ? Number(((revisions.length / tasks.length) * 100).toFixed(1)) : 0,
-        openRevisions: revisions.filter((r) => !['APPROVED', 'REJECTED'].includes(r.state)).length,
+        openTasks: countBy(taskByState, (s) => !OPEN_TASK.includes(s)),
+        overdueTasks,
+        onTimeRate: doneWithDue ? Math.round((onTime / doneWithDue) * 100) : null,
+        revisionRate: totalTasks ? Number(((revisionTotal / totalTasks) * 100).toFixed(1)) : 0,
+        openRevisions: revisionOpen,
       },
       governance: {
-        openChangeRequests: changeRequests.filter((c) => !['CLOSED', 'REJECTED'].includes(c.state)).length,
-        outOfScopeChanges: changeRequests.filter((c) => c.scopeVerdict === 'OUT_OF_SCOPE').length,
-        openRisks: risks.length,
-        criticalRisks: risks.filter((r) => r.impact === 'CRITICAL' || r.probability === 'CRITICAL').length,
+        openChangeRequests: crByState,
+        outOfScopeChanges: crOutOfScope,
+        openRisks: riskAgg.reduce((acc, r) => acc + r._count._all, 0),
+        criticalRisks: riskAgg
+          .filter((r) => r.impact === 'CRITICAL' || r.probability === 'CRITICAL')
+          .reduce((acc, r) => acc + r._count._all, 0),
         slaBreached: breachedSlas,
         slaAtRisk: atRiskSlas,
         pendingApprovals: pendingForms,
       },
       customers: {
         total: companies,
-        avgCsat: feedbacks.length
-          ? Number((feedbacks.reduce((s, f) => s + f.csat, 0) / feedbacks.length).toFixed(2))
-          : null,
-        avgNps: feedbacks.length
-          ? Number((feedbacks.reduce((s, f) => s + f.nps, 0) / feedbacks.length).toFixed(1))
-          : null,
+        avgCsat: feedbackAgg._count._all ? Number((feedbackAgg._avg.csat ?? 0).toFixed(2)) : null,
+        avgNps: feedbackAgg._count._all ? Number((feedbackAgg._avg.nps ?? 0).toFixed(1)) : null,
       },
       projectHealth: projectHealth.sort((a, b) => (a.status === 'RED' ? -1 : b.status === 'RED' ? 1 : 0)),
     };
@@ -301,41 +367,102 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const org = actor.organizationId;
     const now = new Date();
-    const [tasks, revisions, qc, costs, workOrders] = await Promise.all([
-      prisma.task.findMany({ where: { organizationId: org } }),
-      prisma.revision.findMany({ where: { organizationId: org } }),
-      prisma.qcReview.findMany({ where: { organizationId: org }, include: { deliverable: true } }),
-      prisma.costDeclaration.findMany({ where: { organizationId: org } }),
-      prisma.workOrder.findMany({ where: { organizationId: org } }),
+    const units = ['ST', 'CR', 'ME', 'DM'];
+
+    /**
+     * Grouped in the database. This used to load every task, revision, QC review, cost
+     * declaration and work order, then run five filter() passes per unit over the full arrays —
+     * 432ms on a 20k-task dataset for eleven numbers per unit.
+     */
+    const DONE = ['APPROVED', 'CLOSED'];
+    const CLOSED_TASK = ['APPROVED', 'CLOSED', 'CANCELLED'];
+    const UNACCEPTED_WO = ['DRAFT', 'ISSUED', 'PENDING_ACCEPTANCE'];
+
+    const [
+      taskTotals, taskDone, taskOpen, taskOverdue, taskOnTime,
+      revTotals, revOpen, qcRows, costTotals, woTotals, woAccepted,
+    ] = await Promise.all([
+      prisma.task.groupBy({ by: ['departmentCode'], where: { organizationId: org }, _count: { _all: true } }),
+      prisma.task.groupBy({
+        by: ['departmentCode'], where: { organizationId: org, state: { in: DONE } }, _count: { _all: true },
+      }),
+      prisma.task.groupBy({
+        by: ['departmentCode'], where: { organizationId: org, state: { notIn: CLOSED_TASK } }, _count: { _all: true },
+      }),
+      prisma.task.groupBy({
+        by: ['departmentCode'],
+        where: { organizationId: org, state: { notIn: CLOSED_TASK }, dueDate: { lt: now, not: null } },
+        _count: { _all: true },
+      }),
+      // Column-to-column comparison, so raw — with bound parameters.
+      prisma.$queryRaw<{ departmentCode: string; n: bigint }[]>`
+        SELECT "departmentCode", COUNT(*)::bigint AS n FROM tasks
+        WHERE "organizationId" = ${org} AND state = ANY(${DONE})
+          AND "dueDate" IS NOT NULL AND "submittedAt" IS NOT NULL AND "submittedAt" <= "dueDate"
+        GROUP BY "departmentCode"`,
+      prisma.revision.groupBy({
+        by: ['responsibleDepartmentCode'], where: { organizationId: org }, _count: { _all: true },
+      }),
+      prisma.revision.groupBy({
+        by: ['responsibleDepartmentCode'],
+        where: { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] } }, _count: { _all: true },
+      }),
+      // First-pass yield is per DELIVERABLE department, which lives on the joined row.
+      prisma.$queryRaw<{ departmentCode: string; passed: bigint; total: bigint }[]>`
+        SELECT d."departmentCode" AS "departmentCode",
+               COUNT(*) FILTER (WHERE q.verdict = 'PASSED')::bigint AS passed,
+               COUNT(*)::bigint AS total
+        FROM qc_reviews q
+        JOIN deliverables d ON d.id = q."deliverableId"
+        WHERE q."organizationId" = ${org} AND q.level = 'UNIT'
+        GROUP BY d."departmentCode"`,
+      prisma.costDeclaration.groupBy({
+        by: ['departmentCode'], where: { organizationId: org },
+        _sum: { internalCost: true, externalCost: true },
+      }),
+      prisma.workOrder.groupBy({
+        by: ['targetDepartmentCode'], where: { organizationId: org }, _count: { _all: true },
+      }),
+      prisma.workOrder.groupBy({
+        by: ['targetDepartmentCode'],
+        where: { organizationId: org, state: { notIn: UNACCEPTED_WO } }, _count: { _all: true },
+      }),
     ]);
 
-    const units = ['ST', 'CR', 'ME', 'DM'];
-    return units.map((unit) => {
-      const uTasks = tasks.filter((t) => t.departmentCode === unit);
-      const done = uTasks.filter((t) => ['APPROVED', 'CLOSED'].includes(t.state));
-      const onTime = done.filter((t) => t.submittedAt && t.dueDate && t.submittedAt <= t.dueDate);
-      const uQc = qc.filter((q) => q.deliverable?.departmentCode === unit && q.level === 'UNIT');
-      const uRev = revisions.filter((r) => r.responsibleDepartmentCode === unit);
-      const uWo = workOrders.filter((w) => w.targetDepartmentCode === unit);
-      const accepted = uWo.filter((w) => !['DRAFT', 'ISSUED', 'PENDING_ACCEPTANCE'].includes(w.state));
+    const byDept = (rows: { departmentCode: string; _count: { _all: number } }[]) =>
+      new Map(rows.map((r) => [r.departmentCode, r._count._all]));
+    const byResp = (rows: { responsibleDepartmentCode: string; _count: { _all: number } }[]) =>
+      new Map(rows.map((r) => [r.responsibleDepartmentCode, r._count._all]));
+    const byTarget = (rows: { targetDepartmentCode: string; _count: { _all: number } }[]) =>
+      new Map(rows.map((r) => [r.targetDepartmentCode, r._count._all]));
 
+    const total = byDept(taskTotals), done = byDept(taskDone);
+    const open = byDept(taskOpen), overdue = byDept(taskOverdue);
+    const onTime = new Map(taskOnTime.map((r) => [r.departmentCode, Number(r.n)]));
+    const rev = byResp(revTotals), revOpenMap = byResp(revOpen);
+    const qcMap = new Map(qcRows.map((r) => [r.departmentCode, { passed: Number(r.passed), total: Number(r.total) }]));
+    const cost = new Map(costTotals.map((r) => [r.departmentCode, num(r._sum.internalCost) + num(r._sum.externalCost)]));
+    const wo = byTarget(woTotals), woOk = byTarget(woAccepted);
+
+    return units.map((unit) => {
+      const nTasks = total.get(unit) ?? 0;
+      const nDone = done.get(unit) ?? 0;
+      const nRev = rev.get(unit) ?? 0;
+      const nWo = wo.get(unit) ?? 0;
+      const qcUnit = qcMap.get(unit);
       return {
         unit,
-        openTasks: uTasks.filter((t) => !['APPROVED', 'CLOSED', 'CANCELLED'].includes(t.state)).length,
-        completedTasks: done.length,
-        overdueTasks: uTasks.filter(
-          (t) => t.dueDate && t.dueDate < now && !['APPROVED', 'CLOSED', 'CANCELLED'].includes(t.state),
-        ).length,
-        onTimeDeliveryRate: done.length ? Math.round((onTime.length / done.length) * 100) : null,
-        firstPassYield: uQc.length
-          ? Math.round((uQc.filter((q) => q.verdict === 'PASSED').length / uQc.length) * 100) : null,
-        revisionCount: uRev.length,
-        revisionRate: uTasks.length ? Number(((uRev.length / uTasks.length) * 100).toFixed(1)) : 0,
-        openRevisions: uRev.filter((r) => !['APPROVED', 'REJECTED'].includes(r.state)).length,
-        acceptanceRate: uWo.length ? Math.round((accepted.length / uWo.length) * 100) : null,
-        declaredCost: costs.filter((c) => c.departmentCode === unit)
-          .reduce((s, c) => s + num(c.internalCost) + num(c.externalCost), 0),
-        workOrders: uWo.length,
+        openTasks: open.get(unit) ?? 0,
+        completedTasks: nDone,
+        overdueTasks: overdue.get(unit) ?? 0,
+        onTimeDeliveryRate: nDone ? Math.round(((onTime.get(unit) ?? 0) / nDone) * 100) : null,
+        firstPassYield: qcUnit?.total ? Math.round((qcUnit.passed / qcUnit.total) * 100) : null,
+        revisionCount: nRev,
+        revisionRate: nTasks ? Number(((nRev / nTasks) * 100).toFixed(1)) : 0,
+        openRevisions: revOpenMap.get(unit) ?? 0,
+        acceptanceRate: nWo ? Math.round(((woOk.get(unit) ?? 0) / nWo) * 100) : null,
+        declaredCost: cost.get(unit) ?? 0,
+        workOrders: nWo,
       };
     });
   });

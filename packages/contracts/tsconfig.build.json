@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The base config is typecheck-only (noEmit). The API is deployed as compiled JavaScript
+    // run by plain `node`, which cannot load the .ts sources this package used to expose, so
+    // the build must actually emit.
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}

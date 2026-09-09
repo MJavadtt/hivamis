@@ -195,7 +195,7 @@ Stated plainly rather than buried.
 | Full accounting | Project-level financial control per Doc_H — cost, revenue, margin, invoices, payments, settlement. Not a general ledger, and deliberately so |
 | Search | PostgreSQL `ILIKE` with indexes. Fine for thousands of records; semantic search would need a vector store |
 | Offline / mobile app | Responsive web only |
-| Load testing | Not performed. Query patterns are indexed and paginated, but no benchmark under concurrent load has been run |
+| Load testing | Done — see [performance.md](performance.md) for the dataset, harness and measured figures at 1/10/50 concurrent |
 
 ## Security operations
 

@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { closeApp, get, login, post, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
-import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR } from '../src/lib/business-calendar.js';
+import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla } from '../src/sla/engine.js';
 import { ALL_FORMS, SLA_POLICIES, WORKFLOWS, ALL_PERMISSIONS } from '@hiva/contracts';
-import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
-import { tickSlaClocks } from '../src/sla/engine.js';
-import { SLA_POLICIES } from '@hiva/contracts';
 
 let T: Record<string, string>;
 
@@ -18,6 +15,8 @@ beforeAll(async () => {
     creative: await login('creative@hiva.local'),
     designer: await login('designer@hiva.local'),
     deputy: await login('deputy@hiva.local'),
+    ceo: await login('ceo@hiva.local'),
+    pmo: await login('pmo@hiva.local'),
   };
 });
 afterAll(async () => { await closeApp(); });
@@ -502,5 +501,48 @@ describe('SLA warnings are measured in working hours', () => {
     } finally {
       await prisma.slaClock.delete({ where: { id: clock.id } });
     }
+  });
+});
+
+describe('Executive report', () => {
+  it('requires report.executive', async () => {
+    // A unit specialist holds report.read but not report.executive.
+    expect((await get('/reports/executive', T.designer)).status).toBe(403);
+    expect((await get('/reports/executive', T.ceo)).status).toBe(200);
+  });
+
+  /** The finance block is not merely hidden without finance.read — it is never computed. */
+  it('returns a null finance block to a caller without finance.read', async () => {
+    const withFinance = await get('/reports/executive', T.ceo);
+    expect(withFinance.body.finance).not.toBeNull();
+    expect(withFinance.body.finance).toHaveProperty('grossMargin');
+
+    const withoutFinance = await get('/reports/executive', T.pmo);
+    expect(withoutFinance.status).toBe(200);
+    expect(withoutFinance.body.finance).toBeNull();
+    // Everything else still arrives.
+    expect(withoutFinance.body.projects).toHaveProperty('total');
+    expect(Array.isArray(withoutFinance.body.projectHealth)).toBe(true);
+  });
+
+  it('keeps the aggregate consistent with the rows it summarises', async () => {
+    const res = await get('/reports/executive', T.ceo);
+    const org = (await prisma.organization.findFirstOrThrow()).id;
+
+    const [projects, openTasks, companies] = await Promise.all([
+      prisma.project.count({ where: { organizationId: org, deletedAt: null } }),
+      prisma.task.count({
+        where: { organizationId: org, state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] } },
+      }),
+      prisma.company.count({ where: { organizationId: org, deletedAt: null } }),
+    ]);
+    expect(res.body.projects.total).toBe(projects);
+    expect(res.body.delivery.openTasks).toBe(openTasks);
+    expect(res.body.customers.total).toBe(companies);
+    // projectHealth covers exactly the projects that are neither closed nor cancelled.
+    const live = await prisma.project.count({
+      where: { organizationId: org, deletedAt: null, state: { notIn: ['CLOSED', 'CANCELLED'] } },
+    });
+    expect(res.body.projectHealth).toHaveLength(live);
   });
 });

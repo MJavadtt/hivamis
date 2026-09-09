@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // rootDir is the app source, so the entry point emits as dist/server.js — which is what
+    // package.json `start` and the Docker CMD both invoke. The base config has rootDir "."
+    // and also compiles prisma/ and tests/, which pushed the output to dist/src/server.js and
+    // left the shipped image unable to boot.
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["tests/**/*", "prisma/**/*"]
+}
