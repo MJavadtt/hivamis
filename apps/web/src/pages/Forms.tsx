@@ -12,6 +12,7 @@ import {
 import { formatDateTime, toPersianDigits } from '../lib/format';
 import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
+import { HelpDrawer } from '../components/HelpDrawer';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -58,6 +59,8 @@ export default function Forms() {
       <PageHeader
         title="فرم‌ها"
         subtitle="۱۳۰ فرم ارتباطی و انتقال داده — هر فرم یک Data Object با مسیر، تأییدکننده و SLA مشخص"
+      
+        actions={<ContextualHelp />}
       />
       <div className="border-b border-ink-200 bg-surface px-2">
         <Tabs
@@ -639,5 +642,23 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
         <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
       </Field>
     </Modal>
+  );
+}
+
+/** Opens the guide at the section that explains this page, rather than its top. */
+function ContextualHelp() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-brand-600 hover:underline
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+      >
+        راهنمای این بخش
+      </button>
+      <HelpDrawer open={open} onClose={() => setOpen(false)} initialSection="Forms" />
+    </>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from '../components/ui';
 import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
+import { HelpDrawer } from '../components/HelpDrawer';
 
 interface QcQueue {
   unit: any[]; account: any[]; final: any[]; revisions: any[];
@@ -65,6 +66,8 @@ export default function Quality() {
       <PageHeader
         title="کنترل کیفیت"
         subtitle="قانون ۹ — کنترل کیفیت در سه سطح: واحد اجرایی، اکانت، و نهایی"
+      
+        actions={<ContextualHelp />}
       />
       <PageBody className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -299,5 +302,23 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         </Field>
       </div>
     </Modal>
+  );
+}
+
+/** Opens the guide at the section that explains this page, rather than its top. */
+function ContextualHelp() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-brand-600 hover:underline
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+      >
+        راهنمای این بخش
+      </button>
+      <HelpDrawer open={open} onClose={() => setOpen(false)} initialSection="When the system blocks you" />
+    </>
   );
 }

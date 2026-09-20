@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useLocale, type Locale } from '../lib/locale';
+import { HelpDrawer } from './HelpDrawer';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, toPersianDigits } from '../lib/format';
 import {
@@ -208,6 +209,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
       </button>
       <GlobalSearch />
       <div className="flex items-center gap-1">
+        <HelpButton />
         <LocaleToggle />
         <ThemeToggle />
         <Notifications />
@@ -367,6 +369,28 @@ function GlobalSearch() {
 interface NotificationRow {
   id: string; kind: string; title: string; body: string | null;
   severity: string; readAt: string | null; createdAt: string;
+}
+
+/** Opens the written guide at the section for the signed-in user's role. */
+function HelpButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="راهنمای کاربری"
+        title="راهنمای کاربری"
+        className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+      >
+        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9.5 9a2.5 2.5 0 113.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01" strokeLinecap="round" />
+        </svg>
+      </button>
+      <HelpDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
 }
 
 /** Persian ⇄ English. Both sides already exist in contracts; this picks which one is read. */
