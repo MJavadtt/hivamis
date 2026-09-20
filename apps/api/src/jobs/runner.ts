@@ -1,14 +1,18 @@
 import PgBoss from 'pg-boss';
 import type { FastifyBaseLogger } from 'fastify';
-import { env } from '../env.js';
+import { env, mailEnabled } from '../env.js';
 import { prisma } from '../db.js';
 import { tickSlaClocks } from '../sla/engine.js';
+import { getTransport } from '../mail/transport.js';
 
 /**
  * Background jobs run on pg-boss — a Postgres-backed queue. Chosen over Redis+BullMQ because the
  * platform already depends on Postgres and the job volume (SLA ticks, digests) is agency-scale;
  * adding a second datastore would be operational cost with no benefit at this size.
  */
+/** Module-level handle so enqueueMail can reach the queue without threading it through callers. */
+let runningBoss: PgBoss | null = null;
+
 export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | null> {
   if (!env.JOBS_ENABLED) {
     logger.info('background jobs disabled (JOBS_ENABLED=false)');
@@ -16,13 +20,26 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   }
 
   const boss = new PgBoss({ connectionString: env.DATABASE_URL, schema: 'pgboss' });
+  runningBoss = boss;
   boss.on('error', (err) => logger.error({ err }, 'pg-boss error'));
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
+
+  /**
+   * Delivery runs on the queue so a slow or unreachable relay cannot stall a request or the
+   * SLA tick. pg-boss retries; a permanently failing address eventually lands in the dead
+   * letter queue rather than being retried forever.
+   */
+  await boss.work('mail:send', async ([job]: { data: MailJob }[]) => {
+    const transport = getTransport();
+    if (!transport) return; // mail turned off between enqueue and delivery
+    const { to, subject, html, text } = job.data;
+    await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text });
+  });
 
   await boss.work('sla:tick', async () => {
     const result = await tickSlaClocks();
@@ -64,4 +81,15 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
 
   logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00)');
   return boss;
+}
+
+export interface MailJob { to: string; subject: string; html: string; text: string }
+
+/**
+ * Hands a message to the queue. A no-op when mail is off or the runner has not started, so
+ * callers never have to check — notification must not fail the work it describes.
+ */
+export async function enqueueMail(job: MailJob): Promise<void> {
+  if (!mailEnabled || !runningBoss) return;
+  await runningBoss.send('mail:send', job, { retryLimit: 3, retryDelay: 60, retryBackoff: true });
 }

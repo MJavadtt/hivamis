@@ -53,6 +53,10 @@ on first sign-in), then deactivate the demo users.
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
 | `MAX_UPLOAD_MB` | no | 25 | |
 | `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
+| `MAIL_ENABLED` | no | `false` | Outbound email. Off by default; notifications stay in-app and nothing throws. Requires `SMTP_HOST` and `SMTP_FROM` to actually engage — the flag alone is not enough. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | no | — / 587 / false | Relay to send through. |
+| `SMTP_USER` / `SMTP_PASS` | no | — | Omit both for an unauthenticated relay. |
+| `SMTP_FROM` | no | — | Envelope sender. Required for `MAIL_ENABLED` to take effect. |
 | `PDF_MAX_CONCURRENCY` | no | 2 | Simultaneous Chromium renders. Each costs roughly 150MB of RSS while it runs, and the work is CPU-bound, so raising this buys queueing rather than throughput. |
 | `PDF_QUEUE_FACTOR` | no | 4 | Queue depth as a multiple of `PDF_MAX_CONCURRENCY`. Requests beyond it are refused with 503 `PDF_ENGINE_BUSY` rather than joining a queue that cannot drain in time. |
 | `PDF_BROWSER_PATH` | no | — | Chromium binary for PDF export. Unset locally (the renderer probes the Playwright cache and system paths); the Docker image pins it to `/usr/bin/chromium`. Without a resolvable browser, `/api/v1/pdf/*` returns 503 and the rest of the platform is unaffected. |
@@ -190,7 +194,7 @@ Stated plainly rather than buried.
 |---|---|
 | Multi-tenancy | Schema is tenant-ready (`organizationId` everywhere) but tenant provisioning, per-tenant branding and isolation testing are not built. Single-organisation deployment by design (ADR-008) |
 | SSO / MFA | Password authentication with lockout is implemented; OIDC and MFA are not |
-| Email / calendar | Notifications are in-app only. No SMTP, no calendar sync |
+| Calendar | No calendar integration — meetings are recorded in the platform but not written to anyone's calendar. Email notifications ARE supported; see `MAIL_ENABLED` above. |
 | Gantt and dependency scheduling | `task_dependencies` exists in the schema; critical-path computation and a Gantt view are not built. Milestones and a timeline are |
 | Document versioning | Documents carry a `version` column and full audit, but there is no diff or rollback UI |
 | E-signature | Contract signature is *recorded*, not executed. No e-signature integration |
@@ -208,3 +212,12 @@ Stated plainly rather than buried.
   `audit_events`. Consider a database-level revoke on UPDATE/DELETE for that table in production.
 - Uploads are served as `application/octet-stream` with `nosniff` and forced download, so an
   uploaded SVG or HTML file cannot execute in a viewer's session.
+
+
+### Mail delivery
+
+Failures are queued, not raised: a relay outage leaves the in-app notification in place, so nobody notices the email never arrived. Watch for failed jobs:
+
+```sql
+SELECT COUNT(*) FROM pgboss.job WHERE name = 'mail:send' AND state = 'failed';
+```

@@ -9,6 +9,7 @@ import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { startSla, stopSla } from '../sla/engine.js';
 import { validateFormData } from './validator.js';
 import { FORM_HANDLERS } from './handlers.js';
+import { appUrl, formApprovalMail, notify } from '../mail/notify.js';
 
 export interface FormActor {
   id: string;
@@ -157,8 +158,22 @@ async function notifyApprovers(
     take: 50,
   });
   if (approvers.length === 0) return;
-  await prisma.notification.createMany({
-    data: approvers.map((a) => ({
+
+  // Through the shared notifier, so an approver who is not in the app still hears about it.
+  // Sequential rather than createMany: each recipient is addressed individually, and the
+  // count here is already capped at 50.
+  // FormActor carries no display name; look it up rather than widening the interface.
+  const sender = await prisma.user
+    .findUnique({ where: { id: actor.id }, select: { fullName: true } })
+    .catch(() => null);
+  const mail = formApprovalMail({
+    formFa: definition.nameFa,
+    code: submissionId.slice(0, 8),
+    senderFa: sender?.fullName ?? 'کاربر سامانه',
+    url: appUrl(`/forms?submission=${submissionId}`),
+  });
+  for (const a of approvers) {
+    await notify({
       userId: a.id,
       kind: 'FORM_APPROVAL_REQUIRED',
       title: `فرم در انتظار تأیید: ${definition.nameFa}`,
@@ -166,8 +181,9 @@ async function notifyApprovers(
       entityType: 'formSubmission',
       entityId: submissionId,
       severity: 'INFO',
-    })),
-  });
+      mail,
+    });
+  }
 }
 
 export interface DecideFormInput {

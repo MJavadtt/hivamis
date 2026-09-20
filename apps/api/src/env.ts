@@ -50,6 +50,16 @@ const envSchema = z.object({
   PDF_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
   /** Queue depth as a multiple of PDF_MAX_CONCURRENCY; beyond it, callers get 503 immediately. */
   PDF_QUEUE_FACTOR: z.coerce.number().int().min(1).max(20).default(4),
+
+  // Outbound mail. Several Doc_H SLAs are four working hours; a warning that only exists inside
+  // an app the owner may not have open is not a warning.
+  MAIL_ENABLED: z.string().transform((v) => v === 'true').default('false'),
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_SECURE: z.string().transform((v) => v === 'true').default('false'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -86,3 +96,10 @@ export function parseTrustProxy(raw: string): boolean | string[] | ((addr: strin
 export const trustProxy = parseTrustProxy(env.TRUST_PROXY);
 /** AI features require BOTH the flag and a key; either alone leaves the subsystem disabled. */
 export const aiEnabled = env.AI_ENABLED && env.ANTHROPIC_API_KEY.length > 0;
+
+/**
+ * Same contract as aiEnabled: the flag alone is not enough, the settings it needs must be
+ * present too. With it off, every notification still lands in-app and nothing throws.
+ */
+export const mailEnabled =
+  env.MAIL_ENABLED && env.SMTP_HOST.length > 0 && env.SMTP_FROM.length > 0;

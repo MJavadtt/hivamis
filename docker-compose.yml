@@ -54,6 +54,13 @@ services:
       # Each simultaneous render costs roughly 150MB; raise together with the memory limit.
       PDF_MAX_CONCURRENCY: ${PDF_MAX_CONCURRENCY:-2}
       PDF_QUEUE_FACTOR: ${PDF_QUEUE_FACTOR:-4}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - storage:/app/storage
     expose:

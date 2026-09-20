@@ -1,6 +1,8 @@
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, type Calendar } from '../lib/business-calendar.js';
+import { appUrl, notify, slaBreachMail, slaWarningMail } from '../mail/notify.js';
+import type { MailBody } from '../mail/templates.js';
 
 /**
  * Keyed by organisation, not a single slot. The cache previously held one calendar for the whole
@@ -186,28 +188,46 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
 
   // Notifications stay per-clock: each names its own policy and entity.
   for (const { clock, kind } of notifications) {
-    await notifyOwner(clock.ownerId, kind === 'SLA_BREACH'
-      ? {
-          kind: 'SLA_BREACH',
-          title: `نقض SLA — ${clock.policy.labelFa}`,
-          body: `مهلت «${clock.policy.labelFa}» برای ${clock.entityType} گذشته است.`,
-          entityType: clock.entityType, entityId: clock.entityId, severity: 'CRITICAL',
-        }
-      : {
-          kind: 'SLA_WARNING',
-          title: `هشدار SLA — ${clock.policy.labelFa}`,
-          body: `مهلت «${clock.policy.labelFa}» رو به اتمام است.`,
-          entityType: clock.entityType, entityId: clock.entityId, severity: 'WARNING',
-        });
+    const url = appUrl(`/${clock.entityType}s/${clock.entityId}`);
+    await notifyOwner(
+      clock.ownerId,
+      kind === 'SLA_BREACH'
+        ? {
+            kind: 'SLA_BREACH',
+            title: `نقض SLA — ${clock.policy.labelFa}`,
+            body: `مهلت «${clock.policy.labelFa}» برای ${clock.entityType} گذشته است.`,
+            entityType: clock.entityType, entityId: clock.entityId, severity: 'CRITICAL',
+          }
+        : {
+            kind: 'SLA_WARNING',
+            title: `هشدار SLA — ${clock.policy.labelFa}`,
+            body: `مهلت «${clock.policy.labelFa}» رو به اتمام است.`,
+            entityType: clock.entityType, entityId: clock.entityId, severity: 'WARNING',
+          },
+      kind === 'SLA_BREACH'
+        ? slaBreachMail({
+            policyFa: clock.policy.labelFa, entityFa: clock.entityType,
+            code: clock.entityId.slice(0, 8), url,
+          })
+        : slaWarningMail({
+            policyFa: clock.policy.labelFa, entityFa: clock.entityType,
+            code: clock.entityId.slice(0, 8),
+            remainingFa: 'کمتر از یک‌چهارم مهلت', url,
+          }),
+    );
   }
 
   return { warned: toWarn.length, breached: toBreach.length };
 }
 
+/**
+ * Routed through the shared notifier so a four-working-hour deadline can reach someone who does
+ * not have the app open — which is most of them, most of the time.
+ */
 async function notifyOwner(
   userId: string | null,
   n: { kind: string; title: string; body: string; entityType: string; entityId: string; severity: string },
+  mail?: MailBody,
 ): Promise<void> {
-  if (!userId) return;
-  await prisma.notification.create({ data: { userId, ...n } }).catch(() => undefined);
+  await notify({ userId, ...n, mail });
 }
