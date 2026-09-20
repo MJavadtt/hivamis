@@ -58,8 +58,13 @@ jobs:
           sed -i 's#^RATE_LIMIT_MAX=.*#RATE_LIMIT_MAX=100000#' .env.test
           sed -i 's#^LOGIN_RATE_LIMIT_MAX=.*#LOGIN_RATE_LIMIT_MAX=100000#' .env.test
 
-      - name: Run the full test suite
+      - name: Run the API test suite
         working-directory: apps/api
+        run: pnpm test
+
+      # No database, no server — pure logic and small components, so this runs anywhere.
+      - name: Run the frontend test suite
+        working-directory: apps/web
         run: pnpm test
 
       # Blocking: what actually ships. High-severity advisories in a runtime dependency fail
