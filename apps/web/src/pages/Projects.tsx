@@ -15,6 +15,7 @@ import {
 import {
   daysFromNow, exactCurrency, formatCurrency, formatDate, formatPercent, formatRelative, toPersianDigits,
 } from '../lib/format';
+import { REVISION_REASON_LABELS } from '@hiva/contracts';
 
 const PROJECT_STATES = [
   'DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE',
@@ -395,13 +396,7 @@ function WorkTab({ data }: { data: Project360 }) {
 }
 
 function QualityTab({ data }: { data: Project360 }) {
-  const REASONS: Record<string, string> = {
-    BRIEF_MISMATCH: 'عدم تطابق با بریف', SCOPE_MISMATCH: 'عدم تطابق با Scope',
-    QUALITY_BELOW_STANDARD: 'کیفیت پایین‌تر از استاندارد', INCOMPLETE_DELIVERABLE: 'خروجی ناقص',
-    BRAND_GUIDELINE_VIOLATION: 'مغایرت با هویت بصری', CLIENT_FEEDBACK: 'بازخورد مشتری',
-    PRICING_ISSUE: 'اشکال قیمت‌گذاری', TECHNICAL_DEFECT: 'نقص فنی', OTHER: 'سایر',
-  };
-  return (
+    return (
     <Card title="اصلاحیه‌ها" subtitle="قانون ۱۰ — هیچ اصلاحی بدون ثبت علت انجام نمی‌شود">
       {!data.revisions.length ? (
         <EmptyState title="اصلاحیه‌ای ثبت نشده" description="خروجی‌های این پروژه در QC رد نشده‌اند." />
@@ -414,7 +409,7 @@ function QualityTab({ data }: { data: Project360 }) {
             {data.revisions.map((r) => (
               <Tr key={r.id}>
                 <Td><Code>{r.code}</Code></Td>
-                <Td><Badge tone="warning">{REASONS[r.reason] ?? r.reason}</Badge></Td>
+                <Td><Badge tone="warning">{REVISION_REASON_LABELS[r.reason] ?? r.reason}</Badge></Td>
                 <Td className="max-w-sm text-xs">{r.requiredCorrection}</Td>
                 <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
                 <Td className="text-xs">{formatDate(r.dueDate)}</Td>

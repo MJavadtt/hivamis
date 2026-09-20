@@ -11,6 +11,7 @@ import {
   Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, useToast,
 } from '../components/ui';
 import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
+import { REVISION_REASON_LABELS } from '@hiva/contracts';
 
 interface QcQueue {
   unit: any[]; account: any[]; final: any[]; revisions: any[];
@@ -164,13 +165,6 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
   );
 }
 
-const REASONS: Record<string, string> = {
-  BRIEF_MISMATCH: 'عدم تطابق با بریف', SCOPE_MISMATCH: 'عدم تطابق با Scope',
-  QUALITY_BELOW_STANDARD: 'کیفیت پایین‌تر از استاندارد', INCOMPLETE_DELIVERABLE: 'خروجی ناقص',
-  BRAND_GUIDELINE_VIOLATION: 'مغایرت با هویت بصری', CLIENT_FEEDBACK: 'بازخورد مشتری',
-  PRICING_ISSUE: 'اشکال قیمت‌گذاری', TECHNICAL_DEFECT: 'نقص فنی', OTHER: 'سایر',
-};
-
 function RevisionsTable({ rows }: { rows: any[] }) {
   if (!rows.length) return <EmptyState title="اصلاحیه بازی وجود ندارد" />;
   return (
@@ -190,7 +184,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
                 <p className="text-sm">{r.deliverable?.name ?? '—'}</p>
                 <Code>{r.code}</Code>
               </Td>
-              <Td><Badge tone="warning">{REASONS[r.reason] ?? r.reason}</Badge></Td>
+              <Td><Badge tone="warning">{REVISION_REASON_LABELS[r.reason] ?? r.reason}</Badge></Td>
               <Td className="max-w-xs text-xs">{r.requiredCorrection}</Td>
               <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
               <Td className="text-xs">

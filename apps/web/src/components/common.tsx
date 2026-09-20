@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { apiPost } from '../lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiGet, apiPost } from '../lib/api';
+import { stateLabelFa } from '@hiva/contracts';
 import { useList, type Transition } from '../hooks/queries';
 import {
   Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Modal, Pagination, Select,
   StateBadge, Table, Td, Textarea, Th, Tr, useToast, cx, Field, IconSearch, IconRefresh,
 } from './ui';
-import { toPersianDigits } from '../lib/format';
+import { formatRelative, toPersianDigits } from '../lib/format';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
 
@@ -36,8 +37,13 @@ export function WorkflowActions({
   const run = async (t: Transition, why?: string) => {
     setBusy(true);
     try {
-      await apiPost(`/workflow/${entity}/${id}/transitions`, { action: t.action, reason: why });
-      toast(`«${t.labelFa}» انجام شد.`);
+      const result = await apiPost<{ toState?: string }>(
+        `/workflow/${entity}/${id}/transitions`, { action: t.action, reason: why },
+      );
+      // Name the state it landed in, not just the action taken — the engine returns it.
+      toast(result?.toState
+        ? `«${t.labelFa}» انجام شد — وضعیت: ${stateLabelFa(result.toState)}`
+        : `«${t.labelFa}» انجام شد.`);
       setPending(null);
       setReason('');
       await qc.invalidateQueries();
@@ -242,3 +248,51 @@ export function HealthDot({ status }: { status: string }) {
 export const Count = ({ value }: { value: number | null | undefined }) => (
   <span className="nums">{value == null ? '—' : toPersianDigits(value)}</span>
 );
+
+/**
+ * A record's lifecycle, read from the workflow engine's own transition log.
+ *
+ * The endpoint is gated by the entity's read permission (a transition's `reason` says why a
+ * proposal was rejected or a brief returned), so a caller without it gets 403 — rendered here
+ * as a quiet absence rather than an error, since the surrounding page is still perfectly usable.
+ */
+interface StateTransitionRow {
+  id: string;
+  fromState: string;
+  toState: string;
+  reason: string | null;
+  createdAt: string;
+  actor: { fullName: string } | null;
+}
+
+export function StateHistory({ entity, id }: { entity: string; id: string }) {
+  const { data, isLoading, error } = useQuery<StateTransitionRow[]>({
+    queryKey: [`/workflow/${entity}/${id}/history`],
+    queryFn: () => apiGet(`/workflow/${entity}/${id}/history`),
+    enabled: !!id,
+    retry: false,
+  });
+
+  if (isLoading || error || !data?.length) return null;
+
+  return (
+    <Card title="تاریخچه وضعیت" subtitle={`${toPersianDigits(data.length)} تغییر`}>
+      <ol className="divide-y divide-ink-100">
+        {data.map((t) => (
+          <li key={t.id} className="px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <StateBadge state={t.fromState} />
+              <span className="text-ink-400">←</span>
+              <StateBadge state={t.toState} />
+              <span className="ms-auto text-ink-400">{formatRelative(t.createdAt)}</span>
+            </div>
+            <p className="mt-1 text-[11px] text-ink-500">
+              {t.actor?.fullName ?? '—'}
+              {t.reason ? <span className="text-ink-700"> — {t.reason}</span> : null}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
+}

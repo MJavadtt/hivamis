@@ -4,9 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
-import { Code, EntityList, WorkflowActions } from '../components/common';
+import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
+import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -86,6 +87,145 @@ export function TasksList() {
 }
 
 /* ── Work orders ───────────────────────────────────────────────────────── */
+
+/**
+ * Global search returns a `task` group, but there was no /tasks/:id route, so every task result
+ * fell through App's catch-all and silently bounced the user to the dashboard.
+ */
+export function TaskDetail() {
+  const { id } = useParams<{ id: string }>();
+
+  const { data, isLoading, error, refetch } = useQuery<any>({
+    queryKey: [`/tasks/${id}`], queryFn: () => apiGet(`/tasks/${id}`), enabled: !!id,
+  });
+
+  if (isLoading) return <LoadingBlock />;
+  if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
+  if (!data) return null;
+
+  const overdue = data.dueDate && new Date(data.dueDate) < new Date()
+    && !['APPROVED', 'CLOSED', 'CANCELLED'].includes(data.state);
+
+  return (
+    <>
+      <PageHeader
+        title={data.title}
+        badge={<StateBadge state={data.state} />}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-2">
+            <Code>{data.code}</Code>
+            <span>واحد {data.departmentCode}</span>
+            {data.project && (
+              <Link to={`/projects/${data.project.id}`} className="text-brand-600 hover:underline">
+                {data.project.name}
+              </Link>
+            )}
+          </span>
+        }
+        actions={<WorkflowActions entity="task" id={data.id} transitions={data.availableTransitions} />}
+      />
+      <PageBody className="grid gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <Card title="شرح وظیفه">
+            <div className="px-4 py-3 text-sm text-ink-800">
+              {data.description || <span className="text-ink-400">— شرحی ثبت نشده —</span>}
+            </div>
+          </Card>
+
+          {/* Doc_H §6: no task is valid without a source document behind it. */}
+          <Card title="سند مبنا" subtitle="Doc_H §۶ — هیچ Task شفاهی معتبر نیست">
+            <dl className="px-4 py-1">
+              <DescRow label="نوع سند">{SOURCE_LABELS[data.sourceType] ?? data.sourceType}</DescRow>
+              <DescRow label="شناسه سند">
+                {data.workOrder
+                  ? <Link to={`/work-orders/${data.workOrder.id}`} className="text-brand-600 hover:underline">
+                      {data.workOrder.code} — {data.workOrder.title}
+                    </Link>
+                  : <Code>{data.sourceRef}</Code>}
+              </DescRow>
+            </dl>
+          </Card>
+
+          {data.revisions?.length > 0 && (
+            <Card title="اصلاحیه‌ها" subtitle={`${toPersianDigits(data.revisions.length)} مورد`}>
+              <Table>
+                <thead><Tr><Th>کد</Th><Th>علت</Th><Th>وضعیت</Th><Th>مهلت</Th></Tr></thead>
+                <tbody>
+                  {data.revisions.map((r: any) => (
+                    <Tr key={r.id}>
+                      <Td><Code>{r.code}</Code></Td>
+                      <Td className="text-xs">{REVISION_REASON_LABELS[r.reason] ?? r.reason}</Td>
+                      <Td><StateBadge state={r.state} /></Td>
+                      <Td className="text-xs">{formatDate(r.dueDate)}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+          )}
+
+          {data.qcReviews?.length > 0 && (
+            <Card title="کنترل کیفیت">
+              <Table>
+                <thead><Tr><Th>کد</Th><Th>سطح</Th><Th>نتیجه</Th><Th>یافته‌ها</Th></Tr></thead>
+                <tbody>
+                  {data.qcReviews.map((q: any) => (
+                    <Tr key={q.id}>
+                      <Td><Code>{q.code}</Code></Td>
+                      <Td className="text-xs">{q.level}</Td>
+                      <Td><StateBadge state={q.verdict} /></Td>
+                      <Td className="text-xs text-ink-600">{q.findings || '—'}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-5">
+          <Card title="مشخصات">
+            <dl className="px-4 py-1">
+              <DescRow label="مسئول">{data.assignee?.fullName ?? '— تخصیص نیافته —'}</DescRow>
+              <DescRow label="مهلت">
+                <span className={overdue ? 'text-rose-600' : undefined}>
+                  {formatDate(data.dueDate)}{overdue ? ' — سررسید گذشته' : ''}
+                </span>
+              </DescRow>
+              <DescRow label="اولویت">
+                <Badge tone={data.priority === 'URGENT' ? 'danger' : data.priority === 'HIGH' ? 'warning' : 'neutral'}>
+                  {data.priority}
+                </Badge>
+              </DescRow>
+              <DescRow label="برآورد">
+                {data.estimateHours ? `${toPersianDigits(Number(data.estimateHours))} ساعت` : '—'}
+              </DescRow>
+              <DescRow label="پذیرش">{data.acceptedAt ? formatDate(data.acceptedAt) : '— پذیرفته نشده —'}</DescRow>
+              <DescRow label="تحویل">{data.submittedAt ? formatDate(data.submittedAt) : '— تحویل نشده —'}</DescRow>
+            </dl>
+          </Card>
+
+          {data.blockReason && (
+            <Card title="مانع اعلام‌شده">
+              <p className="px-4 py-3 text-sm text-amber-800">{data.blockReason}</p>
+            </Card>
+          )}
+
+          <StateHistory entity="task" id={data.id} />
+        </div>
+      </PageBody>
+    </>
+  );
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  BRIEF: 'بریف',
+  ORDER_FORM: 'فرم سفارش',
+  TASK: 'وظیفه',
+  MEETING_MINUTES: 'صورتجلسه',
+  CHANGE_REQUEST: 'درخواست تغییر',
+  REVISION_FORM: 'فرم اصلاحیه',
+};
 
 export function WorkOrdersList() {
   return (

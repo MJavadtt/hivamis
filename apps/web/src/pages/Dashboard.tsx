@@ -9,6 +9,7 @@ import {
   Table, Td, Th, Tr, IconAlert, IconCheckCircle, IconClock, IconFile,
 } from '../components/ui';
 import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
+import { REVISION_REASON_LABELS } from '@hiva/contracts';
 
 interface MyDashboard {
   tasks: {
@@ -21,13 +22,6 @@ interface MyDashboard {
   sla: { items: { id: string; state: string; dueAt: string; policy: { labelFa: string } }[]; breached: number; atRisk: number };
   unreadNotifications: number;
 }
-
-const REASON_LABELS: Record<string, string> = {
-  BRIEF_MISMATCH: 'عدم تطابق با بریف', SCOPE_MISMATCH: 'عدم تطابق با Scope',
-  QUALITY_BELOW_STANDARD: 'کیفیت پایین', INCOMPLETE_DELIVERABLE: 'خروجی ناقص',
-  BRAND_GUIDELINE_VIOLATION: 'مغایرت هویت بصری', CLIENT_FEEDBACK: 'بازخورد مشتری',
-  PRICING_ISSUE: 'اشکال قیمت', TECHNICAL_DEFECT: 'نقص فنی', OTHER: 'سایر',
-};
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -145,7 +139,7 @@ export default function Dashboard() {
                             {daysFromNow(r.dueDate)! < 0 && <Badge tone="danger">گذشته</Badge>}
                           </div>
                           <p className="mt-0.5 text-xs text-ink-500">
-                            {REASON_LABELS[r.reason] ?? r.reason} — مهلت {formatDate(r.dueDate)}
+                            {REVISION_REASON_LABELS[r.reason] ?? r.reason} — مهلت {formatDate(r.dueDate)}
                           </p>
                         </li>
                       ))}

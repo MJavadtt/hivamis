@@ -4,6 +4,11 @@ import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla } from '../src/sla/engine.js';
 import { ALL_FORMS, SLA_POLICIES, WORKFLOWS, ALL_PERMISSIONS } from '@hiva/contracts';
+import {
+  STATE_LABELS, REVISION_REASON_LABELS, REVISION_REASONS, stateLabelFa,
+  QC_LEVELS, QC_RESULTS, FORM_SUBMISSION_STATES, SLA_STATES, SEVERITY_LEVELS,
+  PRIORITY_LEVELS, SCOPE_VERDICTS, AUTHORIZATION_BASES, SUPPLIER_KINDS, INVOICE_KINDS,
+} from '@hiva/contracts';
 
 let T: Record<string, string>;
 
@@ -544,5 +549,54 @@ describe('Executive report', () => {
       where: { organizationId: org, deletedAt: null, state: { notIn: ['CLOSED', 'CANCELLED'] } },
     });
     expect(res.body.projectHealth).toHaveLength(live);
+  });
+});
+
+describe('Persian labels', () => {
+  /**
+   * The highest-value test in the set: it fails the moment a new state is declared without a
+   * label, which is how a raw code like PENDING_AUTHORIZATION reaches a Persian-speaking user.
+   * The table used to exist twice — STATE_META in the SPA and STATE_FA in the PDF layer — and
+   * the two had drifted, so a value could render in Persian in one and as a code in the other.
+   */
+  it('labels every state declared by every workflow', () => {
+    const missing: string[] = [];
+    for (const [entity, def] of Object.entries(WORKFLOWS)) {
+      for (const state of def.states) {
+        if (!STATE_LABELS[state]) missing.push(`${entity}.${state}`);
+      }
+    }
+    expect(missing, `states without a Persian label: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('labels the vocabularies outside the workflows too', () => {
+    const vocabularies: Record<string, readonly string[]> = {
+      qcLevel: QC_LEVELS,
+      qcResult: QC_RESULTS,
+      formSubmission: FORM_SUBMISSION_STATES,
+      sla: SLA_STATES,
+      severity: SEVERITY_LEVELS,
+      priority: PRIORITY_LEVELS,
+      scope: SCOPE_VERDICTS,
+      authorizationBasis: AUTHORIZATION_BASES,
+      supplierKind: SUPPLIER_KINDS,
+      invoiceKind: INVOICE_KINDS,
+    };
+    const missing: string[] = [];
+    for (const [name, values] of Object.entries(vocabularies)) {
+      for (const v of values) if (!STATE_LABELS[v]) missing.push(`${name}.${v}`);
+    }
+    expect(missing, `values without a Persian label: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('labels every Doc_H revision reason', () => {
+    const missing = REVISION_REASONS.filter((r) => !REVISION_REASON_LABELS[r]);
+    expect(missing).toEqual([]);
+  });
+
+  it('falls back to the raw value rather than rendering blank', () => {
+    expect(stateLabelFa('A_STATE_NOBODY_DECLARED')).toBe('A_STATE_NOBODY_DECLARED');
+    expect(stateLabelFa(null)).toBe('—');
+    expect(stateLabelFa('ACTIVE')).toBe('در حال اجرا');
   });
 });

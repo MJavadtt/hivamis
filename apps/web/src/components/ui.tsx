@@ -1,6 +1,7 @@
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { createContext, useContext, useEffect, useId, useState } from 'react';
 import { toPersianDigits } from '../lib/format';
+import { STATE_LABELS } from '@hiva/contracts';
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ');
 
@@ -21,102 +22,12 @@ const TONE_CLASSES: Record<Tone, string> = {
 };
 
 /** State → (Persian label, tone). Every workflow state in the platform is covered. */
-export const STATE_META: Record<string, { fa: string; tone: Tone }> = {
-  // lead
-  NEW: { fa: 'جدید', tone: 'neutral' },
-  CONTACTED: { fa: 'تماس گرفته‌شده', tone: 'info' },
-  QUALIFIED: { fa: 'واجد شرایط', tone: 'progress' },
-  CONVERTED: { fa: 'تبدیل‌شده', tone: 'success' },
-  DISQUALIFIED: { fa: 'رد شده', tone: 'neutral' },
-  // opportunity
-  BRIEF_REQUESTED: { fa: 'در انتظار بریف', tone: 'warning' },
-  BRIEF_COMPLETED: { fa: 'بریف تکمیل شد', tone: 'progress' },
-  PROPOSAL: { fa: 'در حال پروپوزال', tone: 'progress' },
-  NEGOTIATION: { fa: 'مذاکره', tone: 'info' },
-  WON: { fa: 'برنده', tone: 'success' },
-  LOST: { fa: 'از دست رفته', tone: 'danger' },
-  // brief
-  DRAFT: { fa: 'پیش‌نویس', tone: 'neutral' },
-  SUBMITTED: { fa: 'ارسال‌شده', tone: 'info' },
-  UNDER_REVIEW: { fa: 'در حال بررسی', tone: 'progress' },
-  RETURNED_INCOMPLETE: { fa: 'بازگشت — ناقص', tone: 'danger' },
-  APPROVED: { fa: 'تأییدشده', tone: 'success' },
-  // proposal
-  AWAITING_UNIT_OUTPUTS: { fa: 'در انتظار خروجی واحدها', tone: 'warning' },
-  INTEGRATION: { fa: 'یکپارچه‌سازی', tone: 'progress' },
-  PRICING: { fa: 'قیمت‌گذاری', tone: 'progress' },
-  FINAL_QC: { fa: 'QC نهایی', tone: 'warning' },
-  DELIVERED_TO_SALES: { fa: 'تحویل به فروش', tone: 'info' },
-  PRESENTED_TO_CLIENT: { fa: 'ارائه به مشتری', tone: 'info' },
-  CLIENT_REVISION_REQUESTED: { fa: 'درخواست اصلاح مشتری', tone: 'warning' },
-  CLIENT_APPROVED: { fa: 'تأیید مشتری', tone: 'success' },
-  CLIENT_REJECTED: { fa: 'رد مشتری', tone: 'danger' },
-  // project
-  PENDING_AUTHORIZATION: { fa: 'در انتظار مجوز', tone: 'warning' },
-  AUTHORIZED: { fa: 'مجوز صادر شد', tone: 'progress' },
-  PLANNING: { fa: 'برنامه‌ریزی', tone: 'progress' },
-  ACTIVE: { fa: 'در حال اجرا', tone: 'success' },
-  ON_HOLD: { fa: 'متوقف', tone: 'warning' },
-  COMPLETED: { fa: 'تکمیل‌شده', tone: 'success' },
-  PENDING_CLOSURE: { fa: 'در انتظار بستن', tone: 'warning' },
-  CLOSED: { fa: 'بسته‌شده', tone: 'neutral' },
-  CANCELLED: { fa: 'لغو شده', tone: 'danger' },
-  // work order / task / deliverable
-  ISSUED: { fa: 'صادرشده', tone: 'info' },
-  PENDING_ACCEPTANCE: { fa: 'در انتظار پذیرش', tone: 'warning' },
-  ACCEPTED: { fa: 'پذیرفته‌شده', tone: 'progress' },
-  CLARIFICATION_REQUESTED: { fa: 'ابهام اعلام شد', tone: 'warning' },
-  IN_PROGRESS: { fa: 'در حال انجام', tone: 'progress' },
-  CREATED: { fa: 'ایجادشده', tone: 'neutral' },
-  ASSIGNED: { fa: 'تخصیص‌یافته', tone: 'info' },
-  BLOCKED: { fa: 'مسدود', tone: 'danger' },
-  IN_QC: { fa: 'در کنترل کیفیت', tone: 'warning' },
-  REVISION_REQUIRED: { fa: 'نیاز به اصلاح', tone: 'danger' },
-  PLANNED: { fa: 'برنامه‌ریزی‌شده', tone: 'neutral' },
-  DELIVERED: { fa: 'تحویل‌شده', tone: 'info' },
-  // revision / change request
-  REQUESTED: { fa: 'درخواست‌شده', tone: 'info' },
-  SCOPE_REVIEW: { fa: 'بررسی Scope', tone: 'progress' },
-  COMMERCIAL_REVIEW: { fa: 'بررسی تجاری', tone: 'progress' },
-  PENDING_CUSTOMER_APPROVAL: { fa: 'در انتظار تأیید مشتری', tone: 'warning' },
-  REJECTED: { fa: 'رد شده', tone: 'danger' },
-  IMPLEMENTING: { fa: 'در حال اجرا', tone: 'progress' },
-  // contract
-  DRAFTING: { fa: 'در حال تنظیم', tone: 'progress' },
-  LEGAL_REVIEW: { fa: 'بررسی حقوقی', tone: 'progress' },
-  REVISION_REQUESTED: { fa: 'نیاز به اصلاح', tone: 'warning' },
-  INTERNAL_APPROVED: { fa: 'تأیید داخلی', tone: 'progress' },
-  PENDING_SIGNATURE: { fa: 'در انتظار امضا', tone: 'warning' },
-  SIGNED: { fa: 'امضاشده', tone: 'success' },
-  REGISTERED: { fa: 'ثبت‌شده', tone: 'success' },
-  EXPIRED: { fa: 'منقضی', tone: 'neutral' },
-  TERMINATED: { fa: 'فسخ‌شده', tone: 'danger' },
-  // invoice / sla / form / qc
-  SENT: { fa: 'ارسال‌شده', tone: 'info' },
-  PARTIALLY_PAID: { fa: 'دریافت جزئی', tone: 'warning' },
-  PAID: { fa: 'تسویه‌شده', tone: 'success' },
-  RUNNING: { fa: 'در جریان', tone: 'info' },
-  AT_RISK: { fa: 'در خطر', tone: 'warning' },
-  BREACHED: { fa: 'نقض‌شده', tone: 'danger' },
-  MET: { fa: 'رعایت‌شده', tone: 'success' },
-  PAUSED: { fa: 'متوقف', tone: 'neutral' },
-  PENDING_APPROVAL: { fa: 'در انتظار تأیید', tone: 'warning' },
-  RETURNED: { fa: 'بازگشت‌داده‌شده', tone: 'warning' },
-  PENDING: { fa: 'در انتظار', tone: 'neutral' },
-  PASSED: { fa: 'تأیید', tone: 'success' },
-  FAILED: { fa: 'عدم تأیید', tone: 'danger' },
-  OPEN: { fa: 'باز', tone: 'warning' },
-  MITIGATING: { fa: 'در حال کاهش', tone: 'progress' },
-  REALISED: { fa: 'محقق‌شده', tone: 'danger' },
-  RESOLVED: { fa: 'حل‌شده', tone: 'success' },
-  FULFILLED: { fa: 'تأمین‌شده', tone: 'success' },
-  UNIT_MANAGER_REVIEW: { fa: 'بررسی مدیر واحد', tone: 'progress' },
-  MANAGEMENT_REVIEW: { fa: 'بررسی مدیریت', tone: 'progress' },
-  // health
-  GREEN: { fa: 'سالم', tone: 'success' },
-  AMBER: { fa: 'نیازمند توجه', tone: 'warning' },
-  RED: { fa: 'بحرانی', tone: 'danger' },
-};
+/**
+ * Re-exported from @hiva/contracts, where the table now lives: it was duplicated against
+ * STATE_FA in the API's PDF layer and the two had drifted apart. Kept exported here so the
+ * components that already import it from the UI module do not all have to change.
+ */
+export const STATE_META = STATE_LABELS;
 
 export function StateBadge({ state, className }: { state: string; className?: string }) {
   const meta = STATE_META[state] ?? { fa: state, tone: 'neutral' as Tone };
