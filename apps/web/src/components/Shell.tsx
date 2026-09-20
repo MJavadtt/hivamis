@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useTheme, type ThemePreference } from '../lib/theme';
+import { useLocale, type Locale } from '../lib/locale';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, toPersianDigits } from '../lib/format';
 import {
@@ -207,6 +208,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
       </button>
       <GlobalSearch />
       <div className="flex items-center gap-1">
+        <LocaleToggle />
         <ThemeToggle />
         <Notifications />
       </div>
@@ -365,6 +367,23 @@ function GlobalSearch() {
 interface NotificationRow {
   id: string; kind: string; title: string; body: string | null;
   severity: string; readAt: string | null; createdAt: string;
+}
+
+/** Persian ⇄ English. Both sides already exist in contracts; this picks which one is read. */
+function LocaleToggle() {
+  const { locale, setLocale } = useLocale();
+  const other: Locale = locale === 'fa' ? 'en' : 'fa';
+  return (
+    <button
+      onClick={() => setLocale(other)}
+      title={locale === 'fa' ? 'Switch to English' : 'تغییر به فارسی'}
+      aria-label={locale === 'fa' ? 'Switch interface language to English' : 'تغییر زبان رابط به فارسی'}
+      className="rounded-lg px-2 py-1.5 text-xs font-medium text-ink-500 hover:bg-ink-100
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+    >
+      {locale === 'fa' ? 'EN' : 'فا'}
+    </button>
+  );
 }
 
 /** Cycles light → dark → system. Three states, because "follow the OS" is a real preference. */

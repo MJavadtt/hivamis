@@ -231,6 +231,24 @@ lengths — اسفند is 29 or 30 days depending on the leap year — are exact
 conversions break. Thirteen tests cover both directions, including a round-trip over every day of
 a Jalali year, leap and common اسفند, and an early-morning time that crosses back into the
 previous UTC day from Tehran.
+
+**Language switch, added after review.** Every enum, role, department, module, form and field in
+`packages/contracts` already carried both sides — 327 label pairs — but nothing in the UI could
+reach the English one. `LocaleProvider` switches which side is read and flips `dir` and `lang` on
+`<html>`; the choice persists to `User.locale`, which was already a column, through a new
+`PATCH /auth/me/locale`.
+
+Scope is deliberately partial and should not be mistaken for an English product. Switching today
+gives English form names and field labels — the form engine is the surface with full bilingual
+coverage, and it is the one people spend the day in. What stays Persian:
+
+- **706 strings written directly into page components**, across 18 files. The largest are
+  `Operations.tsx` (132), `Projects.tsx` (89), `Crm.tsx` (72), `Sales.tsx` (65) and `Forms.tsx`
+  (62). Extracting them is the follow-up this pass deliberately did not start.
+- **`STATE_LABELS`**, which carries `fa` only. Adding `en` to all 118 entries is translation
+  work, not plumbing, and belongs with the extraction above.
+
+The direction flip is applied before React mounts, so the layout does not visibly reverse on load.
 ## ADR-010 — Access token in memory, refresh token in storage
 
 **Decision.** The access token lives only in a module-scoped variable; the refresh token is the

@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { changePasswordSchema, loginSchema, permissionsForRoles, type RoleCode } from '@hiva/contracts';
+import {
+  changePasswordSchema, loginSchema, permissionsForRoles, updateLocaleSchema, type RoleCode,
+} from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { parse, actorFrom } from '../lib/http.js';
 import { badRequest, unauthorized } from '../lib/errors.js';
@@ -99,6 +101,18 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         locale: user.locale,
       },
     };
+  });
+
+  /** A display preference, so it needs only an authenticated caller — no admin permission. */
+  app.patch('/auth/me/locale', { preHandler: [app.authenticate] }, async (req) => {
+    const actor = actorFrom(req);
+    const { locale } = parse(updateLocaleSchema, req.body);
+    const user = await prisma.user.update({
+      where: { id: actor.id },
+      data: { locale },
+      select: { id: true, locale: true },
+    });
+    return user;
   });
 
   app.post('/auth/refresh', {

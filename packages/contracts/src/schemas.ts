@@ -521,3 +521,8 @@ export const bundleSchema = z.object({
   })).max(100).default([]),
   fileIds: z.array(idSchema).max(100).default([]),
 });
+
+/** The interface language. Persian is the product's first language; English is additive. */
+export const updateLocaleSchema = z.object({
+  locale: z.enum(['fa', 'en']),
+});

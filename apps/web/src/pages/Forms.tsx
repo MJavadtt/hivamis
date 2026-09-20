@@ -11,6 +11,7 @@ import {
 } from '../components/ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
 import { JalaliDateInput } from '../components/JalaliDateInput';
+import { useLocale } from '../lib/locale';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -81,6 +82,7 @@ export default function Forms() {
 /* ── Catalogue ─────────────────────────────────────────────────────────── */
 
 function Catalogue() {
+  const { t } = useLocale();
   const [category, setCategory] = useState('');
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<FormDefinition | null>(null);
@@ -114,7 +116,7 @@ function Catalogue() {
           <option value="">همه دسته‌ها</option>
           {data?.categories.map((c) => (
             <option key={c.key} value={c.key}>
-              {c.key} — {c.labelFa} ({toPersianDigits(c.count)})
+              {c.key} — {t(c, "label")} ({toPersianDigits(c.count)})
             </option>
           ))}
         </Select></div>
@@ -132,7 +134,7 @@ function Catalogue() {
             )}
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium text-ink-800">{def.nameFa}</p>
+              <p className="text-sm font-medium text-ink-800">{t(def, "name")}</p>
               <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-500 nums">
                 {toPersianDigits(def.no)}
               </span>
@@ -266,12 +268,13 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
 function FormField({ field, value, onChange, error }: {
   field: FieldDef; value: unknown; onChange: (v: unknown) => void; error?: string;
 }) {
+  const { t } = useLocale();
   const common = { required: field.required, error, hint: field.helpFa };
 
   switch (field.type) {
     case 'textarea':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <Textarea value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} rows={3} />
         </Field>
       );
@@ -279,14 +282,14 @@ function FormField({ field, value, onChange, error }: {
     case 'currency':
     case 'percent':
       return (
-        <Field label={field.labelFa} {...common} hint={field.type === 'currency' ? 'مبلغ به ریال' : common.hint}>
+        <Field label={t(field, "label")} {...common} hint={field.type === 'currency' ? 'مبلغ به ریال' : common.hint}>
           <Input type="number" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" />
         </Field>
       );
     case 'date':
     case 'datetime':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <JalaliDateInput
             mode={field.type === 'date' ? 'date' : 'datetime'}
             value={(value as string) ?? ''}
@@ -297,13 +300,13 @@ function FormField({ field, value, onChange, error }: {
     case 'checkbox':
       return (
         <div className="pt-5">
-          <Checkbox label={field.labelFa} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+          <Checkbox label={t(field, "label")} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
           {error && <p className="mt-1 text-[11px] text-rose-600">{error}</p>}
         </div>
       );
     case 'select':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <Select value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}>
             <option value="">— انتخاب کنید —</option>
             {field.options?.map((o) => <option key={o.value} value={o.value}>{o.labelFa}</option>)}
@@ -312,7 +315,7 @@ function FormField({ field, value, onChange, error }: {
       );
     case 'multiselect':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <div className="flex flex-wrap gap-2 rounded-lg bg-surface p-2 ring-1 ring-inset ring-ink-300">
             {field.options?.map((o) => {
               const list = (value as string[]) ?? [];
@@ -336,25 +339,25 @@ function FormField({ field, value, onChange, error }: {
       );
     case 'department':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <DepartmentSelect value={(value as string) ?? ''} onChange={onChange} />
         </Field>
       );
     case 'user':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <UserSelect value={(value as string) ?? ''} onChange={onChange} />
         </Field>
       );
     case 'entityRef':
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <EntitySelect entity={field.entity!} value={(value as string) ?? ''} onChange={onChange} />
         </Field>
       );
     case 'attachment':
       return (
-        <Field label={field.labelFa} hint="پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند." error={error}>
+        <Field label={t(field, "label")} hint="پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند." error={error}>
           <div className="rounded-lg border border-dashed border-ink-300 px-3 py-4 text-center text-xs text-ink-400">
             بارگذاری پیوست پس از ثبت
           </div>
@@ -364,7 +367,7 @@ function FormField({ field, value, onChange, error }: {
       return <TableField field={field} value={(value as Record<string, unknown>[]) ?? []} onChange={onChange} error={error} />;
     default:
       return (
-        <Field label={field.labelFa} {...common}>
+        <Field label={t(field, "label")} {...common}>
           <Input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} />
         </Field>
       );
@@ -374,6 +377,7 @@ function FormField({ field, value, onChange, error }: {
 function TableField({ field, value, onChange, error }: {
   field: FieldDef; value: Record<string, unknown>[]; onChange: (v: unknown) => void; error?: string;
 }) {
+  const { t } = useLocale();
   const rows = value.length ? value : [];
   const addRow = () => onChange([...rows, {}]);
   const setCell = (i: number, key: string, v: unknown) =>
@@ -381,13 +385,13 @@ function TableField({ field, value, onChange, error }: {
   const removeRow = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
 
   return (
-    <Field label={field.labelFa} error={error}>
+    <Field label={t(field, "label")} error={error}>
       <div className="overflow-hidden rounded-lg ring-1 ring-inset ring-ink-300">
         <table className="w-full text-xs">
           <thead className="bg-ink-50">
             <tr>
               {field.columns?.map((c) => (
-                <th key={c.key} className="px-2 py-1.5 text-right font-medium text-ink-600">{c.labelFa}</th>
+                <th key={c.key} className="px-2 py-1.5 text-right font-medium text-ink-600">{t(c, "label")}</th>
               ))}
               <th className="w-8" />
             </tr>
