@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useTheme, type ThemePreference } from '../lib/theme';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, toPersianDigits } from '../lib/format';
 import {
@@ -127,7 +128,7 @@ export function Shell({ children }: { children: ReactNode }) {
         aria-label="منوی اصلی"
         inert={!mobileOpen && !isDesktop ? true : undefined}
         className={cx(
-          'fixed inset-y-0 right-0 z-40 flex w-64 flex-col border-s border-ink-200 bg-white transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 right-0 z-40 flex w-64 flex-col border-s border-ink-200 bg-surface transition-transform lg:static lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0',
         )}
       >
@@ -196,7 +197,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
 function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-surface px-4">
       <button className="rounded p-1.5 text-ink-500 hover:bg-ink-100 lg:hidden" onClick={onMenu} aria-label="منو"
           aria-controls="app-sidebar"
           aria-expanded={menuOpen}>
@@ -206,6 +207,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
       </button>
       <GlobalSearch />
       <div className="flex items-center gap-1">
+        <ThemeToggle />
         <Notifications />
       </div>
     </header>
@@ -309,7 +311,7 @@ function GlobalSearch() {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder="جستجوی سراسری… (Ctrl+K)"
-          className="w-full rounded-lg border-0 bg-ink-100 py-2 ps-9 pe-3 text-sm text-ink-800 placeholder:text-ink-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-brand-600"
+          className="w-full rounded-lg border-0 bg-ink-100 py-2 ps-9 pe-3 text-sm text-ink-800 placeholder:text-ink-400 focus:bg-surface focus:ring-2 focus:ring-inset focus:ring-brand-600"
         />
         {isFetching && <Spinner className="absolute inset-y-0 end-3 my-auto size-4" />}
       </div>
@@ -319,7 +321,7 @@ function GlobalSearch() {
           id="search-results"
           role="listbox"
           aria-label="نتایج جستجو"
-          className="animate-in absolute inset-x-0 top-full z-50 mt-1 max-h-96 overflow-y-auto rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-ink-200"
+          className="animate-in absolute inset-x-0 top-full z-50 mt-1 max-h-96 overflow-y-auto rounded-xl bg-surface p-1.5 shadow-xl ring-1 ring-ink-200"
         >
           {!data || data.total === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-ink-500" role="status">نتیجه‌ای یافت نشد.</p>
@@ -365,6 +367,42 @@ interface NotificationRow {
   severity: string; readAt: string | null; createdAt: string;
 }
 
+/** Cycles light → dark → system. Three states, because "follow the OS" is a real preference. */
+function ThemeToggle() {
+  const { preference, resolved, setPreference } = useTheme();
+  const next: Record<ThemePreference, ThemePreference> = {
+    light: 'dark', dark: 'system', system: 'light',
+  };
+  const labels: Record<ThemePreference, string> = {
+    light: 'روشن', dark: 'تیره', system: 'هماهنگ با سیستم',
+  };
+
+  return (
+    <button
+      onClick={() => setPreference(next[preference])}
+      title={`نمایش: ${labels[preference]}`}
+      aria-label={`حالت نمایش: ${labels[preference]} — برای تغییر کلیک کنید`}
+      className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+    >
+      {preference === 'system' ? (
+        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="2" y="4" width="20" height="13" rx="2" /><path d="M8 21h8M12 17v4" strokeLinecap="round" />
+        </svg>
+      ) : resolved === 'dark' ? (
+        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" strokeLinecap="round" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function Notifications() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
@@ -398,7 +436,7 @@ function Notifications() {
       </button>
 
       {open && (
-        <div className="animate-in absolute end-0 top-full z-50 mt-1 w-80 rounded-xl bg-white shadow-xl ring-1 ring-ink-200">
+        <div className="animate-in absolute end-0 top-full z-50 mt-1 w-80 rounded-xl bg-surface shadow-xl ring-1 ring-ink-200">
           <div className="flex items-center justify-between border-b border-ink-100 px-3 py-2">
             <p className="text-sm font-semibold text-ink-800">اعلان‌ها</p>
             {!!data?.unread && (
@@ -435,7 +473,7 @@ export function PageHeader({ title, subtitle, actions, badge }: {
   title: string; subtitle?: ReactNode; actions?: ReactNode; badge?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 bg-white px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 bg-surface px-5 py-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg font-semibold text-ink-900">{title}</h1>

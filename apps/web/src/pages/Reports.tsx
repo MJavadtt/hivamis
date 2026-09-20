@@ -37,7 +37,7 @@ export default function Reports() {
         subtitle="تمام اعداد از داده‌های زنده سیستم محاسبه می‌شوند"
         actions={tab === 'executive' ? <PdfButton kind="executive-report" id="all" label="خروجی PDF گزارش" /> : undefined}
       />
-      <div className="border-b border-ink-200 bg-white px-2">
+      <div className="border-b border-ink-200 bg-surface px-2">
         <Tabs tabs={tabs} active={tab} onChange={setTab} />
       </div>
       <PageBody>

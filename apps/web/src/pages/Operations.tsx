@@ -35,7 +35,7 @@ export function TasksList() {
               <button
                 key={String(o.v)}
                 onClick={() => setMineOnly(o.v)}
-                className={cx('rounded-md px-3 py-1.5 text-sm transition', mineOnly === o.v ? 'bg-white font-medium text-ink-800 shadow-sm' : 'text-ink-500')}
+                className={cx('rounded-md px-3 py-1.5 text-sm transition', mineOnly === o.v ? 'bg-surface font-medium text-ink-800 shadow-sm' : 'text-ink-500')}
               >
                 {o.l}
               </button>

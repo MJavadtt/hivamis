@@ -33,7 +33,7 @@ export default function Login() {
           <p className="mt-1 text-sm text-ink-500">سیستم‌عامل سازمانی — ورود به سامانه</p>
         </div>
 
-        <form onSubmit={submit} className="space-y-4 rounded-xl bg-white p-6 shadow-sm ring-1 ring-ink-200">
+        <form onSubmit={submit} className="space-y-4 rounded-xl bg-surface p-6 shadow-sm ring-1 ring-ink-200">
           <Field label="ایمیل سازمانی" required>
             <Input
               type="email"

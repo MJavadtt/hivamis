@@ -58,7 +58,7 @@ export default function Forms() {
         title="فرم‌ها"
         subtitle="۱۳۰ فرم ارتباطی و انتقال داده — هر فرم یک Data Object با مسیر، تأییدکننده و SLA مشخص"
       />
-      <div className="border-b border-ink-200 bg-white px-2">
+      <div className="border-b border-ink-200 bg-surface px-2">
         <Tabs
           active={tab}
           onChange={setTab}
@@ -127,7 +127,7 @@ function Catalogue() {
             key={def.code}
             onClick={() => setSelected(def)}
             className={cx(
-              'rounded-xl bg-white p-4 text-right ring-1 ring-ink-200/70 shadow-sm transition',
+              'rounded-xl bg-surface p-4 text-right ring-1 ring-ink-200/70 shadow-sm transition',
               def.canSubmit ? 'hover:ring-brand-400 hover:shadow' : 'opacity-70',
             )}
           >
@@ -313,7 +313,7 @@ function FormField({ field, value, onChange, error }: {
     case 'multiselect':
       return (
         <Field label={field.labelFa} {...common}>
-          <div className="flex flex-wrap gap-2 rounded-lg bg-white p-2 ring-1 ring-inset ring-ink-300">
+          <div className="flex flex-wrap gap-2 rounded-lg bg-surface p-2 ring-1 ring-inset ring-ink-300">
             {field.options?.map((o) => {
               const list = (value as string[]) ?? [];
               const on = list.includes(o.value);
@@ -324,7 +324,7 @@ function FormField({ field, value, onChange, error }: {
                   onClick={() => onChange(on ? list.filter((v) => v !== o.value) : [...list, o.value])}
                   className={cx(
                     'rounded-md px-2 py-1 text-xs ring-1 ring-inset transition',
-                    on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-ink-600 ring-ink-300 hover:bg-ink-50',
+                    on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-ink-600 ring-ink-300 hover:bg-ink-50',
                   )}
                 >
                   {o.labelFa}

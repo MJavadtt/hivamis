@@ -399,7 +399,7 @@ function PricingModal({ proposal, onClose }: { proposal: any; onClose: () => voi
           </div>
         )}
         <Field label="اشل قرارداد">
-          <select value={band} onChange={(e) => setBand(e.target.value)} className="w-full rounded-lg border-0 bg-white px-3 py-2 text-sm ring-1 ring-inset ring-ink-300 focus:ring-2 focus:ring-brand-600">
+          <select value={band} onChange={(e) => setBand(e.target.value)} className="w-full rounded-lg border-0 bg-surface px-3 py-2 text-sm ring-1 ring-inset ring-ink-300 focus:ring-2 focus:ring-brand-600">
             <option value="">— انتخاب —</option>
             <option value="S">کوچک</option><option value="M">متوسط</option>
             <option value="L">بزرگ</option><option value="XL">ویژه</option>

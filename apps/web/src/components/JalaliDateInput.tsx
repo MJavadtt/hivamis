@@ -160,7 +160,7 @@ function CalendarPopover({
     <div
       role="dialog"
       aria-label="تقویم"
-      className="absolute z-30 mt-1 w-[17.5rem] rounded-xl border border-ink-200 bg-white p-3 shadow-lg"
+      className="absolute z-30 mt-1 w-[17.5rem] rounded-xl border border-ink-200 bg-surface p-3 shadow-lg"
     >
       <div className="mb-2 flex items-center justify-between">
         {/* In RTL the "previous month" control sits on the right, so the arrows are mirrored. */}

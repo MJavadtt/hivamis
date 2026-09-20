@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Shell } from './components/Shell';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingBlock } from './components/ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -42,7 +43,8 @@ export default function App() {
   return (
     <Shell>
       <Suspense fallback={<LoadingBlock />}>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/" element={<Dashboard />} />
 
         <Route path="/leads" element={<Guarded permission="crm.lead.read" element={<LeadsList />} />} />
@@ -79,6 +81,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
       </Suspense>
     </Shell>
   );

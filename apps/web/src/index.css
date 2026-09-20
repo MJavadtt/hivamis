@@ -62,10 +62,85 @@
   --color-ink-700: #334155;
   --color-ink-800: #1e293b;
   --color-ink-900: #0f172a;
+
+  /* The page and card surface. A token rather than bare `bg-white`, so dark mode redefines one
+     value instead of forking every component — and `text-white` on a brand button stays white. */
+  --color-surface: #ffffff;
 }
 
 :root {
   color-scheme: light;
+}
+
+/*
+ * Dark mode redefines TOKENS ONLY — no component style is forked. The ink scale is the neutral
+ * ramp from lightest background to darkest text, so inverting it flips the whole interface:
+ * bg-ink-50 becomes a dark surface and text-ink-800 becomes light, with every ring, border and
+ * muted-text class following automatically.
+ *
+ * Driven by data-theme on <html>, set by the theme provider. Three states: light, dark, and
+ * system (the attribute is absent, so the prefers-color-scheme block below applies).
+ */
+@layer theme {
+  [data-theme='dark'] {
+    color-scheme: dark;
+
+    --color-surface: #161a23;
+
+    --color-ink-50: #10131a;
+    --color-ink-100: #1a1f29;
+    --color-ink-200: #272d3a;
+    --color-ink-300: #3a4356;
+    --color-ink-400: #7c8798;
+    --color-ink-500: #9aa5b6;
+    --color-ink-600: #b6c0ce;
+    --color-ink-700: #cfd6e0;
+    --color-ink-800: #e6eaf0;
+    --color-ink-900: #f6f8fb;
+
+    /* The brand ramp is lifted rather than inverted: an indigo that reads on white is muddy on
+       a dark ground, and the 50/100 tints are used as subtle fills that must stay subtle. */
+    --color-brand-50: #1e1b4b;
+    --color-brand-100: #262261;
+    --color-brand-200: #312c7a;
+    --color-brand-300: #4338ca;
+    --color-brand-400: #5b52e0;
+    --color-brand-500: #7b74ee;
+    --color-brand-600: #8f89f2;
+    --color-brand-700: #a9a4f6;
+    --color-brand-800: #c4c0f9;
+    --color-brand-900: #dddafb;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+
+      --color-surface: #161a23;
+
+      --color-ink-50: #10131a;
+      --color-ink-100: #1a1f29;
+      --color-ink-200: #272d3a;
+      --color-ink-300: #3a4356;
+      --color-ink-400: #7c8798;
+      --color-ink-500: #9aa5b6;
+      --color-ink-600: #b6c0ce;
+      --color-ink-700: #cfd6e0;
+      --color-ink-800: #e6eaf0;
+      --color-ink-900: #f6f8fb;
+
+      --color-brand-50: #1e1b4b;
+      --color-brand-100: #262261;
+      --color-brand-200: #312c7a;
+      --color-brand-300: #4338ca;
+      --color-brand-400: #5b52e0;
+      --color-brand-500: #7b74ee;
+      --color-brand-600: #8f89f2;
+      --color-brand-700: #a9a4f6;
+      --color-brand-800: #c4c0f9;
+      --color-brand-900: #dddafb;
+    }
+  }
 }
 
 html,

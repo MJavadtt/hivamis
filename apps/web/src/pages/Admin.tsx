@@ -15,7 +15,7 @@ export default function Admin() {
   return (
     <>
       <PageHeader title="مدیریت سیستم" subtitle="کاربران، نقش‌ها، سیاست‌های SLA و رهگیری حسابرسی" />
-      <div className="border-b border-ink-200 bg-white px-2">
+      <div className="border-b border-ink-200 bg-surface px-2">
         <Tabs
           active={tab} onChange={setTab}
           tabs={[

@@ -60,7 +60,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600 shadow-sm',
-  secondary: 'bg-white text-ink-700 ring-1 ring-inset ring-ink-300 hover:bg-ink-50 focus-visible:outline-brand-600',
+  secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-300 hover:bg-ink-50 focus-visible:outline-brand-600',
   ghost: 'text-ink-600 hover:bg-ink-100 focus-visible:outline-brand-600',
   danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600 shadow-sm',
   subtle: 'bg-brand-50 text-brand-700 hover:bg-brand-100 focus-visible:outline-brand-600',
@@ -103,7 +103,7 @@ export function Card({ children, className, title, action, subtitle }: {
   children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; action?: ReactNode;
 }) {
   return (
-    <section className={cx('rounded-xl bg-white ring-1 ring-ink-200/70 shadow-sm', className)}>
+    <section className={cx('rounded-xl bg-surface ring-1 ring-ink-200/70 shadow-sm', className)}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 border-b border-ink-100 px-4 py-3">
           <div className="min-w-0">
@@ -126,7 +126,7 @@ export function StatTile({ label, value, hint, tone = 'neutral', icon }: {
     warning: 'text-amber-700', success: 'text-emerald-700', danger: 'text-rose-700',
   };
   return (
-    <div className="rounded-xl bg-white p-4 ring-1 ring-ink-200/70 shadow-sm">
+    <div className="rounded-xl bg-surface p-4 ring-1 ring-ink-200/70 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-ink-500">{label}</p>
         {icon && <span className="text-ink-300">{icon}</span>}
@@ -253,7 +253,7 @@ export function Field({ label, required, hint, error, children }: {
   );
 }
 
-const CONTROL = 'w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-300 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
+const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-300 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
 
 /** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
@@ -363,7 +363,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cx('animate-in relative w-full rounded-xl bg-white shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
+        className={cx('animate-in relative w-full rounded-xl bg-surface shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
       >
         <header className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-ink-800">{title}</h2>
