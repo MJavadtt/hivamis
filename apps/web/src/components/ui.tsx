@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { createContext, useContext, useEffect, useId, useState } from 'react';
 import { toPersianDigits } from '../lib/format';
@@ -340,26 +341,25 @@ export function Pagination({ page, pageCount, total, onChange }: {
 export function Modal({ open, onClose, title, children, footer, wide }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean;
 }) {
+  // Escape, outside-click and focus restoration come from the shared hook, so this behaves
+  // identically to the other two overlays rather than implementing its own subset.
+  const dialogRef = useDismissable<HTMLDivElement>({ open, onClose });
+  // Without a trap, Tab walks out of the dialog and onto the page the backdrop is covering.
+  useFocusTrap(dialogRef, open);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [open, onClose]);
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 pt-12 backdrop-blur-[2px]">
+      {/* Visual scrim only; dismissal is the hook's outside-click, so there is one path. */}
+      <div className="absolute inset-0" aria-hidden />
       <div
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
