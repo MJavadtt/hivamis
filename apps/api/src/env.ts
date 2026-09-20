@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+/**
+ * `<number><s|m|h|d>`. Validated here rather than at use: ttlToMs used to fall back to seven
+ * days on anything it could not parse, so a typo in ACCESS_TOKEN_TTL silently granted access
+ * tokens a 7-day lifetime instead of 15 minutes, with nothing logged.
+ */
+const ttl = (label: string) =>
+  z.string().regex(/^\d+[smhd]$/, `${label} باید به شکل <عدد><s|m|h|d> باشد — مثال: 15m یا 7d`);
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().default(4000),
@@ -8,8 +16,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  ACCESS_TOKEN_TTL: z.string().default('15m'),
-  REFRESH_TOKEN_TTL: z.string().default('7d'),
+  ACCESS_TOKEN_TTL: ttl('ACCESS_TOKEN_TTL').default('15m'),
+  REFRESH_TOKEN_TTL: ttl('REFRESH_TOKEN_TTL').default('7d'),
   STORAGE_DIR: z.string().default('./storage'),
   /**
    * Absolute path to the Chromium/Chrome binary the PDF engine drives. Left unset in local

@@ -35,7 +35,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         run: pnpm --filter @hiva/api db:generate
@@ -62,8 +62,16 @@ jobs:
         working-directory: apps/api
         run: pnpm test
 
-      - name: Audit dependencies for known vulnerabilities
-        run: pnpm audit --audit-level high
+      # Blocking: what actually ships. High-severity advisories in a runtime dependency fail
+      # the build. An unfixable one is unblocked by adding its CVE to pnpm.auditConfig.ignoreCves
+      # in the root package.json, with a comment saying why — not by disabling the gate.
+      - name: Audit runtime dependencies
+        run: pnpm audit --prod --audit-level high
+
+      # Informational: build tooling does not ship, so a dev-only advisory is visible but
+      # does not stop a release.
+      - name: Audit build tooling (informational)
+        run: pnpm audit --audit-level moderate
         continue-on-error: true
 
   docker:

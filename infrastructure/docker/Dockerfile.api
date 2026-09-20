@@ -14,7 +14,7 @@ WORKDIR /repo
 COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY packages/contracts/package.json packages/contracts/
 COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 
 COPY packages/contracts packages/contracts
 COPY apps/api apps/api

@@ -37,9 +37,10 @@ export function generateRefreshToken(): { token: string; hash: string } {
 export const hashToken = (token: string): string =>
   createHash('sha256').update(token).digest('hex');
 
+/** Throws rather than guessing: env.ts validates the format, so reaching this is a bug. */
 export function ttlToMs(ttl: string): number {
   const m = /^(\d+)([smhd])$/.exec(ttl);
-  if (!m) return 7 * 24 * 3_600_000;
+  if (!m) throw new Error(`invalid TTL "${ttl}" — expected <number><s|m|h|d>, e.g. 15m`);
   const n = Number(m[1]);
   const mult = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 's' | 'm' | 'h' | 'd'];
   return n * mult;

@@ -15,7 +15,6 @@
     "db:seed": "pnpm --filter @hiva/api db:seed",
     "db:reset": "pnpm --filter @hiva/api db:reset",
     "test": "pnpm --filter @hiva/api test",
-    "test:e2e": "pnpm --filter @hiva/api test:e2e",
     "typecheck": "pnpm -r typecheck",
     "start": "pnpm --filter @hiva/api start",
     "bench": "node bench/run.mjs"
@@ -23,5 +22,13 @@
   "packageManager": "pnpm@10.26.2",
   "devDependencies": {
     "autocannon": "^8.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": ">=8.0.0"
+    },
+    "auditConfig": {
+      "ignoreCves": []
+    }
   }
 }
