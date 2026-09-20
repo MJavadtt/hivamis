@@ -3,7 +3,9 @@ import { closeApp, get, login, post, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla } from '../src/sla/engine.js';
-import { ALL_FORMS, SLA_POLICIES, WORKFLOWS, ALL_PERMISSIONS } from '@hiva/contracts';
+import {
+  ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
+} from '@hiva/contracts';
 import {
   STATE_LABELS, REVISION_REASON_LABELS, REVISION_REASONS, stateLabelFa,
   QC_LEVELS, QC_RESULTS, FORM_SUBMISSION_STATES, SLA_STATES, SEVERITY_LEVELS,
@@ -598,5 +600,43 @@ describe('Persian labels', () => {
     expect(stateLabelFa('A_STATE_NOBODY_DECLARED')).toBe('A_STATE_NOBODY_DECLARED');
     expect(stateLabelFa(null)).toBe('—');
     expect(stateLabelFa('ACTIVE')).toBe('در حال اجرا');
+  });
+});
+
+describe('Catalogue sizes the documentation quotes', () => {
+  /**
+   * The docs cite these numbers, and a number maintained by hand drifts. This is the source of
+   * truth they point at: changing a catalogue fails here first, which is the prompt to update
+   * whatever prose quotes it.
+   */
+  it('matches the figures in README and docs/', () => {
+    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(103);
+    expect(ROLE_CODES, 'roles').toHaveLength(16);
+    expect(ALL_FORMS, 'Doc_H forms').toHaveLength(130);
+    expect(SLA_POLICIES, 'SLA policies').toHaveLength(30);
+    expect(Object.keys(WORKFLOWS), 'state machines').toHaveLength(13);
+    expect(MODULES, 'ERP modules').toHaveLength(10);
+    expect(DEPARTMENT_CODES, 'organisational units').toHaveLength(10);
+  });
+
+  it('keeps the structural-form count the architecture doc quotes', () => {
+    // docs/architecture.md and ADR-006 both cite this: a form with a `binding` drives a
+    // first-class domain entity rather than being stored as generic form data.
+    expect(ALL_FORMS.filter((f) => f.binding)).toHaveLength(73);
+  });
+
+  it('keeps every Doc_H form number present exactly once', () => {
+    const numbers = ALL_FORMS.map((f) => f.no).sort((a, b) => a - b);
+    expect(numbers[0]).toBe(1);
+    expect(numbers[numbers.length - 1]).toBe(130);
+    expect(new Set(numbers).size, 'duplicate form numbers').toBe(130);
+  });
+
+  it('declares a transition count the workflow docs can rely on', () => {
+    const total = Object.values(WORKFLOWS).reduce((n, d) => n + d.transitions.length, 0);
+    expect(total).toBe(99);
+    // Every one carries a permission — the claim docs/architecture.md makes about the engine.
+    const open = Object.values(WORKFLOWS).flatMap((d) => d.transitions).filter((t) => !t.permission);
+    expect(open, 'transitions without a permission').toEqual([]);
   });
 });

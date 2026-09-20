@@ -27,7 +27,7 @@ executable. Fifteen governing rules are enforced by the server on every write:
 | §13 — Project start authorization | A project cannot go ACTIVE without a live `ExecutionAuthorization` on one of three legal bases |
 | §15 — Project closure | Eight closure conditions are checked as a gate, not a checklist |
 
-These are covered by 21 dedicated tests in [`apps/api/tests/001-governance.test.ts`](apps/api/tests/001-governance.test.ts).
+These are covered by a dedicated suite in [`apps/api/tests/001-governance.test.ts`](apps/api/tests/001-governance.test.ts) — each rule has a test that asserts the system refuses to break it.
 
 ---
 
@@ -92,8 +92,9 @@ apps/
     src/forms/         130-form engine, validator, typed bindings
     src/sla/           Business-calendar SLA engine
     src/ai/            Permission-aware, audited AI subsystem
-    tests/             109 tests: governance, lifecycle, security, engines
+    tests/             Governance, lifecycle, security, engines, PDF export, mail
   web/                 React 19 + Vite SPA — RTL Persian, Jalali dates
+    tests/             Conversion, API client, auth, overlays, theme, locale, help
 packages/
   contracts/           Shared source of truth: enums, permissions, workflows, SLA catalogue, 130 forms
 infrastructure/
@@ -111,8 +112,9 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 |---|---|
 | `pnpm dev` | Run API and web together |
 | `pnpm build` | Type-check and build every package |
-| `pnpm test` | Run the full test suite (109 tests) |
+| `pnpm test` | Run both test suites — API and frontend |
 | `pnpm typecheck` | Type-check without emitting |
+| `pnpm bench` | Load-test the heaviest endpoints — see [docs/performance.md](docs/performance.md) |
 | `pnpm db:migrate` | Create and apply a migration |
 | `pnpm db:seed` | Load reference data + demo dataset (idempotent) |
 

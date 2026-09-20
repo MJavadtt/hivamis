@@ -62,7 +62,7 @@ import cannot introduce an undeclared state either.
 **Alternatives considered.** Temporal and Camunda were considered and rejected: both are excellent
 for long-running distributed orchestration, but they would add an external service and a second
 programming model to enforce rules that are fundamentally *database constraints with permissions*.
-A hand-rolled engine here is ~180 lines and keeps everything in one transaction.
+A hand-rolled engine here is a few hundred lines and keeps everything in one transaction.
 
 **Consequences.** Illegal transitions are impossible rather than discouraged. A test asserts that
 a direct `PATCH { state: 'CLOSED' }` is silently ignored. The cost is that every new lifecycle
@@ -90,7 +90,7 @@ and the mapping from document to code is legible to a non-programmer.
 receiver, approver, SLA and next process.
 
 **Decision.** Forms are rows in `form_definitions` carrying a JSON field schema. One renderer, one
-validator, one routing/approval/SLA engine serves all 130. About 25 forms additionally carry a
+validator, one routing/approval/SLA engine serves all 130. 73 forms additionally carry a
 typed `binding` that drives a first-class domain record.
 
 **Alternatives considered.** Hand-coding each form was rejected as unmaintainable and as a

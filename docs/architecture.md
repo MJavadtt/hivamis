@@ -43,8 +43,13 @@ The monolith is kept honest by boundaries that are enforced rather than aspirati
 - `packages/contracts` is the single source of truth for enums, permissions, state machines,
   the SLA catalogue and all 130 forms. Both the API and the SPA import it, so a state or
   permission cannot drift between layers.
-- **Entity `state` is written in exactly one place** — `workflow/engine.ts`. The generic CRUD
-  factory strips `state` from every PATCH body. This is what makes the Doc_H rules structural.
+- **Entity `state` is written only by `workflow/engine.ts`** — through `transition()` for a move
+  the actor initiates, `transitionWithin()` where that move must be atomic with other writes, and
+  `cascadeState()` for a move on a second entity caused by the first. All three write the
+  `StateTransition` row and the audit event; only the cascade skips guards, and only because the
+  transition that caused it already passed its own. The generic CRUD factory strips `state` from
+  every PATCH body, and a database CHECK constraint pins each column to its declared vocabulary,
+  so a direct UPDATE cannot introduce an undeclared state either. See ADR-002.
 - Domain modules communicate through the database and the workflow engine, not by importing
   each other's route handlers.
 
@@ -104,7 +109,7 @@ Hand-coding 130 screens would be unmaintainable. Instead every form is a row in
 `form_definitions` carrying its field schema as JSON. One renderer draws all of them; one
 engine routes, validates, approves and SLA-tracks all of them.
 
-Roughly 25 forms are **structural** — they carry a `binding` and drive a first-class domain
+73 of the 130 forms are **structural** — they carry a `binding` and drive a first-class domain
 record through a typed handler (a lead form creates a `Lead`, a QC form creates a `QcReview`).
 The rest are genuine structured communications and are fully functional as routed, approved,
 SLA-tracked records — which is exactly what Doc_H asks of them.
@@ -164,8 +169,9 @@ Design rules applied throughout:
 - Every business record carries a human code (`PRJ-000016`) allocated by an atomic
   `INSERT … ON CONFLICT DO UPDATE … RETURNING`, so concurrent requests never collide.
 - Soft delete where history matters; hard delete only where it does not.
-- `organizationId` on every tenant-scoped table — single-organisation today, multi-tenant-ready
-  without a migration.
+- `organizationId` on every tenant-scoped table and in every lookup — single-organisation today.
+  Turning this into SaaS needs tenant resolution and provisioning rather than a schema migration;
+  ADR-008 lists exactly what is missing.
 
 ## Multi-tenancy
 

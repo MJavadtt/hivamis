@@ -97,6 +97,13 @@ All six recurring cycles Doc_H names are implemented and covered by end-to-end t
 All 30 policies come from Doc_H slide 33 and the RACI matrix, each storing its `docRef`.
 Durations are business hours against the organisation calendar.
 
+The column below is Doc_H's own wording. Two needed interpretation when encoded:
+«۲۴ ساعت پس از جلسه» means 24 *calendar* hours — by the next working day — and is stored as one
+working day, not 24 working hours, which across the Thursday–Friday weekend would be nearly a
+week. «همان روز تأیید» is not a fixed duration at all, since approval at 09:00 and at 16:00 leave
+very different amounts of the day; it is carried as a one-day approximation. Both are marked in
+`packages/contracts/src/sla.ts`.
+
 | Policy | Doc_H duration |
 |---|---|
 | Account acknowledges a new brief | 4 working hours |
