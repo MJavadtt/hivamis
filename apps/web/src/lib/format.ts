@@ -1,3 +1,9 @@
+// Individual getters rather than `format`: the formatting engine and its locale data cost
+// roughly 30 kB gzipped, and all this needs is the three calendar numbers.
+import {
+  getDate as jalaliGetDate, getMonth as jalaliGetMonth, getYear as jalaliGetYear,
+  newDate as jalaliNewDate, getDaysInMonth as jalaliGetDaysInMonth,
+} from 'date-fns-jalali';
 /** Persian formatting helpers. All user-visible numbers and dates go through here. */
 
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
@@ -86,5 +92,108 @@ export const formatPercent = (value: number | string | null | undefined): string
   value === null || value === undefined || value === '' ? '—' : `${toPersianDigits(Number(value).toFixed(1))}٪`;
 
 /** Convert a Jalali date input back to an ISO string for the API. */
+/** Kept for callers that hold a Gregorian value; Jalali entry uses jalaliPartsToValue. */
 export const toIso = (value: string): string | undefined =>
   value ? new Date(value).toISOString() : undefined;
+
+/* ── Jalali date entry ─────────────────────────────────────────────────────
+ * Display was already Jalali (formatDate uses fa-IR-u-ca-persian) but entry was not: the
+ * form engine rendered a native <input type="date">, which is Gregorian in practice. A user
+ * read «مهلت: ۱۴۰۵/۰۶/۳۱» and had to type 2026-09-22. These fields are the ones filled every
+ * day — deadlines, committed dates, milestones — and they feed the SLA engine.
+ *
+ * The wire format is unchanged, deliberately: a `date` field still posts YYYY-MM-DD, exactly
+ * what the native input produced for the same real-world day, so no Zod schema moves.
+ */
+
+const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
+
+/** Accept Persian and Arabic-Indic digits on input; people type whatever their keyboard gives. */
+export function toLatinDigits(input: string): string {
+  return input.replace(/[۰-۹٠-٩]/g, (d) => {
+    const p = PERSIAN_DIGITS.indexOf(d);
+    return String(p >= 0 ? p : ARABIC_DIGITS.indexOf(d));
+  });
+}
+
+/** Local calendar parts, not toISOString — that would shift the day across the UTC boundary. */
+function localDateOnly(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+export interface JalaliParts { jy: number; jm: number; jd: number; hh: number; mm: number }
+
+/** Split a stored value into Jalali parts for display. Returns null for empty or unparseable. */
+export function isoToJalaliParts(value: string | null | undefined): JalaliParts | null {
+  if (!value) return null;
+  // A bare YYYY-MM-DD is a calendar day, not an instant: read it as local midnight so the
+  // displayed day matches the stored one regardless of the viewer's offset.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    jy: jalaliGetYear(d), jm: jalaliGetMonth(d) + 1, jd: jalaliGetDate(d),
+    hh: d.getHours(), mm: d.getMinutes(),
+  };
+}
+
+/** Jalali parts → the string the API stores. */
+export function jalaliPartsToValue(p: JalaliParts, mode: 'date' | 'datetime'): string {
+  const d = jalaliNewDate(p.jy, p.jm - 1, p.jd);
+  if (mode === 'date') return localDateOnly(d);
+  d.setHours(p.hh, p.mm, 0, 0);
+  // A datetime is an instant, so it goes out as UTC — unlike the old datetime-local value,
+  // which carried no offset and was re-read in whatever timezone the server happened to run in.
+  return d.toISOString();
+}
+
+/** Display form: ۱۴۰۵/۰۶/۳۱ — or with the time for a datetime field. */
+export function formatJalaliInput(p: JalaliParts | null, mode: 'date' | 'datetime'): string {
+  if (!p) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${p.jy}/${pad(p.jm)}/${pad(p.jd)}`;
+  return toPersianDigits(mode === 'date' ? date : `${date} ${pad(p.hh)}:${pad(p.mm)}`);
+}
+
+/**
+ * Parse what someone typed. Tolerant on purpose: Persian or Latin digits, `/`, `-` or `.` as
+ * the separator, and a time that may be absent.
+ */
+export function parseJalaliInput(raw: string, mode: 'date' | 'datetime'): JalaliParts | null {
+  const s = toLatinDigits(raw).trim();
+  if (!s) return null;
+  const m = /^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})(?:[\s,]+(\d{1,2}):(\d{2}))?$/.exec(s);
+  if (!m) return null;
+  const [jy, jm, jd] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const hh = mode === 'datetime' ? Number(m[4] ?? 0) : 0;
+  const mm = mode === 'datetime' ? Number(m[5] ?? 0) : 0;
+  if (jm < 1 || jm > 12 || jd < 1 || hh > 23 || mm > 59) return null;
+  // Reject a day past the end of that Jalali month — 31 اسفند, or 30 اسفند in a common year.
+  if (jd > jalaliDaysInMonth(jy, jm)) return null;
+  return { jy, jm, jd, hh, mm };
+}
+
+/** Days in a Jalali month, which is where hand-rolled conversions usually break. */
+export function jalaliDaysInMonth(jy: number, jm: number): number {
+  return jalaliGetDaysInMonth(jalaliNewDate(jy, jm - 1, 1));
+}
+
+export const JALALI_MONTHS = [
+  'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+  'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+] as const;
+
+/** Saturday-first, matching the Iranian week the SLA calendar already uses. */
+export const JALALI_WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'] as const;
+
+/** Weekday column (0 = Saturday) for the 1st of a Jalali month. */
+export function jalaliFirstWeekday(jy: number, jm: number): number {
+  const d = jalaliNewDate(jy, jm - 1, 1);
+  return (d.getDay() + 1) % 7; // JS Sunday=0 → Saturday-first
+}
+
+export function todayJalaliParts(): JalaliParts {
+  return isoToJalaliParts(new Date().toISOString())!;
+}

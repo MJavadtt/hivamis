@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { createContext, useContext, useEffect, useId, useState } from 'react';
 import { toPersianDigits } from '../lib/format';
@@ -253,9 +254,11 @@ export function Field({ label, required, hint, error, children }: {
 
 const CONTROL = 'w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-300 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
 
-export const Input = ({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) => (
-  <input {...rest} className={cx(CONTROL, className)} />
+/** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...rest }, ref) => <input {...rest} ref={ref} className={cx(CONTROL, className)} />,
 );
+Input.displayName = 'Input';
 
 export const Textarea = ({ className, rows = 3, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea {...rest} rows={rows} className={cx(CONTROL, 'resize-y', className)} />

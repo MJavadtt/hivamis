@@ -10,6 +10,7 @@ import {
   Modal, Select, StateBadge, Table, Tabs, Td, Textarea, Th, Tr, useToast, cx, IconPlus, IconSearch,
 } from '../components/ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
+import { JalaliDateInput } from '../components/JalaliDateInput';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -286,11 +287,10 @@ function FormField({ field, value, onChange, error }: {
     case 'datetime':
       return (
         <Field label={field.labelFa} {...common}>
-          <Input
-            type={field.type === 'date' ? 'date' : 'datetime-local'}
+          <JalaliDateInput
+            mode={field.type === 'date' ? 'date' : 'datetime'}
             value={(value as string) ?? ''}
-            onChange={(e) => onChange(e.target.value)}
-            className="ltr"
+            onChange={onChange}
           />
         </Field>
       );
@@ -407,12 +407,20 @@ function TableField({ field, value, onChange, error }: {
                         {c.options?.map((o) => <option key={o.value} value={o.value}>{o.labelFa}</option>)}
                       </Select>
                     ) : (
-                      <Input
-                        type={['number', 'currency'].includes(c.type) ? 'number' : c.type === 'date' ? 'date' : 'text'}
-                        value={String(row[c.key] ?? '')}
-                        onChange={(e) => setCell(i, c.key, e.target.value)}
-                        className={cx('py-1 text-xs', ['number', 'currency', 'date'].includes(c.type) && 'ltr')}
-                      />
+                      c.type === 'date' ? (
+                        <JalaliDateInput
+                          mode="date"
+                          value={String(row[c.key] ?? '')}
+                          onChange={(v) => setCell(i, c.key, v)}
+                        />
+                      ) : (
+                        <Input
+                          type={['number', 'currency'].includes(c.type) ? 'number' : 'text'}
+                          value={String(row[c.key] ?? '')}
+                          onChange={(e) => setCell(i, c.key, e.target.value)}
+                          className={cx('py-1 text-xs', ['number', 'currency'].includes(c.type) && 'ltr')}
+                        />
+                      )
                     )}
                   </td>
                 ))}

@@ -210,6 +210,27 @@ additive rather than a rewrite.
 
 ---
 
+**Entry, added after review.** Display honoured this from the start (`fa-IR-u-ca-persian` in both
+`apps/web/src/lib/format.ts` and the PDF layer), but the form engine rendered a native
+`<input type="date">`, which is Gregorian in practice — so a user read «مهلت: ۱۴۰۵/۰۶/۳۱» and had
+to type `2026-09-22`. These are the fields filled every day, and they feed the SLA engine.
+
+`JalaliDateInput` replaces both entry points. Typing works on its own — Persian, Arabic-Indic or
+Latin digits, with `/`, `-` or `.` between them — and the calendar is an accelerator rather than
+the only way in, so the control stays usable from the keyboard.
+
+The wire format is deliberately unchanged: a `date` field still posts `YYYY-MM-DD`, exactly what
+the native input produced for the same real-world day, so no Zod schema moved. A `datetime` now
+posts a UTC instant, which is a correction rather than a change of contract — the old
+`datetime-local` value carried no offset and was re-read in whatever timezone the server happened
+to run in.
+
+**Dependency.** `date-fns-jalali` (MIT), about 40 kB gzipped in the built bundle. Hand-rolling
+against `Intl.DateTimeFormat` handles formatting but not the reverse direction, and Jalali month
+lengths — اسفند is 29 or 30 days depending on the leap year — are exactly where hand-rolled
+conversions break. Thirteen tests cover both directions, including a round-trip over every day of
+a Jalali year, leap and common اسفند, and an early-morning time that crosses back into the
+previous UTC day from Tehran.
 ## ADR-010 — Access token in memory, refresh token in storage
 
 **Decision.** The access token lives only in a module-scoped variable; the refresh token is the

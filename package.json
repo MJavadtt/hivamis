@@ -14,7 +14,7 @@
     "db:push": "pnpm --filter @hiva/api db:push",
     "db:seed": "pnpm --filter @hiva/api db:seed",
     "db:reset": "pnpm --filter @hiva/api db:reset",
-    "test": "pnpm --filter @hiva/api test",
+    "test": "pnpm --filter @hiva/api test && pnpm --filter @hiva/web test",
     "typecheck": "pnpm -r typecheck",
     "start": "pnpm --filter @hiva/api start",
     "bench": "node bench/run.mjs"
