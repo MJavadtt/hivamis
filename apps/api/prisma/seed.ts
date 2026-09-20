@@ -269,7 +269,7 @@ async function seedDemo(
     LEAD: 'lead', OPP: 'opportunity', BRF: 'brief', PRP: 'proposal', CNT: 'contract',
     PRJ: 'project', INV: 'invoice', WO: 'workOrder', DLV: 'deliverable', TSK: 'task',
     QC: 'qcReview', REV: 'revision', CR: 'changeRequest', RSK: 'risk', ISS: 'issue',
-    RPT: 'statusReport', MTG: 'meeting',
+    RPT: 'statusReport', MTG: 'meeting', FRM: 'formSubmission',
   } as const;
   const code = (p: keyof typeof SCOPE) => nextCode(prisma, SCOPE[p]);
 
@@ -743,6 +743,32 @@ async function seedDemo(
       state: 'UNDER_REVIEW', submittedById: salesRep, reviewedById: accountExec,
     },
   });
+
+  // ── A submitted form ───────────────────────────────────────────────────────
+  // The demo dataset is meant to exercise the whole lifecycle, and until now it stopped at
+  // the workflow engine and never touched the form engine. The charter carries an entityRef
+  // to proj1, which is what makes a form submission's attachments discoverable — so the PDF
+  // bundle has something to find without a test first having to build it by hand.
+  const charter = await prisma.formDefinition.findFirst({
+    where: { organizationId: orgId, code: 'J82_PROJECT_CHARTER' },
+  });
+  if (charter) {
+    await prisma.formSubmission.create({
+      data: {
+        organizationId: orgId, code: await code('FRM'), definitionId: charter.id,
+        projectId: proj1.id, companyId: c0.id,
+        data: {
+          projectId: proj1.id,
+          purpose: 'رونمایی از خط محصول جدید پگاه سبز در بازار مصرف خانوار',
+          objectives: 'پوشش ۶۰٪ مخاطب هدف شهری و ۱۲٪ رشد فروش در سه ماه نخست',
+          successCriteria: 'تحقق شاخص‌های رسانه‌ای مصوب و تأیید کارفرما بر خروجی خلاقیت',
+          constraints: 'محدودیت بودجه رسانه‌ای و تقویم پخش تلویزیونی',
+        },
+        state: 'APPROVED', submittedById: accountExec, assignedToId: pmo,
+        submittedAt: daysAgo(66), decidedAt: daysAgo(64),
+      },
+    });
+  }
 
   // ── Suppliers ─────────────────────────────────────────────────────────────
   for (const s of [

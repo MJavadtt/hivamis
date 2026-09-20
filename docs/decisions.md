@@ -294,3 +294,61 @@ trade-off here.
 - کیفیت خروجی برابر با چاپ مرورگر است: RTL، تقویم جلالی، ارقام فارسی و جدول‌های چندصفحه‌ای درست.
 
 **مرتبط:** `docs/pdf-export.md`
+
+---
+
+## ADR-016 — The state vocabulary is a database constraint, not only an engine rule
+
+**Decision.** Every table with a `state` column carries a CHECK constraint listing exactly the
+states its workflow declares. The constraints are generated from the same contracts the engine
+reads, by `prisma/generate-state-constraints.mts`, so the two cannot drift.
+
+**Rationale.** ADR-003 makes `workflow/engine.ts` the only sanctioned writer of `state`, but
+"sanctioned" is a property of the application: a direct `UPDATE` in a console, a data import, a
+restored dump or a future code path that has not read this document can all still write nonsense.
+A CHECK constraint makes the vocabulary a property of the schema, which those paths cannot route
+around. It does not replace the engine — the engine enforces *which transition* is legal, and
+under whose permission; the constraint only enforces *which states exist*.
+
+**Consequences.** Adding a state means a migration, not just a contracts edit — which is the
+intended friction. The constraints are regenerated rather than hand-edited; the generator is the
+source of truth and the migration is its output.
+
+---
+
+## ADR-017 — One database schema per test file
+
+**Decision.** Each API test file runs against its own PostgreSQL schema, cloned from a template
+that is migrated and seeded once per run. Files run in parallel. `HIVA_TEST_ISOLATION=shared`
+restores the previous behaviour — one schema, sequential, nothing dropped.
+
+**Rationale.** The suite used to drive one shared schema through every file and never reset it,
+so a test could pass because of a row an earlier file, or an earlier *run*, had left behind. That
+was not theoretical: one security test selected project `PRJ-000016`, a code that existed only
+because repeated runs had pushed the counter that far, and the PDF export file depended on
+records that only the lifecycle file ever creates. Both had been green for months. Neither
+survived contact with a clean database.
+
+A schema rather than a database because `CREATE SCHEMA` needs no CREATEDB privilege, takes no
+lock a parallel worker might contend on, and keeps every artefact inside the database named by
+`DATABASE_URL`, so CI provisions nothing extra.
+
+Cloning rather than migrating-and-seeding each file because the seed is the expensive half:
+0.23s against 1.25s measured. The clone replays migration SQL and copies the seeded rows in
+foreign-key order, which is also why it does *not* use `prisma migrate diff --from-empty` —
+that round-trips through Prisma's schema model, which has no concept of a CHECK constraint, and
+would silently drop all 15 of the ADR-016 constraints.
+
+Every schema is built in the global setup, before the first worker starts — not lazily in each
+file's own setup, which was the first version. Lazy provisioning meant one worker replaying 313
+DDL statements while others were mid-test; the catalogue locks that takes were enough to push
+their queries past Prisma's 5-second connect timeout, and the suite failed about one run in four
+with an HTTP 500 that looked like an application bug. With all DDL finished before any test
+runs, thirteen consecutive runs passed. The clones are built a few at a time, which is safe only
+there: nothing is waiting on the database yet.
+
+**Consequences.** The suite is repeatable: two consecutive runs from an empty database produce
+identical results, and any single file passes on its own. Wall-clock fell from 23.3s sequential
+to 16.2s parallel on the same tests. Tests may no longer read data another file created — which
+is the point, and cost two fixes to get to. `tests/007-isolation.test.ts` asserts the mechanism
+is actually in effect, because a silent failure here looks exactly like success.

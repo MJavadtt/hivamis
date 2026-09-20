@@ -92,7 +92,7 @@ apps/
     src/forms/         130-form engine, validator, typed bindings
     src/sla/           Business-calendar SLA engine
     src/ai/            Permission-aware, audited AI subsystem
-    tests/             Governance, lifecycle, security, engines, PDF export, mail
+    tests/             Governance, lifecycle, security, engines, PDF export, mail, isolation
   web/                 React 19 + Vite SPA — RTL Persian, Jalali dates
     tests/             Conversion, API client, auth, overlays, theme, locale, help
 packages/
@@ -113,6 +113,7 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 | `pnpm dev` | Run API and web together |
 | `pnpm build` | Type-check and build every package |
 | `pnpm test` | Run both test suites — API and frontend |
+| `HIVA_TEST_ISOLATION=shared pnpm test` | Run the API suite on one shared database instead of a schema per file — faster inner loop, keeps the rows a run creates |
 | `pnpm typecheck` | Type-check without emitting |
 | `pnpm bench` | Load-test the heaviest endpoints — see [docs/performance.md](docs/performance.md) |
 | `pnpm db:migrate` | Create and apply a migration |

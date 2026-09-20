@@ -592,7 +592,9 @@ describe('State vocabulary is enforced by the database', () => {
    * introduce a state the workflow does not declare.
    */
   it('accepts every declared state and rejects an invented one', async () => {
-    const project = await prisma.project.findFirstOrThrow({ where: { code: 'PRJ-000016' } });
+    // Any project will do; naming one by code tied this to whatever the counter happened to
+    // have reached, which only held while every run shared one accumulating database.
+    const project = await prisma.project.findFirstOrThrow({ orderBy: { code: 'asc' } });
     const original = project.state;
     try {
       for (const state of WORKFLOWS.project!.states) {
@@ -609,8 +611,12 @@ describe('State vocabulary is enforced by the database', () => {
   });
 
   it('constrains every workflow table plus form submissions and SLA clocks', async () => {
+    // Scoped to this test's own schema: files run in parallel, each in a schema of its own,
+    // so an unscoped pg_constraint query counts every one of them at once.
     const rows = await prisma.$queryRaw<{ conname: string }[]>`
-      SELECT conname FROM pg_constraint WHERE conname LIKE '%\_state\_check'`;
+      SELECT c.conname FROM pg_constraint c
+        JOIN pg_namespace n ON n.oid = c.connamespace
+       WHERE n.nspname = current_schema() AND c.conname LIKE '%\_state\_check'`;
     // 13 workflow entities + form_submissions + sla_clocks
     expect(rows.length).toBe(Object.keys(WORKFLOWS).length + 2);
   });

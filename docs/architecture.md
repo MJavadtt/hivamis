@@ -217,3 +217,16 @@ Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../app
 - `/reports/data-quality` actively hunts records that would silently break the process —
   an ACTIVE project with no authorization, a task with no source document, a closed project
   with unclear finances.
+
+---
+
+## Testing
+
+- The API suite runs against a real PostgreSQL database, not a mock. `app.inject()` drives it
+  in process, so there is no port to bind and no server to start.
+- Each test file gets its own schema, cloned from a template migrated and seeded once per run,
+  and files run in parallel — see [ADR-017](decisions.md). Two consecutive runs from an empty
+  database produce identical results, and any single file passes on its own.
+- `HIVA_TEST_ISOLATION=shared` puts every file back on one database, sequentially, and keeps
+  what a run creates. Faster for iterating on one file; not what CI runs.
+- The frontend suite needs neither a database nor a server: pure logic and small components.
