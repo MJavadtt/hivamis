@@ -34,6 +34,7 @@ const NAV: NavGroup[] = [
     label: 'کار من',
     items: [
       { to: '/', label: 'داشبورد', icon: IconDashboard },
+      { to: '/my-work', label: 'کارهای من', icon: IconCheckCircle },
       { to: '/tasks', label: 'وظایف', icon: IconCheckCircle, permission: 'task.read' },
       { to: '/forms', label: 'فرم‌ها', icon: IconFile, permission: 'form.read' },
     ],

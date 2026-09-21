@@ -55,6 +55,7 @@ export function findSection(title: string | undefined): HelpSection | undefined 
 /** Persian headings for the sections, since the guide itself is written in English. */
 export const SECTION_TITLE_FA: Record<string, string> = {
   'Signing in': 'ورود به سامانه',
+  'Your queue — «کارهای من»': 'کارهای من',
   Sales: 'فروش',
   Account: 'اکانت',
   'Execution units (Strategy, Creative, Media, Digital)': 'واحدهای اجرایی',

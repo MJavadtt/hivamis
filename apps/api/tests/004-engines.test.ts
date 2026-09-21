@@ -294,6 +294,97 @@ describe('Form definition versioning', () => {
   });
 });
 
+describe('My work — one queue', () => {
+  /**
+   * A person's work used to live in five lists. One queue, every item carrying what the person
+   * may do to it, ordered by how soon its clock runs out.
+   */
+  it('gathers what sits with the person, with the transitions they may perform', async () => {
+    const creative = expectOk(await get('/me/work', T.creative), 'creative queue');
+    const seededOrder = creative.items.find((i: any) => i.kind === 'workOrder' && i.state === 'IN_PROGRESS');
+    expect(seededOrder).toBeTruthy();
+    expect(seededOrder.projectCode).toMatch(/^PRJ-/);
+    expect(seededOrder.href).toBe(`/work-orders/${seededOrder.entityId}`);
+    expect(seededOrder.availableTransitions.map((t: any) => t.action)).toContain('submit');
+    expect(creative.kinds.workOrder).toBe('سفارش کار');
+    expect(creative.counts.workOrder).toBeGreaterThanOrEqual(1);
+
+    const designer = expectOk(await get('/me/work', T.designer), 'designer queue');
+    const task = designer.items.find((i: any) => i.kind === 'task');
+    expect(task).toBeTruthy();
+    expect(task.availableTransitions.length).toBeGreaterThan(0);
+    // Nothing that is not theirs.
+    expect(designer.items.every((i: any) => i.kind === 'task' || i.kind === 'revision')).toBe(true);
+  });
+
+  it('routes a clarification request to whoever may issue orders, and a form to its approvers', async () => {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const wo = expectOk(await post('/work-orders', T.accountManager, {
+      projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش صف کاری',
+      scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
+      deadline: new Date(Date.now() + 10 * 86_400_000).toISOString(), ownerId: creative.id, budget: 1, priority: 'NORMAL',
+    }), 'create');
+    expectOk(await move('workOrder', wo.id, 'issue', T.accountManager), 'issue');
+
+    // With the owner, carrying its 4-working-hour acceptance clock.
+    const mine = expectOk(await get('/me/work', T.creative), 'creative');
+    const issued = mine.items.find((i: any) => i.entityId === wo.id);
+    expect(issued).toMatchObject({ kind: 'workOrder', state: 'ISSUED' });
+    expect(issued.sla).toMatchObject({ policyCode: 'SLA_TASK_ACCEPTANCE', budgetHours: 4 });
+    expect(issued.availableTransitions.map((t: any) => t.action)).toContain('accept');
+
+    expectOk(await move('workOrder', wo.id, 'request_clarification', T.creative, 'ابعاد مشخص نیست'), 'clarify?');
+    const account = expectOk(await get('/me/work', T.accountManager), 'account');
+    const asking = account.items.find((i: any) => i.entityId === wo.id);
+    expect(asking).toMatchObject({ kind: 'clarification', state: 'CLARIFICATION_REQUESTED' });
+    expect(asking.title).toContain('ابعاد مشخص نیست');
+    expect(asking.availableTransitions.map((t: any) => t.action)).toContain('clarify');
+    // and no longer with the unit while it waits
+    const meanwhile = expectOk(await get('/me/work', T.creative), 'creative again');
+    expect(meanwhile.items.some((i: any) => i.entityId === wo.id)).toBe(false);
+
+    // A form awaiting approval reaches its approver role, not its submitter.
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const form = expectOk(await post('/forms/submissions', T.sales, {
+      formCode: 'B10_BRIEF_COMPLETION', data: { briefId: brief.id, addedInformation: 'x' },
+    }), 'submit form');
+    const approver = expectOk(await get('/me/work', T.accountManager), 'approver');
+    expect(approver.items.find((i: any) => i.entityId === form.id)).toMatchObject({ kind: 'formApproval', href: '/forms' });
+    const submitter = expectOk(await get('/me/work', T.sales), 'submitter');
+    expect(submitter.items.some((i: any) => i.entityId === form.id)).toBe(false);
+  });
+
+  it('puts a breached clock first, then whatever runs out soonest, then the rest', async () => {
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_REVISION' } });
+    const mk = (title: string, due: number) => prisma.task.create({
+      data: {
+        organizationId: project.organizationId, code: `TSK-Q-${title}-${Date.now()}`, projectId: project.id,
+        title, departmentCode: 'CR', assigneeId: designer.id, priority: 'NORMAL', state: 'ASSIGNED',
+        sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: designer.id, dueDate: new Date(Date.now() + due * 86_400_000),
+      },
+    });
+    const [late, soon, calm] = await Promise.all([mk('late', 30), mk('soon', 30), mk('calm', 1)]);
+    await prisma.slaClock.create({ data: {
+      organizationId: project.organizationId, policyId: policy.id, entityType: 'task', entityId: late.id,
+      startedAt: new Date(Date.now() - 5 * 86_400_000), dueAt: new Date(Date.now() - 86_400_000), state: 'BREACHED', ownerId: designer.id,
+    } });
+    await prisma.slaClock.create({ data: {
+      organizationId: project.organizationId, policyId: policy.id, entityType: 'task', entityId: soon.id,
+      startedAt: new Date(), dueAt: new Date(Date.now() + 2 * 3_600_000), state: 'RUNNING', ownerId: designer.id,
+    } });
+
+    const queue = expectOk(await get('/me/work', T.designer), 'designer');
+    const order = queue.items.map((i: any) => i.entityId);
+    expect(order.indexOf(late.id)).toBeLessThan(order.indexOf(soon.id));
+    expect(order.indexOf(soon.id)).toBeLessThan(order.indexOf(calm.id));
+    expect(queue.items[0].sla.state).toBe('BREACHED');
+    expect(queue.breached).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 

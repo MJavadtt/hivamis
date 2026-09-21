@@ -142,6 +142,7 @@ A submitter cannot approve their own form.
 | Endpoint | Permission | Contents |
 |---|---|---|
 | `GET /reports/my-dashboard` | authenticated | My tasks, projects, approvals, revisions, SLAs |
+| `GET /me/work` | authenticated | One work queue: tasks, owned work orders, QC for my level, forms awaiting my roles, my revisions, clarification requests if I issue orders. Each item has `availableTransitions`, its nearest open `sla` with `controlledHours`, and `href`; ordered breached → soonest SLA → due date |
 | `GET /reports/executive` | `report.executive` | Pipeline, portfolio health, finance, delivery, governance |
 | `GET /reports/sales` | `report.read` | Funnel, conversion, brief quality, per-owner performance |
 | `GET /reports/units` | `report.read` | On-time delivery, first pass yield, revision rate, declared cost |

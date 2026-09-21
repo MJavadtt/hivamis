@@ -11,6 +11,14 @@ because the process assigns that step to someone else.
 
 ---
 
+## Your queue — «کارهای من»
+
+Everything that sits with you, in one list: tasks assigned to you, work orders you own, QC
+waiting for your level, forms awaiting your approval, revisions assigned to you, and — if you
+issue work orders — clarification requests from the units. Ordered by urgency: a breached SLA
+first, then whatever runs out soonest, then by due date. Each row carries its own actions, so
+you accept, submit or send to QC from the list. Filter by kind with the chips above it.
+
 ## Sales
 
 **Your loop: acquire → qualify → brief → present → close.**
