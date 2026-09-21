@@ -436,3 +436,30 @@ register, and it would have to be guarded by the same permission anyway. Editing
 satisfy the guard: that is the workaround this replaces, with a lie in the data instead of a
 truth in the register.
 
+---
+
+## ADR-020 — Rules are versioned by fingerprint, and every transition names its version
+
+**Decision.** At boot the API fingerprints each rule set the code declares — the state machines
+(`WORKFLOWS`), the role grants (`ROLE_PERMISSIONS`), the SLA catalogue (`SLA_POLICIES`) — and,
+when a fingerprint is new, stores the full snapshot as the next version, effective from then.
+Every state transition records the workflow and permission versions in force when it happened,
+on the row and in its audit event. `/rules/at`, `/rules/diff` and `/rules/for-transition` answer
+the auditor's three questions: what was in force then, what changed, and what allowed this.
+
+**Rationale.** The rules are data (ADR-003, ADR-004), which is the platform's advantage — and
+until now its blind spot: a change to a guard or a grant rewrote history, because nothing said
+which rules a past decision had been judged by. Any organisation under review eventually hears
+"was this decision right under the rules of that time". The answer had to be on the row.
+
+**Why fingerprints rather than a version number in the code.** A number someone has to remember
+to bump is a number that will not be bumped. A fingerprint is bumped by the change itself, and
+the same content always maps to the same version — a rollback of the code registers nothing and
+resumes stamping the old version. Key order is canonicalised first, so a cosmetic reordering is
+not a new version.
+
+**Consequences.** A rule change is visible in the Admin tab within one boot, with a diff in words.
+The Rule Lab (roadmap #5) can replay history under a chosen version because the snapshots are
+complete. The `note` on a version is optional today; the seed and the boot leave it empty, and a
+future rule editor should fill it.
+

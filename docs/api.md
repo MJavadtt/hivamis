@@ -184,6 +184,10 @@ Each requires both `ai.use` and the underlying data permission.
 | `POST /waivers` `{ entityType, entityId, guard, action?, reason, expiresAt? }` | `governance.waive` (CEO, deputy) — set one guard aside on one record, once; the guard must stand on a transition of that entity; reason ≥ 10 chars; expiry ≤ 30 days (default 7); one live waiver per guard per record. Audited `WAIVER_GRANTED` |
 | `GET /waivers?entityType=&entityId=&status=` | `governance.read` — the register, with names and status (OPEN / USED / EXPIRED / REVOKED) |
 | `POST /waivers/:id/revoke` | `governance.waive` — an unused waiver only; a spent one is history |
+| `GET /rules/versions`, `GET /rules/versions/:id` | `admin.audit` — every version of the workflows, permissions and SLA rule sets, with fingerprint, effective-from and note; a version with its full snapshot and how many transitions ran under it |
+| `GET /rules/at?ts=` | `admin.audit` — which version of each kind was in force at an instant |
+| `GET /rules/diff?kind=&from=&to=` | `admin.audit` — what changed between two versions, as Persian lines (transitions added/removed, a guard or permission changed, a role gaining or losing a permission, an SLA duration moved); defaults to the last two |
+| `GET /rules/for-transition/:id` | `admin.audit` — the rule versions a given transition was allowed under |
 | `GET /sla-policies`, `PATCH /sla-policies/:code` | `admin.settings` for writes |
 | `GET /organization`, `PATCH /organization` | `admin.settings` for writes |
 | `GET /audit-events` | `admin.audit` |

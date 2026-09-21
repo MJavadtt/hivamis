@@ -64,8 +64,26 @@ export const changesRecord = (action: string) => RECORD_ACTIONS.has(action);
 /** Bookkeeping columns: they change on every write and never mean anything to a reader. */
 const NOISE = new Set(['updatedAt', 'createdAt', 'id', 'organizationId']);
 
+/**
+ * Keys a record-changing event carries in `after` that are about the event, not the record: the
+ * rule versions that allowed a transition, the waivers it spent. They are shown as details and
+ * never folded into the record's state.
+ */
+const EVENT_METADATA = new Set(['rules', 'waived']);
+
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The part of an `after` that describes the record. */
+function recordPart(v: unknown): Record<string, unknown> | null {
+  if (!isObject(v)) return null;
+  return Object.fromEntries(Object.entries(v).filter(([k]) => !EVENT_METADATA.has(k)));
+}
+function metadataPart(v: unknown): Record<string, unknown> | null {
+  if (!isObject(v)) return null;
+  const meta = Object.fromEntries(Object.entries(v).filter(([k]) => EVENT_METADATA.has(k)));
+  return Object.keys(meta).length ? meta : null;
+}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
@@ -102,8 +120,9 @@ export function reconstruct(
   }
   for (const ev of ordered) {
     if (ev.createdAt > at) break;
-    if (!changesRecord(ev.action) || !isObject(ev.after)) continue;
-    snapshot = { ...(snapshot ?? {}), ...ev.after };
+    const after = changesRecord(ev.action) ? recordPart(ev.after) : null;
+    if (!after) continue;
+    snapshot = { ...(snapshot ?? {}), ...after };
     asOf = ev;
   }
   return snapshot && asOf ? { snapshot, asOf } : null;
@@ -122,13 +141,14 @@ export function timeline(
     if (!changesRecord(ev.action)) {
       return { ...ev, changes: [], details: isObject(ev.after) ? ev.after : null };
     }
+    const after = recordPart(ev.after);
     const before = isObject(ev.before) ? ev.before : running;
-    const changes = isObject(ev.after)
-      ? diff(before, isObject(ev.before) ? ev.after : { ...running, ...ev.after })
+    const changes = after
+      ? diff(before, isObject(ev.before) ? after : { ...running, ...after })
       : [];
-    if (isObject(ev.after)) running = { ...running, ...ev.after };
+    if (after) running = { ...running, ...after };
     else if (isObject(ev.before)) running = { ...running, ...ev.before };
-    return { ...ev, changes, details: null };
+    return { ...ev, changes, details: metadataPart(ev.after) };
   });
 }
 

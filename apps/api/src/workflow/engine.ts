@@ -4,6 +4,7 @@ import { AppError, GovernanceError, badRequest, forbidden, notFound } from '../l
 import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, startSla, stopSla } from '../sla/engine.js';
 import { runGuards, runAllGuards, activeWaivers, type GuardCheck } from './guards.js';
+import { rulesInForce } from './rules.js';
 import { EFFECTS } from './effects.js';
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
@@ -139,6 +140,8 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       await tx.waiver.update({ where: { id: w.id }, data: { usedAt: new Date(), usedById: actor.id, usedAction: action } });
     }
     const waived = guardResult.usedWaivers.map((w) => ({ id: w.id, guard: w.guard, grantedById: w.grantedById, reason: w.reason }));
+    // Which rules said yes: the versions in force now, kept on the row for the auditor of later.
+    const rules = await rulesInForce(tx);
 
     const effect = EFFECTS[`${entity}.${action}`];
     const patch = effect
@@ -166,6 +169,8 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
         reason: reason ?? null,
         actorId: actor.id,
         onBehalfOfId,
+        rulesVersionId: rules.workflows,
+        permissionsVersionId: rules.permissions,
       },
     });
 
@@ -177,7 +182,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       entityId: id,
       onBehalfOfId,
       before: { state: fromState },
-      after: { state: def.to, ...(waived.length ? { waived } : {}) },
+      after: { state: def.to, rules: { workflows: rules.workflows, permissions: rules.permissions }, ...(waived.length ? { waived } : {}) },
       reason: reason ?? null,
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,

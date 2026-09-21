@@ -712,6 +712,11 @@ describe('Record history is evidence', () => {
     expect(now.snapshot).not.toHaveProperty('format');
     expect(now.snapshot).not.toHaveProperty('included');
     expect(now.asOf.action).toBe('STATE_TRANSITION');
+    // A transition's `after` also carries the rule versions that allowed it: metadata, not a column.
+    expect(now.snapshot).not.toHaveProperty('rules');
+    const transition = h.events.find((e: any) => e.action === 'STATE_TRANSITION');
+    expect(transition.changes.map((c: any) => c.field)).toEqual(['state']);
+    expect(transition.details.rules).toBeTruthy();
   });
 
   it('is gated by the permission that reads the record', async () => {

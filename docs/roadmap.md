@@ -27,8 +27,8 @@ Status vocabulary, and it is used strictly:
 | 20 | Bulk import / export per form | 16 | Verified | daac98d |
 | 13 | Calendars per unit and per person | — | Verified | c93cbf0 |
 | 6 | Time-boxed delegation | — | Verified | 2b4ac78 |
-| 7 | Governed waiver | — | Verified | next |
-| 4 | Effective-dated rule sets | — | Pending | |
+| 7 | Governed waiver | — | Verified | f0d1ef1 |
+| 4 | Effective-dated rule sets | — | Verified | next |
 | 1 | Process mining and conformance | — | Pending | |
 | 5 | Rule lab — replay history under a changed policy | 1, 4 | Pending | |
 | 14 | Time logging and cost accuracy | — | Pending | |

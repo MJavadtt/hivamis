@@ -423,6 +423,90 @@ describe('Governed waivers', () => {
   });
 });
 
+describe('Effective-dated rule sets', () => {
+  /**
+   * The rules are data, and data changes. Every transition now records the versions of the
+   * state machines and the permissions that allowed it, so "was this right under the rules of
+   * that time" has an answer that is not "whatever the rules are today".
+   */
+  it('registers the running rules once, and stamps every transition with them', async () => {
+    const { registerRuleSets, currentSnapshots, resetRulesCache } = await import('../src/workflow/rules.js');
+    const first = await registerRuleSets(prisma);
+    const again = await registerRuleSets(prisma);
+    expect(again.registered).toEqual([]);                          // unchanged rules register nothing
+    expect(again.workflows).toBe(first.workflows);
+    resetRulesCache();
+
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ قوانین', companyName: 'شرکت', source: 'INBOUND' }), 'lead');
+    expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'contact');
+    const row = await prisma.stateTransition.findFirstOrThrow({ where: { entityType: 'lead', entityId: lead.id, action: 'contact' } });
+    expect(row.rulesVersionId).toBe(first.workflows);
+    expect(row.permissionsVersionId).toBe(first.permissions);
+    const audited = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'STATE_TRANSITION', entityId: lead.id } });
+    expect((audited.after as any).rules).toEqual({ workflows: first.workflows, permissions: first.permissions });
+
+    const listed = expectOk(await get('/rules/versions', tokens.admin), 'versions');
+    expect(listed.current.workflows).toBe(first.workflows);
+    expect(listed.versions.filter((v: any) => v.kind === 'workflows')).toHaveLength(1);
+    const forIt = expectOk(await get(`/rules/for-transition/${row.id}`, tokens.admin), 'for transition');
+    expect(forIt.stamped).toBe(true);
+    expect(forIt.workflows.version).toBe(1);
+    expect((await get('/rules/versions', tokens.sales)).status).toBe(403);
+    void currentSnapshots;
+  });
+
+  it('turns a changed rule into the next version, effective from then, and can say what changed', async () => {
+    const { registerRuleSets, currentSnapshots, resetRulesCache, rulesAt } = await import('../src/workflow/rules.js');
+    const before = await registerRuleSets(prisma);
+    const beforeAt = new Date();
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Simulate the change a developer would make in contracts: QC of Account no longer required
+    // to approve a proposal, and a longer acceptance SLA.
+    const snap = JSON.parse(JSON.stringify(currentSnapshots())) as any;
+    const approve = snap.workflows.proposal.transitions.find((t: any) => t.action === 'approve');
+    approve.guards = approve.guards.filter((g: string) => g !== 'proposal.finalQcPassed');
+    snap.sla.find((p: any) => p.code === 'SLA_TASK_ACCEPTANCE').hours = 8;
+    const after = await registerRuleSets(prisma, snap, 'test: relaxed final QC; 8h acceptance');
+    expect(after.registered.sort()).toEqual(['sla', 'workflows']);
+    expect(after.permissions).toBe(before.permissions);            // untouched kind keeps its version
+    expect(after.workflows).not.toBe(before.workflows);
+
+    const diff = expectOk(await get('/rules/diff', tokens.admin, { kind: 'workflows' }), 'diff');
+    expect(diff).toMatchObject({ from: 1, to: 2 });
+    expect(diff.changes.join('\n')).toContain('proposal.approve');
+    expect(diff.changes.join('\n')).toContain('guards');
+    const slaDiff = expectOk(await get('/rules/diff', tokens.admin, { kind: 'sla' }), 'sla diff');
+    expect(slaDiff.changes).toEqual(['SLA_TASK_ACCEPTANCE: «hours» از 4 به 8 تغییر کرد']);
+
+    // Which rules were in force before the change, and after.
+    const then = await rulesAt(prisma, beforeAt);
+    expect(then.workflows!.id).toBe(before.workflows);
+    const now = await rulesAt(prisma, new Date());
+    expect(now.workflows!.id).toBe(after.workflows);
+    const detail = expectOk(await get(`/rules/versions/${after.workflows}`, tokens.admin), 'detail');
+    expect(detail.note).toContain('relaxed final QC');
+
+    // A transition made now carries v2; the one from before still carries v1.
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ نسخه دو', companyName: 'شرکت', source: 'INBOUND' }), 'lead');
+    expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'contact');
+    const row = await prisma.stateTransition.findFirstOrThrow({ where: { entityType: 'lead', entityId: lead.id, action: 'contact' } });
+    expect(row.rulesVersionId).toBe(after.workflows);
+
+    // Back to the real rules: the running code's snapshot is v1 again by fingerprint, not v3.
+    resetRulesCache();
+    const restored = await registerRuleSets(prisma);
+    expect(restored.registered).toEqual([]);
+    expect(restored.workflows).toBe(before.workflows);
+  });
+
+  it('fingerprints structure, not key order', async () => {
+    const { fingerprint } = await import('../src/workflow/rules.js');
+    expect(fingerprint({ a: 1, b: [1, { c: 2, d: 3 }] })).toBe(fingerprint({ b: [1, { d: 3, c: 2 }], a: 1 }));
+    expect(fingerprint({ a: 1 })).not.toBe(fingerprint({ a: 2 }));
+  });
+});
+
 describe('Workflow engine integrity', () => {
   it('rejects an undeclared transition with the list of legal actions', async () => {
     const project = await prisma.project.findFirst({ where: { state: 'ACTIVE' } });

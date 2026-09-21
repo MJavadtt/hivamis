@@ -31,8 +31,13 @@ import historyRoutes from './routes/history.js';
 import myWorkRoutes from './routes/my-work.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
+import ruleRoutes from './routes/rules.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
+  // The rules the running code declares become a version row if they changed since last boot,
+  // so every transition can name the rules that allowed it (roadmap #4).
+  const { registerRuleSets } = await import('./workflow/rules.js');
+  await registerRuleSets().catch(() => undefined);
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -157,6 +162,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(myWorkRoutes);
     await api.register(delegationRoutes);
     await api.register(waiverRoutes);
+    await api.register(ruleRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */
