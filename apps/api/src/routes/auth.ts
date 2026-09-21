@@ -20,16 +20,55 @@ async function claimsFor(userId: string) {
   });
   if (!user) throw unauthorized();
   const roles = user.roles.map((r) => r.role.code as RoleCode);
+  const native = permissionsForRoles(roles);
+  const { permissions, delegated, delegatedRoles, roles: allRoles } = await withDelegations(user.id, roles, native);
   return {
     user,
     claims: {
       sub: user.id,
       organizationId: user.organizationId,
       departmentCode: user.department?.code ?? null,
-      roles,
-      permissions: permissionsForRoles(roles),
+      roles: allRoles,
+      permissions,
+      ...(Object.keys(delegated).length ? { delegated } : {}),
+      ...(Object.keys(delegatedRoles).length ? { delegatedRoles } : {}),
     },
   };
+}
+
+/**
+ * Fold the user's active delegations into their grants (roadmap #6). A delegated permission is
+ * only granted if the delegator still holds it themselves at this moment — a delegation must
+ * not outlive a demotion — and never overrides what the delegate already has natively, so the
+ * attribution map names only what came from someone else.
+ */
+async function withDelegations(userId: string, roles: RoleCode[], native: readonly string[]) {
+  const now = new Date();
+  const active = await prisma.delegation.findMany({
+    where: { toUserId: userId, revokedAt: null, startsAt: { lte: now }, endsAt: { gt: now } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const permissions = new Set<string>(native);
+  const allRoles = new Set<string>(roles);
+  const delegated: Record<string, string> = {};
+  const delegatedRoles: Record<string, string> = {};
+  for (const d of active) {
+    const from = await prisma.user.findUnique({
+      where: { id: d.fromUserId }, select: { isActive: true, roles: { select: { role: { select: { code: true } } } } },
+    });
+    if (!from?.isActive) continue;
+    const fromRoles = from.roles.map((r) => r.role.code as RoleCode);
+    const fromPerms = new Set<string>(permissionsForRoles(fromRoles));
+    for (const p of d.permissions) {
+      if (!fromPerms.has(p) || permissions.has(p)) continue;
+      permissions.add(p); delegated[p] = d.fromUserId;
+    }
+    for (const r of d.roles) {
+      if (!fromRoles.includes(r as RoleCode) || allRoles.has(r)) continue;
+      allRoles.add(r); delegatedRoles[r] = d.fromUserId;
+    }
+  }
+  return { permissions: [...permissions], roles: [...allRoles], delegated, delegatedRoles };
 }
 
 const authRoutes: FastifyPluginAsync = async (app) => {
@@ -98,6 +137,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       user: {
         id: user.id, email: user.email, fullName: user.fullName, jobTitle: user.jobTitle,
         departmentCode: claims.departmentCode, roles: claims.roles, permissions: claims.permissions,
+        delegated: claims.delegated ?? {}, delegatedRoles: claims.delegatedRoles ?? {},
         locale: user.locale,
       },
     };
@@ -220,6 +260,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       department: user.department ? { code: user.department.code, nameFa: user.department.nameFa } : null,
       organization: { id: user.organization.id, name: user.organization.name, currency: user.organization.currency },
       roles: actor.roles, permissions: actor.permissions,
+      delegated: actor.delegated, delegatedRoles: actor.delegatedRoles,
     };
   });
 

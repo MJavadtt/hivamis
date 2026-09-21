@@ -45,6 +45,7 @@ export interface AuditRow {
   id: string;
   action: string;
   actorId: string | null;
+  onBehalfOfId?: string | null;
   before: unknown;
   after: unknown;
   reason: string | null;

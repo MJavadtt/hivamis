@@ -42,7 +42,20 @@ const authPlugin: FastifyPluginAsync = async (app) => {
   app.decorate('requirePermissions', (...perms: Permission[]) => async (req: FastifyRequest) => {
     const user = currentUser(req);
     const missing = perms.filter((p) => !user.permissions.includes(p));
-    if (missing.length === 0) return;
+    if (missing.length === 0) {
+      // Passed — but if only because someone delegated it, that is a fact worth a row of its
+      // own: every request made on a delegated permission, with who lent it and for what.
+      const borrowed = perms.filter((p) => user.delegated?.[p]);
+      if (borrowed.length) {
+        await audit({
+          organizationId: user.organizationId, actorId: user.sub, action: 'DELEGATION_USED',
+          entityType: 'delegation', onBehalfOfId: user.delegated![borrowed[0]!] ?? null,
+          after: { permissions: borrowed, from: borrowed.map((p) => user.delegated![p]), method: req.method, url: req.url },
+          ipAddress: req.ip,
+        }).catch(() => undefined);
+      }
+      return;
+    }
     await audit({
       organizationId: user.organizationId,
       actorId: user.sub,

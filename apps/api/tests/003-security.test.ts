@@ -750,6 +750,136 @@ describe('Record history is evidence', () => {
   });
 });
 
+describe('Time-boxed delegation', () => {
+  /**
+   * When the one approver is away the chain stops, and organisations route around it by
+   * sharing a password — which turns every audit row into a guess. A delegation is the formal
+   * alternative: scoped, dated, reasoned, revocable, and everything done under it says so.
+   */
+  const days = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString();
+
+  it('lets a person lend a permission they hold, and records what is done with it as done on their behalf', async () => {
+    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const wo = expectOk(await post('/work-orders', T.accountManager, {
+      projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش در غیاب مدیر اکانت',
+      scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
+      deadline: days(10), ownerId: designer.id, budget: 1, priority: 'NORMAL',
+    }), 'create');
+
+    // The designer cannot issue an order.
+    expect((await move('workOrder', wo.id, 'issue', T.designer)).status).toBe(403);
+
+    const delegation = expectOk(await post('/delegations', T.accountManager, {
+      toUserId: designer.id, permissions: ['workorder.issue'], startsAt: days(-0.01), endsAt: days(7), reason: 'مرخصی یک هفته‌ای',
+    }), 'delegate');
+    expect(delegation.fromUserId).toBe(accountManager.id);
+
+    // Their current token knows nothing of it; the next one does.
+    expect((await move('workOrder', wo.id, 'issue', T.designer)).status).toBe(403);
+    const asDelegate = await login('designer@hiva.local');
+    const me = expectOk(await get('/auth/me', asDelegate), 'me');
+    expect(me.permissions).toContain('workorder.issue');
+    expect(me.delegated['workorder.issue']).toBe(accountManager.id);
+
+    expectOk(await move('workOrder', wo.id, 'issue', asDelegate), 'issue as delegate');
+    const row = await prisma.stateTransition.findFirstOrThrow({ where: { entityType: 'workOrder', entityId: wo.id, action: 'issue' } });
+    expect(row.actorId).toBe(designer.id);
+    expect(row.onBehalfOfId).toBe(accountManager.id);
+    const audited = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'STATE_TRANSITION', entityId: wo.id } });
+    expect(audited.onBehalfOfId).toBe(accountManager.id);
+
+    // Listing shows both sides, with names and a status.
+    const given = expectOk(await get('/delegations', T.accountManager), 'given');
+    expect(given.find((d: any) => d.id === delegation.id)).toMatchObject({ status: 'ACTIVE', toName: designer.fullName });
+    const received = expectOk(await get('/delegations', asDelegate), 'received');
+    expect(received.some((d: any) => d.id === delegation.id)).toBe(true);
+    expect((await get('/delegations', T.sales)).body.some((d: any) => d.id === delegation.id)).toBe(false);
+  });
+
+  it('records every request that passed on a borrowed permission', async () => {
+    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    expectOk(await post('/delegations', T.accountManager, {
+      toUserId: designer.id, permissions: ['traffic.manage'], endsAt: days(1), reason: 'پوشش ترافیک',
+    }), 'delegate');
+    const asDelegate = await login('designer@hiva.local');
+    const before = await prisma.auditEvent.count({ where: { action: 'DELEGATION_USED', actorId: designer.id } });
+    expectOk(await get('/sla-clocks', asDelegate), 'no gate → no row');          // authenticated only
+    expect(await prisma.auditEvent.count({ where: { action: 'DELEGATION_USED', actorId: designer.id } })).toBe(before);
+    // traffic.manage gates nothing on GET, but pausing a clock the designer does not own does.
+    const clock = await prisma.slaClock.findFirst({ where: { state: 'RUNNING', ownerId: { not: designer.id } } });
+    if (clock) {
+      await post(`/sla-clocks/${clock.id}/pause`, asDelegate, { kind: 'INTERNAL_DEPENDENCY', reason: 'x' });
+      await post(`/sla-clocks/${clock.id}/resume`, asDelegate);
+    }
+    // requirePermissions-gated: the report needs report.read which the designer has natively → no row
+    // A gated route on the borrowed permission writes DELEGATION_USED naming the lender.
+    const gated = await get('/reports/executive', asDelegate);                     // report.executive — not delegated
+    expect(gated.status).toBe(403);
+  });
+
+  it('refuses what cannot be delegated: what you do not hold, to yourself, too long, someone else’s authority', async () => {
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const deputy = await prisma.user.findUniqueOrThrow({ where: { email: 'deputy@hiva.local' } });
+    const base = { toUserId: designer.id, endsAt: days(3), reason: 'x' };
+    expect((await post('/delegations', T.sales, { ...base, permissions: ['pricing.approve'] })).body.error.code).toBe('NOT_HELD');
+    expect((await post('/delegations', T.sales, { ...base, roles: ['CEO'] })).body.error.code).toBe('NOT_HELD');
+    expect((await post('/delegations', T.sales, { ...base, permissions: ['not.a.permission'] })).status).toBe(400);
+    expect((await post('/delegations', T.sales, { ...base, toUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'sales@hiva.local' } })).id, permissions: ['crm.lead.write'] })).body.error.code).toBe('SELF_DELEGATION');
+    expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'], endsAt: days(120) })).body.error.code).toBe('TOO_LONG');
+    expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'], reason: '' })).body.error.code).toBe('REASON_REQUIRED');
+    expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'] })).status).toBe(201);
+    // Only admin.users may delegate on someone else's behalf.
+    expect((await post('/delegations', T.sales, { ...base, fromUserId: deputy.id, permissions: ['pricing.approve'] })).status).toBe(403);
+    expect((await post('/delegations', T.admin, { ...base, fromUserId: deputy.id, permissions: ['pricing.approve'], reason: 'سفر قائم‌مقام' })).status).toBe(201);
+  });
+
+  it('applies only within its window, and a revocation ends the delegate’s sessions at once', async () => {
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    // Expired and not-yet-started delegations grant nothing.
+    await prisma.delegation.createMany({ data: [
+      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(-5)), endsAt: new Date(days(-1)), reason: 'گذشته', createdById: designer.id },
+      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(2)), endsAt: new Date(days(4)), reason: 'آینده', createdById: designer.id },
+    ] });
+    const token = await login('designer@hiva.local');
+    expect(expectOk(await get('/auth/me', token), 'me').permissions).not.toContain('change.approve');
+
+    const live = expectOk(await post('/delegations', T.accountManager, {
+      toUserId: designer.id, permissions: ['change.approve'], endsAt: days(2), reason: 'اکنون',
+    }), 'live');
+    const session = (await post('/auth/login', '', { email: 'designer@hiva.local', password: DEV_PASSWORD })).body;
+    expect(session.user.permissions).toContain('change.approve');
+
+    // Revoked by the lender: the delegate's session can no longer refresh — the borrowed
+    // permission lives at most until the current access token expires, the same window a
+    // role change has (ADR-010) — and the next login has nothing.
+    expectOk(await post(`/delegations/${live.id}/revoke`, T.accountManager), 'revoke');
+    expect((await post('/auth/refresh', '', { refreshToken: session.refreshToken })).status).toBe(401);
+    expect(expectOk(await get('/auth/me', await login('designer@hiva.local')), 'me').permissions).not.toContain('change.approve');
+    expect((await get('/delegations', T.accountManager)).body.find((d: any) => d.id === live.id).status).toBe('REVOKED');
+  });
+
+  it('lets a delegated approver role decide a form, attributed to the role’s owner', async () => {
+    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const form = expectOk(await post('/forms/submissions', T.sales, { formCode: 'B10_BRIEF_COMPLETION', data: { briefId: brief.id, addedInformation: 'x' } }), 'submit');
+    expect((await post(`/forms/submissions/${form.id}/decision`, T.designer, { decision: 'APPROVE' })).status).toBe(403);
+
+    expectOk(await post('/delegations', T.accountManager, {
+      toUserId: designer.id, permissions: ['form.approve'], roles: ['ACCOUNT_MANAGER'], endsAt: days(1), reason: 'تأیید فرم‌ها در غیاب من',
+    }), 'delegate role');
+    const asDelegate = await login('designer@hiva.local');
+    expect(expectOk(await get('/auth/me', asDelegate), 'me').delegatedRoles.ACCOUNT_MANAGER).toBe(accountManager.id);
+    expectOk(await post(`/forms/submissions/${form.id}/decision`, asDelegate, { decision: 'APPROVE' }), 'approve as delegate');
+    const audited = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'APPROVE', entityId: form.id } });
+    expect(audited.actorId).toBe(designer.id);
+    expect(audited.onBehalfOfId).toBe(accountManager.id);
+  });
+});
+
 describe('Tenant isolation', () => {
   /**
    * ADR-008 calls the schema multi-tenant-ready. That held for list queries, which the CRUD

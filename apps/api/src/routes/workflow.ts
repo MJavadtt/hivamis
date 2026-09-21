@@ -47,6 +47,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
       entity, id, action: body.action, reason: body.reason, payload: body.payload,
       actor: {
         id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions,
+        delegated: actor.delegated,
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });

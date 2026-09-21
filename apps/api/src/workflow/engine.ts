@@ -37,6 +37,8 @@ export interface TransitionActor {
   id: string;
   organizationId: string;
   permissions: string[];
+  /** permission → delegator, for what the actor holds only through a delegation. */
+  delegated?: Record<string, string>;
   ipAddress?: string | null;
   userAgent?: string | null;
   requestId?: string | null;
@@ -108,6 +110,8 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
     if (def.permission && !actor.permissions.includes(def.permission as Permission)) {
       throw forbidden(`برای انجام «${def.labelFa}» به دسترسی «${def.permission}» نیاز دارید.`);
     }
+    // "A, as B's delegate" — recorded on the transition and its audit row, not just "A".
+    const onBehalfOfId = (def.permission && actor.delegated?.[def.permission]) || null;
 
     const reason = input.reason?.trim();
     if (def.requiresReason && !reason) {
@@ -154,6 +158,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
         action,
         reason: reason ?? null,
         actorId: actor.id,
+        onBehalfOfId,
       },
     });
 
@@ -163,6 +168,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       action: 'STATE_TRANSITION',
       entityType: entity,
       entityId: id,
+      onBehalfOfId,
       before: { state: fromState },
       after: { state: def.to },
       reason: reason ?? null,

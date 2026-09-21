@@ -187,7 +187,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     if (mode === 'preview') return { mode, form: definition.code, ...(await previewImport(prisma, actor.organizationId, fields, rows)) };
     const formActor: FormActor = {
       id: actor.id, organizationId: actor.organizationId, departmentCode: actor.departmentCode,
-      roles: actor.roles, permissions: actor.permissions,
+      roles: actor.roles, permissions: actor.permissions, delegatedRoles: actor.delegatedRoles,
       ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
     };
     const result = await runImport(prisma, definition.code, fields, rows, { actor: formActor, asDraft: mode === 'draft' });
@@ -228,7 +228,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       assignedToId: input.assignedToId, asDraft: input.asDraft,
       actor: {
         id: actor.id, organizationId: actor.organizationId, departmentCode: actor.departmentCode,
-        roles: actor.roles, permissions: actor.permissions,
+        roles: actor.roles, permissions: actor.permissions, delegatedRoles: actor.delegatedRoles,
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });
@@ -245,7 +245,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       submissionId: id, decision: input.decision, comment: input.comment,
       actor: {
         id: actor.id, organizationId: actor.organizationId, departmentCode: actor.departmentCode,
-        roles: actor.roles, permissions: actor.permissions,
+        roles: actor.roles, permissions: actor.permissions, delegatedRoles: actor.delegatedRoles,
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });

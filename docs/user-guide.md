@@ -175,3 +175,9 @@ A refusal names the rule. For example:
 
 That is the platform doing its job. The path forward is to satisfy the rule — record the
 authorisation, complete the brief, assess the change impact — not to work around it.
+
+**The approver is away.** Do not share a password — the audit trail would say the wrong person
+did everything. Open *تفویض اختیار* (bottom of the sidebar) and lend exactly the permissions or
+approver role needed, until a date, with a reason. The delegate sees the lent items on their next
+sign-in, everything they do with them is recorded as done on your behalf, and you can end it
+early from the same page.

@@ -185,6 +185,9 @@ export function Shell({ children }: { children: ReactNode }) {
               {user?.department && ` — ${user.department.nameFa}`}
             </p>
           </div>
+          <Link to="/delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">
+            تفویض اختیار{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">به نمایندگی</Badge>}
+          </Link>
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => void signOut()}>
             <IconLogout className="size-4" /> خروج
           </Button>

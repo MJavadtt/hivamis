@@ -33,6 +33,11 @@ const historyRoutes: FastifyPluginAsync = async (app) => {
       include: { actor: { select: { id: true, fullName: true } } },
     });
     if (events.length === 0) throw notFound('تاریخچه');
+    // "A, as B's delegate" needs B's name too.
+    const delegators = [...new Set(events.map((e) => e.onBehalfOfId).filter((x): x is string => !!x))];
+    const delegatorNames = new Map(
+      (await prisma.user.findMany({ where: { id: { in: delegators } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]),
+    );
 
     // The sanctioned-price rule for proposals depends on the record's current state.
     let sanctioned = false;
@@ -43,7 +48,7 @@ const historyRoutes: FastifyPluginAsync = async (app) => {
       sanctioned = current ? PROPOSAL_SANCTIONED_STATES.has(current.state) : false;
     }
     const redaction = redactionFor(currentUser(req), { proposalSanctioned: sanctioned });
-    return { actor, events, redaction };
+    return { actor, events, redaction, delegatorNames };
   }
 
   const actorName = (ev: { actor?: { fullName: string } | null; actorId: string | null }) =>
@@ -52,13 +57,15 @@ const historyRoutes: FastifyPluginAsync = async (app) => {
   /** Every change to the record, oldest first, each with its field-level diff. */
   app.get('/history/:entityType/:entityId', { preHandler: [app.authenticate] }, async (req) => {
     const { entityType, entityId } = req.params as { entityType: string; entityId: string };
-    const { events, redaction } = await load(req, entityType, entityId);
+    const { events, redaction, delegatorNames } = await load(req, entityType, entityId);
     return {
       entityType, entityId,
       withheld: redaction.withheld,
       events: timeline(events as AuditRow[]).map((ev) => ({
         id: ev.id, at: ev.createdAt, action: ev.action, reason: ev.reason, ipAddress: ev.ipAddress,
         actorId: ev.actorId, actorName: actorName(events.find((e) => e.id === ev.id)!),
+        onBehalfOfId: ev.onBehalfOfId ?? null,
+        onBehalfOfName: ev.onBehalfOfId ? (delegatorNames.get(ev.onBehalfOfId) ?? null) : null,
         changes: redact(ev.changes, redaction),
         details: ev.details,
       })),

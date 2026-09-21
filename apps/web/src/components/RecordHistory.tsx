@@ -10,6 +10,7 @@ import { formatDateTime, toPersianDigits } from '../lib/format';
 interface Change { field: string; before?: unknown; after?: unknown; withheld?: string }
 interface Event {
   id: string; at: string; action: string; reason: string | null; actorName: string | null; changes: Change[];
+  onBehalfOfName?: string | null;
   /** Metadata of an event about the record (an export, a pause) — not a change to it. */
   details: Record<string, unknown> | null;
 }
@@ -103,7 +104,7 @@ export function RecordHistory({ entityType, entityId }: { entityType: string; en
                   <Badge tone={ev.action === 'DELETE' ? 'danger' : ev.action === 'STATE_TRANSITION' ? 'info' : 'neutral'}>
                     {ACTION_FA[ev.action] ?? ev.action}
                   </Badge>
-                  <span className="text-ink-700">{ev.actorName ?? 'نامشخص'}</span>
+                  <span className="text-ink-700">{ev.actorName ?? 'نامشخص'}{ev.onBehalfOfName && <span className="text-ink-500"> به نمایندگی از {ev.onBehalfOfName}</span>}</span>
                   <span className="text-ink-400">{formatDateTime(ev.at)}</span>
                   {ev.reason && <span className="text-ink-500">— {ev.reason}</span>}
                 </div>

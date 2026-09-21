@@ -9,8 +9,14 @@ export interface AccessTokenClaims {
   sub: string;
   organizationId: string;
   departmentCode: string | null;
+  /** Native roles plus any held through an active delegation. */
   roles: string[];
+  /** Native permissions plus any held through an active delegation. */
   permissions: string[];
+  /** permission → the user who delegated it; absent for what the holder has in their own right. */
+  delegated?: Record<string, string>;
+  /** role → the user who delegated it. */
+  delegatedRoles?: Record<string, string>;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {

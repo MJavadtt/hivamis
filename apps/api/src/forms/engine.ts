@@ -17,6 +17,8 @@ export interface FormActor {
   departmentCode: string | null;
   roles: string[];
   permissions: string[];
+  /** role → delegator, for approver roles held only through a delegation. */
+  delegatedRoles?: Record<string, string>;
   ipAddress?: string | null;
   userAgent?: string | null;
   requestId?: string | null;
@@ -208,6 +210,9 @@ export async function decideForm(input: DecideFormInput) {
   const approverRoles = submission.definition.approverRoles;
   const bypass = input.actor.roles.some((r) => BYPASS_ROLES.has(r));
   const isApprover = bypass || input.actor.roles.some((r) => approverRoles.includes(r));
+  // The role that qualifies the actor — if it is a borrowed one, the decision says whose.
+  const qualifying = input.actor.roles.find((r) => approverRoles.includes(r));
+  const onBehalfOfId = (!bypass && qualifying && input.actor.delegatedRoles?.[qualifying]) || null;
   if (!isApprover) {
     const roleNames = approverRoles
       .map((r) => ROLE_LABELS[r as RoleCode]?.fa ?? r)
@@ -248,6 +253,7 @@ export async function decideForm(input: DecideFormInput) {
     await audit({
       organizationId: input.actor.organizationId,
       actorId: input.actor.id,
+      onBehalfOfId,
       action: input.decision === 'APPROVE' ? 'APPROVE' : 'REJECT',
       entityType: 'formSubmission',
       entityId: submission.id,

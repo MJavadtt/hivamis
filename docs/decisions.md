@@ -377,3 +377,33 @@ identical results, and any single file passes on its own. Wall-clock fell from 2
 to 16.2s parallel on the same tests. Tests may no longer read data another file created — which
 is the point, and cost two fixes to get to. `tests/007-isolation.test.ts` asserts the mechanism
 is actually in effect, because a silent failure here looks exactly like success.
+
+---
+
+## ADR-018 — Delegation is a record, not a shared password
+
+**Decision.** Authority can be lent for a bounded time through a `Delegation` row: who, to whom,
+which permissions and roles, from when to when, why. The delegate's token carries the lent grants
+with an attribution map (`delegated`, `delegatedRoles`), and everything done on a lent grant is
+recorded with `onBehalfOfId` — on the state transition, on its audit row, on a form decision — and
+every gated request that passed only because of a delegation writes a `DELEGATION_USED` row
+naming the lender and the URL.
+
+**Rationale.** The model names one approver per step. When that person is away the chain stops,
+and in practice organisations route around it by sharing a password, which turns every audit row
+in the system into a guess about who was at the keyboard. The alternative had to be easier than
+the workaround: a person lends exactly what they hold, for a few days, with a reason, from a page
+— and gets it back with a click.
+
+**Constraints that make it safe.** Only what the delegator holds *right now* is granted, re-checked
+every time a token is issued, so a delegation cannot outlive a demotion. Nothing is lent that the
+delegate already has, so the attribution map names only what came from someone else. Ninety days
+is the ceiling — a longer absence is a role change. Revocation ends the delegate's sessions, so
+the lent grant lives at most until their current access token expires, the same window a role
+change has (ADR-010).
+
+**Consequences.** A delegation shows in the audit trail from three angles — granted, used,
+revoked — and the record history says "A, as B's delegate". Any request gated by
+`requirePermissions` is covered automatically; the workflow engine and the form engine attribute
+their own rows because they check permissions themselves.
+

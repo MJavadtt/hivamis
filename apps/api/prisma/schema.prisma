@@ -64,6 +64,33 @@ model UserLeave {
   @@map("user_leaves")
 }
 
+/// Formal, time-boxed, scoped delegation of authority (roadmap #6). The alternative — sharing a
+/// password while the approver is away — defeats every audit row in the system. A delegation
+/// names who, to whom, which permissions and roles, from when to when, and why; it can be
+/// revoked; and everything done under it is recorded as done on the delegator's behalf.
+model Delegation {
+  id             String    @id @default(uuid())
+  organizationId String
+  fromUserId     String
+  toUserId       String
+  /// A subset of what the delegator holds at the time of use — re-checked when a token is issued.
+  permissions    String[]  @default([])
+  /// Roles named as form approvers (approverRoles) the delegate may act as.
+  roles          String[]  @default([])
+  startsAt       DateTime
+  endsAt         DateTime
+  reason         String
+  revokedAt      DateTime?
+  revokedById    String?
+  createdById    String
+  createdAt      DateTime  @default(now())
+
+  @@index([toUserId, startsAt, endsAt])
+  @@index([fromUserId])
+  @@index([organizationId])
+  @@map("delegations")
+}
+
 model Department {
   id             String       @id @default(uuid())
   organizationId String
@@ -1468,6 +1495,8 @@ model AuditEvent {
   entityId       String?
   actorId        String?
   actor          User?    @relation(fields: [actorId], references: [id])
+  /// Set when the actor held the permission only through a delegation: "A, as B's delegate".
+  onBehalfOfId   String?
   before         Json?
   after          Json?
   reason         String?
@@ -1491,6 +1520,8 @@ model StateTransition {
   toState    String
   action     String
   reason     String?
+  /// See AuditEvent.onBehalfOfId.
+  onBehalfOfId String?
   actorId    String
   actor      User     @relation(fields: [actorId], references: [id])
   createdAt  DateTime @default(now())

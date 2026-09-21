@@ -12,6 +12,9 @@ export interface CurrentUser {
   organization: { id: string; name: string; currency: string };
   roles: string[];
   permissions: string[];
+  /** permission → who delegated it; absent for what the user holds in their own right. */
+  delegated?: Record<string, string>;
+  delegatedRoles?: Record<string, string>;
 }
 
 interface AuthState {

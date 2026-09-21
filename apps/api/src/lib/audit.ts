@@ -10,6 +10,8 @@ export interface AuditContext {
 }
 
 export interface AuditInput extends AuditContext {
+  /** The delegator, when the actor held the permission only through a delegation. */
+  onBehalfOfId?: string | null;
   action: string;
   entityType: string;
   entityId?: string | null;
@@ -57,6 +59,7 @@ export async function audit(input: AuditInput, tx: Tx = prisma): Promise<void> {
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId ?? null,
+      onBehalfOfId: input.onBehalfOfId ?? null,
       actorId: input.actorId ?? null,
       before: (scrub(input.before) as object) ?? undefined,
       after: (scrub(input.after) as object) ?? undefined,

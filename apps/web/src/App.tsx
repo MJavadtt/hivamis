@@ -22,6 +22,7 @@ import { ContractDetail, ContractsList, Finance } from './pages/Commercial';
 const Reports = lazy(() => import('./pages/Reports'));
 const MyWork = lazy(() => import('./pages/MyWork'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
+const Delegations = lazy(() => import('./pages/Delegations'));
 
 /** Renders `element` only when the user holds `permission`; otherwise sends them home. */
 function Guarded({ permission, element }: { permission: string; element: React.ReactNode }) {
@@ -49,6 +50,7 @@ export default function App() {
         <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/my-work" element={<MyWork />} />
+        <Route path="/delegations" element={<Delegations />} />
 
         <Route path="/leads" element={<Guarded permission="crm.lead.read" element={<LeadsList />} />} />
         <Route path="/opportunities" element={<Guarded permission="crm.opportunity.read" element={<OpportunitiesList />} />} />

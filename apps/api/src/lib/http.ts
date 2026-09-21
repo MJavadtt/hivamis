@@ -49,6 +49,11 @@ export function actorFrom(req: FastifyRequest) {
     departmentCode: u.departmentCode,
     permissions: u.permissions,
     roles: u.roles,
+    delegated: u.delegated ?? {},
+    delegatedRoles: u.delegatedRoles ?? {},
+    /** Who delegated this permission to the actor, or null if they hold it in their own right. */
+    onBehalfOfFor: (permission: string | undefined | null): string | null =>
+      (permission && u.delegated?.[permission]) || null,
     ipAddress: req.ip,
     userAgent: req.headers['user-agent'] ?? null,
     requestId: req.id as string,
