@@ -1569,6 +1569,8 @@ model StateTransition {
   toState    String
   action     String
   reason     String?
+  /// Written by a cascade from another record's move, not by someone acting on this one.
+  cascade      Boolean  @default(false)
   /// See AuditEvent.onBehalfOfId.
   onBehalfOfId String?
   /// The rule-set versions in force when this happened (RuleSetVersion ids).

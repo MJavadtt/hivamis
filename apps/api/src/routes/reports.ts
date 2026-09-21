@@ -1,6 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
+import { badRequest } from '../lib/errors.js';
 import { loadCalendar } from '../sla/engine.js';
+import { mine } from '../reports/mining.js';
+import { isWorkflowEntity } from '@hiva/contracts';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { actorFrom } from '../lib/http.js';
 
@@ -541,6 +544,27 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
       },
       byPolicy: rows.sort((a, b) => b.total - a.total),
     };
+  });
+
+  /**
+   * Process mining and conformance (roadmap #1): the process the organisation actually runs,
+   * discovered from state_transitions, laid against the one it declared.
+   */
+  app.get('/reports/mining/:entity', {
+    preHandler: [app.authenticate, app.requirePermissions('report.executive')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { entity } = req.params as { entity: string };
+    if (!isWorkflowEntity(entity)) throw badRequest('UNKNOWN_ENTITY', `موجودیت «${entity}» فاقد ماشین حالت است.`);
+    const { from, to } = req.query as { from?: string; to?: string };
+    const window = {
+      ...(from ? { from: new Date(from) } : {}), ...(to ? { to: new Date(to) } : {}),
+    };
+    if ((window.from && Number.isNaN(window.from.getTime())) || (window.to && Number.isNaN(window.to.getTime()))) {
+      throw badRequest('INVALID_RANGE', 'بازهٔ زمانی معتبر نیست');
+    }
+    const cal = await loadCalendar(actor.organizationId);
+    return mine(prisma, actor.organizationId, entity, cal, window);
   });
 
   /** Data-quality register — records that would silently break the process if left alone. */

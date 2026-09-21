@@ -15,6 +15,7 @@ import {
   StatTile, Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
 import { formatCurrency, formatPercent, toPersianDigits, formatDate } from '../lib/format';
+import { ProcessMap } from '../components/ProcessMap';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -28,6 +29,7 @@ export default function Reports() {
     { key: 'units', label: 'عملکرد واحدها' },
     { key: 'sla', label: 'پایبندی به SLA' },
     { key: 'quality', label: 'کیفیت داده' },
+    { key: 'mining', label: 'کشف فرآیند' },
   ];
 
   return (
@@ -46,6 +48,7 @@ export default function Reports() {
         {tab === 'units' && <UnitsReport />}
         {tab === 'sla' && <SlaReport />}
         {tab === 'quality' && <DataQuality />}
+        {tab === 'mining' && <ProcessMap />}
       </PageBody>
     </>
   );

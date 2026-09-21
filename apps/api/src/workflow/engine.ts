@@ -271,6 +271,7 @@ export async function cascadeState(tx: Tx, input: CascadeInput): Promise<void> {
       fromState: record.state,
       toState,
       action,
+      cascade: true,
       reason: reason ?? 'cascaded from a related transition',
       actorId,
     },

@@ -211,6 +211,11 @@ Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../app
 - Structured JSON logs (pino) with per-request ids; authorization headers and password fields
   redacted at the logger.
 - `/health`, `/health/ready` (checks the database), `/health/live` for orchestrators.
+- `state_transitions` is an event log in the process-mining sense (case, activity, timestamp,
+  resource), so the process the organisation actually runs is discovered from it and laid
+  against the one declared in `WORKFLOWS`: unused declared paths, loops, waiting per state,
+  variants, cycle time (`/reports/mining/:entity`, roadmap #1). Cascade-written moves are flagged
+  on the row so they can be told from someone acting on the record.
 - The rules themselves are versioned by fingerprint at boot (`rule_set_versions`), and every
   transition names the workflow and permission versions that allowed it — ADR-020, roadmap #4.
 - `audit_events` and `state_transitions` provide a complete forensic history — and, because

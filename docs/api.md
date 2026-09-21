@@ -153,6 +153,7 @@ A submitter cannot approve their own form.
 | `GET /reports/sales` | `report.read` | Funnel, conversion, brief quality, per-owner performance |
 | `GET /reports/units` | `report.read` | On-time delivery, first pass yield, revision rate, declared cost |
 | `GET /reports/sla` | `report.read` | Compliance overall and per policy |
+| `GET /reports/mining/:entity?from=&to=` | `report.executive` | Process mining from `state_transitions`: nodes (visits, mean dwell in working hours, open cases), edges (count, cases, mean wait, `declared`, `cascade`), `unusedDeclared` (transitions in WORKFLOWS the log never shows), `loops` (revisits), `variants` (paths with share and mean cycle time), `happyPath` (shortest declared route to a successful terminal), `cycleTime`, `bottlenecks` |
 | `GET /reports/data-quality` | `report.read` | Records that would silently break the process |
 | `GET /traffic` | `traffic.read` | Capacity vs committed hours, over-allocation |
 

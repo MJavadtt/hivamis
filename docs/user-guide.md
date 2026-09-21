@@ -132,6 +132,12 @@ Your two gates:
 
 ---
 
+**Process discovery («کشف فرآیند» under Reports).** Pick an entity and see the process as it is
+actually run: every move that has happened, how often, and how long cases waited before it —
+laid against the process as declared. Three things to look at: the declared paths nobody walks,
+the loops (returns, rework, rejections) and where the waiting concentrates. This is the report
+that says "the process you wrote and the process you run part ways here".
+
 **Working calendars («تقویم کاری» under Admin).** Each unit can keep its own working days and
 hours — a production unit that works Thursdays, a shift unit with different hours — and each
 person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in

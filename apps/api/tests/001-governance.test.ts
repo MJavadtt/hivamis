@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { closeApp, get, login, move, post, expectOk } from './helpers.js';
+import { closeApp, get, login, move, patch, post, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 
 /**
@@ -504,6 +504,82 @@ describe('Effective-dated rule sets', () => {
     const { fingerprint } = await import('../src/workflow/rules.js');
     expect(fingerprint({ a: 1, b: [1, { c: 2, d: 3 }] })).toBe(fingerprint({ b: [1, { d: 3, c: 2 }], a: 1 }));
     expect(fingerprint({ a: 1 })).not.toBe(fingerprint({ a: 2 }));
+  });
+});
+
+describe('Process mining and conformance', () => {
+  /**
+   * state_transitions is an event log. From it, the process the organisation actually runs;
+   * against WORKFLOWS, the one it declared: what is never used, what loops, where the wait is.
+   */
+  const soon = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+
+  it('discovers the paths cases take, counts them, and names the declared ones nobody walks', async () => {
+    // Three leads: two converted the straight way, one disqualified from CONTACTED.
+    const mk = async (name: string) => expectOk(await post('/leads', tokens.sales, { name, companyName: `شرکت ${name}`, source: 'INBOUND' }), name);
+    const a = await mk('سرنخ الف'); const b = await mk('سرنخ ب'); const c = await mk('سرنخ ج');
+    for (const l of [a, b]) {
+      expectOk(await move('lead', l.id, 'contact', tokens.sales), 'contact');
+      expectOk(await move('lead', l.id, 'qualify', tokens.sales), 'qualify');
+      expectOk(await move('lead', l.id, 'convert', tokens.sales), 'convert');
+    }
+    expectOk(await move('lead', c.id, 'contact', tokens.sales), 'contact');
+    expectOk(await move('lead', c.id, 'disqualify', tokens.sales, 'بودجه ندارد'), 'disqualify');
+
+    const m = expectOk(await get('/reports/mining/lead', tokens.deputy), 'mining');
+    expect(m.labelFa).toBe('سرنخ');
+    expect(m.cases).toBeGreaterThanOrEqual(3);
+    const edge = (from: string, action: string) => m.edges.find((e: any) => e.from === from && e.action === action);
+    expect(edge('NEW', 'contact').count).toBeGreaterThanOrEqual(3);
+    expect(edge('QUALIFIED', 'convert').count).toBeGreaterThanOrEqual(2);
+    expect(edge('CONTACTED', 'disqualify')).toMatchObject({ count: 1, declared: true, cascade: false });
+    // Declared but never taken: disqualifying from NEW or from QUALIFIED.
+    expect(m.unusedDeclared.map((u: any) => `${u.from}:${u.action}`)).toEqual(expect.arrayContaining(['NEW:disqualify', 'QUALIFIED:disqualify']));
+    expect(m.unusedDeclared.some((u: any) => u.from === 'CONTACTED' && u.action === 'disqualify')).toBe(false);
+    // Variants, most common first; the happy path is the declared shortest route.
+    const straight = m.variants.find((v: any) => v.path.join('>') === 'NEW>CONTACTED>QUALIFIED>CONVERTED');
+    expect(straight.count).toBeGreaterThanOrEqual(2);
+    expect(straight.share).toBeGreaterThan(0);
+    expect(m.happyPath).toEqual(['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED']);
+    expect(m.cycleTime.completed).toBeGreaterThanOrEqual(3);
+    expect(m.nodes.find((n: any) => n.state === 'CONVERTED')).toMatchObject({ terminal: true, declared: true });
+    expect((await get('/reports/mining/lead', tokens.sales)).status).toBe(403);
+    expect((await get('/reports/mining/nope', tokens.deputy)).status).toBe(400);
+  });
+
+  it('finds the loops — where the process eats its own tail', async () => {
+    // A brief returned as incomplete, completed, resubmitted and approved: one backward edge.
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ حلقه', companyName: 'شرکت حلقه', source: 'INBOUND' }), 'lead');
+    expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'c'); expectOk(await move('lead', lead.id, 'qualify', tokens.sales), 'q');
+    const conv = expectOk(await post(`/leads/${lead.id}/convert`, tokens.sales, {}), 'convert');
+    const opportunityId = conv.opportunity?.id ?? conv.opportunityId ?? conv.id;
+    expectOk(await move('opportunity', opportunityId, 'qualify', tokens.sales), 'oq');
+    expectOk(await move('opportunity', opportunityId, 'request_brief', tokens.accountManager), 'rb');
+    const brief = expectOk(await post('/briefs', tokens.sales, { opportunityId, title: 'بریف حلقه', businessObjective: 'x' }), 'brief');
+    expectOk(await move('brief', brief.id, 'submit', tokens.sales), 'submit');
+    expectOk(await move('brief', brief.id, 'start_review', tokens.account), 'review');
+    expectOk(await move('brief', brief.id, 'return_incomplete', tokens.account, 'اسکوپ و بودجه ندارد'), 'return');
+    expectOk(await patch(`/briefs/${brief.id}`, tokens.sales, {
+      scope: 'استراتژی و خلاقیت', expectedDeliverables: 'کی‌ویژوال', budgetRange: 1_000_000_000, desiredDeadline: soon(40), targetAudience: 'همه', successCriteria: 'فروش',
+    }), 'complete');
+    expectOk(await move('brief', brief.id, 'submit', tokens.sales), 'resubmit');
+    expectOk(await move('brief', brief.id, 'start_review', tokens.account), 'review again');
+    expectOk(await move('brief', brief.id, 'approve', tokens.account), 'approve');
+
+    const m = expectOk(await get('/reports/mining/brief', tokens.deputy), 'mining');
+    // The revisit is the resubmission: SUBMITTED for the second time. The return itself is a
+    // first visit to RETURNED_INCOMPLETE — the loop closes when the case comes back.
+    const loop = m.loops.find((l: any) => l.from === 'RETURNED_INCOMPLETE' && l.to === 'SUBMITTED');
+    expect(loop).toMatchObject({ action: 'submit', count: 1, cases: 1 });
+    expect(m.loops.find((l: any) => l.to === 'UNDER_REVIEW')).toMatchObject({ action: 'start_review' });
+    expect(m.edges.find((e: any) => e.from === 'RETURNED_INCOMPLETE' && e.action === 'submit')).toMatchObject({ declared: true });
+    const variant = m.variants.find((v: any) => v.path.includes('RETURNED_INCOMPLETE'));
+    expect(variant.path).toEqual(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'RETURNED_INCOMPLETE', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']);
+    expect(m.bottlenecks.length).toBeGreaterThan(0);
+    // The opportunity's cascade shows as such on the opportunity's own log.
+    const opp = expectOk(await get('/reports/mining/opportunity', tokens.deputy), 'opp mining');
+    const cascaded = opp.edges.find((e: any) => e.action === 'brief_approved');
+    expect(cascaded).toMatchObject({ declared: true, cascade: true });
   });
 });
 
