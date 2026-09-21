@@ -790,6 +790,20 @@ describe('Persian labels', () => {
   });
 });
 
+describe('Every guard a workflow names exists and can be shown on a checklist', () => {
+  it('has an implementation and a positive label for each declared guard', async () => {
+    const { GUARDS, GUARD_LABELS } = await import('../src/workflow/guards.js');
+    const declared = new Set(Object.values(WORKFLOWS).flatMap((w) => w.transitions.flatMap((t) => t.guards ?? [])));
+    for (const g of declared) {
+      expect(GUARDS[g], `guard ${g} is declared but not implemented`).toBeTypeOf('function');
+      expect(GUARD_LABELS[g], `guard ${g} has no checklist label`).toBeTruthy();
+    }
+    for (const g of Object.keys(GUARDS)) {
+      expect(GUARD_LABELS[g], `guard ${g} has no checklist label`).toBeTruthy();
+    }
+  });
+});
+
 describe('Catalogue sizes the documentation quotes', () => {
   /**
    * The docs cite these numbers, and a number maintained by hand drifts. This is the source of

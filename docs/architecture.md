@@ -94,7 +94,7 @@ load record → find declared transition → check permission → check mandator
 - **Guards** (`src/workflow/guards.ts`) are the Doc_H rules RBAC cannot express — "a project may
   not activate without an authorization record", "nothing reaches the client without a passing
   Account QC". A blocked guard returns HTTP 422 naming the Doc_H clause, so the UI explains
-  *which rule* fired rather than showing a generic failure.
+  *which rule* fired rather than showing a generic failure. Enforcement stops at the first failing guard; `preflight()` runs every guard and reports every verdict, and the action bar shows that checklist beside each button — so a blocked move says what is missing before the click, not after (roadmap #2). Guards are read-only, which is what makes that safe to call on every page view; each has a positive `GUARD_LABELS` entry for the tick, since a guard's own message only exists on failure.
 - **Effects** (`src/workflow/effects.ts`) are side effects applied atomically with the state
   change, so timestamps can never drift from the state they describe.
 

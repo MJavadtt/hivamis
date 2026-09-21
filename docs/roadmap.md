@@ -16,8 +16,8 @@ Status vocabulary, and it is used strictly:
 
 | # | Capability | Depends on | Status | Commit |
 |---|---|---|---|---|
-| 9 | SLA pause / resume with reason | — | Verified | see git log |
-| 2 | Guard preflight — "why can't I?" before the click | — | Pending | |
+| 9 | SLA pause / resume with reason | — | Verified | 435bf15 |
+| 2 | Guard preflight — "why can't I?" before the click | — | Verified | next |
 | 3 | Time-travel audit and state reconstruction | — | Pending | |
 | 16 | Form versioning and submission pinning | — | Pending | |
 | 41 | Unified work inbox (My Work) | — | Pending | |

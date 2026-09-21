@@ -5,7 +5,7 @@ import {
 import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
-import { allowedFor, delegate, transition, workflowFor } from '../workflow/engine.js';
+import { allowedFor, delegate, transition, workflowFor, preflight } from '../workflow/engine.js';
 
 /**
  * The universal state-change endpoint. Every lifecycle move in the platform funnels through
@@ -69,6 +69,26 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  });
+
+  /**
+   * "Why can't I?" before the click: every transition out of the current state with every
+   * guard's verdict, not just the first failure. Read permission on the entity is enough — the
+   * response says which transitions the caller could perform, and which they could not.
+   */
+  app.get('/workflow/:entity/:id/preflight', { preHandler: [app.authenticate] }, async (req) => {
+    const { entity, id } = req.params as { entity: string; id: string };
+    requireEntity(entity);
+    await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    return preflight(prisma, { entity, id, actor: actorFrom(req) });
+  });
+
+  app.get('/workflow/:entity/:id/preflight/:action', { preHandler: [app.authenticate] }, async (req) => {
+    const { entity, id, action } = req.params as { entity: string; id: string; action: string };
+    requireEntity(entity);
+    await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    const result = await preflight(prisma, { entity, id, actor: actorFrom(req), action });
+    return { state: result.state, ...result.transitions[0] };
   });
 
   app.get('/workflow/:entity/:id/available', { preHandler: [app.authenticate] }, async (req) => {

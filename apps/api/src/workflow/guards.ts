@@ -422,6 +422,63 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
   },
 };
 
+/**
+ * What each guard requires, stated positively — the line a checklist shows next to a tick.
+ * A guard's own messageFa only exists on failure, so it cannot label a passing check.
+ */
+export const GUARD_LABELS: Record<string, string> = {
+  'brief.isComplete': 'بریف کامل باشد (Scope، خروجی‌ها، بودجه، زمان)',
+  'opportunity.hasApprovedProposal': 'پروپوزال تأییدشده وجود داشته باشد',
+  'proposal.allUnitOutputsAccepted': 'خروجی همهٔ واحدها از QC اکانت گذشته باشد',
+  'proposal.allCostsDeclared': 'همهٔ واحدها قیمت تمام‌شده را اعلام کرده باشند',
+  'proposal.pricingComplete': 'قیمت‌گذاری تکمیل شده باشد',
+  'proposal.finalQcPassed': 'QC نهایی با نتیجهٔ قبول ثبت شده باشد',
+  'proposal.pricingApproved': 'قیمت فروش به تأیید مدیریت رسیده باشد',
+  'project.hasValidAuthorizationBasis': 'مبنای مجوز (قرارداد، پیش‌پرداخت یا تأییدیهٔ مدیریت) معتبر باشد',
+  'project.isAuthorized': 'مجوز شروع پروژه صادر شده باشد',
+  'project.hasSchedule': 'زمان‌بندی پروژه (شروع و پایان) ثبت شده باشد',
+  'project.hasRaci': 'ماتریس RACI تعریف شده باشد',
+  'project.allDeliverablesAccepted': 'همهٔ خروجی‌ها پذیرفته شده باشند',
+  'project.closureChecklistComplete': 'هر هشت شرط بستن پروژه برقرار باشد',
+  'workOrder.hasCompleteSpec': 'سفارش کار هر نه عنصر الزامی را داشته باشد',
+  'workOrder.costDeclared': 'قیمت تمام‌شدهٔ واحد اعلام شده باشد',
+  'workOrder.unitQcPassed': 'QC سطح ۱ واحد با نتیجهٔ قبول ثبت شده باشد',
+  'deliverable.accountQcPassed': 'QC اکانت با نتیجهٔ قبول ثبت شده باشد',
+  'revision.hasReason': 'دلیل اصلاحیه ثبت شده باشد',
+  'change.isInScope': 'تغییر در محدودهٔ Scope ارزیابی شده باشد',
+  'change.isOutOfScope': 'تغییر خارج از Scope ارزیابی شده باشد',
+  'change.impactAssessed': 'هر شش بُعد اثر تغییر ارزیابی شده باشد',
+  'change.readyForImplementation': 'تأیید مشتری برای تغییر خارج از Scope ثبت شده باشد',
+};
+
+/** One guard's verdict, for a checklist: which rule, what it requires, and whether it holds. */
+export interface GuardCheck extends GuardResult {
+  guard: string;
+  labelFa: string;
+}
+
+/**
+ * Run every guard and report every verdict — the checklist behind "why can't I?". Enforcement
+ * uses `runGuards`, which stops at the first failure; a person deciding what to do next needs
+ * all of them, or they fix one thing, click again, and discover the next.
+ */
+export async function runAllGuards(
+  guardIds: readonly string[] | undefined,
+  ctx: GuardContext,
+): Promise<GuardCheck[]> {
+  const checks: GuardCheck[] = [];
+  for (const gid of guardIds ?? []) {
+    const guard = GUARDS[gid];
+    const labelFa = GUARD_LABELS[gid] ?? gid;
+    if (!guard) {
+      checks.push({ guard: gid, labelFa, ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.` });
+      continue;
+    }
+    checks.push({ guard: gid, labelFa, ...(await guard(ctx)) });
+  }
+  return checks;
+}
+
 export async function runGuards(
   guardIds: readonly string[] | undefined,
   ctx: GuardContext,

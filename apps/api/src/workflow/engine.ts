@@ -3,7 +3,7 @@ import { prisma, type Tx } from '../db.js';
 import { AppError, GovernanceError, badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, startSla, stopSla } from '../sla/engine.js';
-import { runGuards } from './guards.js';
+import { runGuards, runAllGuards, type GuardCheck } from './guards.js';
 import { EFFECTS } from './effects.js';
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
@@ -280,6 +280,63 @@ function resolveSlaOwner(record: Record<string, any>): string | null {
     record.createdById ??
     null
   );
+}
+
+export interface PreflightEntry {
+  action: string;
+  labelFa: string;
+  labelEn: string;
+  to: string;
+  requiresReason: boolean;
+  /** The caller holds the transition's permission. */
+  permitted: boolean;
+  permission: string | null;
+  checks: GuardCheck[];
+  /** Permitted and every guard holds — the click would succeed, as of now. */
+  ready: boolean;
+}
+
+/**
+ * What stands between the caller and each transition out of the current state, before they
+ * click. Every guard is evaluated and every verdict reported, unlike enforcement, which stops
+ * at the first. Guards are read-only, so this can run as often as a page wants.
+ *
+ * The payload is empty: a transition that carries one (a QC result, a decision) is judged
+ * without it, and a guard that needs it will say so — which is still the right answer to
+ * "what do I need".
+ */
+export async function preflight(
+  tx: Tx,
+  input: { entity: string; id: string; actor: Pick<TransitionActor, 'id' | 'organizationId' | 'permissions'>; action?: string },
+): Promise<{ state: string; transitions: PreflightEntry[] }> {
+  const { entity, id, actor } = input;
+  const record = await delegate(tx, entity).findFirst({
+    where: { id, organizationId: actor.organizationId },
+  });
+  if (!record) throw notFound('رکورد');
+
+  const state: string = record.state;
+  const candidates = availableTransitions(entity, state)
+    .filter((t) => !input.action || t.action === input.action);
+  if (input.action && candidates.length === 0) {
+    throw new AppError(409, 'ILLEGAL_TRANSITION',
+      `انتقال «${input.action}» از وضعیت «${state}» مجاز نیست.`,
+      { fromState: state, requested: input.action, allowed: availableTransitions(entity, state).map((t) => t.action) });
+  }
+
+  const transitions: PreflightEntry[] = [];
+  for (const def of candidates) {
+    const permitted = !def.permission || actor.permissions.includes(def.permission as Permission);
+    const checks = await runAllGuards(def.guards, { tx, entity, id, record, payload: {}, actorId: actor.id });
+    transitions.push({
+      action: def.action, labelFa: def.labelFa, labelEn: def.labelEn, to: def.to,
+      requiresReason: def.requiresReason ?? false,
+      permitted, permission: def.permission ?? null,
+      checks,
+      ready: permitted && checks.every((c) => c.ok),
+    });
+  }
+  return { state, transitions };
 }
 
 /** Transitions the caller may perform right now, given their permissions. */

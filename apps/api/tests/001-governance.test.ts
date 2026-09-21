@@ -257,6 +257,82 @@ describe('Rule 15 — eight-condition project closure', () => {
   });
 });
 
+describe('Preflight — "why can’t I?" before the click', () => {
+  /**
+   * Enforcement stops at the first failing guard; a person deciding what to do next needs every
+   * verdict at once, or they fix one thing, click, and discover the next.
+   */
+  it('reports every guard on every transition out of the current state, not just the first failure', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    // A project in PLANNING with none of activation's three prerequisites in place.
+    const project = await prisma.project.create({
+      data: {
+        organizationId: org.id, code: `PRJ-PF-${Date.now()}`, name: 'پروژهٔ پیش‌بررسی',
+        companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'PLANNING',
+      },
+    });
+
+    const pf = expectOk(await get(`/workflow/project/${project.id}/preflight`, tokens.pmo), 'preflight');
+    expect(pf.state).toBe('PLANNING');
+    const activate = pf.transitions.find((t: any) => t.action === 'activate');
+    expect(activate.checks.map((c: any) => c.guard)).toEqual(['project.isAuthorized', 'project.hasSchedule', 'project.hasRaci']);
+    expect(activate.checks.every((c: any) => c.ok === false)).toBe(true);
+    for (const c of activate.checks) {
+      expect(c.labelFa).toBeTruthy();       // the positive statement, for the tick
+      expect(c.messageFa).toBeTruthy();     // the explanation, for the cross
+      expect(c.rule).toContain('Doc_H');
+    }
+    expect(activate.ready).toBe(false);
+
+    // Fix one thing: the schedule. Exactly that check flips; the other two still stand.
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { plannedStart: new Date(), plannedEnd: new Date(Date.now() + 30 * 86_400_000) },
+    });
+    const again = expectOk(await get(`/workflow/project/${project.id}/preflight/activate`, tokens.pmo), 'preflight one');
+    expect(again.action).toBe('activate');
+    expect(again.checks.map((c: any) => [c.guard, c.ok])).toEqual([
+      ['project.isAuthorized', false], ['project.hasSchedule', true], ['project.hasRaci', false],
+    ]);
+    expect(again.ready).toBe(false);
+  });
+
+  it('tells a reader what they could not do as well as what they could', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    // Account holds brief.approve; the designer may read briefs but not decide them.
+    const asAccount = expectOk(await get(`/workflow/brief/${brief.id}/preflight`, tokens.account), 'account');
+    const approve = asAccount.transitions.find((t: any) => t.action === 'approve');
+    expect(approve.permitted).toBe(true);
+    expect(approve.checks[0]).toMatchObject({ guard: 'brief.isComplete', ok: false });
+    expect(approve.checks[0].details).toBeTruthy();   // names the missing items
+    expect(approve.ready).toBe(false);
+    const sendBack = asAccount.transitions.find((t: any) => t.action === 'return_incomplete');
+    expect(sendBack).toMatchObject({ ready: true, requiresReason: true, checks: [] });
+
+    const asDesigner = expectOk(await get(`/workflow/brief/${brief.id}/preflight`, tokens.designer), 'designer');
+    const cannot = asDesigner.transitions.find((t: any) => t.action === 'approve');
+    expect(cannot).toMatchObject({ permitted: false, permission: 'brief.approve', ready: false });
+  });
+
+  it('answers a transition that does not exist from this state with the ones that do', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const res = await get(`/workflow/brief/${brief.id}/preflight/submit`, tokens.account);
+    expect(res.status).toBe(409);
+    expect(res.body.error.details.allowed).toContain('approve');
+  });
+
+  it('is read-only: a preflight writes nothing', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const [audits, transitions] = await Promise.all([prisma.auditEvent.count(), prisma.stateTransition.count()]);
+    expectOk(await get(`/workflow/brief/${brief.id}/preflight`, tokens.account), 'preflight');
+    expect(await prisma.auditEvent.count()).toBe(audits);
+    expect(await prisma.stateTransition.count()).toBe(transitions);
+    expect((await prisma.brief.findUniqueOrThrow({ where: { id: brief.id } })).state).toBe('UNDER_REVIEW');
+  });
+});
+
 describe('Workflow engine integrity', () => {
   it('rejects an undeclared transition with the list of legal actions', async () => {
     const project = await prisma.project.findFirst({ where: { state: 'ACTIVE' } });

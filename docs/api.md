@@ -69,6 +69,8 @@ revision · changeRequest · contract · invoice · outsourceRequest`
 | `GET /workflow/definitions` | All 13 state machines |
 | `GET /workflow/:entity/definition` | One state machine |
 | `GET /workflow/:entity/:id/available` | Transitions this caller may perform now |
+| `GET /workflow/:entity/:id/preflight` | Every transition out of the current state with every guard's verdict — `checks[]` of `{ guard, labelFa, ok, messageFa?, rule? }`, plus `permitted` and `ready`. Read-only; needs the entity's read permission |
+| `GET /workflow/:entity/:id/preflight/:action` | The same for one transition; `409` with `details.allowed` if it does not exist from this state |
 | `GET /workflow/:entity/:id/history` | Full transition log with actor and reason |
 
 List and detail responses also embed `availableTransitions`, so the UI never offers an

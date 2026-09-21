@@ -32,6 +32,17 @@ export function WorkflowActions({
   const qc = useQueryClient();
   const toast = useToast();
 
+  // "Why can't I?" before the click. Every guard's verdict for every action offered, so a
+  // blocked move shows what is missing instead of a 422 after the attempt.
+  const { data: preflight } = useQuery<{ transitions: PreflightEntry[] }>({
+    queryKey: [`/workflow/${entity}/${id}/preflight`],
+    queryFn: () => apiGet(`/workflow/${entity}/${id}/preflight`),
+    enabled: !!transitions?.length,
+  });
+  const checksFor = (action: string) =>
+    preflight?.transitions.find((t) => t.action === action)?.checks ?? [];
+  const blocked = (transitions ?? []).filter((t) => checksFor(t.action).some((c) => !c.ok));
+
   if (!transitions?.length) return null;
 
   const run = async (t: Transition, why?: string) => {
@@ -59,18 +70,51 @@ export function WorkflowActions({
   return (
     <>
       <div className="flex flex-wrap gap-1.5">
-        {transitions.map((t) => (
-          <Button
-            key={t.action}
-            size={size}
-            variant={destructive(t.action) ? 'danger' : primary(t.action) ? 'primary' : 'secondary'}
-            onClick={() => (t.requiresReason ? setPending(t) : void run(t))}
-            disabled={busy}
-          >
-            {t.labelFa}
-          </Button>
-        ))}
+        {transitions.map((t) => {
+          const failing = checksFor(t.action).filter((c) => !c.ok);
+          return (
+            <Button
+              key={t.action}
+              size={size}
+              variant={destructive(t.action) ? 'danger' : primary(t.action) ? 'primary' : 'secondary'}
+              onClick={() => (t.requiresReason ? setPending(t) : void run(t))}
+              disabled={busy}
+              // Still clickable: the engine is the authority, and its 422 names the clause.
+              // The marker just says the answer is already known.
+              className={failing.length ? 'opacity-70' : undefined}
+              title={failing.length ? failing.map((c) => c.messageFa ?? c.labelFa).join('\n') : undefined}
+            >
+              {t.labelFa}
+              {failing.length > 0 && (
+                <span className="ms-1.5 rounded-full bg-rose-100 px-1.5 text-[10px] font-semibold text-rose-700" aria-label={`${toPersianDigits(failing.length)} پیش‌نیاز برقرار نیست`}>
+                  {toPersianDigits(failing.length)}
+                </span>
+              )}
+            </Button>
+          );
+        })}
       </div>
+
+      {blocked.length > 0 && (
+        <div className="mt-2 space-y-2" data-testid="preflight">
+          {blocked.map((t) => (
+            <div key={t.action} className="rounded-lg bg-ink-50/60 px-3 py-2 text-xs">
+              <p className="mb-1 font-medium text-ink-700">پیش‌نیازهای «{t.labelFa}»</p>
+              <ul className="space-y-0.5">
+                {[...checksFor(t.action)].sort((a, b) => Number(a.ok) - Number(b.ok)).map((c) => (
+                  <li key={c.guard} className={cx('flex gap-1.5', c.ok ? 'text-emerald-700' : 'text-rose-700')}>
+                    <span aria-hidden className="shrink-0">{c.ok ? '✓' : '✗'}</span>
+                    <span>
+                      {c.labelFa}
+                      {!c.ok && c.messageFa && <span className="text-ink-500"> — {c.messageFa}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={!!pending}
@@ -96,6 +140,13 @@ export function WorkflowActions({
       </Modal>
     </>
   );
+}
+
+interface PreflightEntry {
+  action: string;
+  ready: boolean;
+  permitted: boolean;
+  checks: Array<{ guard: string; labelFa: string; ok: boolean; messageFa?: string; rule?: string }>;
 }
 
 const destructive = (action: string) =>
