@@ -128,7 +128,8 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 |---|---|
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
 | `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
-| `GET /forms/submissions` | Submissions; `?awaitingMe=true` is the approval inbox |
+| `GET /forms/definitions/:code/versions` | Every version the definition has had, newest first, each with its schema, note and how many submissions pin it |
+| `GET /forms/submissions` | Submissions; `?awaitingMe=true` is the approval inbox — a single submission includes `definitionVersion` and `schema`, the fields as they stood when it was filled in |
 | `POST /forms/submissions` | Submit or save a draft |
 | `POST /forms/submissions/:id/decision` | Approve, reject or return (a reason is required to reject or return) |
 

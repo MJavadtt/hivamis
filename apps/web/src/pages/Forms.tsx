@@ -42,7 +42,7 @@ interface FormDefinition {
   id: string; no: number; code: string; nameFa: string; nameEn: string;
   category: string; module: string; senderDepts: string[]; receiverDepts: string[];
   approverRoles: string[]; slaCode: string | null; binding: string | null;
-  nextProcessFa: string | null; schema: FieldDef[]; canSubmit: boolean;
+  nextProcessFa: string | null; schema: FieldDef[]; canSubmit: boolean; version?: number;
 }
 
 interface Submission {
@@ -580,7 +580,11 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { data } = useQuery<{ data: Record<string, unknown>; definition: FormDefinition }>({
+  const { data } = useQuery<{
+    data: Record<string, unknown>; definition: FormDefinition;
+    /** The fields as they stood when this was filled in — the definition may have moved on since. */
+    schema?: FieldDef[]; definitionVersion?: number;
+  }>({
     queryKey: [`/forms/submissions/${submission.id}`],
     queryFn: () => apiGet(`/forms/submissions/${submission.id}`),
   });
@@ -599,7 +603,10 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
     }
   };
 
-  const labels = new Map((data?.definition.schema ?? []).map((f) => [f.key, f.labelFa]));
+  const labels = new Map((data?.schema ?? data?.definition.schema ?? []).map((f) => [f.key, f.labelFa]));
+  const versionNote = data?.definitionVersion && data.definition.version && data.definitionVersion !== data.definition.version
+    ? `این فرم با نسخهٔ ${toPersianDigits(data.definitionVersion)} تعریف پر شده؛ نسخهٔ فعلی ${toPersianDigits(data.definition.version)} است.`
+    : null;
 
   return (
     <Modal
@@ -624,6 +631,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
         </>
       }
     >
+      {versionNote && <p className="mb-3 text-xs text-ink-500">{versionNote}</p>}
       <dl className="mb-4 divide-y divide-ink-100 rounded-lg bg-ink-50/60 px-3">
         {Object.entries(data?.data ?? {})
           .filter(([, v]) => v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))

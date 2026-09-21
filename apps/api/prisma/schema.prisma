@@ -1223,15 +1223,34 @@ model FormDefinition {
   nextProcessFa  String?
   schema         Json
   isActive       Boolean  @default(true)
+  /// Bumped whenever `schema` changes; each value has a FormDefinitionVersion row behind it.
   version        Int      @default(1)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   submissions FormSubmission[]
+  versions    FormDefinitionVersion[]
 
   @@index([organizationId, category])
   @@index([module])
   @@map("form_definitions")
+}
+
+/// A definition's schema as it stood at one version. Submissions pin a version, so a form can
+/// change without rewriting what people already filled in — or what an archived PDF shows.
+model FormDefinitionVersion {
+  id           String         @id @default(uuid())
+  definitionId String
+  definition   FormDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  version      Int
+  schema       Json
+  nameFa       String
+  note         String?
+  createdById  String?
+  createdAt    DateTime       @default(now())
+
+  @@unique([definitionId, version])
+  @@map("form_definition_versions")
 }
 
 model FormSubmission {
@@ -1240,6 +1259,9 @@ model FormSubmission {
   code           String         @unique
   definitionId   String
   definition     FormDefinition @relation(fields: [definitionId], references: [id])
+  /// The definition version this was filled in under. Rendering and validation use it, not
+  /// whatever the definition says today.
+  definitionVersion Int         @default(1)
   data           Json
   state          String         @default("DRAFT")
   submittedById  String

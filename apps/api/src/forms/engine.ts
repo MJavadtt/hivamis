@@ -70,6 +70,7 @@ export async function submitForm(input: SubmitFormInput) {
         organizationId: actor.organizationId,
         code: await nextCode(tx, 'formSubmission'),
         definitionId: definition.id,
+        definitionVersion: definition.version,
         data: clean as object,
         state: input.asDraft ? 'DRAFT' : definition.approverRoles.length > 0 ? 'PENDING_APPROVAL' : 'SUBMITTED',
         submittedById: actor.id,

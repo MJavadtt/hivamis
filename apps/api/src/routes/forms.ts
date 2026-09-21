@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { notFound } from '../lib/errors.js';
 import { decideForm, submitForm } from '../forms/engine.js';
+import { schemaForSubmission } from '../forms/versions.js';
 
 const formRoutes: FastifyPluginAsync = async (app) => {
   /** The full Doc_H form catalogue, grouped for the navigator. */
@@ -102,7 +103,33 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       where: { entityType: 'formSubmission', entityId: id },
       include: { policy: true }, orderBy: { createdAt: 'desc' },
     });
-    return { ...submission, sla };
+    // The fields as they stood when this was filled in — not the definition's current schema.
+    const schema = await schemaForSubmission(prisma, submission);
+    return { ...submission, schema, sla };
+  });
+
+  /** Every version a definition has had, newest first, with how many submissions pin each. */
+  app.get('/forms/definitions/:code/versions', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const definition = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!definition) throw notFound('تعریف فرم');
+    const [versions, counts] = await Promise.all([
+      prisma.formDefinitionVersion.findMany({ where: { definitionId: definition.id }, orderBy: { version: 'desc' } }),
+      prisma.formSubmission.groupBy({ by: ['definitionVersion'], where: { definitionId: definition.id }, _count: { _all: true } }),
+    ]);
+    const submissionsByVersion = new Map(counts.map((c) => [c.definitionVersion, c._count._all]));
+    return {
+      code: definition.code, current: definition.version,
+      versions: versions.map((v) => ({
+        version: v.version, nameFa: v.nameFa, note: v.note, createdAt: v.createdAt,
+        fieldCount: Array.isArray(v.schema) ? v.schema.length : 0,
+        submissions: submissionsByVersion.get(v.version) ?? 0,
+        schema: v.schema,
+      })),
+    };
   });
 
   app.post('/forms/submissions', {

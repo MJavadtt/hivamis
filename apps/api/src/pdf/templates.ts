@@ -1,6 +1,6 @@
 import type { FormDef } from '@hiva/contracts';
-import { FORM_BY_CODE } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { schemaForSubmission } from '../forms/versions.js';
 import { notFound } from '../lib/errors.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
 import { type DocumentKind, type RedactionContext, guard, redactionFor, classifyField, PROPOSAL_SANCTIONED_STATES } from './access.js';
@@ -71,8 +71,9 @@ async function buildFormSubmission(id: string, orgId: string, user: AccessTokenC
   });
   if (!sub || sub.organizationId !== orgId) throw notFound('فرم');
 
-  const def = FORM_BY_CODE.get(sub.definition.code);
-  const fields = def?.fields ?? [];
+  // The version this submission was filled under. Reading the current catalogue here was the
+  // defect: a reworded or removed field changed what every archived form said.
+  const fields = await schemaForSubmission(prisma, sub);
   const data = (sub.data ?? {}) as Record<string, unknown>;
   const red = redactionFor(user);
 

@@ -4,7 +4,7 @@ import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla } from '../src/sla/engine.js';
 import {
-  ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
+  ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, FORM_BY_CODE, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
 } from '@hiva/contracts';
 import {
   STATE_LABELS, REVISION_REASON_LABELS, REVISION_REASONS, stateLabelFa,
@@ -217,6 +217,80 @@ describe('Form engine', () => {
       'inbox',
     );
     expect(Array.isArray(inbox.items)).toBe(true);
+  });
+});
+
+describe('Form definition versioning', () => {
+  const CODE = 'B10_BRIEF_COMPLETION';
+
+  /**
+   * A definition's schema is data, and data changes. Every submission — and every PDF built
+   * from one — used to render under the schema as it stood today. A submission now pins the
+   * version it was filled under, and the definition is free to move on.
+   */
+  it('pins a submission to the version it was filled under, and keeps it there when the form changes', async () => {
+    const { publishDefinition } = await import('../src/forms/versions.js');
+    const { buildDocument } = await import('../src/pdf/index.js');
+    const { verifyAccessToken } = await import('../src/auth/tokens.js');
+
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const original = FORM_BY_CODE.get(CODE)!;
+    const originalLabel = original.fields.find((f) => f.key === 'addedInformation')!.labelFa;
+    const data = { briefId: brief.id, addedInformation: 'اطلاعات تکمیلی نسخهٔ اول' };
+
+    const first = expectOk(await post('/forms/submissions', T.sales, { formCode: CODE, data }), 'submit under v1');
+    expect(first.definitionVersion).toBe(def.version);
+
+    // The form changes: one field is reworded and one is added.
+    const reworded = {
+      ...original,
+      fields: [
+        ...original.fields.map((f) => (f.key === 'addedInformation' ? { ...f, labelFa: 'توضیحات تکمیلی (بازنویسی‌شده)' } : f)),
+        { key: 'attachmentsNote', type: 'text', labelFa: 'یادداشت پیوست', labelEn: 'Attachments note', required: false },
+      ],
+    } as typeof original;
+    const published = await publishDefinition(prisma, { organizationId: def.organizationId, form: reworded, note: 'test: reword + add' });
+    expect(published).toEqual({ version: def.version + 1, changed: true });
+    // Publishing the same schema again is a no-op — the seed relies on this.
+    expect((await publishDefinition(prisma, { organizationId: def.organizationId, form: reworded })).changed).toBe(false);
+    expect((await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } })).version).toBe(def.version + 1);
+
+    // The earlier submission still reads as it was filled in.
+    const old = expectOk(await get(`/forms/submissions/${first.id}`, T.sales), 'old submission');
+    expect(old.definitionVersion).toBe(def.version);
+    expect(old.schema.find((f: any) => f.key === 'addedInformation').labelFa).toBe(originalLabel);
+    expect(old.schema.some((f: any) => f.key === 'attachmentsNote')).toBe(false);
+
+    // A new one is filled under the new version.
+    const second = expectOk(await post('/forms/submissions', T.sales, { formCode: CODE, data }), 'submit under v2');
+    expect(second.definitionVersion).toBe(def.version + 1);
+    const fresh = expectOk(await get(`/forms/submissions/${second.id}`, T.sales), 'new submission');
+    expect(fresh.schema.find((f: any) => f.key === 'addedInformation').labelFa).toBe('توضیحات تکمیلی (بازنویسی‌شده)');
+    expect(fresh.schema.some((f: any) => f.key === 'attachmentsNote')).toBe(true);
+
+    const versions = expectOk(await get(`/forms/definitions/${CODE}/versions`, T.sales), 'versions');
+    expect(versions.current).toBe(def.version + 1);
+    expect(versions.versions.map((v: any) => [v.version, v.submissions])).toEqual([[def.version + 1, 1], [def.version, 1]]);
+    expect(versions.versions[0].note).toBe('test: reword + add');
+
+    // And the archived document keeps the wording the person actually answered.
+    const user = await verifyAccessToken(T.sales);
+    const oldPdf = await buildDocument('form-submission', first.id, def.organizationId, user);
+    expect(oldPdf.html).toContain(originalLabel);
+    expect(oldPdf.html).not.toContain('توضیحات تکمیلی (بازنویسی‌شده)');
+    const newPdf = await buildDocument('form-submission', second.id, def.organizationId, user);
+    expect(newPdf.html).toContain('توضیحات تکمیلی (بازنویسی‌شده)');
+  });
+
+  it('gives every seeded definition a version row that matches its current schema', async () => {
+    const definitions = await prisma.formDefinition.findMany({ include: { versions: true } });
+    expect(definitions.length).toBe(ALL_FORMS.length);
+    for (const d of definitions) {
+      const current = d.versions.find((v) => v.version === d.version);
+      expect(current, `${d.code} has no row for version ${d.version}`).toBeTruthy();
+      expect(JSON.stringify(current!.schema)).toBe(JSON.stringify(d.schema));
+    }
   });
 });
 

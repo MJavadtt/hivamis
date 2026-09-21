@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { schemaForSubmission } from '../forms/versions.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
 import { DOCUMENT_POLICIES, type DocumentKind } from './access.js';
 
@@ -167,7 +168,7 @@ export async function discoverAttachments(
       if (!sub) return [];
 
       // Follow the form's own entityRef fields — this is how Doc_H forms point at each other.
-      const fields = (sub.definition.schema ?? []) as { key: string; type: string; entity?: string }[];
+      const fields = await schemaForSubmission(prisma, sub) as { key: string; type: string; entity?: string }[];
       const data = (sub.data ?? {}) as Record<string, unknown>;
       const REF_KIND: Record<string, DocumentKind> = {
         project: 'project', proposal: 'proposal', brief: 'brief', contract: 'contract',

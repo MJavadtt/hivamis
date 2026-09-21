@@ -101,6 +101,14 @@ renderer cannot express a highly bespoke layout — acceptable, because these ar
 operational forms. Forms without a binding are honest structured communications, which is what
 Doc_H asks of them; they are not presented as more than that.
 
+**Versioned since roadmap #16.** "Adding a form is a data change" was true; *changing* one was
+a data change that rewrote history, because every submission and every archived PDF rendered
+under the schema as it stood today. Each schema change is now a `form_definition_versions` row,
+a submission pins `definitionVersion` when it is filled in, and every reader — the submission
+endpoint, the PDF, attachment discovery — asks for that version. The definition's `schema` column
+remains the current version for new submissions. Schemas are compared structurally, not as
+strings: JSONB reorders keys, and a string comparison minted a version on every seed.
+
 ---
 
 ## ADR-005 — Business-hours SLA arithmetic

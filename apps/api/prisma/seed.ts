@@ -12,6 +12,7 @@ import {
 } from '@hiva/contracts';
 import { hashPassword } from '../src/auth/password.js';
 import { nextCode } from '../src/lib/codes.js';
+import { publishDefinition } from '../src/forms/versions.js';
 
 const prisma = new PrismaClient();
 
@@ -181,37 +182,14 @@ async function main() {
   }
 
   console.log(`→ seeding ${ALL_FORMS.length} form definitions …`);
+  // Through the versioning module: a changed schema becomes a new version, an unchanged one
+  // writes nothing, and submissions keep pointing at the version they were filled under.
+  let newVersions = 0;
   for (const form of ALL_FORMS) {
-    await prisma.formDefinition.upsert({
-      where: { code: form.code },
-      create: {
-        organizationId: org.id,
-        no: form.no,
-        code: form.code,
-        nameFa: form.nameFa,
-        nameEn: form.nameEn,
-        category: form.category,
-        module: form.module,
-        senderDepts: [...form.senderDepts],
-        receiverDepts: [...form.receiverDepts],
-        approverRoles: [...form.approverRoles],
-        slaCode: form.slaCode ?? null,
-        binding: form.binding ?? null,
-        nextProcessFa: form.nextProcessFa ?? null,
-        schema: form.fields as unknown as object,
-      },
-      update: {
-        nameFa: form.nameFa,
-        senderDepts: [...form.senderDepts],
-        receiverDepts: [...form.receiverDepts],
-        approverRoles: [...form.approverRoles],
-        slaCode: form.slaCode ?? null,
-        binding: form.binding ?? null,
-        nextProcessFa: form.nextProcessFa ?? null,
-        schema: form.fields as unknown as object,
-      },
-    });
+    const { changed } = await publishDefinition(prisma, { organizationId: org.id, form, note: 'seed' });
+    if (changed) newVersions++;
   }
+  if (newVersions) console.log(`  ${newVersions} definition(s) gained a new version`);
 
   await syncCounters();
 
