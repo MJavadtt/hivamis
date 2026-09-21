@@ -9,7 +9,7 @@ import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
-import { pauseSla, resumeSla, loadCalendar } from '../sla/engine.js';
+import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { SLA_PAUSE_KINDS, type SlaPauseKind } from '@hiva/contracts';
 
@@ -193,6 +193,127 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
+  /* ── Calendars per unit and per person (roadmap #13) ────────────────── */
+
+  const DAYS = [0, 1, 2, 3, 4, 5, 6];
+  /** null clears an override (inherit); an array or number sets one. Validated, then audited. */
+  function calendarPatch(body: Record<string, unknown>, keys: string[]) {
+    const data: Record<string, unknown> = {};
+    for (const k of keys) {
+      if (!(k in body)) continue;
+      const v = body[k];
+      if (k === 'workingDays') {
+        if (v === null) { data[k] = []; continue; }
+        if (!Array.isArray(v) || !v.every((d) => DAYS.includes(Number(d))) || v.length === 0) {
+          throw badRequest('INVALID_WORKING_DAYS', 'روزهای کاری باید فهرستی از ۰ (یکشنبه) تا ۶ (شنبه) باشد');
+        }
+        data[k] = [...new Set(v.map(Number))];
+        continue;
+      }
+      if (v === null) { data[k] = null; continue; }
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 24) throw badRequest('INVALID_HOUR', `«${k}» باید عددی بین ۰ و ۲۴ باشد`);
+      data[k] = n;
+    }
+    const start = data.workStartHour as number | null | undefined;
+    const end = data.workEndHour as number | null | undefined;
+    if (start != null && end != null && end <= start) throw badRequest('INVALID_HOURS', 'ساعت پایان باید بعد از شروع باشد');
+    return data;
+  }
+
+  app.patch('/departments/:code/calendar', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const before = await prisma.department.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!before) throw notFound('واحد');
+    const data = calendarPatch((req.body ?? {}) as Record<string, unknown>, ['workingDays', 'workStartHour', 'workEndHour', 'breakHours']);
+    const updated = await prisma.department.update({ where: { id: before.id }, data });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'department', entityId: before.id,
+      before: { workingDays: before.workingDays, workStartHour: before.workStartHour, workEndHour: before.workEndHour, breakHours: before.breakHours },
+      after: { workingDays: updated.workingDays, workStartHour: updated.workStartHour, workEndHour: updated.workEndHour, breakHours: updated.breakHours },
+      reason: 'calendar', ipAddress: actor.ipAddress,
+    });
+    resetCalendarCache();
+    return updated;
+  });
+
+  app.patch('/users/:id/calendar', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.users')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const before = await prisma.user.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!before) throw notFound('کاربر');
+    const data = calendarPatch((req.body ?? {}) as Record<string, unknown>, ['workingDays', 'workStartHour', 'workEndHour']);
+    const updated = await prisma.user.update({ where: { id }, data, select: { id: true, workingDays: true, workStartHour: true, workEndHour: true } });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: id,
+      before: { workingDays: before.workingDays, workStartHour: before.workStartHour, workEndHour: before.workEndHour },
+      after: { workingDays: updated.workingDays, workStartHour: updated.workStartHour, workEndHour: updated.workEndHour },
+      reason: 'calendar', ipAddress: actor.ipAddress,
+    });
+    resetCalendarCache();
+    return updated;
+  });
+
+  /** A person may see their own leave; managing it takes admin.users. */
+  app.get('/users/:id/leaves', { preHandler: [app.authenticate] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    if (id !== actor.id && !hasPermission(req, 'admin.users')) throw forbidden();
+    return prisma.userLeave.findMany({ where: { userId: id, user: { organizationId: actor.organizationId } }, orderBy: { from: 'desc' } });
+  });
+
+  app.post('/users/:id/leaves', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.users')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const user = await prisma.user.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!user) throw notFound('کاربر');
+    const { from, to, kind, note } = (req.body ?? {}) as { from?: string; to?: string; kind?: string; note?: string };
+    const a = from ? new Date(from) : null; const b = to ? new Date(to) : a;
+    if (!a || !b || Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) throw badRequest('INVALID_RANGE', 'بازهٔ مرخصی معتبر نیست');
+    if (b < a) throw badRequest('INVALID_RANGE', 'پایان مرخصی پیش از شروع آن است');
+    if ((b.getTime() - a.getTime()) / 86_400_000 > 366) throw badRequest('INVALID_RANGE', 'مرخصی نمی‌تواند بیش از یک سال باشد');
+    const leave = await prisma.userLeave.create({
+      data: { userId: id, from: a, to: b, kind: kind ?? 'VACATION', note: note ?? null, createdById: actor.id },
+    });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'userLeave', entityId: leave.id,
+      after: { userId: id, from: leave.from, to: leave.to, kind: leave.kind }, ipAddress: actor.ipAddress,
+    });
+    resetCalendarCache();
+    return reply.code(201).send(leave);
+  });
+
+  app.delete('/users/:id/leaves/:leaveId', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.users')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id, leaveId } = req.params as { id: string; leaveId: string };
+    const leave = await prisma.userLeave.findFirst({ where: { id: leaveId, userId: id, user: { organizationId: actor.organizationId } } });
+    if (!leave) throw notFound('مرخصی');
+    await prisma.userLeave.delete({ where: { id: leaveId } });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'userLeave', entityId: leaveId,
+      before: { userId: id, from: leave.from, to: leave.to, kind: leave.kind }, ipAddress: actor.ipAddress,
+    });
+    resetCalendarCache();
+    return { ok: true };
+  });
+
+  /** The calendar actually in force for a person or a unit, after inheritance. */
+  app.get('/calendar/effective', { preHandler: [app.authenticate] }, async (req) => {
+    const actor = actorFrom(req);
+    const { userId, departmentCode } = req.query as Record<string, string | undefined>;
+    const cal = await loadCalendar(actor.organizationId, { userId: userId ?? null, departmentCode: departmentCode ?? null });
+    return { ...cal, holidays: [...cal.holidays].sort() };
+  });
+
   app.get('/roles', { preHandler: [app.authenticate] }, async () => {
     const roles = await prisma.role.findMany({
       include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
@@ -264,7 +385,6 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     if (Array.isArray(body.workingDays)) data.workingDays = body.workingDays.map(Number);
     const updated = await prisma.organization.update({ where: { id: actor.organizationId }, data });
     // The SLA engine caches the calendar; invalidate it so new hours take effect immediately.
-    const { resetCalendarCache } = await import('../sla/engine.js');
     resetCalendarCache();
     return updated;
   });

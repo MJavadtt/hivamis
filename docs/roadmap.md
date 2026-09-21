@@ -24,8 +24,8 @@ Status vocabulary, and it is used strictly:
 | 37 | Scheduled, branded client status report | — | Verified | a677ebd |
 | 45 | Supplier and freelancer 360 | — | Verified | e83381d |
 | 30 | Budget vs actual at work-order level | — | Verified | 8cb8ddf |
-| 20 | Bulk import / export per form | 16 | Verified | next |
-| 13 | Calendars per unit and per person | — | Pending | |
+| 20 | Bulk import / export per form | 16 | Verified | daac98d |
+| 13 | Calendars per unit and per person | — | Verified | next |
 | 6 | Time-boxed delegation | — | Pending | |
 | 7 | Governed waiver | — | Pending | |
 | 4 | Effective-dated rule sets | — | Pending | |

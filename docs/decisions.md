@@ -143,6 +143,14 @@ days, nearly a calendar week) instead of one working day, and `SLA_PROPOSAL_HAND
 the engine can express. Covered by the calendar tests in `004-engines.test.ts`, including the
 weekend, a declared holiday, and a round-trip across a range of durations.
 
+**Scopes (roadmap #13).** The calendar is resolved for a scope — organisation → department →
+person — with a narrower scope's set fields winning and null fields inheriting. A person's
+leaves are added to their holidays, so they have no working hours on those days. Every SLA
+computation now uses the clock owner's calendar: the due date at start, the pause credit, and
+the tick's consumption — a deadline is measured in the hours of whoever has to meet it. A unit
+that works Thursdays gets Thursday deadlines; someone on leave has a clock that does not run.
+The cache is keyed by scope, not by organisation.
+
 **Pauses (roadmap #9).** A clock can be paused while its owner waits on someone else. The
 implementation keeps the rest of the engine oblivious: on resume, `dueAt` is pushed out by
 exactly the working hours paused, so `now > dueAt` still means breached, and the warning ratio

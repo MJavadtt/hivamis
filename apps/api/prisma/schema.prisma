@@ -46,6 +46,24 @@ model Holiday {
   @@map("holidays")
 }
 
+/// Time off. A person on leave has no working hours, so a clock they own does not run and a
+/// task they hold cannot be scheduled into those days.
+model UserLeave {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Inclusive calendar days, YYYY-MM-DD in the organisation's timezone.
+  from      DateTime @db.Date
+  to        DateTime @db.Date
+  kind      String   @default("VACATION")
+  note      String?
+  createdById String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, from, to])
+  @@map("user_leaves")
+}
+
 model Department {
   id             String       @id @default(uuid())
   organizationId String
@@ -53,6 +71,12 @@ model Department {
   code           String
   nameFa         String
   nameEn         String
+  /// Calendar overrides. Null inherits the organisation; a production unit that works
+  /// Thursdays sets workingDays, a shift unit sets its hours.
+  workingDays       Int[]    @default([])
+  workStartHour     Int?
+  workEndHour       Int?
+  breakHours        Int?
   isExecutionalUnit Boolean   @default(false)
   managerId      String?
   sortOrder      Int          @default(0)
@@ -112,6 +136,11 @@ model User {
   phone               String?
   isActive            Boolean      @default(true)
   mustChangePassword  Boolean      @default(false)
+  /// Personal calendar overrides; null inherits the department, then the organisation.
+  workingDays       Int[]    @default([])
+  workStartHour     Int?
+  workEndHour       Int?
+  leaves            UserLeave[]
   weeklyCapacityHours Decimal      @default(40) @db.Decimal(6, 2)
   lastLoginAt         DateTime?
   failedLoginCount    Int          @default(0)

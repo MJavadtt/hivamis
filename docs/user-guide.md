@@ -132,6 +132,11 @@ Your two gates:
 
 ---
 
+**Working calendars («تقویم کاری» under Admin).** Each unit can keep its own working days and
+hours — a production unit that works Thursdays, a shift unit with different hours — and each
+person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in
+the hours of whoever holds them: a clock owned by someone on leave does not run.
+
 ## Forms
 
 **فرم‌ها** holds all 130 Doc_H forms. Each shows its route (from which unit to which), its

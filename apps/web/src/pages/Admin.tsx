@@ -9,6 +9,7 @@ import {
 } from '../components/ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
 import { useAuth } from '../lib/auth';
+import { WorkCalendars } from '../components/WorkCalendars';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
@@ -22,6 +23,7 @@ export default function Admin() {
             { key: 'users', label: 'کاربران' },
             { key: 'roles', label: 'نقش‌ها و دسترسی‌ها' },
             { key: 'sla', label: 'سیاست‌های SLA' },
+            { key: 'calendar', label: 'تقویم کاری' },
             { key: 'audit', label: 'رهگیری حسابرسی' },
             { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
           ]}
@@ -31,6 +33,7 @@ export default function Admin() {
         {tab === 'users' && <Users />}
         {tab === 'roles' && <Roles />}
         {tab === 'sla' && <SlaPolicies />}
+        {tab === 'calendar' && <WorkCalendars />}
         {tab === 'audit' && <AuditTrail />}
         {tab === 'ai' && <AiLog />}
       </PageBody>

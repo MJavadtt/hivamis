@@ -174,6 +174,10 @@ Each requires both `ai.use` and the underlying data permission.
 |---|---|
 | `GET /users`, `POST /users`, `PATCH /users/:id`, `POST /users/:id/deactivate` | `admin.users` for writes |
 | `GET /departments`, `/roles`, `/permissions` | authenticated |
+| `PATCH /departments/:code/calendar` `{ workingDays?, workStartHour?, workEndHour?, breakHours? }` | `admin.settings` — a unit's calendar overrides; `null` inherits the organisation |
+| `PATCH /users/:id/calendar` `{ workingDays?, workStartHour?, workEndHour? }` | `admin.users` — a person's overrides; inherits the unit, then the organisation |
+| `GET /users/:id/leaves`, `POST /users/:id/leaves` `{ from, to, kind, note }`, `DELETE /users/:id/leaves/:leaveId` | `admin.users` (a person may read their own) — days with no working hours |
+| `GET /calendar/effective?userId=&departmentCode=` | authenticated — the calendar actually in force for a scope, after inheritance, leaves included as holidays |
 | `GET /sla-policies`, `PATCH /sla-policies/:code` | `admin.settings` for writes |
 | `GET /organization`, `PATCH /organization` | `admin.settings` for writes |
 | `GET /audit-events` | `admin.audit` |

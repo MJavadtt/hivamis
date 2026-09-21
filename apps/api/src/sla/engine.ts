@@ -6,22 +6,51 @@ import type { MailBody } from '../mail/templates.js';
 import type { SlaPauseKind } from '@hiva/contracts';
 
 /**
- * Keyed by organisation, not a single slot. The cache previously held one calendar for the whole
- * process, so a second organisation would inherit the first one's working week and holidays for
- * up to a minute — and SLA due dates computed from the wrong calendar are silently wrong.
+ * Keyed by organisation, department and person — one calendar per scope, cached briefly to keep
+ * the tick cheap. The cache previously held one calendar for the whole process, so a second
+ * organisation would inherit the first one's working week and holidays for up to a minute — and
+ * SLA due dates computed from the wrong calendar are silently wrong.
  */
 const cachedCalendars = new Map<string, { at: number; cal: Calendar }>();
 const CALENDAR_TTL_MS = 60_000;
 
-/** Loads the organisation's working week + holidays; cached briefly to keep the tick cheap. */
-export async function loadCalendar(organizationId: string, tx: Tx = prisma): Promise<Calendar> {
-  const hit = cachedCalendars.get(organizationId);
+export interface CalendarScope {
+  /** Narrow to a unit: its working days and hours override the organisation's. */
+  departmentCode?: string | null;
+  /** Narrow to a person: their overrides beat the unit's, and their leaves are days off. */
+  userId?: string | null;
+}
+
+/** The day span of a leave as YYYY-MM-DD strings, inclusive. */
+function leaveDays(from: Date, to: Date): string[] {
+  const days: string[] = [];
+  const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
+  for (let guard = 0; d <= end && guard < 400; guard++, d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+/**
+ * The working calendar in force for a scope (roadmap #13). Inheritance is organisation →
+ * department → person: a field set on a narrower scope wins, a null one inherits. A person's
+ * leaves are added to the holidays, so they have no working hours on those days — which is what
+ * makes a clock they own stop consuming budget while they are away.
+ */
+export async function loadCalendar(
+  organizationId: string, scopeOrTx?: CalendarScope | Tx, maybeTx?: Tx,
+): Promise<Calendar> {
+  // Backwards compatible with the old (organizationId, tx) signature.
+  const scope: CalendarScope = scopeOrTx && !('organization' in (scopeOrTx as object)) ? (scopeOrTx as CalendarScope) : {};
+  const tx: Tx = (scopeOrTx && 'organization' in (scopeOrTx as object) ? (scopeOrTx as Tx) : maybeTx) ?? prisma;
+
+  const key = `${organizationId}|${scope.departmentCode ?? ''}|${scope.userId ?? ''}`;
+  const hit = cachedCalendars.get(key);
   if (hit && Date.now() - hit.at < CALENDAR_TTL_MS) return hit.cal;
-  const org = await tx.organization.findUnique({
-    where: { id: organizationId },
-    include: { holidays: true },
-  });
-  const cal: Calendar = org
+
+  const org = await tx.organization.findUnique({ where: { id: organizationId }, include: { holidays: true } });
+  let cal: Calendar = org
     ? {
         workingDays: org.workingDays,
         startHour: org.workStartHour,
@@ -29,8 +58,48 @@ export async function loadCalendar(organizationId: string, tx: Tx = prisma): Pro
         breakHours: org.breakHours,
         holidays: new Set(org.holidays.map((h) => h.date.toISOString().slice(0, 10))),
       }
-    : DEFAULT_CALENDAR;
-  cachedCalendars.set(organizationId, { at: Date.now(), cal });
+    : { ...DEFAULT_CALENDAR, holidays: new Set() };
+
+  // A person's department is the one on their record unless the caller says otherwise.
+  let departmentCode = scope.departmentCode ?? null;
+  const user = scope.userId
+    ? await tx.user.findUnique({
+        where: { id: scope.userId },
+        select: {
+          workingDays: true, workStartHour: true, workEndHour: true,
+          department: { select: { code: true } }, leaves: { select: { from: true, to: true } },
+        },
+      })
+    : null;
+  if (user) departmentCode ??= user.department?.code ?? null;
+  if (departmentCode) {
+    const dept = await tx.department.findFirst({
+      where: { organizationId, code: departmentCode },
+      select: { workingDays: true, workStartHour: true, workEndHour: true, breakHours: true },
+    });
+    if (dept) {
+      cal = {
+        ...cal,
+        workingDays: dept.workingDays.length ? dept.workingDays : cal.workingDays,
+        startHour: dept.workStartHour ?? cal.startHour,
+        endHour: dept.workEndHour ?? cal.endHour,
+        breakHours: dept.breakHours ?? cal.breakHours,
+      };
+    }
+  }
+  if (user) {
+    const holidays = new Set(cal.holidays);
+    for (const l of user.leaves) for (const day of leaveDays(l.from, l.to)) holidays.add(day);
+    cal = {
+      ...cal,
+      workingDays: user.workingDays.length ? user.workingDays : cal.workingDays,
+      startHour: user.workStartHour ?? cal.startHour,
+      endHour: user.workEndHour ?? cal.endHour,
+      holidays,
+    };
+  }
+
+  cachedCalendars.set(key, { at: Date.now(), cal });
   return cal;
 }
 
@@ -66,7 +135,9 @@ export async function startSla(tx: Tx, input: StartSlaInput): Promise<void> {
   });
   if (existing) return;
 
-  const cal = await loadCalendar(input.organizationId, tx);
+  // The owner's calendar, when there is one: a deadline is measured in the hours of whoever
+  // has to meet it, not the organisation's average.
+  const cal = await loadCalendar(input.organizationId, { userId: input.ownerId ?? null }, tx);
   const startedAt = new Date();
   const dueAt = addBusinessHours(startedAt, Number(policy.hours), cal);
 
@@ -192,7 +263,7 @@ type ClockRow = Awaited<ReturnType<Tx['slaClock']['findFirstOrThrow']>>;
  */
 async function closePause(tx: Tx, clock: ClockRow, now: Date, actorId: string | null): Promise<ClockRow> {
   const pausedAt = clock.pausedAt ?? now;
-  const cal = await loadCalendar(clock.organizationId, tx);
+  const cal = await loadCalendar(clock.organizationId, { userId: clock.ownerId }, tx);
   const hours = businessHoursBetween(pausedAt, now, cal);
   const seconds = Math.max(0, Math.round((now.getTime() - pausedAt.getTime()) / 1000));
 
@@ -239,11 +310,13 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
   });
   if (running.length === 0) return { warned: 0, breached: 0 };
 
-  // One calendar per organisation, not one per clock: the tick spans tenants and each has its
-  // own working week and holidays.
+  // One calendar per (organisation, owner), not one per clock: the tick spans tenants, each
+  // with its own working week, and an owner may be in a unit that keeps different hours or be
+  // on leave.
   const calendars = new Map<string, Calendar>();
-  for (const orgId of new Set(running.map((c) => c.organizationId))) {
-    calendars.set(orgId, await loadCalendar(orgId));
+  for (const c of running) {
+    const key = `${c.organizationId}|${c.ownerId ?? ''}`;
+    if (!calendars.has(key)) calendars.set(key, await loadCalendar(c.organizationId, { userId: c.ownerId }));
   }
 
   const toBreach: string[] = [];
@@ -266,7 +339,7 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
      * nearly up, in the middle of the Thursday–Friday weekend, having consumed zero working
      * hours. False alarms teach people to ignore real ones.
      */
-    const cal = calendars.get(clock.organizationId) ?? DEFAULT_CALENDAR;
+    const cal = calendars.get(`${clock.organizationId}|${clock.ownerId ?? ''}`) ?? DEFAULT_CALENDAR;
     // Paused hours were never the owner's to spend; dueAt has already been pushed out by them.
     const consumed = businessHoursBetween(clock.startedAt, now, cal) - Number(clock.pausedHours);
     const budget = Number(clock.policy.hours);

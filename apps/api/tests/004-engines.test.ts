@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { call, closeApp, get, login, post, move, expectOk } from './helpers.js';
+import { call, closeApp, get, login, post, patch, move, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
-import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla } from '../src/sla/engine.js';
+import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../src/sla/engine.js';
 import {
   ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, FORM_BY_CODE, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
 } from '@hiva/contracts';
@@ -617,6 +617,96 @@ describe('Bulk import and export, per form', () => {
     expect((await post(`/forms/definitions/${CODE}/import`, T.sales, { rows: [], mode: 'yolo' })).status).toBe(400);
     expect((await post(`/forms/definitions/${CODE}/import`, T.sales, { mode: 'preview' })).status).toBe(400);
     expect((await post(`/forms/definitions/NOPE/import`, T.sales, { rows: [] })).status).toBe(404);
+  });
+});
+
+describe('Calendars per unit and per person', () => {
+  /**
+   * One calendar for everyone was the model. A production unit that works Thursdays, a
+   * freelancer with their own hours, and someone on leave all had their deadlines computed
+   * from hours they do not keep. Inheritance is organisation → department → person.
+   */
+  const wed17 = new Date(2026, 8, 2, 17, 0, 0);   // Wednesday 2026-09-02, 17:00 — end of the default week
+
+  it('lets a unit keep its own working days, and a person their own hours', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+
+    // Creative works Thursdays too.
+    expectOk(await patch('/departments/CR/calendar', T.admin, { workingDays: [6, 0, 1, 2, 3, 4] }), 'unit calendar');
+    const unit = expectOk(await get('/calendar/effective', T.admin, { departmentCode: 'CR' }), 'unit');
+    expect(unit.workingDays).toEqual([6, 0, 1, 2, 3, 4]);
+    expect(unit.startHour).toBe(9);                       // inherited from the organisation
+
+    // The designer, in Creative, starts at 11.
+    expectOk(await patch(`/users/${designer.id}/calendar`, T.admin, { workStartHour: 11 }), 'person calendar');
+    const person = expectOk(await get('/calendar/effective', T.admin, { userId: designer.id }), 'person');
+    expect(person.workingDays).toEqual([6, 0, 1, 2, 3, 4]);   // from the unit
+    expect(person.startHour).toBe(11);                        // their own
+    expect(person.endHour).toBe(org.workEndHour);             // inherited
+
+    // Four working hours from Wednesday 17:00: the organisation's week ends now, so Saturday;
+    // Creative's continues on Thursday.
+    resetCalendarCache();
+    const orgCal = await loadCalendar(org.id);
+    const unitCal = await loadCalendar(org.id, { departmentCode: 'CR' });
+    expect(addBusinessHours(wed17, 4, orgCal).getDay()).toBe(6);    // Saturday
+    expect(addBusinessHours(wed17, 4, unitCal).getDay()).toBe(4);   // Thursday
+
+    // Clearing the override inherits again.
+    expectOk(await patch('/departments/CR/calendar', T.admin, { workingDays: null }), 'clear');
+    expect(expectOk(await get('/calendar/effective', T.admin, { departmentCode: 'CR' }), 'cleared').workingDays).toEqual(org.workingDays);
+    expect((await patch('/departments/CR/calendar', T.admin, { workingDays: [9] })).status).toBe(400);
+    expect((await patch('/departments/CR/calendar', T.admin, { workStartHour: 18, workEndHour: 9 })).status).toBe(400);
+    expect((await patch('/departments/CR/calendar', T.sales, { workingDays: [1] })).status).toBe(403);
+  });
+
+  it('gives a person on leave no working hours, so a clock they own stops consuming its budget', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const strategy = await prisma.user.findUniqueOrThrow({ where: { email: 'strategy@hiva.local' } });
+    // Away Saturday to Monday, 5–7 September 2026.
+    const leave = expectOk(await post(`/users/${strategy.id}/leaves`, T.admin, { from: '2026-09-05', to: '2026-09-07', kind: 'VACATION', note: 'سفر' }), 'leave');
+    expect(leave.kind).toBe('VACATION');
+    const mine = expectOk(await get(`/users/${strategy.id}/leaves`, T.admin), 'list');
+    expect(mine.some((l: any) => l.id === leave.id)).toBe(true);
+
+    resetCalendarCache();
+    const cal = await loadCalendar(org.id, { userId: strategy.id });
+    expect(cal.holidays.has('2026-09-05')).toBe(true);
+    expect(cal.holidays.has('2026-09-07')).toBe(true);
+    expect(cal.holidays.has('2026-09-08')).toBe(false);
+
+    // Four working hours from Wednesday 17:00: normally Saturday 13:00; with Sat–Mon away,
+    // Tuesday 13:00. The organisation's own calendar is unchanged.
+    const due = addBusinessHours(wed17, 4, cal);
+    expect(due.getDay()).toBe(2);
+    expect(due.getHours()).toBe(13);
+    expect(addBusinessHours(wed17, 4, await loadCalendar(org.id)).getDay()).toBe(6);
+
+    // And the same for a real clock: started while the owner is away, due after they return.
+    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const clock = await prisma.slaClock.create({ data: {
+      organizationId: org.id, policyId: policy.id, entityType: 'test', entityId: `leave-${Date.now()}`,
+      startedAt: new Date(2026, 8, 5, 10, 0, 0), dueAt: new Date(2026, 8, 9, 17, 0, 0), state: 'RUNNING', ownerId: strategy.id,
+    } });
+    await tickSlaClocks(new Date(2026, 8, 7, 16, 0, 0));   // Monday, still on leave: nothing consumed
+    expect((await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } })).state).toBe('RUNNING');
+
+    expectOk(await call('DELETE', `/users/${strategy.id}/leaves/${leave.id}`, { token: T.admin }), 'delete');
+    resetCalendarCache();
+    expect((await loadCalendar(org.id, { userId: strategy.id })).holidays.has('2026-09-05')).toBe(false);
+    expect((await post(`/users/${strategy.id}/leaves`, T.admin, { from: '2026-09-10', to: '2026-09-01' })).status).toBe(400);
+    expect((await get(`/users/${strategy.id}/leaves`, T.sales)).status).toBe(403);
+  });
+
+  it('caches per scope, not per organisation', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    resetCalendarCache();
+    const a = await loadCalendar(org.id);
+    const b = await loadCalendar(org.id, { userId: designer.id });
+    expect(a).not.toBe(b);
+    expect(await loadCalendar(org.id, { userId: designer.id })).toBe(b);   // second read is the cached one
   });
 });
 
