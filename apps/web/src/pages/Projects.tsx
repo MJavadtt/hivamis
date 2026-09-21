@@ -8,6 +8,7 @@ import { Code, Count, EntityList, HealthDot, WorkflowActions } from '../componen
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { SlaClocksCard } from '../components/SlaClocks';
+import { RecordHistory } from '../components/RecordHistory';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -158,6 +159,7 @@ export function ProjectDetail() {
           <>
             <PdfButton kind="project" id={p.id} label="پرونده پروژه" />
             <PdfBundleButton kind="project" id={p.id} />
+            <RecordHistory entityType="project" entityId={p.id} />
             {['COMPLETED', 'PENDING_CLOSURE', 'CLOSED'].includes(p.state) && (
               <PdfButton kind="closure-report" id={p.id} label="گزارش پایان" />
             )}

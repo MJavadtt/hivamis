@@ -211,7 +211,11 @@ Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../app
 - Structured JSON logs (pino) with per-request ids; authorization headers and password fields
   redacted at the logger.
 - `/health`, `/health/ready` (checks the database), `/health/live` for orchestrators.
-- `audit_events` and `state_transitions` provide a complete forensic history.
+- `audit_events` and `state_transitions` provide a complete forensic history — and, because
+  every mutation carries `before` and `after`, a record can be reconstructed as it stood at any
+  instant and diffed between two, field by field, with names on each change (`/history/…`,
+  roadmap #3). Financial fields are withheld by the same rule the PDF layer uses; password
+  hashes are withheld from everyone.
 - `sla_clocks` is an operational signal, not just a report: breaches surface on dashboards and
   in notifications.
 - `/reports/data-quality` actively hunts records that would silently break the process —

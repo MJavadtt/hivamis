@@ -3,7 +3,7 @@ import { FORM_BY_CODE } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { notFound } from '../lib/errors.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
-import { type DocumentKind, type RedactionContext, guard, redactionFor } from './access.js';
+import { type DocumentKind, type RedactionContext, guard, redactionFor, classifyField, PROPOSAL_SANCTIONED_STATES } from './access.js';
 import { chip, date, dateTime, deptFa, esc, field, money, num, percent, stateFa, table, text, yesNo } from './fmt.js';
 import { docHeader, routingBand, ruleNote, section, signatures, stateTrail } from './sections.js';
 
@@ -77,8 +77,8 @@ async function buildFormSubmission(id: string, orgId: string, user: AccessTokenC
   const red = redactionFor(user);
 
   // A form may legitimately carry cost or price fields; the same redaction order applies here.
-  const isCostField = (k: string) => /cost|budget|هزینه/i.test(k);
-  const isPriceField = (k: string) => /(salePrice|price|margin|contractValue)/i.test(k);
+  const isCostField = (k: string) => classifyField(k) === 'cost';
+  const isPriceField = (k: string) => classifyField(k) === 'price';
 
   const body = fields.length
     ? fields.map((f) => {
@@ -165,8 +165,7 @@ async function buildBrief(id: string, orgId: string, user: AccessTokenClaims): P
 
 /* ══════════════════════════ proposal ══════════════════════════ */
 
-const SANCTIONED = new Set(['APPROVED', 'DELIVERED_TO_SALES', 'PRESENTED_TO_CLIENT',
-  'CLIENT_REVISION_REQUESTED', 'CLIENT_APPROVED', 'CLIENT_REJECTED']);
+const SANCTIONED = PROPOSAL_SANCTIONED_STATES;
 
 async function buildProposal(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
   const p = await prisma.proposal.findFirst({ where: { id, organizationId: orgId },

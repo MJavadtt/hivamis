@@ -50,6 +50,10 @@ export const DOCUMENT_POLICIES: Record<DocumentKind, KindPolicy> = {
 
 const REDACTED_LABEL = 'محرمانه — خارج از سطح دسترسی';
 
+/** Proposal states from which Sales may see the price: Final QC has passed (Doc_H stage F). */
+export const PROPOSAL_SANCTIONED_STATES = new Set(['APPROVED', 'DELIVERED_TO_SALES', 'PRESENTED_TO_CLIENT',
+  'CLIENT_REVISION_REQUESTED', 'CLIENT_APPROVED', 'CLIENT_REJECTED']);
+
 export interface RedactionContext {
   /** Internal cost figures: declared by the unit that spends it, reviewed by Account and Finance. */
   readonly cost: boolean;
@@ -87,6 +91,16 @@ export function redactionFor(
   if (!finance) withheld.push('finance');
 
   return { cost, price, finance, withheld };
+}
+
+/**
+ * Which redaction class a field name belongs to. One rule for the PDF templates and the audit
+ * timeline, so a figure withheld on paper is withheld in the history too.
+ */
+export function classifyField(key: string): 'price' | 'cost' | null {
+  if (/(salePrice|price|margin|contractValue)/i.test(key)) return 'price';
+  if (/cost|budget|هزینه/i.test(key)) return 'cost';
+  return null;
 }
 
 /** Render a value, or the redaction notice when the caller may not see it. */

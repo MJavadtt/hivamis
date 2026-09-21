@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { app, call, closeApp, get, login, post, patch, expectOk, DEV_PASSWORD } from './helpers.js';
+import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { findActiveDemoAccounts } from '../src/lib/demo-accounts.js';
 import { env, parseTrustProxy, trustProxy } from '../src/env.js';
@@ -619,6 +619,134 @@ describe('State vocabulary is enforced by the database', () => {
        WHERE n.nspname = current_schema() AND c.conname LIKE '%\_state\_check'`;
     // 13 workflow entities + form_submissions + sla_clocks
     expect(rows.length).toBe(Object.keys(WORKFLOWS).length + 2);
+  });
+});
+
+describe('Record history is evidence', () => {
+  /**
+   * audit_events holds before/after for every mutation. Folded in order that reconstructs the
+   * record at any instant; diffed, it says who changed which field from what to what. In a
+   * dispute this is the difference between "my word against yours" and a document.
+   */
+  const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  async function leadWithHistory() {
+    const lead = expectOk(await post('/leads', T.sales, {
+      name: 'سرنخ تاریخچه', companyName: 'شرکت تاریخچه', source: 'INBOUND', estimatedValue: 1_000_000,
+    }), 'create');
+    await pause(15);
+    const afterCreate = new Date();
+    await pause(15);
+    expectOk(await patch(`/leads/${lead.id}`, T.sales, { estimatedValue: 2_500_000, contactName: 'واحد خرید' }), 'edit');
+    await pause(15);
+    const afterEdit = new Date();
+    await pause(15);
+    expectOk(await move('lead', lead.id, 'contact', T.sales), 'contact');
+    return { lead, afterCreate, afterEdit };
+  }
+
+  it('shows every change with who, when, and which fields moved from what to what', async () => {
+    const { lead } = await leadWithHistory();
+    const h = expectOk(await get(`/history/lead/${lead.id}`, T.sales), 'history');
+    expect(h.events.map((e: any) => e.action)).toEqual(['CREATE', 'UPDATE', 'STATE_TRANSITION']);
+
+    const edit = h.events[1];
+    expect(edit.actorName).toBeTruthy();
+    const value = edit.changes.find((c: any) => c.field === 'estimatedValue');
+    expect(String(value.before)).toBe('1000000');
+    expect(String(value.after)).toBe('2500000');
+    expect(edit.changes.find((c: any) => c.field === 'contactName')).toMatchObject({ before: null, after: 'واحد خرید' });
+    // Bookkeeping columns are noise, not changes.
+    expect(edit.changes.map((c: any) => c.field)).not.toContain('updatedAt');
+
+    // A transition only records the state, but the running picture still supplies "before".
+    expect(h.events[2].changes).toEqual([{ field: 'state', before: 'NEW', after: 'CONTACTED' }]);
+  });
+
+  it('reconstructs the record as it stood at any instant', async () => {
+    const { lead, afterCreate, afterEdit } = await leadWithHistory();
+    const t1 = expectOk(await get(`/history/lead/${lead.id}/at`, T.sales, { ts: afterCreate.toISOString() }), 'at t1');
+    expect(t1.known).toBe(true);
+    expect(String(t1.snapshot.estimatedValue)).toBe('1000000');
+    expect(t1.snapshot.state).toBe('NEW');
+    expect(t1.asOf.action).toBe('CREATE');
+
+    const t2 = expectOk(await get(`/history/lead/${lead.id}/at`, T.sales, { ts: afterEdit.toISOString() }), 'at t2');
+    expect(String(t2.snapshot.estimatedValue)).toBe('2500000');
+    expect(t2.snapshot.state).toBe('NEW');
+
+    const now = expectOk(await get(`/history/lead/${lead.id}/at`, T.sales, { ts: new Date().toISOString() }), 'now');
+    expect(now.snapshot.state).toBe('CONTACTED');
+    expect(String(now.snapshot.estimatedValue)).toBe('2500000');
+
+    const before = expectOk(await get(`/history/lead/${lead.id}/at`, T.sales, { ts: '2020-01-01T00:00:00Z' }), 'before');
+    expect(before.known).toBe(false);
+    expect(before.earliest).toBeTruthy();
+  });
+
+  it('diffs two instants field by field and names who acted in between', async () => {
+    const { lead, afterCreate } = await leadWithHistory();
+    const d = expectOk(await get(`/history/lead/${lead.id}/diff`, T.sales, { from: afterCreate.toISOString() }), 'diff');
+    const fields = d.changes.map((c: any) => c.field).sort();
+    expect(fields).toEqual(['contactName', 'estimatedValue', 'state']);
+    expect(d.events).toBe(2);
+    expect(d.actors.length).toBe(1);
+  });
+
+  it('keeps events about the record apart from changes to it', async () => {
+    const { lead } = await leadWithHistory();
+    // An export is recorded against the lead, with bundle metadata in `after`.
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: (await prisma.organization.findFirstOrThrow()).id,
+        action: 'EXPORT', entityType: 'lead', entityId: lead.id,
+        after: { format: 'pdf', withheld: ['cost'], included: [{ kind: 'lead' }] },
+      },
+    });
+    const h = expectOk(await get(`/history/lead/${lead.id}`, T.sales), 'history');
+    const exp = h.events.find((e: any) => e.action === 'EXPORT');
+    expect(exp.changes).toEqual([]);
+    expect(exp.details).toMatchObject({ format: 'pdf' });
+
+    const now = expectOk(await get(`/history/lead/${lead.id}/at`, T.sales, { ts: new Date().toISOString() }), 'at');
+    expect(now.snapshot).not.toHaveProperty('format');
+    expect(now.snapshot).not.toHaveProperty('included');
+    expect(now.asOf.action).toBe('STATE_TRANSITION');
+  });
+
+  it('is gated by the permission that reads the record', async () => {
+    const { lead } = await leadWithHistory();
+    expect((await get(`/history/lead/${lead.id}`, T.designer)).status).toBe(403);
+    expect((await get(`/history/lead/${lead.id}`, T.admin)).status).toBe(200);        // admin.audit
+    expect((await get(`/history/somethingElse/${lead.id}`, T.sales)).status).toBe(403);
+    expect((await get(`/history/lead/00000000-0000-4000-8000-000000000000`, T.sales)).status).toBe(404);
+  });
+
+  it('never surfaces a password hash, even to an administrator', async () => {
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    expectOk(await patch(`/users/${designer.id}`, T.admin, { jobTitle: 'مدیر هنری' }), 'edit user');
+    const h = expectOk(await get(`/history/user/${designer.id}`, T.admin), 'user history');
+    const text = JSON.stringify(h);
+    expect(text).not.toContain(designer.passwordHash);
+    expect(h.events.some((e: any) => e.changes.some((c: any) => c.field === 'jobTitle' && c.after === 'مدیر هنری'))).toBe(true);
+    const at = expectOk(await get(`/history/user/${designer.id}/at`, T.admin, { ts: new Date().toISOString() }), 'user at');
+    expect(at.snapshot).not.toHaveProperty('passwordHash');
+    expect(at.withheld).toContain('passwordHash');
+  });
+
+  it('withholds cost from a role the record hides it from, by the same rule as the PDF', async () => {
+    const { redact } = await import('../src/audit/history.js');
+    const changes = [
+      { field: 'totalCost', before: 1, after: 2 },
+      { field: 'salePrice', before: 3, after: 4 },
+      { field: 'name', before: 'a', after: 'b' },
+      { field: 'passwordHash', before: 'x', after: 'y' },
+    ];
+    const asSales = redact(changes, { cost: false, price: true, finance: false, withheld: ['cost', 'finance'] });
+    expect(asSales.find((c) => c.field === 'totalCost')).toEqual({ field: 'totalCost', before: undefined, after: undefined, withheld: 'cost' });
+    expect(asSales.find((c) => c.field === 'salePrice')).toMatchObject({ before: 3, after: 4 });
+    expect(asSales.find((c) => c.field === 'name')).toMatchObject({ before: 'a', after: 'b' });
+    expect(asSales.find((c) => c.field === 'passwordHash')).toMatchObject({ withheld: 'sensitive' });
   });
 });
 
