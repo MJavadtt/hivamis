@@ -21,6 +21,7 @@ import { ContractDetail, ContractsList, Finance } from './pages/Commercial';
 // Reports pulls in the charting library; loading it on demand keeps first paint light.
 const Reports = lazy(() => import('./pages/Reports'));
 const MyWork = lazy(() => import('./pages/MyWork'));
+const Suppliers = lazy(() => import('./pages/Suppliers'));
 
 /** Renders `element` only when the user holds `permission`; otherwise sends them home. */
 function Guarded({ permission, element }: { permission: string; element: React.ReactNode }) {
@@ -70,6 +71,8 @@ export default function App() {
         <Route path="/qc" element={<Guarded permission="qc.read" element={<Quality />} />} />
         <Route path="/changes" element={<Guarded permission="change.read" element={<ChangesList />} />} />
         <Route path="/changes/:id" element={<Guarded permission="change.read" element={<ChangeDetail />} />} />
+        <Route path="/suppliers" element={<Guarded permission="supplier.read" element={<Suppliers />} />} />
+        <Route path="/suppliers/:id" element={<Guarded permission="supplier.read" element={<Suppliers />} />} />
         <Route path="/traffic" element={<Guarded permission="traffic.read" element={<Traffic />} />} />
 
         <Route path="/contracts" element={<Guarded permission="contract.read" element={<ContractsList />} />} />

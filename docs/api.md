@@ -101,6 +101,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Invoices | `/invoices` | `finance.read` |
 | Payments | `/payments` | `finance.read` |
 | Suppliers | `/suppliers` | `supplier.read` |
+| Supplier 360 | `GET /suppliers/:id/360` — evaluations averaged per dimension with reuse rate; requests by state, on-time fulfilment (measured from the FULFILLED transition against `neededBy`), open load, average cost; a merged timeline. `GET /suppliers/suggest?departmentCode=&kind=&limit=` — candidates ranked by evidence (evaluation 50, on-time 25, reuse 15, availability 10 − 2 per open request); no history scores availability alone | `supplier.read` |
 | Outsource requests | `/outsource-requests` | `supplier.read` |
 | Allocations | `/allocations` | `resource.read` |
 | Risks / Issues / Decisions | `/risks`, `/issues`, `/decisions` | `governance.read` |

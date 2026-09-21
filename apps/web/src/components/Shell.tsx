@@ -62,6 +62,7 @@ const NAV: NavGroup[] = [
       { to: '/qc', label: 'کنترل کیفیت', icon: IconShield, permission: 'qc.read' },
       { to: '/changes', label: 'درخواست‌های تغییر', icon: IconAlert, permission: 'change.read' },
       { to: '/traffic', label: 'ترافیک و ظرفیت', icon: IconTraffic, permission: 'traffic.read' },
+      { to: '/suppliers', label: 'تأمین‌کنندگان', icon: IconUsers, permission: 'supplier.read' },
     ],
   },
   {

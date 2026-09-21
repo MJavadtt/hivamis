@@ -385,6 +385,80 @@ describe('My work — one queue', () => {
   });
 });
 
+describe('Supplier 360', () => {
+  /**
+   * Doc_H §5 asks for a freelancer database and performance management. The rows existed —
+   * suppliers, evaluations, outsource requests — and nothing aggregated them.
+   */
+  async function supplierWithHistory(name: string) {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const supplier = expectOk(await post('/suppliers', T.creative, {
+      name, kind: 'FREELANCER', departmentCode: 'CR', specialty: 'تصویرسازی', dayRate: 18_000_000,
+    }), 'create supplier');
+
+    const req = expectOk(await post('/outsource-requests', T.creative, {
+      projectId: project.id, kind: 'FREELANCER', supplierId: supplier.id, scopeOfWork: 'تصویرسازی ۶ فریم',
+      estimatedCost: 90_000_000, neededBy: new Date(Date.now() + 14 * 86_400_000).toISOString(), justification: 'ظرفیت داخلی پر است',
+    }), 'request');
+    expectOk(await move('outsourceRequest', req.id, 'submit', T.creative), 'submit');
+    expectOk(await move('outsourceRequest', req.id, 'approve', T.deputy), 'approve');
+    expectOk(await move('outsourceRequest', req.id, 'fulfil', T.creative), 'fulfil');
+
+    expectOk(await post('/forms/submissions', T.creative, {
+      formCode: 'D33_SUPPLIER_EVALUATION',
+      data: { supplierId: supplier.id, projectId: project.id, quality: '5', timeliness: '4', communication: '5', costValue: '4', wouldReuse: 'YES', comments: 'دقیق و خوش‌قول' },
+    }), 'evaluate');
+    return { supplier, project, req };
+  }
+
+  it('aggregates evaluations, fulfilment and load into one profile', async () => {
+    const { supplier, req } = await supplierWithHistory('نگار تصویرگر');
+    const p = expectOk(await get(`/suppliers/${supplier.id}/360`, T.creative), '360');
+    expect(p.supplier.name).toBe('نگار تصویرگر');
+    expect(p.evaluations).toMatchObject({ count: 1, quality: 5, timeliness: 4, overall: 4.5, reuseRate: 100 });
+    expect(p.evaluations.latest[0]).toMatchObject({ overall: 4.5, comments: 'دقیق و خوش‌قول' });
+    expect(p.evaluations.latest[0].evaluatedBy).toBeTruthy();
+    expect(p.requests).toMatchObject({ total: 1, fulfilled: 1, onTimeRate: 100, open: 0, averageCost: 90_000_000, projects: 1 });
+    expect(p.requests.byState).toEqual({ FULFILLED: 1 });
+    expect(p.timeline.map((t: any) => t.kind)).toEqual(['EVALUATION', 'REQUEST']);
+    expect(p.timeline[1].code).toBe(req.code);
+  });
+
+  it('measures on-time fulfilment from the FULFILLED transition, against neededBy', async () => {
+    const { supplier, req } = await supplierWithHistory('دیرکرد');
+    // Move the deadline into the past: the fulfilment that happened just now is now late.
+    await prisma.outsourceRequest.update({ where: { id: req.id }, data: { neededBy: new Date(Date.now() - 86_400_000) } });
+    const p = expectOk(await get(`/suppliers/${supplier.id}/360`, T.creative), '360');
+    expect(p.requests.onTimeRate).toBe(0);
+  });
+
+  it('ranks suggestions by evidence, and an unknown supplier by availability alone', async () => {
+    const { suggestionScore } = await import('../src/routes/resources.js');
+    const { supplier: proven } = await supplierWithHistory('اثبات‌شده');
+    const unknown = expectOk(await post('/suppliers', T.creative, { name: 'تازه‌وارد', kind: 'FREELANCER', departmentCode: 'CR' }), 'unknown');
+
+    const ranked = expectOk(await get('/suppliers/suggest', T.creative, { departmentCode: 'CR', kind: 'FREELANCER', limit: '20' }), 'suggest');
+    const ids = ranked.map((r: any) => r.supplier.id);
+    expect(ids.indexOf(proven.id)).toBeLessThan(ids.indexOf(unknown.id));
+    const provenRow = ranked.find((r: any) => r.supplier.id === proven.id);
+    const unknownRow = ranked.find((r: any) => r.supplier.id === unknown.id);
+    expect(provenRow.score).toBeGreaterThan(unknownRow.score);
+    expect(unknownRow.score).toBe(10);   // nothing but a free calendar
+
+    // The weights: a perfect record scores 100; two open requests cost four points.
+    expect(suggestionScore({
+      evaluations: { count: 1, quality: 5, timeliness: 5, communication: 5, costValue: 5, overall: 5, reuseRate: 100, latest: [] },
+      requests: { total: 1, byState: {}, fulfilled: 1, onTimeRate: 100, open: 0, averageCost: null, projects: 1 },
+      timeline: [],
+    })).toBe(100);
+    expect(suggestionScore({
+      evaluations: { count: 0, quality: null, timeliness: null, communication: null, costValue: null, overall: null, reuseRate: null, latest: [] },
+      requests: { total: 2, byState: {}, fulfilled: 0, onTimeRate: null, open: 2, averageCost: null, projects: 1 },
+      timeline: [],
+    })).toBe(6);
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 

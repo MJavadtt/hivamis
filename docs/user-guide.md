@@ -81,6 +81,12 @@ report that week, you get a warning on Saturday instead of the client getting no
 
 ---
 
+**Suppliers and freelancers («تأمین‌کنندگان»).** Every external partner has a page: overall
+rating and the four D33 dimensions, on-time fulfilment, whether evaluators would work with them
+again, what is currently on their plate, and a timeline of requests and evaluations. The panel at
+the top of the list ranks who to send the next request to, by that evidence — a supplier with no
+history ranks by free capacity alone, so a proven one always comes first.
+
 ## Finance
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.
