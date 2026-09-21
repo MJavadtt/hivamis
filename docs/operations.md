@@ -149,6 +149,7 @@ docker compose exec api sh -c '$PDF_BROWSER_PATH --version'
 | Failed logins | `audit_events` where `action='LOGIN_FAILED'` | Spike from one IP |
 | Permission denials | `audit_events` where `action='PERMISSION_DENIED'` | Sustained rise suggests a misassigned role |
 | Job health | API logs, `pgboss` schema | `sla:tick` not logging for >15 min |
+| Client reports | `audit_events` where `action='CLIENT_REPORT_SENT'`; API log `client status reports` every Saturday 09:00 | A week with `sent: 0` while projects are active; `unaddressed > 0` means a client company has no contact with an email |
 
 Logs are structured JSON (pino). Every request carries a `reqId` that also appears in every error
 response, so a user-reported failure maps to exactly one log line.

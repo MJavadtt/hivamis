@@ -106,6 +106,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Risks / Issues / Decisions | `/risks`, `/issues`, `/decisions` | `governance.read` |
 | Meetings | `/meetings` | `meeting.read` |
 | Status reports | `/status-reports` | `report.read` |
+| Client status report | `GET /status-reports/:id/client-preview` — the client's copy (no financial status, no internal decisions, financial figures redacted) with `omitted[]` and the primary contact it would go to; `POST /status-reports/:id/send-to-client { to? }` — renders the PDF, sends it, audits `CLIENT_REPORT_SENT` | `report.read` to preview, `project.execute` to send |
 | Feedback / Lessons | `/feedbacks`, `/lessons-learned` | `report.read` |
 | Documents | `/documents` (+ `/:id/download`) | `document.read` |
 

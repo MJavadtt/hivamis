@@ -4,6 +4,8 @@ import {
   createStatusReportSchema, createFeedbackSchema, createLessonLearnedSchema, paginationSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { badRequest, notFound } from '../lib/errors.js';
+import { buildClientStatusReport, clientAddressFor, sendClientStatusReport } from '../reports/client-status.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { nextCode } from '../lib/codes.js';
@@ -110,6 +112,37 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
       return projectId ? { projectId } : {};
     },
     listInclude: { project: { select: { id: true, code: true, name: true } } },
+  });
+
+  /** What the client will read: the report built for a reader outside the organisation. */
+  app.get('/status-reports/:id/client-preview', {
+    preHandler: [app.authenticate, app.requirePermissions('report.read')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const report = await prisma.statusReport.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!report) throw notFound('گزارش وضعیت');
+    const built = await buildClientStatusReport(prisma, id);
+    const address = await clientAddressFor(prisma, report.projectId);
+    return reply.send({ html: built.html, omitted: built.omitted, to: address?.email ?? null, contact: address?.name ?? null });
+  });
+
+  /**
+   * Send the report to the client now, with the PDF attached. Account and PMO own this step
+   * (project.execute), the same permission that writes the report.
+   */
+  app.post('/status-reports/:id/send-to-client', {
+    preHandler: [app.authenticate, app.requirePermissions('project.execute')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { to } = (req.body ?? {}) as { to?: string };
+    const report = await prisma.statusReport.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!report) throw notFound('گزارش وضعیت');
+    if (to !== undefined && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+      throw badRequest('INVALID_EMAIL', 'نشانی ایمیل معتبر نیست', { to });
+    }
+    return sendClientStatusReport(id, { actorId: actor.id, to });
   });
 
   /** Doc_H §J — customer feedback also satisfies a closure condition. */

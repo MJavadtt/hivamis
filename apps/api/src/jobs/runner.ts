@@ -4,6 +4,7 @@ import { env, mailEnabled } from '../env.js';
 import { prisma } from '../db.js';
 import { tickSlaClocks } from '../sla/engine.js';
 import { getTransport } from '../mail/transport.js';
+import { runWeekly } from '../reports/client-status.js';
 
 /**
  * Background jobs run on pg-boss — a Postgres-backed queue. Chosen over Redis+BullMQ because the
@@ -25,7 +26,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -37,8 +38,11 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.work('mail:send', async ([job]: { data: MailJob }[]) => {
     const transport = getTransport();
     if (!transport) return; // mail turned off between enqueue and delivery
-    const { to, subject, html, text } = job.data;
-    await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text });
+    const { to, subject, html, text, attachments } = job.data;
+    await transport.sendMail({
+      from: env.SMTP_FROM, to, subject, html, text,
+      attachments: attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.contentBase64, 'base64') })),
+    });
   });
 
   await boss.work('sla:tick', async () => {
@@ -75,15 +79,27 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     logger.info({ users: byUser.size, tasks: overdue.length }, 'overdue digest sent');
   });
 
-  // Every 5 minutes: advance SLA clocks. Daily at 08:00: overdue digest.
+  // Doc_H §14: the client gets a status report every week. Saturday 09:00 is the start of the
+  // Iranian working week, so the report covers the week just closed.
+  await boss.work('report:client-weekly', async () => {
+    const result = await runWeekly();
+    logger.info(result, 'client status reports');
+  });
+
+  // Every 5 minutes: advance SLA clocks. Daily at 08:00: overdue digest. Saturday 09:00: reports.
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
+  await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
 
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00)');
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00)');
   return boss;
 }
 
-export interface MailJob { to: string; subject: string; html: string; text: string }
+export interface MailJob {
+  to: string; subject: string; html: string; text: string;
+  /** Base64 because the job is JSON in the queue; decoded at delivery. */
+  attachments?: { filename: string; contentBase64: string }[];
+}
 
 /**
  * Hands a message to the queue. A no-op when mail is off or the runner has not started, so

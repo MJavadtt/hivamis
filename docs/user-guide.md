@@ -58,6 +58,12 @@ Doc_H §2 separates these loops, and the permission model enforces it.
 
 ---
 
+**The weekly client report.** Write the status report as usual; every Saturday morning the
+system sends the week's report to the client's primary contact as a PDF built for them — the
+financial status and internal decisions are left out, and the strip above the preview says so.
+*ارسال برای مشتری* on the project page previews that copy and sends it now. If you did not file a
+report that week, you get a warning on Saturday instead of the client getting nothing.
+
 ## Execution units (Strategy, Creative, Media, Digital)
 
 **Your loop: accept → plan → execute → unit QC → declare cost → deliver.**

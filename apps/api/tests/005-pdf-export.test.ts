@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { app, call, closeApp, get, login } from './helpers.js';
+import { app, call, closeApp, get, login, post, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 
 /**
@@ -380,4 +380,94 @@ describe('PDF engine hardening', () => {
     }
     expect(results.filter((r) => r.status === 200).length).toBeGreaterThanOrEqual(1);
   }, 120_000);
+});
+
+describe('Client status reports', () => {
+  /**
+   * Doc_H §14 makes the weekly report mandatory; nothing delivered it. The client's copy is
+   * built for a reader outside the organisation, sent with the PDF attached, recorded, and
+   * scheduled — and whoever owes a report this week is told so.
+   */
+  const SECRET_FINANCE = 'حاشیه سود این ماه ۴۲٪ است — محرمانه';
+  const SECRET_DECISION = 'باید دربارهٔ جایگزینی فریلنسر تصمیم بگیریم';
+
+  async function freshReport() {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    return expectOk(await post('/status-reports', T.accountManager, {
+      projectId: project.id, period: 'هفتهٔ آزمون', progress: 'پیشرفت ۶۰٪ — طراحی صفحات کلیدی تحویل شد',
+      completed: 'صفحهٔ اصلی', inProgress: 'صفحات داخلی', next: 'تست کاربری',
+      timelineStatus: 'مطابق برنامه', risks: 'تأخیر احتمالی در تأیید مشتری', issues: 'هیچ',
+      decisionsNeeded: SECRET_DECISION, financialStatus: SECRET_FINANCE,
+    }), 'create report');
+  }
+
+  it('builds the client’s copy without financial status or internal decisions', async () => {
+    const { buildClientStatusReport } = await import('../src/reports/client-status.js');
+    const report = await freshReport();
+    const built = await buildClientStatusReport(prisma, report.id);
+    expect(built.html).toContain('پیشرفت ۶۰٪');
+    expect(built.html).toContain('تأخیر احتمالی در تأیید مشتری');
+    expect(built.html).not.toContain(SECRET_FINANCE);
+    expect(built.html).not.toContain(SECRET_DECISION);
+    expect(built.html).not.toContain('وضعیت مالی');
+    expect(built.omitted).toEqual(expect.arrayContaining(['financialStatus', 'decisionsNeeded', 'redaction:cost', 'redaction:price', 'redaction:finance']));
+    expect(built.companyName).toBeTruthy();
+
+    const preview = expectOk(await get(`/status-reports/${report.id}/client-preview`, T.accountManager), 'preview');
+    expect(preview.to).toContain('@');
+    expect(preview.html).not.toContain(SECRET_FINANCE);
+  });
+
+  it('sends the report with a real PDF attached, to the client’s primary contact, and records it', async () => {
+    const { sendClientStatusReport } = await import('../src/reports/client-status.js');
+    const report = await freshReport();
+    const outbox: any[] = [];
+    const result = await sendClientStatusReport(report.id, { actorId: null, deliver: async (job) => { outbox.push(job); } });
+
+    expect(outbox).toHaveLength(1);
+    const mail = outbox[0];
+    expect(mail.to).toBe(result.to);
+    expect(mail.subject).toContain('گزارش وضعیت پروژه');
+    expect(mail.attachments).toHaveLength(1);
+    const pdf = Buffer.from(mail.attachments[0].contentBase64, 'base64');
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.length).toBe(result.bytes);
+    expect(mail.attachments[0].filename).toMatch(/^RPT-\d+\.pdf$/);
+
+    const audited = await prisma.auditEvent.findFirst({ where: { action: 'CLIENT_REPORT_SENT', entityId: report.id } });
+    expect((audited?.after as any).to).toBe(result.to);
+    expect((audited?.after as any).omitted).toContain('financialStatus');
+  }, 60_000);
+
+  it('exposes sending to Account and PMO, with an override address that must be valid', async () => {
+    const report = await freshReport();
+    expect((await post(`/status-reports/${report.id}/send-to-client`, T.sales, {})).status).toBe(403);
+    expect((await post(`/status-reports/${report.id}/send-to-client`, T.accountManager, { to: 'not-an-address' })).status).toBe(400);
+    const sent = expectOk(await post(`/status-reports/${report.id}/send-to-client`, T.accountManager, { to: 'client@example.com' }), 'send');
+    expect(sent).toMatchObject({ to: 'client@example.com' });
+    expect(sent.bytes).toBeGreaterThan(5_000);
+  }, 60_000);
+
+  it('plans the weekly run: reports go out, and whoever owes one this week is told', async () => {
+    const { planWeeklyRun, runWeekly } = await import('../src/reports/client-status.js');
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const silent = await prisma.project.create({
+      data: { organizationId: org.id, code: `PRJ-SILENT-${Date.now()}`, name: 'پروژهٔ بی‌گزارش', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'ACTIVE' },
+    });
+    await freshReport();
+
+    const plan = await planWeeklyRun(prisma);
+    expect(plan.send.some((s) => s.projectCode === 'PRJ-000002')).toBe(true);
+    expect(plan.missing.some((m) => m.projectId === silent.id)).toBe(true);
+
+    const outbox: any[] = [];
+    const before = await prisma.notification.count({ where: { userId: pmo.id, kind: 'STATUS_REPORT_MISSING' } });
+    const result = await runWeekly(new Date(), async (job) => { outbox.push(job); });
+    expect(result.sent).toBeGreaterThanOrEqual(1);
+    expect(result.missing).toBeGreaterThanOrEqual(1);
+    expect(outbox.length).toBe(result.sent);
+    expect(await prisma.notification.count({ where: { userId: pmo.id, kind: 'STATUS_REPORT_MISSING' } })).toBeGreaterThan(before);
+  }, 90_000);
 });

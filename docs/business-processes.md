@@ -134,6 +134,13 @@ One pause is declared by the state machines themselves: a work order in `CLARIFI
 pauses the unit's acceptance clock, because the unit is waiting on Account, whose own
 clarification clock is running meanwhile. It resumes when the clarification is provided.
 
+**Weekly client report (Doc_H §14).** Every Saturday at 09:00 the system sends each active
+project's latest status report of the week to the client company's primary contact, as a PDF
+built for a reader outside the organisation — no financial status, no internal decisions, and
+every cost or price figure withheld. An active project with no report that week produces a
+warning to its account owner instead; a project whose client has no contact email is counted
+as unaddressed in the job's log. Account can also preview and send at any time from the project.
+
 ## Organisational model
 
 Ten units, codes exactly as Doc_H slide 30 defines them:

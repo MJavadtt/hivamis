@@ -9,6 +9,7 @@ import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
+import { ClientReportButton } from '../components/ClientReportButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -307,7 +308,8 @@ function Overview({ data }: { data: Project360 }) {
 
         <SlaClocksCard entityType="project" entityId={p.id} />
 
-        <Card title="آخرین گزارش وضعیت">
+        <Card title="آخرین گزارش وضعیت"
+          action={data.statusReports.length ? <ClientReportButton reportId={data.statusReports[0].id} /> : undefined}>
           {!data.statusReports.length ? <EmptyState title="گزارشی ثبت نشده" /> : (
             <div className="space-y-2 px-4 py-3 text-sm">
               <p className="text-xs text-ink-500">دوره: {data.statusReports[0].period}</p>

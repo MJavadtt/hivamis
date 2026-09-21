@@ -20,8 +20,8 @@ Status vocabulary, and it is used strictly:
 | 2 | Guard preflight — "why can't I?" before the click | — | Verified | 196526c |
 | 3 | Time-travel audit and state reconstruction | — | Verified | f5e545a |
 | 16 | Form versioning and submission pinning | — | Verified | 832ae49 |
-| 41 | Unified work inbox (My Work) | — | Verified | next |
-| 37 | Scheduled, branded client status report | — | Pending | |
+| 41 | Unified work inbox (My Work) | — | Verified | 9ceda83 |
+| 37 | Scheduled, branded client status report | — | Verified | next |
 | 45 | Supplier and freelancer 360 | — | Pending | |
 | 30 | Budget vs actual at work-order level | — | Pending | |
 | 20 | Bulk import / export per form | 16 | Pending | |
