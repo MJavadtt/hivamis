@@ -583,6 +583,83 @@ describe('Process mining and conformance', () => {
   });
 });
 
+describe('The rule lab', () => {
+  /**
+   * Regression testing for policy: propose a change, replay history under it, and read which
+   * past moves would now be blocked and which past blocked attempts would now pass. Nothing is
+   * written.
+   */
+  it('records a guard saying no, with the guard that said it', async () => {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION' } });
+    const before = await prisma.auditEvent.count({ where: { action: 'TRANSITION_BLOCKED', entityId: project.id } });
+    expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
+    const blocked = await prisma.auditEvent.findFirst({ where: { action: 'TRANSITION_BLOCKED', entityId: project.id }, orderBy: { createdAt: 'desc' } });
+    expect(await prisma.auditEvent.count({ where: { action: 'TRANSITION_BLOCKED', entityId: project.id } })).toBe(before + 1);
+    expect(blocked!.after).toMatchObject({ action: 'authorize', guard: 'project.hasValidAuthorizationBasis' });
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: project.id } })).state).toBe('PENDING_AUTHORIZATION');
+  });
+
+  it('replays history under a tightened rule and names what would now be blocked — writing nothing', async () => {
+    // Leads that were converted by Sales.
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ آزمایشگاه', companyName: 'شرکت آزمایشگاه', source: 'INBOUND' }), 'lead');
+    expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'c');
+    expectOk(await move('lead', lead.id, 'qualify', tokens.sales), 'q');
+    expectOk(await move('lead', lead.id, 'convert', tokens.sales), 'v');
+    const transitions = await prisma.stateTransition.count();
+    const audits = await prisma.auditEvent.count();
+
+    // Proposal: converting a lead needs a permission Sales reps do not hold.
+    const r = expectOk(await post('/rules/lab', tokens.admin, {
+      edits: [{ kind: 'transition', entity: 'lead', action: 'convert', permission: 'pricing.approve' }],
+    }), 'lab');
+    expect(r.replayed).toBeGreaterThan(0);
+    const hit = r.wouldBlock.find((f: any) => f.entityId === lead.id && f.action === 'convert');
+    expect(hit).toMatchObject({ because: 'PERMISSION' });
+    expect(hit.detail).toContain('pricing.approve');
+    expect(r.summary.byEntity.lead.wouldBlock).toBeGreaterThanOrEqual(1);
+    expect(r.assumptions.length).toBe(3);
+    expect(r.invalid).toEqual([]);
+    expect(r.candidate).toBeUndefined();
+
+    // A rule that adds a guard is judged on the record as it stands today.
+    const g = expectOk(await post('/rules/lab', tokens.admin, {
+      edits: [{ kind: 'transition', entity: 'lead', action: 'convert', guards: ['brief.isComplete'] }],
+    }), 'lab guard');
+    expect(g.wouldBlock.find((f: any) => f.entityId === lead.id)).toMatchObject({ because: 'GUARD_ADDED' });
+
+    // A role edit is replayed across every entity.
+    const role = expectOk(await post('/rules/lab', tokens.admin, {
+      edits: [{ kind: 'role', role: 'SALES_REP', remove: ['crm.lead.convert'] }],
+    }), 'lab role');
+    expect(role.wouldBlock.some((f: any) => f.entityId === lead.id && f.because === 'PERMISSION')).toBe(true);
+
+    expect(await prisma.stateTransition.count()).toBe(transitions);
+    expect(await prisma.auditEvent.count()).toBe(audits);
+    expect((await post('/rules/lab', tokens.sales, { edits: [{ kind: 'role', role: 'CEO', add: [] }] })).status).toBe(403);
+    expect((await post('/rules/lab', tokens.admin, { edits: [] })).status).toBe(400);
+    expect(expectOk(await post('/rules/lab', tokens.admin, { edits: [{ kind: 'transition', entity: 'lead', action: 'teleport' }] }), 'invalid').invalid[0]).toContain('teleport');
+  });
+
+  it('credits a relaxed rule with the attempts it would have let through', async () => {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION' } });
+    expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
+    expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
+
+    const r = expectOk(await post('/rules/lab', tokens.admin, {
+      edits: [{ kind: 'transition', entity: 'project', action: 'authorize', guards: [] }],
+    }), 'lab');
+    expect(r.blockedAttempts).toBeGreaterThanOrEqual(2);
+    const allowed = r.wouldAllow.filter((f: any) => f.entityId === project.id);
+    expect(allowed.length).toBeGreaterThanOrEqual(2);
+    expect(allowed[0]).toMatchObject({ because: 'GUARD_REMOVED', action: 'authorize' });
+    expect(allowed[0].detail).toContain('project.hasValidAuthorizationBasis');
+    expect(r.summary.byEntity.project.wouldAllow).toBeGreaterThanOrEqual(2);
+
+    const vocab = expectOk(await get('/rules/lab/vocabulary', tokens.admin), 'vocabulary');
+    expect(vocab.guards.find((g: any) => g.id === 'project.hasValidAuthorizationBasis').labelFa).toBeTruthy();
+  });
+});
+
 describe('Workflow engine integrity', () => {
   it('rejects an undeclared transition with the list of legal actions', async () => {
     const project = await prisma.project.findFirst({ where: { state: 'ACTIVE' } });

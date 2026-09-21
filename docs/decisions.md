@@ -463,3 +463,29 @@ The Rule Lab (roadmap #5) can replay history under a chosen version because the 
 complete. The `note` on a version is optional today; the seed and the boot leave it empty, and a
 future rule editor should fill it.
 
+---
+
+## ADR-021 — Policy changes are regression-tested against history before they are made
+
+**Decision.** `/rules/lab` takes proposed edits to the rules — a transition's guards or required
+permission, a role's grants — applies them to a copy of the running rule sets, and replays the
+transition log under the copy. It reports the past moves the candidate would have refused and,
+for a guard the candidate drops, the past blocked attempts it would have let through. Nothing is
+written. The blocked attempts come from `TRANSITION_BLOCKED` audit rows, which the engine now
+writes whenever a guard refuses a move, naming the guard.
+
+**Rationale.** A rule change in an organisation is usually argued from anecdote — "Account QC
+slows everything down" — and decided without evidence, then discovered to have consequences.
+Because the rules are data (ADR-003) and the log is complete, the evidence is available: how many
+of last quarter's approvals would have failed, how many attempts died on the rule being loosened.
+That is the difference between changing a policy and guessing.
+
+**What the lab states rather than hides.** Permissions are replayed against actors' *current*
+roles, because roles at the time are not recorded. A guard the candidate adds is evaluated
+against the record *as it stands today*. Cascaded transitions are not replayed. These three
+assumptions are returned with every result, and the UI prints them under the numbers.
+
+**Consequences.** `TRANSITION_BLOCKED` is also a friction log in its own right: where people push
+against the rules, by guard, over time. The rule editor of the future (roadmap #47) should run the
+lab before publishing — the shape is ready for that.
+

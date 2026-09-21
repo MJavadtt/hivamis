@@ -138,6 +138,12 @@ laid against the process as declared. Three things to look at: the declared path
 the loops (returns, rework, rejections) and where the waiting concentrates. This is the report
 that says "the process you wrote and the process you run part ways here".
 
+**Trying a rule before changing it («آزمایشگاه قانون» under Admin).** Untick a guard on a
+transition, change its required permission, or add or remove a permission on a role — and run it
+against the history. You get the past moves that would now be blocked and the past blocked
+attempts that would now go through, each with a date and a reason, plus the assumptions the
+simulation makes. Nothing changes; the numbers are the argument for or against changing it.
+
 **Working calendars («تقویم کاری» under Admin).** Each unit can keep its own working days and
 hours — a production unit that works Thursdays, a shift unit with different hours — and each
 person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in

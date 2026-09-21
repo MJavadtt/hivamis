@@ -189,6 +189,8 @@ Each requires both `ai.use` and the underlying data permission.
 | `GET /rules/at?ts=` | `admin.audit` — which version of each kind was in force at an instant |
 | `GET /rules/diff?kind=&from=&to=` | `admin.audit` — what changed between two versions, as Persian lines (transitions added/removed, a guard or permission changed, a role gaining or losing a permission, an SLA duration moved); defaults to the last two |
 | `GET /rules/for-transition/:id` | `admin.audit` — the rule versions a given transition was allowed under |
+| `POST /rules/lab` `{ edits[], since?, limit? }` | `admin.audit` — replay history under proposed edits (`transition`: guards / permission / requiresReason; `role`: add / remove permissions). Returns `wouldBlock` (past transitions the candidate would refuse: ILLEGAL, PERMISSION, GUARD_ADDED) and `wouldAllow` (past `TRANSITION_BLOCKED` attempts a removed guard would let through), per-entity counts, and the assumptions it makes. Writes nothing |
+| `GET /rules/lab/vocabulary` | `admin.audit` — every guard id with its label, for the editor |
 | `GET /sla-policies`, `PATCH /sla-policies/:code` | `admin.settings` for writes |
 | `GET /organization`, `PATCH /organization` | `admin.settings` for writes |
 | `GET /audit-events` | `admin.audit` |

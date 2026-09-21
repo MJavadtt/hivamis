@@ -511,17 +511,17 @@ export async function runGuards(
   guardIds: readonly string[] | undefined,
   ctx: GuardContext,
   waivers: readonly ActiveWaiver[] = [],
-): Promise<GuardResult & { usedWaivers: ActiveWaiver[] }> {
+): Promise<GuardResult & { usedWaivers: ActiveWaiver[]; guard?: string }> {
   const usedWaivers: ActiveWaiver[] = [];
   for (const gid of guardIds ?? []) {
     const guard = GUARDS[gid];
     if (!guard) {
-      return { ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.`, usedWaivers };
+      return { ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.`, usedWaivers, guard: gid };
     }
     const result = await guard(ctx);
     if (!result.ok) {
       const waiver = waivers.find((w) => w.guard === gid);
-      if (!waiver) return { ...result, usedWaivers };
+      if (!waiver) return { ...result, usedWaivers, guard: gid };
       usedWaivers.push(waiver);
     }
   }

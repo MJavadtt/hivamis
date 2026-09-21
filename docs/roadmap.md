@@ -29,8 +29,8 @@ Status vocabulary, and it is used strictly:
 | 6 | Time-boxed delegation | — | Verified | 2b4ac78 |
 | 7 | Governed waiver | — | Verified | f0d1ef1 |
 | 4 | Effective-dated rule sets | — | Verified | e73d4dc |
-| 1 | Process mining and conformance | — | Verified | next |
-| 5 | Rule lab — replay history under a changed policy | 1, 4 | Pending | |
+| 1 | Process mining and conformance | — | Verified | fbc8a47 |
+| 5 | Rule lab — replay history under a changed policy | 1, 4 | Verified | next |
 | 14 | Time logging and cost accuracy | — | Pending | |
 | 10 | Critical path and Gantt | 13 | Pending | |
 | 11 | Monte Carlo delivery forecast | 13, 14 | Pending | |

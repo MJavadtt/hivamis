@@ -3,6 +3,8 @@ import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { RULE_KINDS, RULE_KIND_LABEL, diffRuleSets, rulesAt, type RuleKind } from '../workflow/rules.js';
+import { runLab, ALL_GUARD_IDS, type LabEdit } from '../workflow/lab.js';
+import { GUARD_LABELS } from '../workflow/guards.js';
 
 /**
  * The rules as they stood at any time (roadmap #4). Read-only: versions come from what the
@@ -51,6 +53,29 @@ const ruleRoutes: FastifyPluginAsync = async (app) => {
     if (!a) return { kind, from: null, to: b.version, changes: [], note: 'تنها یک نسخه ثبت شده است' };
     return { kind, from: a.version, to: b.version, effectiveFrom: b.effectiveFrom, changes: diffRuleSets(kind as RuleKind, a.snapshot, b.snapshot) };
   });
+
+  /**
+   * The rule lab (roadmap #5): replay history under proposed edits. Nothing is written. Same gate
+   * as reading the audit trail — the replay reads all of it.
+   */
+  app.post('/rules/lab', gate, async (req) => {
+    const actor = actorFrom(req);
+    const body = (req.body ?? {}) as { edits?: LabEdit[]; since?: string; limit?: number };
+    if (!Array.isArray(body.edits) || body.edits.length === 0) throw badRequest('EDITS_REQUIRED', 'دست‌کم یک تغییر پیشنهادی لازم است');
+    if (body.edits.length > 20) throw badRequest('TOO_MANY_EDITS', 'حداکثر ۲۰ تغییر در هر شبیه‌سازی');
+    const since = body.since ? new Date(body.since) : undefined;
+    if (since && Number.isNaN(since.getTime())) throw badRequest('INVALID_RANGE', 'تاریخ شروع معتبر نیست');
+    const result = await runLab(prisma, actor.organizationId, { edits: body.edits, since, limit: body.limit });
+    // The candidate snapshot is large and the UI does not need it back.
+    const { candidate, ...rest } = result;
+    void candidate;
+    return rest;
+  });
+
+  /** The vocabulary the lab's editor needs: every guard with its label. */
+  app.get('/rules/lab/vocabulary', gate, async () => ({
+    guards: ALL_GUARD_IDS.map((id) => ({ id, labelFa: GUARD_LABELS[id] ?? id })),
+  }));
 
   /** The rules a given transition was allowed under. */
   app.get('/rules/for-transition/:id', gate, async (req) => {

@@ -73,7 +73,22 @@ export interface TransitionOutcome {
  * than merely documented.
  */
 export async function transition(input: TransitionInput): Promise<TransitionOutcome> {
-  return prisma.$transaction((tx) => transitionWithin(tx, input), { timeout: 20_000 });
+  try {
+    return await prisma.$transaction((tx) => transitionWithin(tx, input), { timeout: 20_000 });
+  } catch (e) {
+    // A guard saying no is a fact about the process — where people push against the rules —
+    // and the rule lab (#5) needs it to say what a relaxed rule would have let through. The
+    // transaction has rolled back, so this is written on its own.
+    if (e instanceof GovernanceError) {
+      await audit({
+        organizationId: input.actor.organizationId, actorId: input.actor.id, action: 'TRANSITION_BLOCKED',
+        entityType: input.entity, entityId: input.id,
+        after: { action: input.action, rule: e.rule, guard: (e.details as { guard?: string } | undefined)?.guard ?? null, messageFa: e.message },
+        ipAddress: input.actor.ipAddress, requestId: input.actor.requestId,
+      }).catch(() => undefined);
+    }
+    throw e;
+  }
 }
 
 /**
@@ -131,7 +146,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       throw new GovernanceError(
         guardResult.rule ?? 'unknown',
         guardResult.messageFa ?? 'این عملیات با قوانین حاکم بر فرآیند مغایرت دارد.',
-        guardResult.details,
+        { ...(guardResult.details as object ?? {}), guard: guardResult.guard ?? null },
       );
     }
     // A waiver is spent by the transition it let through, in the same transaction, so it can
