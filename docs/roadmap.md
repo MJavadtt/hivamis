@@ -22,8 +22,8 @@ Status vocabulary, and it is used strictly:
 | 16 | Form versioning and submission pinning | — | Verified | 832ae49 |
 | 41 | Unified work inbox (My Work) | — | Verified | 9ceda83 |
 | 37 | Scheduled, branded client status report | — | Verified | a677ebd |
-| 45 | Supplier and freelancer 360 | — | Verified | next |
-| 30 | Budget vs actual at work-order level | — | Pending | |
+| 45 | Supplier and freelancer 360 | — | Verified | e83381d |
+| 30 | Budget vs actual at work-order level | — | Verified | next |
 | 20 | Bulk import / export per form | 16 | Pending | |
 | 13 | Calendars per unit and per person | — | Pending | |
 | 6 | Time-boxed delegation | — | Pending | |

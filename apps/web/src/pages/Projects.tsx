@@ -10,6 +10,7 @@ import { PdfBundleButton } from '../components/PdfBundleButton';
 import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
 import { ClientReportButton } from '../components/ClientReportButton';
+import { BudgetByOrder } from '../components/BudgetByOrder';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -532,6 +533,8 @@ function FinanceTab({ finance, project }: { finance: NonNullable<Project360['fin
           <ProgressBar value={budgetUsed} tone={budgetUsed > 100 ? 'danger' : budgetUsed > 85 ? 'warning' : 'success'} />
         </div>
       </Card>
+
+      <BudgetByOrder projectId={project.id} />
 
       <Card title="اسناد مالی">
         {!finance.invoices.length ? <EmptyState title="سند مالی صادر نشده" /> : (

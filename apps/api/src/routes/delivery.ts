@@ -14,6 +14,7 @@ import { nextCode } from '../lib/codes.js';
 import { briefCompleteness } from '../workflow/guards.js';
 import { allowedFor } from '../workflow/engine.js';
 import { startSla } from '../sla/engine.js';
+import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -486,7 +487,20 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
         data: { totalCost: Number(agg._sum.internalCost ?? 0) + Number(agg._sum.externalCost ?? 0) },
       });
     }
-    return reply.code(201).send(declaration);
+    // Budget control happens here, while the unit can still act — not in the monthly report.
+    const budget = await checkWorkOrderBudget(prisma, id, actor.id);
+    return reply.code(201).send({ ...declaration, budget });
+  });
+
+  /** Budget against declared cost, per work order and per unit — where control is possible. */
+  app.get('/projects/:id/budget', {
+    preHandler: [app.authenticate, app.requirePermissions('project.read', 'pricing.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    return projectBudget(prisma, id);
   });
 
   /* ── Tasks ───────────────────────────────────────────────────────────── */

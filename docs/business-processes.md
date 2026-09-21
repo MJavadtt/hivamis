@@ -134,6 +134,12 @@ One pause is declared by the state machines themselves: a work order in `CLARIFI
 pauses the unit's acceptance clock, because the unit is waiting on Account, whose own
 clarification clock is running meanwhile. It resumes when the clarification is provided.
 
+**Budget control at the order (Doc_H §12, §C).** Every work order carries a budget and every
+cost declaration names its order, so the two are compared the moment a declaration lands. At
+90% of budget the account owner and the declarer are warned; above 100% the warning is
+critical. The project figure still exists, but it moves too late to act on — the unit figure is
+where someone can still rescope. `GET /projects/:id/budget` shows every order and every unit.
+
 **Weekly client report (Doc_H §14).** Every Saturday at 09:00 the system sends each active
 project's latest status report of the week to the client company's primary contact, as a PDF
 built for a reader outside the organisation — no financial status, no internal decisions, and

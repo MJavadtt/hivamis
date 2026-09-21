@@ -459,6 +459,78 @@ describe('Supplier 360', () => {
   });
 });
 
+describe('Budget against actual, per work order', () => {
+  /**
+   * A project overrun is the sum of unit overruns, and the project figure moves too late to
+   * act on. Each declaration is checked against its own order's budget as it lands.
+   */
+  async function orderWithBudget(budget: number) {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const wo = expectOk(await post('/work-orders', T.accountManager, {
+      projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش با بودجه',
+      scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
+      deadline: new Date(Date.now() + 10 * 86_400_000).toISOString(), ownerId: creative.id, budget, priority: 'NORMAL',
+    }), 'create');
+    return { project, wo, creative, accountOwnerId: project.accountOwnerId };
+  }
+  const declare = (id: string, internal: number, external = 0) =>
+    post(`/work-orders/${id}/cost`, T.creative, {
+      departmentCode: 'CR', internalCost: internal, externalCost: external,
+      items: [{ description: 'کار', quantity: 1, unitCost: internal + external }],
+    });
+
+  it('warns the account owner and the declarer the moment an order nears or crosses its budget', async () => {
+    const { wo, accountOwnerId } = await orderWithBudget(100_000_000);
+    const before = await prisma.notification.count({ where: { userId: accountOwnerId!, kind: 'BUDGET_OVERRUN' } });
+
+    const first = expectOk(await declare(wo.id, 50_000_000), 'first');
+    expect(first.budget).toMatchObject({ status: 'UNDER', budget: 100_000_000, declared: 50_000_000, notified: [] });
+
+    const second = expectOk(await declare(wo.id, 40_000_000, 5_000_000), 'second');   // 95%
+    expect(second.budget).toMatchObject({ status: 'NEAR', declared: 95_000_000 });
+    expect(second.budget.notified).toContain(accountOwnerId);
+    const near = await prisma.notification.findFirst({ where: { userId: accountOwnerId!, kind: 'BUDGET_OVERRUN' }, orderBy: { createdAt: 'desc' } });
+    expect(near!.severity).toBe('WARNING');
+    expect(near!.title).toContain('نزدیک به سقف بودجه');
+
+    const third = expectOk(await declare(wo.id, 20_000_000), 'third');               // 115%
+    expect(third.budget.status).toBe('OVER');
+    const over = await prisma.notification.findFirst({ where: { userId: accountOwnerId!, kind: 'BUDGET_OVERRUN' }, orderBy: { createdAt: 'desc' } });
+    expect(over!.severity).toBe('CRITICAL');
+    expect(over!.title).toContain('عبور از بودجه');
+    expect(over!.entityId).toBe(wo.id);
+    expect(await prisma.notification.count({ where: { userId: accountOwnerId!, kind: 'BUDGET_OVERRUN' } })).toBe(before + 2);
+  });
+
+  it('reports every order of the project against its budget, rolled up per unit', async () => {
+    const { project, wo } = await orderWithBudget(80_000_000);
+    expectOk(await declare(wo.id, 90_000_000), 'over');
+    const report = expectOk(await get(`/projects/${project.id}/budget`, T.accountManager), 'budget');
+
+    const row = report.workOrders.find((w: any) => w.workOrderId === wo.id);
+    expect(row).toMatchObject({ code: wo.code, departmentCode: 'CR', budget: 80_000_000, declared: 90_000_000, variance: -10_000_000, variancePercent: 12.5, status: 'OVER', declarations: 1 });
+    const cr = report.units.find((u: any) => u.departmentCode === 'CR');
+    expect(cr.orders).toBeGreaterThanOrEqual(1);
+    expect(cr.declared).toBeGreaterThanOrEqual(90_000_000);
+    expect(report.project.allocated).toBeGreaterThanOrEqual(80_000_000);
+    expect(report.project.declared).toBeGreaterThanOrEqual(90_000_000);
+    expect(report.thresholds.near).toBe(0.9);
+    // Doc_H §12: Sales never sees cost.
+    expect((await get(`/projects/${project.id}/budget`, T.sales)).status).toBe(403);
+  });
+
+  it('classifies without a budget honestly', async () => {
+    const { statusOf } = await import('../src/reports/budget.js');
+    expect(statusOf(null, 5)).toBe('NO_BUDGET');
+    expect(statusOf(0, 0)).toBe('NO_BUDGET');
+    expect(statusOf(100, 89.99)).toBe('UNDER');
+    expect(statusOf(100, 90)).toBe('NEAR');
+    expect(statusOf(100, 100)).toBe('NEAR');
+    expect(statusOf(100, 100.01)).toBe('OVER');
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 

@@ -115,7 +115,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 
 | Endpoint | Permission | Doc_H rule |
 |---|---|---|
-| `POST /work-orders/:id/cost` | `pricing.declare_cost` | §12 — units declare cost only |
+| `POST /work-orders/:id/cost` | `pricing.declare_cost` | §12 — units declare cost only — the response carries `budget: { status, budget, declared, notified }`; NEAR (≥90%) and OVER notify the account owner and the declarer at once |
 | `POST /proposals/:id/costs` | `pricing.declare_cost` | §12 |
 | `POST /proposals/:id/pricing` | `pricing.set_price` | §12 — sets price; clears any prior approval |
 | `POST /proposals/:id/pricing/approve` | `pricing.approve` | §12 — must be a different person |
