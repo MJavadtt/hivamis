@@ -6,9 +6,12 @@ import {
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
-import { badRequest, notFound } from '../lib/errors.js';
+import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
+import { pauseSla, resumeSla, loadCalendar } from '../sla/engine.js';
+import { businessHoursBetween } from '../lib/business-calendar.js';
+import { SLA_PAUSE_KINDS, type SlaPauseKind } from '@hiva/contracts';
 
 const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── Users (read is broad; write is admin-only) ──────────────────────── */
@@ -324,16 +327,94 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── SLA clocks ──────────────────────────────────────────────────────── */
   app.get('/sla-clocks', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
-    const { state, entityType, mine } = req.query as Record<string, string | undefined>;
-    return prisma.slaClock.findMany({
+    const { state, entityType, entityId, mine } = req.query as Record<string, string | undefined>;
+    const clocks = await prisma.slaClock.findMany({
       where: {
         organizationId: actor.organizationId,
-        ...(state ? { state } : { state: { in: ['RUNNING', 'AT_RISK', 'BREACHED'] } }),
+        // Default is the open ones; a record page wants its full history, hence ALL.
+        ...(state === 'ALL' ? {} : state ? { state } : { state: { in: ['RUNNING', 'AT_RISK', 'PAUSED', 'BREACHED'] } }),
         ...(entityType ? { entityType } : {}),
+        ...(entityId ? { entityId } : {}),
         ...(mine === 'true' ? { ownerId: actor.id } : {}),
       },
-      include: { policy: true }, orderBy: { dueAt: 'asc' }, take: 200,
+      include: { policy: true, pauses: { orderBy: { pausedAt: 'asc' } } },
+      orderBy: { dueAt: 'asc' }, take: 200,
     });
+    // Two numbers, not one: how long the clock has been open, and how much of that was ours.
+    // Only the second is a fair basis for judging anyone.
+    const cal = await loadCalendar(actor.organizationId);
+    const now = new Date();
+    return clocks.map((c) => {
+      const end = c.stoppedAt ?? now;
+      const elapsedHours = businessHoursBetween(c.startedAt, end, cal);
+      const openPause = c.state === 'PAUSED' && c.pausedAt ? businessHoursBetween(c.pausedAt, end, cal) : 0;
+      const pausedHours = Number(c.pausedHours) + openPause;
+      return {
+        ...c,
+        elapsedHours: Math.round(elapsedHours * 100) / 100,
+        pausedHours: Math.round(pausedHours * 100) / 100,
+        controlledHours: Math.round((elapsedHours - pausedHours) * 100) / 100,
+        budgetHours: Number(c.policy.hours),
+      };
+    });
+  });
+
+  /* ── SLA pause / resume ─────────────────────────────────────────────── */
+
+  /** The clock's owner, or whoever manages traffic. Nobody else gets to stop a deadline. */
+  async function pausableClock(req: Parameters<typeof actorFrom>[0], id: string) {
+    const actor = actorFrom(req);
+    const clock = await prisma.slaClock.findFirst({
+      where: { id, organizationId: actor.organizationId }, include: { policy: true },
+    });
+    if (!clock) throw notFound('ساعت SLA');
+    if (clock.ownerId !== actor.id && !hasPermission(req, 'traffic.manage')) {
+      throw forbidden('فقط مسئول این مهلت یا مدیر ترافیک می‌تواند آن را متوقف یا از سر بگیرد');
+    }
+    return { actor, clock };
+  }
+
+  app.post('/sla-clocks/:id/pause', { preHandler: [app.authenticate] }, async (req) => {
+    const { id } = req.params as { id: string };
+    const { kind, reason } = (req.body ?? {}) as { kind?: string; reason?: string };
+    if (!kind || !(SLA_PAUSE_KINDS as readonly string[]).includes(kind) || kind === 'TRANSITION') {
+      throw badRequest('INVALID_PAUSE_KIND', 'نوع توقف باید یکی از موارد مجاز باشد', { allowed: SLA_PAUSE_KINDS.filter((k) => k !== 'TRANSITION') });
+    }
+    if (!reason?.trim()) throw badRequest('REASON_REQUIRED', 'دلیل توقف الزامی است');
+
+    const { actor, clock } = await pausableClock(req, id);
+    if (!['RUNNING', 'AT_RISK'].includes(clock.state)) {
+      throw badRequest('CLOCK_NOT_RUNNING', 'فقط مهلت در جریان را می‌توان متوقف کرد', { state: clock.state });
+    }
+    await prisma.$transaction(async (tx) => {
+      await pauseSla(tx, {
+        entityType: clock.entityType, entityId: clock.entityId, policyCodes: [clock.policy.code],
+        kind: kind as SlaPauseKind, reason: reason.trim(), actorId: actor.id,
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'SLA_PAUSE',
+        entityType: clock.entityType, entityId: clock.entityId,
+        after: { policy: clock.policy.code, kind, reason: reason.trim() }, ipAddress: actor.ipAddress,
+      }, tx);
+    });
+    return prisma.slaClock.findUnique({ where: { id }, include: { policy: true, pauses: true } });
+  });
+
+  app.post('/sla-clocks/:id/resume', { preHandler: [app.authenticate] }, async (req) => {
+    const { id } = req.params as { id: string };
+    const { actor, clock } = await pausableClock(req, id);
+    if (clock.state !== 'PAUSED') {
+      throw badRequest('CLOCK_NOT_PAUSED', 'این مهلت متوقف نیست', { state: clock.state });
+    }
+    await prisma.$transaction(async (tx) => {
+      await resumeSla(tx, clock.entityType, clock.entityId, actor.id, [clock.policy.code]);
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'SLA_RESUME',
+        entityType: clock.entityType, entityId: clock.entityId,
+        after: { policy: clock.policy.code }, ipAddress: actor.ipAddress,
+      }, tx);
+    });
+    return prisma.slaClock.findUnique({ where: { id }, include: { policy: true, pauses: true } });
   });
 };
 

@@ -32,7 +32,7 @@ export const SCHEMA_PREFIX = 't_';
  * is only safe while the migrations stay free of dollar-quoted bodies, and these counts are
  * what notices if that stops being true. Update them when a migration adds or drops objects.
  */
-export const TEMPLATE_SHAPE = { tables: 59, checkConstraints: 15, foreignKeys: 110 } as const;
+export const TEMPLATE_SHAPE = { tables: 60, checkConstraints: 15, foreignKeys: 111 } as const;
 
 /** Load .env.test into process.env. env.ts validates at import time, so this must run first. */
 export function loadTestEnv(): void {

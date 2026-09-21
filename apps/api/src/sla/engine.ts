@@ -3,6 +3,7 @@ import { prisma } from '../db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, type Calendar } from '../lib/business-calendar.js';
 import { appUrl, notify, slaBreachMail, slaWarningMail } from '../mail/notify.js';
 import type { MailBody } from '../mail/templates.js';
+import type { SlaPauseKind } from '@hiva/contracts';
 
 /**
  * Keyed by organisation, not a single slot. The cache previously held one calendar for the whole
@@ -59,7 +60,8 @@ export async function startSla(tx: Tx, input: StartSlaInput): Promise<void> {
       policyId: policy.id,
       entityType: input.entityType,
       entityId: input.entityId,
-      state: { in: ['RUNNING', 'AT_RISK'] },
+      // A paused clock is still open; starting the policy again would give it a twin.
+      state: { in: ['RUNNING', 'AT_RISK', 'PAUSED'] },
     },
   });
   if (existing) return;
@@ -88,11 +90,11 @@ export async function stopSla(
   policyCodes: readonly string[],
   entityType: string,
   entityId: string,
+  now = new Date(),
 ): Promise<void> {
   if (policyCodes.length === 0) return;
   const policies = await tx.slaPolicy.findMany({ where: { code: { in: [...policyCodes] } } });
   if (policies.length === 0) return;
-  const now = new Date();
 
   const clocks = await tx.slaClock.findMany({
     where: {
@@ -103,7 +105,11 @@ export async function stopSla(
     },
   });
 
-  for (const clock of clocks) {
+  for (let clock of clocks) {
+    // A clock stopped while paused is evaluated as if the pause had just ended: the wait is
+    // credited back before the deadline is judged, otherwise "waiting on the client" would
+    // count against whoever closed the work.
+    if (clock.state === 'PAUSED') clock = await closePause(tx, clock, now, null);
     await tx.slaClock.update({
       where: { id: clock.id },
       data: { stoppedAt: now, state: now <= clock.dueAt ? 'MET' : 'BREACHED', breachedAt: now > clock.dueAt ? (clock.breachedAt ?? now) : clock.breachedAt },
@@ -111,10 +117,109 @@ export async function stopSla(
   }
 }
 
+export interface PauseSlaInput {
+  entityType: string;
+  entityId: string;
+  /** Restrict to these policies; omit to pause every running clock on the entity. */
+  policyCodes?: readonly string[];
+  kind: SlaPauseKind;
+  reason: string;
+  actorId: string | null;
+  /** Injectable for tests, like `tickSlaClocks(now)`; the calendar arithmetic needs fixed dates. */
+  at?: Date;
+}
+
+/**
+ * Pause the running clocks on an entity. The budget is untouched; the time until resume is
+ * simply not counted. Every pause carries a kind and a reason because the whole point is to
+ * be able to say, later, how much of a deadline was spent waiting on whom.
+ */
+export async function pauseSla(tx: Tx, input: PauseSlaInput): Promise<number> {
+  const clocks = await tx.slaClock.findMany({
+    where: {
+      entityType: input.entityType,
+      entityId: input.entityId,
+      state: { in: ['RUNNING', 'AT_RISK'] },
+      ...(input.policyCodes?.length ? { policy: { code: { in: [...input.policyCodes] } } } : {}),
+    },
+  });
+  const now = input.at ?? new Date();
+  for (const clock of clocks) {
+    await tx.slaClock.update({ where: { id: clock.id }, data: { state: 'PAUSED', pausedAt: now } });
+    await tx.slaPause.create({
+      data: {
+        organizationId: clock.organizationId, clockId: clock.id,
+        kind: input.kind, reason: input.reason, pausedAt: now, pausedById: input.actorId,
+      },
+    });
+  }
+  return clocks.length;
+}
+
+/** Resume the paused clocks on an entity; the deadline moves out by exactly the working hours paused. */
+export async function resumeSla(
+  tx: Tx,
+  entityType: string,
+  entityId: string,
+  actorId: string | null,
+  policyCodes?: readonly string[],
+  now = new Date(),
+): Promise<number> {
+  const clocks = await tx.slaClock.findMany({
+    where: {
+      entityType, entityId, state: 'PAUSED',
+      ...(policyCodes?.length ? { policy: { code: { in: [...policyCodes] } } } : {}),
+    },
+  });
+  for (const clock of clocks) {
+    const resumed = await closePause(tx, clock, now, actorId);
+    // Not RUNNING unconditionally: if the clock had already been warned before the pause, the
+    // warning is still true and re-issuing it on the next tick would be noise.
+    await tx.slaClock.update({
+      where: { id: clock.id },
+      data: { state: resumed.warnedAt ? 'AT_RISK' : 'RUNNING' },
+    });
+  }
+  return clocks.length;
+}
+
+type ClockRow = Awaited<ReturnType<Tx['slaClock']['findFirstOrThrow']>>;
+
+/**
+ * Close the open pause on a clock: fix the pause's length in working hours, add it to the
+ * clock's totals, and push dueAt out by the same amount. Pushing dueAt is what keeps the rest
+ * of the engine oblivious to pauses — `now > dueAt` still means breached.
+ */
+async function closePause(tx: Tx, clock: ClockRow, now: Date, actorId: string | null): Promise<ClockRow> {
+  const pausedAt = clock.pausedAt ?? now;
+  const cal = await loadCalendar(clock.organizationId, tx);
+  const hours = businessHoursBetween(pausedAt, now, cal);
+  const seconds = Math.max(0, Math.round((now.getTime() - pausedAt.getTime()) / 1000));
+
+  await tx.slaPause.updateMany({
+    where: { clockId: clock.id, resumedAt: null },
+    data: { resumedAt: now, businessHours: hours, resumedById: actorId },
+  });
+  return tx.slaClock.update({
+    where: { id: clock.id },
+    data: {
+      pausedAt: null,
+      pausedSeconds: clock.pausedSeconds + seconds,
+      pausedHours: Number(clock.pausedHours) + hours,
+      dueAt: addBusinessHours(clock.dueAt, hours, cal),
+    },
+  });
+}
+
 export async function cancelSla(tx: Tx, entityType: string, entityId: string): Promise<void> {
+  const now = new Date();
+  await tx.slaPause.updateMany({
+    where: { clock: { entityType, entityId, state: 'PAUSED' }, resumedAt: null },
+    data: { resumedAt: now },
+  });
   await tx.slaClock.updateMany({
     where: { entityType, entityId, state: { in: ['RUNNING', 'AT_RISK', 'PAUSED'] } },
-    data: { state: 'CANCELLED', stoppedAt: new Date() },
+    data: { state: 'CANCELLED', stoppedAt: now, pausedAt: null },
   });
 }
 
@@ -162,7 +267,8 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
      * hours. False alarms teach people to ignore real ones.
      */
     const cal = calendars.get(clock.organizationId) ?? DEFAULT_CALENDAR;
-    const consumed = businessHoursBetween(clock.startedAt, now, cal);
+    // Paused hours were never the owner's to spend; dueAt has already been pushed out by them.
+    const consumed = businessHoursBetween(clock.startedAt, now, cal) - Number(clock.pausedHours);
     const budget = Number(clock.policy.hours);
     const ratio = budget > 0 ? consumed / budget : 1;
 

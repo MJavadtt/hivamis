@@ -7,6 +7,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Code, Count, EntityList, HealthDot, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
+import { SlaClocksCard } from '../components/SlaClocks';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -301,6 +302,8 @@ function Overview({ data }: { data: Project360 }) {
             </ul>
           )}
         </Card>
+
+        <SlaClocksCard entityType="project" entityId={p.id} />
 
         <Card title="آخرین گزارش وضعیت">
           {!data.statusReports.length ? <EmptyState title="گزارشی ثبت نشده" /> : (

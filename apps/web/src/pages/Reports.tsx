@@ -347,7 +347,10 @@ function SlaReport() {
         {!data.byPolicy.length ? <EmptyState title="داده SLA وجود ندارد" /> : (
           <Table>
             <thead className="bg-ink-50/60">
-              <tr><Th>سیاست</Th><Th>کل</Th><Th>رعایت‌شده</Th><Th>نقض‌شده</Th><Th>در جریان</Th><Th>نرخ پایبندی</Th></tr>
+              <tr>
+                <Th>سیاست</Th><Th>کل</Th><Th>رعایت‌شده</Th><Th>نقض‌شده</Th><Th>در جریان</Th><Th>متوقف</Th>
+                <Th>میانگین سپری‌شده</Th><Th>میانگین تحت کنترل ما</Th><Th>نرخ پایبندی</Th>
+              </tr>
             </thead>
             <tbody>
               {data.byPolicy.map((p: any) => (
@@ -357,6 +360,9 @@ function SlaReport() {
                   <Td className="nums text-xs text-emerald-700">{toPersianDigits(p.met)}</Td>
                   <Td className="nums text-xs text-rose-700">{toPersianDigits(p.breached)}</Td>
                   <Td className="nums text-xs">{toPersianDigits(p.running + p.atRisk)}</Td>
+                  <Td className="nums text-xs">{toPersianDigits(p.paused ?? 0)}</Td>
+                  <Td className="nums text-xs text-ink-500">{p.avgElapsedHours == null ? '—' : `${toPersianDigits(p.avgElapsedHours)} س`}</Td>
+                  <Td className="nums text-xs font-medium">{p.avgControlledHours == null ? '—' : `${toPersianDigits(p.avgControlledHours)} س`}</Td>
                   <Td>
                     {p.complianceRate == null ? <span className="text-xs text-ink-400">—</span> : (
                       <div className="w-24">

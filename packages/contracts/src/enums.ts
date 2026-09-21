@@ -181,6 +181,17 @@ export type FormSubmissionState = (typeof FORM_SUBMISSION_STATES)[number];
 export const SLA_STATES = ['RUNNING', 'PAUSED', 'MET', 'AT_RISK', 'BREACHED', 'CANCELLED'] as const;
 export type SlaState = (typeof SLA_STATES)[number];
 
+/**
+ * Why a clock was paused. The distinction that matters for evaluation is whether the wait was
+ * ours to control: time spent waiting on a client or a supplier is reported separately from
+ * the time the deadline actually measures. TRANSITION is reserved for pauses a state machine
+ * declares (`pausesSla` on a transition); the others are chosen by a person, with a reason.
+ */
+export const SLA_PAUSE_KINDS = [
+  'WAITING_ON_CLIENT', 'WAITING_ON_SUPPLIER', 'INTERNAL_DEPENDENCY', 'TRANSITION',
+] as const;
+export type SlaPauseKind = (typeof SLA_PAUSE_KINDS)[number];
+
 export const RACI_ROLES = ['R', 'A', 'C', 'I'] as const;
 export type RaciRole = (typeof RACI_ROLES)[number];
 

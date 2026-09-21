@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { closeApp, get, login, post, expectOk } from './helpers.js';
+import { closeApp, get, login, post, move, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
-import { tickSlaClocks, startSla, stopSla } from '../src/sla/engine.js';
+import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla } from '../src/sla/engine.js';
 import {
   ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
 } from '@hiva/contracts';
@@ -344,6 +344,193 @@ describe('SLA engine', () => {
     const report = expectOk(await get('/reports/sla', T.deputy), 'sla report');
     expect(report.overall.total).toBeGreaterThan(0);
     expect(Array.isArray(report.byPolicy)).toBe(true);
+  });
+});
+
+describe('SLA pauses', () => {
+  const cal = DEFAULT_CALENDAR;
+  // Saturday 2026-09-05 is a working day in the default calendar; productive hours 09:00–17:00.
+  const sat = (h: number) => new Date(2026, 8, 5, h, 0, 0);
+  const sun = (h: number) => new Date(2026, 8, 6, h, 0, 0);
+
+  async function openClock(suffix: string, startedAt: Date) {
+    const project = await prisma.project.findFirst();
+    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    return prisma.slaClock.create({
+      data: {
+        organizationId: project!.organizationId, policyId: policy.id,
+        entityType: 'test', entityId: `pause-${suffix}-${Date.now()}`,
+        startedAt, dueAt: addBusinessHours(startedAt, Number(policy.hours), cal), state: 'RUNNING',
+      },
+    });
+  }
+
+  it('credits the paused working hours back to the deadline on resume', async () => {
+    const clock = await openClock('credit', sat(9));           // due Saturday 17:00
+    await pauseSla(prisma, {
+      entityType: 'test', entityId: clock.entityId, kind: 'WAITING_ON_CLIENT',
+      reason: 'منتظر تأیید فایل‌های مشتری', actorId: null, at: sat(11),
+    });
+    const paused = await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id }, include: { pauses: true } });
+    expect(paused.state).toBe('PAUSED');
+    expect(paused.pauses).toHaveLength(1);
+    expect(paused.pauses[0]!.kind).toBe('WAITING_ON_CLIENT');
+    expect(paused.pauses[0]!.resumedAt).toBeNull();
+
+    await resumeSla(prisma, 'test', clock.entityId, null, undefined, sun(11));
+    const resumed = await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id }, include: { pauses: true } });
+    // Saturday 11→17 is six working hours, Sunday 9→11 two more.
+    const pausedHours = businessHoursBetween(sat(11), sun(11), cal);
+    expect(pausedHours).toBe(8);
+    expect(Number(resumed.pausedHours)).toBe(8);
+    expect(resumed.pausedSeconds).toBe(24 * 3600);
+    expect(resumed.state).toBe('RUNNING');
+    expect(resumed.pausedAt).toBeNull();
+    expect(resumed.dueAt).toEqual(addBusinessHours(clock.dueAt, 8, cal));
+    expect(Number(resumed.pauses[0]!.businessHours)).toBe(8);
+    expect(resumed.pauses[0]!.resumedAt).toEqual(sun(11));
+  });
+
+  it('measures the warning threshold on hours actually under the owner’s control', async () => {
+    const clock = await openClock('warn', sat(9));
+    await pauseSla(prisma, {
+      entityType: 'test', entityId: clock.entityId, kind: 'WAITING_ON_SUPPLIER',
+      reason: 'منتظر نمونه چاپ', actorId: null, at: sat(11),
+    });
+    await resumeSla(prisma, 'test', clock.entityId, null, undefined, sun(11));
+
+    // Sunday 12:00: eleven working hours have elapsed, eight of them paused. Three of eight
+    // consumed — nowhere near the 0.75 threshold. Before pauses this read as 11/8.
+    await tickSlaClocks(sun(12));
+    expect((await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } })).state).toBe('RUNNING');
+
+    // Sunday 16:00: seven of eight consumed. Now it should warn.
+    await tickSlaClocks(sun(16));
+    expect((await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } })).state).toBe('AT_RISK');
+  });
+
+  it('never breaches a paused clock, however long the wait', async () => {
+    const clock = await openClock('nobreach', sat(9));
+    await pauseSla(prisma, {
+      entityType: 'test', entityId: clock.entityId, kind: 'WAITING_ON_CLIENT',
+      reason: 'مشتری در سفر است', actorId: null, at: sat(11),
+    });
+    await tickSlaClocks(new Date(2026, 8, 20, 12, 0, 0));    // two weeks past the original due
+    expect((await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id } })).state).toBe('PAUSED');
+  });
+
+  it('judges a clock stopped while paused after crediting the wait', async () => {
+    const clock = await openClock('stop', sat(9));            // due Saturday 17:00
+    await pauseSla(prisma, {
+      entityType: 'test', entityId: clock.entityId, kind: 'WAITING_ON_CLIENT',
+      reason: 'منتظر پاسخ', actorId: null, at: sat(11),
+    });
+    // Sunday 12:00 is past the original deadline; with the pause credited it is not.
+    await stopSla(prisma, ['SLA_ACCOUNT_QC'], 'test', clock.entityId, sun(12));
+    const stopped = await prisma.slaClock.findUniqueOrThrow({ where: { id: clock.id }, include: { pauses: true } });
+    expect(stopped.state).toBe('MET');
+    expect(stopped.pauses[0]!.resumedAt).toEqual(sun(12));
+    expect(Number(stopped.pausedHours)).toBeGreaterThan(0);
+  });
+
+  it('does not open a second clock for a policy whose clock is paused', async () => {
+    const clock = await openClock('twin', sat(9));
+    await pauseSla(prisma, {
+      entityType: 'test', entityId: clock.entityId, kind: 'INTERNAL_DEPENDENCY',
+      reason: 'منتظر خروجی واحد دیگر', actorId: null,
+    });
+    await startSla(prisma, {
+      organizationId: clock.organizationId, policyCode: 'SLA_ACCOUNT_QC',
+      entityType: 'test', entityId: clock.entityId,
+    });
+    expect(await prisma.slaClock.count({ where: { entityType: 'test', entityId: clock.entityId } })).toBe(1);
+  });
+
+  /**
+   * The one pause the state machines declare. A unit that asks for clarification is waiting on
+   * Account; timing its acceptance deadline through that wait blamed the wrong party.
+   */
+  it('pauses the acceptance clock while a work order awaits clarification, and resumes it after', async () => {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const wo = expectOk(await post('/work-orders', T.accountManager, {
+      projectId: project.id, proposalId: project.proposalId,
+      targetDepartmentCode: 'CR', title: 'سفارش با ابهام',
+      scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل',
+      outputFormat: 'PDF', deadline: new Date(Date.now() + 20 * 86_400_000).toISOString(),
+      ownerId: creative.id, budget: 100_000_000, priority: 'NORMAL',
+    }), 'create work order');
+
+    expectOk(await move('workOrder', wo.id, 'issue', T.accountManager), 'issue');
+    const running = await prisma.slaClock.findFirstOrThrow({
+      where: { entityType: 'workOrder', entityId: wo.id, policy: { code: 'SLA_TASK_ACCEPTANCE' } },
+    });
+    expect(running.state).toBe('RUNNING');
+
+    expectOk(await move('workOrder', wo.id, 'request_clarification', T.creative, 'ابعاد خروجی مشخص نیست'), 'clarify?');
+    const paused = await prisma.slaClock.findUniqueOrThrow({ where: { id: running.id }, include: { pauses: true } });
+    expect(paused.state).toBe('PAUSED');
+    expect(paused.pauses[0]!.kind).toBe('TRANSITION');
+    expect(paused.pauses[0]!.reason).toContain('request_clarification');
+    // and the clarification has its own clock, on Account
+    const clarification = await prisma.slaClock.findFirst({
+      where: { entityType: 'workOrder', entityId: wo.id, policy: { code: 'SLA_CLARIFICATION' } },
+    });
+    expect(clarification?.state).toBe('RUNNING');
+
+    expectOk(await move('workOrder', wo.id, 'clarify', T.accountManager), 'clarify');
+    const resumed = await prisma.slaClock.findUniqueOrThrow({ where: { id: running.id }, include: { pauses: true } });
+    expect(resumed.state).toBe('RUNNING');
+    expect(resumed.pauses[0]!.resumedAt).not.toBeNull();
+  });
+
+  it('exposes pause and resume to the clock owner and to traffic management, and to no one else', async () => {
+    const project = await prisma.project.findFirst();
+    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const clock = await prisma.slaClock.create({
+      data: {
+        organizationId: project!.organizationId, policyId: policy.id,
+        entityType: 'test', entityId: `api-${Date.now()}`, ownerId: designer.id,
+        startedAt: new Date(), dueAt: addBusinessHours(new Date(), 8, cal), state: 'RUNNING',
+      },
+    });
+    const url = `/sla-clocks/${clock.id}/pause`;
+    const body = { kind: 'WAITING_ON_CLIENT', reason: 'منتظر مشتری' };
+
+    // Sales is neither the owner nor traffic management.
+    expect((await post(url, T.sales, body)).status).toBe(403);
+    // Validation comes before anything is written.
+    expect((await post(url, T.designer, { kind: 'TRANSITION', reason: 'x' })).status).toBe(400);
+    expect((await post(url, T.designer, { kind: 'WAITING_ON_CLIENT' })).status).toBe(400);
+    expect((await post(url, T.designer, { kind: 'NOT_A_KIND', reason: 'x' })).status).toBe(400);
+
+    const paused = expectOk(await post(url, T.designer, body), 'owner pauses');
+    expect(paused.state).toBe('PAUSED');
+    expect((await post(url, T.designer, body)).status).toBe(400);            // already paused
+
+    const audited = await prisma.auditEvent.findFirst({
+      where: { action: 'SLA_PAUSE', entityId: clock.entityId }, orderBy: { createdAt: 'desc' },
+    });
+    expect((audited?.after as { reason?: string })?.reason).toBe('منتظر مشتری');
+
+    // Account Manager holds traffic.manage and is not the owner.
+    const resumed = expectOk(await post(`/sla-clocks/${clock.id}/resume`, T.accountManager), 'traffic resumes');
+    expect(resumed.state).toBe('RUNNING');
+    expect((await post(`/sla-clocks/${clock.id}/resume`, T.accountManager)).status).toBe(400);
+
+    const listed = expectOk(await get('/sla-clocks', T.accountManager, { entityId: clock.entityId }), 'list');
+    expect(listed[0]).toMatchObject({ budgetHours: 8 });
+    expect(listed[0].controlledHours).toBeLessThanOrEqual(listed[0].elapsedHours);
+    expect(listed[0].pauses).toHaveLength(1);
+  });
+
+  it('reports time waiting on others separately from time under our control', async () => {
+    const report = expectOk(await get('/reports/sla', T.deputy), 'sla report');
+    expect(report.overall).toHaveProperty('paused');
+    expect(report.overall.waitingHoursByKind.WAITING_ON_CLIENT).toBeGreaterThan(0);
+    const qc = report.byPolicy.find((r: { code: string }) => r.code === 'SLA_ACCOUNT_QC');
+    expect(qc.avgControlledHours).toBeLessThanOrEqual(qc.avgElapsedHours);
   });
 });
 

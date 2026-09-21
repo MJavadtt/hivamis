@@ -123,6 +123,17 @@ very different amounts of the day; it is carried as a one-day approximation. Bot
 | Customer feedback | 7 days |
 | Close project | 2 working days |
 
+**Waiting on someone else.** A clock measures the party it was started against. When that party
+is waiting — on the client for an answer, on a supplier for a proof, on another unit for an
+input — the clock can be paused, always with a kind and a reason, by its owner or by traffic
+management. The budget is untouched; the wait is not counted. Every clock then carries two
+numbers: how long it has been open, and how much of that was ours. Only the second is a fair
+basis for evaluating anyone, and it is the one the SLA report averages.
+
+One pause is declared by the state machines themselves: a work order in `CLARIFICATION_REQUESTED`
+pauses the unit's acceptance clock, because the unit is waiting on Account, whose own
+clarification clock is running meanwhile. It resumes when the clarification is provided.
+
 ## Organisational model
 
 Ten units, codes exactly as Doc_H slide 30 defines them:

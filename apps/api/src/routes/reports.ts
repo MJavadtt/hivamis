@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
+import { loadCalendar } from '../sla/engine.js';
+import { businessHoursBetween } from '../lib/business-calendar.js';
 import { actorFrom } from '../lib/http.js';
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -473,23 +475,49 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const clocks = await prisma.slaClock.findMany({
-      where: { organizationId: actor.organizationId }, include: { policy: true },
+      where: { organizationId: actor.organizationId }, include: { policy: true, pauses: true },
     });
-    const byPolicy = new Map<string, { labelFa: string; total: number; met: number; breached: number; running: number; atRisk: number }>();
+    const cal = await loadCalendar(actor.organizationId);
+    const now = new Date();
+    type Row = {
+      labelFa: string; total: number; met: number; breached: number; running: number; atRisk: number;
+      paused: number; elapsedHours: number; pausedHours: number; closedCount: number;
+    };
+    const byPolicy = new Map<string, Row>();
+    // Across the whole organisation, how long has been spent waiting on whom.
+    const waitingByKind: Record<string, number> = {};
     for (const c of clocks) {
       const row = byPolicy.get(c.policy.code) ?? {
         labelFa: c.policy.labelFa, total: 0, met: 0, breached: 0, running: 0, atRisk: 0,
+        paused: 0, elapsedHours: 0, pausedHours: 0, closedCount: 0,
       };
       row.total++;
       if (c.state === 'MET') row.met++;
       else if (c.state === 'BREACHED') row.breached++;
       else if (c.state === 'AT_RISK') row.atRisk++;
       else if (c.state === 'RUNNING') row.running++;
+      else if (c.state === 'PAUSED') row.paused++;
+      // Averages are over closed clocks only; an open one has not finished consuming anything.
+      if (c.stoppedAt) {
+        row.closedCount++;
+        row.elapsedHours += businessHoursBetween(c.startedAt, c.stoppedAt, cal);
+        row.pausedHours += Number(c.pausedHours);
+      }
+      for (const p of c.pauses) {
+        const hours = p.businessHours != null
+          ? Number(p.businessHours)
+          : businessHoursBetween(p.pausedAt, now, cal);
+        waitingByKind[p.kind] = (waitingByKind[p.kind] ?? 0) + hours;
+      }
       byPolicy.set(c.policy.code, row);
     }
-    const rows = [...byPolicy.entries()].map(([code, r]) => ({
+    const avg = (sum: number, n: number) => (n > 0 ? Math.round((sum / n) * 10) / 10 : null);
+    const rows = [...byPolicy.entries()].map(([code, { closedCount, elapsedHours, pausedHours, ...r }]) => ({
       code, ...r,
       complianceRate: r.met + r.breached > 0 ? Math.round((r.met / (r.met + r.breached)) * 100) : null,
+      avgElapsedHours: avg(elapsedHours, closedCount),
+      avgPausedHours: avg(pausedHours, closedCount),
+      avgControlledHours: avg(elapsedHours - pausedHours, closedCount),
     }));
     const closed = clocks.filter((c) => ['MET', 'BREACHED'].includes(c.state));
     return {
@@ -499,8 +527,12 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         breached: clocks.filter((c) => c.state === 'BREACHED').length,
         running: clocks.filter((c) => c.state === 'RUNNING').length,
         atRisk: clocks.filter((c) => c.state === 'AT_RISK').length,
+        paused: clocks.filter((c) => c.state === 'PAUSED').length,
         complianceRate: closed.length
           ? Math.round((closed.filter((c) => c.state === 'MET').length / closed.length) * 100) : null,
+        waitingHoursByKind: Object.fromEntries(
+          Object.entries(waitingByKind).map(([k, v]) => [k, Math.round(v * 10) / 10]),
+        ),
       },
       byPolicy: rows.sort((a, b) => b.total - a.total),
     };

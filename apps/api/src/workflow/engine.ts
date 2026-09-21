@@ -2,7 +2,7 @@ import { availableTransitions, findTransition, WORKFLOWS, type Permission, type 
 import { prisma, type Tx } from '../db.js';
 import { AppError, GovernanceError, badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
-import { startSla, stopSla } from '../sla/engine.js';
+import { pauseSla, resumeSla, startSla, stopSla } from '../sla/engine.js';
 import { runGuards } from './guards.js';
 import { EFFECTS } from './effects.js';
 
@@ -173,6 +173,16 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
 
     if (def.stopsSla?.length) {
       await stopSla(tx, def.stopsSla, entity, id);
+    }
+    // Resume before pause: a transition may end one wait and begin another.
+    if (def.resumesSla?.length) {
+      await resumeSla(tx, entity, id, actor.id, def.resumesSla);
+    }
+    if (def.pausesSla?.length) {
+      await pauseSla(tx, {
+        entityType: entity, entityId: id, policyCodes: def.pausesSla,
+        kind: 'TRANSITION', reason: `${def.labelFa} (${action})`, actorId: actor.id,
+      });
     }
     if (def.startsSla) {
       await startSla(tx, {

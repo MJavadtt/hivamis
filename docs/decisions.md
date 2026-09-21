@@ -135,6 +135,15 @@ days, nearly a calendar week) instead of one working day, and `SLA_PROPOSAL_HAND
 the engine can express. Covered by the calendar tests in `004-engines.test.ts`, including the
 weekend, a declared holiday, and a round-trip across a range of durations.
 
+**Pauses (roadmap #9).** A clock can be paused while its owner waits on someone else. The
+implementation keeps the rest of the engine oblivious: on resume, `dueAt` is pushed out by
+exactly the working hours paused, so `now > dueAt` still means breached, and the warning ratio
+subtracts `pausedHours` from the hours elapsed. The alternative — leaving `dueAt` fixed and
+teaching every reader to recompute — would have put the pause arithmetic in four places instead
+of one. `pausedSeconds` (wall-clock, for people) and `pausedHours` (working hours, for the
+arithmetic) are both kept because they answer different questions. Each pause is a row with a
+kind, a reason and names, so "why was this late" has an answer rather than a number.
+
 ---
 
 ## ADR-006 — PostgreSQL as the only datastore

@@ -21,6 +21,14 @@ export interface TransitionDef {
   readonly startsSla?: string;
   /** SLA policy codes stopped (met) when the entity LEAVES via this transition. */
   readonly stopsSla?: readonly string[];
+  /**
+   * SLA policy codes paused when the entity ARRIVES in `to`, because the party the clock
+   * measures is now waiting on someone else. The clock keeps its budget; the wait is not
+   * counted against it. Pair with `resumesSla` on the transition that ends the wait.
+   */
+  readonly pausesSla?: readonly string[];
+  /** SLA policy codes resumed when the entity LEAVES via this transition. */
+  readonly resumesSla?: readonly string[];
   /** Free-text reason is mandatory for this transition. */
   readonly requiresReason?: boolean;
 }
@@ -136,8 +144,8 @@ export const WORK_ORDER_WORKFLOW: WorkflowDef = {
   transitions: [
     { from: ['DRAFT'], to: 'ISSUED', action: 'issue', labelFa: 'صدور سفارش', labelEn: 'Issue order', permission: 'workorder.issue', guards: ['workOrder.hasCompleteSpec'], startsSla: 'SLA_TASK_ACCEPTANCE' },
     { from: ['ISSUED'], to: 'PENDING_ACCEPTANCE', action: 'deliver', labelFa: 'دریافت توسط واحد', labelEn: 'Received by unit', permission: 'workorder.accept' },
-    { from: ['ISSUED', 'PENDING_ACCEPTANCE'], to: 'CLARIFICATION_REQUESTED', action: 'request_clarification', labelFa: 'اعلام ابهام', labelEn: 'Request clarification', permission: 'workorder.clarify', requiresReason: true, startsSla: 'SLA_CLARIFICATION' },
-    { from: ['CLARIFICATION_REQUESTED'], to: 'PENDING_ACCEPTANCE', action: 'clarify', labelFa: 'رفع ابهام', labelEn: 'Clarification provided', permission: 'workorder.issue', stopsSla: ['SLA_CLARIFICATION'] },
+    { from: ['ISSUED', 'PENDING_ACCEPTANCE'], to: 'CLARIFICATION_REQUESTED', action: 'request_clarification', labelFa: 'اعلام ابهام', labelEn: 'Request clarification', permission: 'workorder.clarify', requiresReason: true, startsSla: 'SLA_CLARIFICATION', pausesSla: ['SLA_TASK_ACCEPTANCE'] },
+    { from: ['CLARIFICATION_REQUESTED'], to: 'PENDING_ACCEPTANCE', action: 'clarify', labelFa: 'رفع ابهام', labelEn: 'Clarification provided', permission: 'workorder.issue', stopsSla: ['SLA_CLARIFICATION'], resumesSla: ['SLA_TASK_ACCEPTANCE'] },
     { from: ['ISSUED', 'PENDING_ACCEPTANCE'], to: 'ACCEPTED', action: 'accept', labelFa: 'پذیرش سفارش', labelEn: 'Accept order', permission: 'workorder.accept', stopsSla: ['SLA_TASK_ACCEPTANCE'] },
     { from: ['ACCEPTED'], to: 'IN_PROGRESS', action: 'start', labelFa: 'شروع اجرا', labelEn: 'Start execution', permission: 'task.execute' },
     { from: ['IN_PROGRESS'], to: 'SUBMITTED', action: 'submit', labelFa: 'تحویل خروجی به اکانت', labelEn: 'Submit to Account', permission: 'workorder.submit', guards: ['workOrder.costDeclared', 'workOrder.unitQcPassed'] },

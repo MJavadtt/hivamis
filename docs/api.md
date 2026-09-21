@@ -167,7 +167,8 @@ Each requires both `ai.use` and the underlying data permission.
 | `GET /sla-policies`, `PATCH /sla-policies/:code` | `admin.settings` for writes |
 | `GET /organization`, `PATCH /organization` | `admin.settings` for writes |
 | `GET /audit-events` | `admin.audit` |
-| `GET /sla-clocks` | authenticated |
+| `GET /sla-clocks` | authenticated — each clock carries `elapsedHours`, `pausedHours`, `controlledHours`, `budgetHours` and its `pauses`; `entityType`+`entityId` scope it to one record, `state=ALL` includes closed clocks |
+| `POST /sla-clocks/:id/pause` `{ kind, reason }`, `POST /sla-clocks/:id/resume` | the clock's owner, or `traffic.manage`. `kind` is one of `WAITING_ON_CLIENT`, `WAITING_ON_SUPPLIER`, `INTERNAL_DEPENDENCY`; `reason` is mandatory |
 | `GET /notifications`, `POST /notifications/read-all` | authenticated |
 | `GET /search?q=` | authenticated — results are filtered to what you may read |
 

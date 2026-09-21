@@ -1316,11 +1316,15 @@ model SlaClock {
   dueAt        DateTime
   stoppedAt    DateTime?
   pausedAt     DateTime?
+  /// Wall-clock seconds spent paused, for people.
   pausedSeconds Int      @default(0)
+  /// Working hours spent paused, for the arithmetic: consumed = elapsed − pausedHours.
+  pausedHours  Decimal   @default(0) @db.Decimal(8, 2)
   state        String    @default("RUNNING")
   warnedAt     DateTime?
   breachedAt   DateTime?
   ownerId      String?
+  pauses       SlaPause[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -1328,6 +1332,28 @@ model SlaClock {
   @@index([entityType, entityId])
   @@index([state, dueAt])
   @@map("sla_clocks")
+}
+
+/// One pause of one clock: who, why, and for how long. The clock carries the running totals;
+/// this is the record behind them, so "why was this late" has an answer with names on it.
+model SlaPause {
+  id             String    @id @default(uuid())
+  organizationId String
+  clockId        String
+  clock          SlaClock  @relation(fields: [clockId], references: [id], onDelete: Cascade)
+  kind           String
+  reason         String
+  pausedAt       DateTime  @default(now())
+  resumedAt      DateTime?
+  /// Working hours between pausedAt and resumedAt, fixed at resume.
+  businessHours  Decimal?  @db.Decimal(8, 2)
+  pausedById     String?
+  resumedById    String?
+  createdAt      DateTime  @default(now())
+
+  @@index([clockId])
+  @@index([organizationId, kind])
+  @@map("sla_pauses")
 }
 
 /* ═══════════════════════ Documents ═══════════════════════ */
