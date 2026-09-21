@@ -13,6 +13,7 @@ import { formatDateTime, toPersianDigits } from '../lib/format';
 import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
+import { BulkImport } from '../components/BulkImport';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -242,6 +243,8 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
           </p>
         )}
       </div>
+
+      <div className="mb-4"><BulkImport code={definition.code} canSubmit={definition.canSubmit} /></div>
 
       {!definition.canSubmit && (
         <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">

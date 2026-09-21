@@ -153,6 +153,26 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
+/** GET any file the API serves with a content-disposition — CSV templates and exports. */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const url = new URL(`/api/v1${path}`, window.location.origin);
+  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  let res = await send();
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+  if (!res.ok) {
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    try { const parsed = await res.json(); if (parsed?.error) body = parsed.error; } catch { /* not JSON */ }
+    throw new ApiError(res.status, body);
+  }
+  const ascii = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '');
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href; a.download = ascii?.[1] ?? fallbackName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}
+
 /** POST a selection and download the merged PDF it produces. */
 export async function downloadPdfBundle(
   kind: string,

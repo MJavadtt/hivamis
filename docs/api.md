@@ -91,6 +91,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Briefs | `/briefs` (+ `POST /:id/recalculate`) | `brief.read` |
 | Proposals | `/proposals` | `proposal.read` |
 | Projects | `/projects` (+ `/:id/360`, `/finance`, `/closure`) | `project.read` |
+| Project budget | `GET /projects/:id/budget` — budget against declared cost per work order (`status`: NO_BUDGET / UNDER / NEAR / OVER, variance, declaration count), rolled up per unit and for the project | `project.read` + `pricing.read` |
 | Work orders | `/work-orders` (+ `POST /:id/cost`) | `workorder.read` |
 | Tasks | `/tasks` | `task.read` |
 | Deliverables | `/deliverables` | `deliverable.read` |
@@ -131,6 +132,9 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
 | `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
 | `GET /forms/definitions/:code/versions` | Every version the definition has had, newest first, each with its schema, note and how many submissions pin it |
+| `GET /forms/definitions/:code/template` / `template.csv` | The importable columns of a form from its schema (key, label, type, required, options, a Persian hint); the CSV has a key row and a label row |
+| `POST /forms/definitions/:code/import` `{ csv \| rows, mode }` | `mode: preview` checks every row and writes nothing — references are resolved by code, email or name, and each row's issues are listed; `draft` (default for a migration) and `submit` write the valid rows through the form engine, skipping the invalid ones. `form.submit`; ≤ 2000 rows; audited as `BULK_IMPORT` |
+| `GET /forms/definitions/:code/export.csv` | Every submission of the form, bookkeeping columns then the union of field keys across versions. `form.read`; audited |
 | `GET /forms/submissions` | Submissions; `?awaitingMe=true` is the approval inbox — a single submission includes `definitionVersion` and `schema`, the fields as they stood when it was filled in |
 | `POST /forms/submissions` | Submit or save a draft |
 | `POST /forms/submissions/:id/decision` | Approve, reject or return (a reason is required to reject or return) |

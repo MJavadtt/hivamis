@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { closeApp, get, login, post, move, expectOk } from './helpers.js';
+import { call, closeApp, get, login, post, move, expectOk } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla } from '../src/sla/engine.js';
@@ -528,6 +528,95 @@ describe('Budget against actual, per work order', () => {
     expect(statusOf(100, 90)).toBe('NEAR');
     expect(statusOf(100, 100)).toBe('NEAR');
     expect(statusOf(100, 100.01)).toBe('OVER');
+  });
+});
+
+describe('Bulk import and export, per form', () => {
+  const CODE = 'B10_BRIEF_COMPLETION';   // briefId (entityRef), addedInformation (textarea), one more
+
+  it('parses CSV the way spreadsheets write it', async () => {
+    const { parseCsv, toCsv } = await import('../src/forms/bulk.js');
+    const text = '﻿a,b,c\r\n"x, y","she said ""hi""","multi\nline"\r\n1,,3\r\n';
+    expect(parseCsv(text)).toEqual([['a', 'b', 'c'], ['x, y', 'she said "hi"', 'multi\nline'], ['1', '', '3']]);
+    // Round trip, including the BOM Excel needs for Persian.
+    const csv = toCsv([['کلید', 'مقدار'], ['نام', 'شرکت، با ویرگول'], ['فهرست', ['a', 'b']]]);
+    expect(csv.startsWith('﻿')).toBe(true);
+    expect(parseCsv(csv)).toEqual([['کلید', 'مقدار'], ['نام', 'شرکت، با ویرگول'], ['فهرست', 'a|b']]);
+  });
+
+  it('generates a template from the schema, with the words a person needs', async () => {
+    const t = expectOk(await get(`/forms/definitions/${CODE}/template`, T.sales), 'template');
+    expect(t.code).toBe(CODE);
+    const brief = t.columns.find((c: any) => c.key === 'briefId');
+    expect(brief).toMatchObject({ type: 'entityRef', required: true });
+    expect(brief.hintFa).toContain('کد رکورد');
+    expect(t.columns.some((c: any) => c.type === 'attachment')).toBe(false);
+
+    const res = await call('GET', `/forms/definitions/${CODE}/template.csv`, { token: T.sales });
+    expect(res.status).toBe(200);
+    const lines = String(res.body).replace(/^﻿/, '').trim().split(/\r?\n/);
+    expect(lines[0]!.split(',')).toContain('briefId');
+    expect(lines[1]).toContain(brief.labelFa);   // second row: the labels
+  });
+
+  it('previews every row — resolving references by code, reporting each problem, writing nothing', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const before = await prisma.formSubmission.count();
+    const csv = [
+      'briefId,addedInformation',
+      `${brief.code},اطلاعات ردیف یک`,            // by code — resolved
+      `${brief.id},اطلاعات ردیف دو`,              // by id — as is
+      `BRF-999999,اطلاعات ردیف سه`,               // unknown code
+      `${brief.code},`,                            // required field missing
+    ].join('\n');
+    const p = expectOk(await post(`/forms/definitions/${CODE}/import`, T.sales, { csv, mode: 'preview' }), 'preview');
+    expect(p).toMatchObject({ mode: 'preview', total: 4, valid: 2, invalid: 2 });
+    expect(p.rows[0]).toMatchObject({ index: 1, ok: true });
+    expect(p.rows[0].data.briefId).toBe(brief.id);
+    expect(p.rows[2].ok).toBe(false);
+    expect(p.rows[2].issues[0].message).toContain('BRF-999999');
+    expect(p.rows[3].ok).toBe(false);
+    expect(p.rows[3].issues[0].message).toContain('الزامی');
+    expect(await prisma.formSubmission.count()).toBe(before);
+  });
+
+  it('imports the valid rows through the form engine, as drafts by default, and exports them back', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const csv = [
+      'briefId,addedInformation',
+      `${brief.code},وارد شده از اکسل ۱`,
+      `${brief.code},"وارد شده، از اکسل ۲"`,
+      `BRF-999999,ردیف خراب`,
+    ].join('\n');
+    const r = expectOk(await post(`/forms/definitions/${CODE}/import`, T.sales, { csv, mode: 'draft' }), 'import');
+    expect(r).toMatchObject({ mode: 'draft', total: 3, created: 2, failed: 1 });
+    expect(r.rows[0].code).toMatch(/^FRM-/);
+    const made = await prisma.formSubmission.findMany({ where: { id: { in: r.rows.filter((x: any) => x.ok).map((x: any) => x.id) } } });
+    expect(made.every((m) => m.state === 'DRAFT')).toBe(true);
+    expect(made.every((m) => m.definitionVersion >= 1)).toBe(true);
+    const audited = await prisma.auditEvent.findFirst({ where: { action: 'BULK_IMPORT' }, orderBy: { createdAt: 'desc' } });
+    expect(audited?.after).toMatchObject({ form: CODE, created: 2, failed: 1 });
+
+    // Submit mode goes through approvals like a hand-filled form would.
+    const s = expectOk(await post(`/forms/definitions/${CODE}/import`, T.sales, { rows: [{ briefId: brief.code, addedInformation: 'ثبت مستقیم' }], mode: 'submit' }), 'submit');
+    expect(s.created).toBe(1);
+    expect((await prisma.formSubmission.findUniqueOrThrow({ where: { id: s.rows[0].id } })).state).toBe('PENDING_APPROVAL');
+
+    const out = await call('GET', `/forms/definitions/${CODE}/export.csv`, { token: T.sales });
+    expect(out.status).toBe(200);
+    const text = String(out.body);
+    expect(text).toContain('code,state,definitionVersion,submittedAt,submittedBy,briefId,addedInformation');
+    expect(text).toContain('وارد شده از اکسل ۱');
+    // A Persian comma is not a delimiter, so the exporter rightly leaves it unquoted.
+    expect(text).toContain('وارد شده، از اکسل ۲');
+    expect(text).not.toContain('"وارد شده، از اکسل ۲"');
+    expect(text).not.toContain('ردیف خراب');
+  });
+
+  it('refuses a mode it does not know and an empty request', async () => {
+    expect((await post(`/forms/definitions/${CODE}/import`, T.sales, { rows: [], mode: 'yolo' })).status).toBe(400);
+    expect((await post(`/forms/definitions/${CODE}/import`, T.sales, { mode: 'preview' })).status).toBe(400);
+    expect((await post(`/forms/definitions/NOPE/import`, T.sales, { rows: [] })).status).toBe(404);
   });
 });
 

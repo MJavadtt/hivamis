@@ -142,6 +142,13 @@ rest are visible so you can see the shape of the process.
 
 ---
 
+**Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels
+and a hint per column), an export of everything filed on it, and an import. Choose a file and
+the system checks every row first — references can be codes like `PRJ-000002`, emails or
+company names — and lists each row's problems before anything is written. Valid rows go in as
+drafts by default (a migration of last year's records should not open two hundred approvals),
+or through approval if you say so.
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

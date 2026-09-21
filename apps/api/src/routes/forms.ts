@@ -2,9 +2,13 @@ import type { FastifyPluginAsync } from 'fastify';
 import { formDecisionSchema, submitFormSchema, paginationSchema, FORM_CATEGORY_LABELS } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
-import { notFound } from '../lib/errors.js';
+import { badRequest, notFound } from '../lib/errors.js';
+import { audit } from '../lib/audit.js';
 import { decideForm, submitForm } from '../forms/engine.js';
 import { schemaForSubmission } from '../forms/versions.js';
+import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
+import type { FormActor } from '../forms/engine.js';
+import type { FieldDef } from '@hiva/contracts';
 
 const formRoutes: FastifyPluginAsync = async (app) => {
   /** The full Doc_H form catalogue, grouped for the navigator. */
@@ -130,6 +134,87 @@ const formRoutes: FastifyPluginAsync = async (app) => {
         schema: v.schema,
       })),
     };
+  });
+
+  /* ── Bulk import / export (roadmap #20) ─────────────────────────────── */
+
+  async function definitionFor(req: Parameters<typeof actorFrom>[0], code: string) {
+    const actor = actorFrom(req);
+    const definition = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!definition) throw notFound('تعریف فرم');
+    return { actor, definition, fields: definition.schema as unknown as FieldDef[] };
+  }
+
+  /** The importable columns of a form, with the words a person needs to fill each. */
+  app.get('/forms/definitions/:code/template', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const { code } = req.params as { code: string };
+    const { definition, fields } = await definitionFor(req, code);
+    return { code: definition.code, nameFa: definition.nameFa, version: definition.version, columns: templateFor(fields) };
+  });
+
+  app.get('/forms/definitions/:code/template.csv', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req, reply) => {
+    const { code } = req.params as { code: string };
+    const { fields } = await definitionFor(req, code);
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${code}-template.csv"`)
+      .send(templateCsv(fields));
+  });
+
+  /**
+   * Rows arrive as CSV text or as JSON. `mode: preview` checks everything and writes nothing;
+   * `draft` and `submit` write the valid rows through the form engine. Draft is the default —
+   * a migration of last year's records should not open two hundred approvals.
+   */
+  app.post('/forms/definitions/:code/import', {
+    preHandler: [app.authenticate, app.requirePermissions('form.submit')],
+  }, async (req) => {
+    const { code } = req.params as { code: string };
+    const { actor, definition, fields } = await definitionFor(req, code);
+    const body = (req.body ?? {}) as { csv?: string; rows?: Record<string, unknown>[]; mode?: string };
+    const mode = body.mode ?? 'preview';
+    if (!['preview', 'draft', 'submit'].includes(mode)) {
+      throw badRequest('INVALID_MODE', 'حالت باید preview، draft یا submit باشد', { mode });
+    }
+    const rows = body.csv != null ? rowsFromCsv(String(body.csv), fields) : Array.isArray(body.rows) ? body.rows : null;
+    if (!rows) throw badRequest('ROWS_REQUIRED', 'متن CSV یا فهرست ردیف‌ها لازم است');
+    if (rows.length > 2000) throw badRequest('TOO_MANY_ROWS', 'حداکثر ۲۰۰۰ ردیف در هر بار', { rows: rows.length });
+
+    if (mode === 'preview') return { mode, form: definition.code, ...(await previewImport(prisma, actor.organizationId, fields, rows)) };
+    const formActor: FormActor = {
+      id: actor.id, organizationId: actor.organizationId, departmentCode: actor.departmentCode,
+      roles: actor.roles, permissions: actor.permissions,
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+    };
+    const result = await runImport(prisma, definition.code, fields, rows, { actor: formActor, asDraft: mode === 'draft' });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'BULK_IMPORT',
+      entityType: 'formDefinition', entityId: definition.id,
+      after: { form: definition.code, mode, total: result.total, created: result.created, failed: result.failed },
+      ipAddress: actor.ipAddress,
+    });
+    return { mode, form: definition.code, ...result };
+  });
+
+  app.get('/forms/definitions/:code/export.csv', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req, reply) => {
+    const { code } = req.params as { code: string };
+    const { actor, definition } = await definitionFor(req, code);
+    const csv = await exportCsv(prisma, actor.organizationId, definition.id);
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'EXPORT',
+      entityType: 'formDefinition', entityId: definition.id, after: { format: 'csv', form: definition.code },
+      ipAddress: actor.ipAddress,
+    });
+    return reply
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${code}.csv"`)
+      .send(csv);
   });
 
   app.post('/forms/submissions', {
