@@ -91,6 +91,34 @@ model Delegation {
   @@map("delegations")
 }
 
+/// A governed exception (roadmap #7). A blocked guard is otherwise a dead end, and a dead end
+/// moves the work outside the system — losing both the rule and the trace. A waiver lets the
+/// CEO or deputy say "this once, without X; on my authority": one record, one guard, one use,
+/// a reason, an expiry, and a register that management and the data-quality report can see.
+model Waiver {
+  id             String    @id @default(uuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  /// The guard id this waives, e.g. project.hasValidAuthorizationBasis.
+  guard          String
+  /// Restrict to one transition action; null waives the guard on any transition of the record.
+  action         String?
+  reason         String
+  grantedById    String
+  grantedAt      DateTime  @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  usedById       String?
+  usedAction     String?
+  revokedAt      DateTime?
+  revokedById    String?
+
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, expiresAt])
+  @@map("waivers")
+}
+
 model Department {
   id             String       @id @default(uuid())
   organizationId String

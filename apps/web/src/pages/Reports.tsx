@@ -14,7 +14,7 @@ import {
   Badge, Card, EmptyState, ErrorBlock, LoadingBlock, ProgressBar, StateBadge,
   StatTile, Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
-import { formatCurrency, formatPercent, toPersianDigits } from '../lib/format';
+import { formatCurrency, formatPercent, toPersianDigits, formatDate } from '../lib/format';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -391,6 +391,7 @@ function DataQuality() {
 
   return (
     <div className="space-y-5">
+      <WaiverRegister />
       <Card title="امتیاز کیفیت داده" subtitle="رکوردهایی که فرآیند را بی‌سروصدا مختل می‌کنند">
         <div className="p-4">
           <div className="mb-2 flex items-baseline justify-between">
@@ -430,3 +431,42 @@ function DataQuality() {
     </div>
   );
 }
+
+const WAIVER_STATUS: Record<string, { fa: string; tone: 'warning' | 'neutral' | 'success' | 'danger' }> = {
+  OPEN: { fa: 'باز', tone: 'warning' }, USED: { fa: 'مصرف‌شده', tone: 'neutral' },
+  EXPIRED: { fa: 'منقضی', tone: 'success' }, REVOKED: { fa: 'لغوشده', tone: 'danger' },
+};
+
+/**
+ * The register of exceptions. A waiver is a rule set aside on purpose; the report that hunts
+ * rules set aside by accident shows the deliberate ones beside them, with names on each.
+ */
+function WaiverRegister() {
+  const { data } = useQuery<any[]>({ queryKey: ['/waivers'], queryFn: () => apiGet('/waivers') });
+  if (!data) return null;
+  const open = data.filter((w) => w.status === 'OPEN').length;
+  return (
+    <Card title="دفتر استثناها" subtitle={`قوانینی که با اجازهٔ مدیریت، یک بار و برای یک رکورد، کنار گذاشته شده‌اند — ${toPersianDigits(open)} استثنای باز`}>
+      {!data.length ? <EmptyState title="استثنایی ثبت نشده — همان‌طور که باید" /> : (
+        <Table>
+          <thead className="bg-ink-50/60">
+            <tr><Th>قانون</Th><Th>رکورد</Th><Th>دلیل</Th><Th>صادرکننده</Th><Th>انقضا</Th><Th>وضعیت</Th></tr>
+          </thead>
+          <tbody data-testid="waiver-register">
+            {data.map((w) => (
+              <Tr key={w.id}>
+                <Td className="text-xs">{w.guardLabelFa}</Td>
+                <Td className="text-xs">{w.entityType} <Code>{String(w.entityId).slice(0, 8)}</Code></Td>
+                <Td className="max-w-xs text-xs text-ink-600">{w.reason}</Td>
+                <Td className="text-xs">{w.grantedByName}{w.usedByName && <span className="text-ink-400"> · مصرف: {w.usedByName}</span>}</Td>
+                <Td className="text-xs">{formatDate(w.expiresAt)}</Td>
+                <Td><Badge tone={WAIVER_STATUS[w.status]?.tone ?? 'neutral'}>{WAIVER_STATUS[w.status]?.fa ?? w.status}</Badge></Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </Card>
+  );
+}
+

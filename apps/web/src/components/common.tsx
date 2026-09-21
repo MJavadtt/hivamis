@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { stateLabelFa } from '@hiva/contracts';
 import { useList, type Transition } from '../hooks/queries';
+import { useAuth } from '../lib/auth';
 import {
   Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Modal, Pagination, Select,
   StateBadge, Table, Td, Textarea, Th, Tr, useToast, cx, Field, IconSearch, IconRefresh,
@@ -29,8 +30,11 @@ export function WorkflowActions({
   const [pending, setPending] = useState<Transition | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [waiving, setWaiving] = useState<{ action: string; guard: string; labelFa: string } | null>(null);
+  const [waiverReason, setWaiverReason] = useState('');
   const qc = useQueryClient();
   const toast = useToast();
+  const { can } = useAuth();
 
   // "Why can't I?" before the click. Every guard's verdict for every action offered, so a
   // blocked move shows what is missing instead of a 422 after the attempt.
@@ -104,10 +108,17 @@ export function WorkflowActions({
                 {[...checksFor(t.action)].sort((a, b) => Number(a.ok) - Number(b.ok)).map((c) => (
                   <li key={c.guard} className={cx('flex gap-1.5', c.ok ? 'text-emerald-700' : 'text-rose-700')}>
                     <span aria-hidden className="shrink-0">{c.ok ? '✓' : '✗'}</span>
-                    <span>
+                    <span className="min-w-0 flex-1">
                       {c.labelFa}
                       {!c.ok && c.messageFa && <span className="text-ink-500"> — {c.messageFa}</span>}
+                      {c.waived && <span className="text-amber-700"> — استثنا: {c.waived.reason}</span>}
                     </span>
+                    {!c.ok && can('governance.waive') && (
+                      <button type="button" className="shrink-0 text-[11px] text-brand-700 underline"
+                        onClick={() => { setWaiving({ action: t.action, guard: c.guard, labelFa: c.labelFa }); setWaiverReason(''); }}>
+                        صدور استثنا
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -138,6 +149,40 @@ export function WorkflowActions({
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus />
         </Field>
       </Modal>
+
+      {/* A governed exception: one guard, this record, once, on the executive's authority. */}
+      <Modal
+        open={!!waiving}
+        onClose={() => setWaiving(null)}
+        title={`صدور استثنا — ${waiving?.labelFa ?? ''}`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setWaiving(null)}>انصراف</Button>
+            <Button variant="danger" loading={busy} disabled={waiverReason.trim().length < 10}
+              onClick={async () => {
+                if (!waiving) return;
+                setBusy(true);
+                try {
+                  await apiPost('/waivers', { entityType: entity, entityId: id, guard: waiving.guard, action: waiving.action, reason: waiverReason.trim() });
+                  toast('استثنا ثبت شد — یک بار، تا هفت روز، به نام شما.');
+                  setWaiving(null);
+                  await qc.invalidateQueries({ queryKey: [`/workflow/${entity}/${id}/preflight`] });
+                } catch (e: any) {
+                  toast(e?.message ?? 'ثبت استثنا ناموفق بود.', 'danger');
+                } finally { setBusy(false); }
+              }}>
+              ثبت استثنا با مسئولیت من
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-ink-600">
+          این قانون برای همین رکورد و فقط برای یک بار کنار گذاشته می‌شود، تا هفت روز اعتبار دارد، و در دفتر استثناها و گزارش کیفیت داده دیده می‌شود.
+        </p>
+        <Field label="دلیل" required hint="دست‌کم ده حرف — این متن در دفتر استثناها می‌ماند.">
+          <Textarea value={waiverReason} onChange={(e) => setWaiverReason(e.target.value)} rows={3} autoFocus aria-label="دلیل استثنا" />
+        </Field>
+      </Modal>
     </>
   );
 }
@@ -146,7 +191,7 @@ interface PreflightEntry {
   action: string;
   ready: boolean;
   permitted: boolean;
-  checks: Array<{ guard: string; labelFa: string; ok: boolean; messageFa?: string; rule?: string }>;
+  checks: Array<{ guard: string; labelFa: string; ok: boolean; messageFa?: string; rule?: string; waived?: { reason: string } }>;
 }
 
 const destructive = (action: string) =>

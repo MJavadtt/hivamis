@@ -407,3 +407,32 @@ revoked — and the record history says "A, as B's delegate". Any request gated 
 `requirePermissions` is covered automatically; the workflow engine and the form engine attribute
 their own rows because they check permissions themselves.
 
+---
+
+## ADR-019 — An exception must be possible, and expensive, visible and temporary
+
+**Decision.** The CEO or deputy (`governance.waive`) can grant a `Waiver`: one guard, one record,
+optionally one transition, a reason of at least ten characters, an expiry of at most thirty days.
+Enforcement treats a failing guard covered by a live waiver as holding, spends the waiver in the
+same transaction, and writes what was waived into the transition's audit row. Preflight shows a
+waived check as satisfied and says by whom. The register is visible on the executive dashboard and
+in the data-quality report, beside the rules set aside by accident.
+
+**Rationale.** A blocked guard was a dead end, and a dead end moves the work outside the system —
+losing both the rule and the trace. In practice the CEO does sometimes need to say "start without
+the contract this once; on my authority". If the system cannot express that, the organisation
+expresses it in a chat message and the project starts anyway, with no record and no rule. The
+design goal is not to make exceptions easy; it is to make the *recorded* exception easier than
+the unrecorded one.
+
+**What keeps it an exception.** Single use — the first transition it lets through spends it.
+Bounded — thirty days at most; a permanent exception is a rule change, and belongs in the
+contracts. Narrow — one guard on one record, never a class of records. Named — the reason is
+mandatory and stays in the register with the grantor's name. Counted — `waiversOpen` and
+`waiversUsed30d` on the dashboard, so drift toward routine exceptions is visible as a number.
+
+**Alternatives rejected.** A "force" flag on the transition endpoint: no reason, no expiry, no
+register, and it would have to be guarded by the same permission anyway. Editing the record to
+satisfy the guard: that is the workaround this replaces, with a lie in the data instead of a
+truth in the register.
+

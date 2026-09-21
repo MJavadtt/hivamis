@@ -333,6 +333,96 @@ describe('Preflight — "why can’t I?" before the click', () => {
   });
 });
 
+describe('Governed waivers', () => {
+  /**
+   * A blocked guard is otherwise a dead end, and a dead end moves the work outside the system
+   * — losing the rule and the trace both. An exception must be possible, and it must be
+   * expensive, visible and temporary.
+   */
+  const GUARD = 'project.hasValidAuthorizationBasis';
+  async function blockedProject() {
+    // A project awaiting authorisation with nothing to authorise it on.
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    return prisma.project.create({
+      data: { organizationId: org.id, code: `PRJ-WV-${Date.now()}`, name: 'پروژهٔ بدون مبنای مجوز', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'PENDING_AUTHORIZATION' },
+    });
+  }
+
+  it('lets the deputy set one guard aside for one record, once, with a reason — and records every step', async () => {
+    const project = await blockedProject();
+    const blocked = await move('project', project.id, 'authorize', tokens.deputy);
+    expect(blocked.status).toBe(422);
+    expect(blocked.body.error.details.rule).toContain('Doc_H §13');
+
+    const waiver = expectOk(await post('/waivers', tokens.deputy, {
+      entityType: 'project', entityId: project.id, guard: GUARD,
+      reason: 'قرارداد امضا شده و در راه است؛ شروع بدون ثبت آن، با مسئولیت قائم‌مقام',
+    }), 'grant');
+    expect(waiver.guardLabelFa).toBeTruthy();
+    expect(new Date(waiver.expiresAt).getTime() - Date.now()).toBeGreaterThan(6 * 86_400_000);
+
+    // Preflight says the guard is set aside, and by whom.
+    const pf = expectOk(await get(`/workflow/project/${project.id}/preflight/authorize`, tokens.deputy), 'preflight');
+    const check = pf.checks.find((c: any) => c.guard === GUARD);
+    expect(check.ok).toBe(true);
+    expect(check.waived).toMatchObject({ id: waiver.id, reason: waiver.reason });
+    expect(pf.ready).toBe(true);
+
+    expectOk(await move('project', project.id, 'authorize', tokens.deputy), 'authorize on the waiver');
+    const spent = await prisma.waiver.findUniqueOrThrow({ where: { id: waiver.id } });
+    expect(spent.usedAt).not.toBeNull();
+    expect(spent.usedAction).toBe('authorize');
+    const audited = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'STATE_TRANSITION', entityId: project.id } });
+    expect((audited.after as any).waived[0]).toMatchObject({ guard: GUARD, id: waiver.id });
+    expect(await prisma.auditEvent.count({ where: { action: 'WAIVER_GRANTED', entityId: project.id } })).toBe(1);
+
+    // Spent: listed as USED, and no longer revocable.
+    const register = expectOk(await get('/waivers', tokens.deputy, { entityId: project.id }), 'register');
+    expect(register[0]).toMatchObject({ status: 'USED', grantedByName: expect.any(String), usedByName: expect.any(String) });
+    expect((await post(`/waivers/${waiver.id}/revoke`, tokens.deputy)).body.error.code).toBe('ALREADY_USED');
+  });
+
+  it('is only for the executive, only for a real guard on this entity, only with a real reason, only for days', async () => {
+    const project = await blockedProject();
+    const base = { entityType: 'project', entityId: project.id, guard: GUARD, reason: 'دلیل کافی برای ثبت در دفتر استثناها' };
+    expect((await post('/waivers', tokens.accountManager, base)).status).toBe(403);
+    expect((await post('/waivers', tokens.pmo, base)).status).toBe(403);
+    expect((await post('/waivers', tokens.deputy, { ...base, guard: 'no.such.guard' })).body.error.code).toBe('UNKNOWN_GUARD');
+    expect((await post('/waivers', tokens.deputy, { ...base, guard: 'brief.isComplete' })).body.error.code).toBe('GUARD_NOT_ON_ENTITY');
+    expect((await post('/waivers', tokens.deputy, { ...base, action: 'close' })).body.error.code).toBe('ACTION_NOT_GUARDED');
+    expect((await post('/waivers', tokens.deputy, { ...base, reason: 'کوتاه' })).body.error.code).toBe('REASON_REQUIRED');
+    expect((await post('/waivers', tokens.deputy, { ...base, expiresAt: new Date(Date.now() + 40 * 86_400_000).toISOString() })).body.error.code).toBe('TOO_LONG');
+    expect((await post('/waivers', tokens.deputy, { ...base, entityId: '00000000-0000-4000-8000-000000000000' })).status).toBe(404);
+    expect((await post('/waivers', tokens.ceo, base)).status).toBe(201);
+    expect((await post('/waivers', tokens.deputy, base)).body.error.code).toBe('WAIVER_EXISTS');
+  });
+
+  it('does nothing once expired or revoked, and shows in the registers while open', async () => {
+    const project = await blockedProject();
+    const org = await prisma.organization.findFirstOrThrow();
+    const deputy = await prisma.user.findUniqueOrThrow({ where: { email: 'deputy@hiva.local' } });
+    await prisma.waiver.create({ data: {
+      organizationId: org.id, entityType: 'project', entityId: project.id, guard: GUARD, reason: 'منقضی‌شده در آزمون',
+      grantedById: deputy.id, expiresAt: new Date(Date.now() - 60_000),
+    } });
+    expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
+
+    const live = expectOk(await post('/waivers', tokens.deputy, { entityType: 'project', entityId: project.id, guard: GUARD, reason: 'استثنای موقت برای آزمون لغو' }), 'grant');
+    const quality = expectOk(await get('/reports/data-quality', tokens.deputy), 'data quality');
+    const finding = quality.findings.find((f: any) => f.key === 'openWaivers');
+    expect(finding.count).toBeGreaterThanOrEqual(1);
+    expect(finding.samples.some((s: any) => s.id === live.id)).toBe(true);
+    const executive = expectOk(await get('/reports/executive', tokens.deputy), 'executive');
+    expect(executive.governance.waiversOpen).toBeGreaterThanOrEqual(1);
+
+    expectOk(await post(`/waivers/${live.id}/revoke`, tokens.deputy), 'revoke');
+    expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
+    expect(expectOk(await get('/waivers', tokens.deputy, { entityId: project.id, status: 'REVOKED' }), 'revoked').some((w: any) => w.id === live.id)).toBe(true);
+  });
+});
+
 describe('Workflow engine integrity', () => {
   it('rejects an undeclared transition with the list of legal actions', async () => {
     const project = await prisma.project.findFirst({ where: { state: 'ACTIVE' } });

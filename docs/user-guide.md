@@ -176,6 +176,12 @@ A refusal names the rule. For example:
 That is the platform doing its job. The path forward is to satisfy the rule — record the
 authorisation, complete the brief, assess the change impact — not to work around it.
 
+**The rule really must be set aside this once.** Only the CEO or deputy can do this, and only
+from the checklist next to the blocked button: *صدور استثنا* on the failing line, with a reason.
+The exception covers that one guard on that one record, is spent by the first move it lets
+through, expires within days, and appears in the register on the data-quality report with the
+grantor's name. It is meant to be rare; the dashboard counts them.
+
 **The approver is away.** Do not share a password — the audit trail would say the wrong person
 did everything. Open *تفویض اختیار* (bottom of the sidebar) and lend exactly the permissions or
 approver role needed, until a date, with a reason. The delegate sees the lent items on their next

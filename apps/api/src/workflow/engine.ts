@@ -3,7 +3,7 @@ import { prisma, type Tx } from '../db.js';
 import { AppError, GovernanceError, badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, startSla, stopSla } from '../sla/engine.js';
-import { runGuards, runAllGuards, type GuardCheck } from './guards.js';
+import { runGuards, runAllGuards, activeWaivers, type GuardCheck } from './guards.js';
 import { EFFECTS } from './effects.js';
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
@@ -122,9 +122,10 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       );
     }
 
+    const waivers = def.guards?.length ? await activeWaivers(tx, entity, id, action) : [];
     const guardResult = await runGuards(def.guards, {
       tx, entity, id, record, payload, actorId: actor.id,
-    });
+    }, waivers);
     if (!guardResult.ok) {
       throw new GovernanceError(
         guardResult.rule ?? 'unknown',
@@ -132,6 +133,12 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
         guardResult.details,
       );
     }
+    // A waiver is spent by the transition it let through, in the same transaction, so it can
+    // never let a second one through.
+    for (const w of guardResult.usedWaivers) {
+      await tx.waiver.update({ where: { id: w.id }, data: { usedAt: new Date(), usedById: actor.id, usedAction: action } });
+    }
+    const waived = guardResult.usedWaivers.map((w) => ({ id: w.id, guard: w.guard, grantedById: w.grantedById, reason: w.reason }));
 
     const effect = EFFECTS[`${entity}.${action}`];
     const patch = effect
@@ -170,7 +177,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       entityId: id,
       onBehalfOfId,
       before: { state: fromState },
-      after: { state: def.to },
+      after: { state: def.to, ...(waived.length ? { waived } : {}) },
       reason: reason ?? null,
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
@@ -333,7 +340,8 @@ export async function preflight(
   const transitions: PreflightEntry[] = [];
   for (const def of candidates) {
     const permitted = !def.permission || actor.permissions.includes(def.permission as Permission);
-    const checks = await runAllGuards(def.guards, { tx, entity, id, record, payload: {}, actorId: actor.id });
+    const waivers = def.guards?.length ? await activeWaivers(tx, entity, id, def.action) : [];
+    const checks = await runAllGuards(def.guards, { tx, entity, id, record, payload: {}, actorId: actor.id }, waivers);
     transitions.push({
       action: def.action, labelFa: def.labelFa, labelEn: def.labelEn, to: def.to,
       requiresReason: def.requiresReason ?? false,

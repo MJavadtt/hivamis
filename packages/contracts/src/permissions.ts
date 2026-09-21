@@ -119,6 +119,7 @@ export const PERMISSIONS = {
   // Governance registers
   'governance.read': 'مشاهده ریسک/مسئله/تصمیم',
   'governance.write': 'ثبت ریسک/مسئله/تصمیم',
+  'governance.waive': 'صدور استثنا بر قوانین حاکم (فقط مدیرعامل و قائم‌مقام)',
   'meeting.read': 'مشاهده جلسات',
   'meeting.write': 'ثبت جلسه و صورتجلسه',
 
@@ -234,7 +235,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
     ),
   ],
   DEPUTY: [
-    ...READ_ONLY, 'report.executive', 'admin.audit',
+    ...READ_ONLY, 'report.executive', 'admin.audit', 'governance.waive',
     'project.authorize', 'pricing.read', 'pricing.approve', 'qc.final',
     'change.approve', 'contract.approve', 'contract.sign',
     'supplier.approve', 'finance.read', 'finance.settle',

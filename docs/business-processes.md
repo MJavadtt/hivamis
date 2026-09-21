@@ -134,6 +134,11 @@ One pause is declared by the state machines themselves: a work order in `CLARIFI
 pauses the unit's acceptance clock, because the unit is waiting on Account, whose own
 clarification clock is running meanwhile. It resumes when the clarification is provided.
 
+**Exceptions (governed waivers).** A guard that blocks a transition can be set aside by the CEO
+or deputy for one record, once, with a reason, for at most thirty days. The transition that uses
+it records which guard was waived and on whose authority; the register of exceptions is on the
+executive dashboard and in the data-quality report. See ADR-019.
+
 **Budget control at the order (Doc_H §12, §C).** Every work order carries a budget and every
 cost declaration names its order, so the two are compared the moment a declaration lands. At
 90% of budget the account owner and the declarer are warned; above 100% the warning is

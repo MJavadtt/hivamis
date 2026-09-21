@@ -455,6 +455,24 @@ export const GUARD_LABELS: Record<string, string> = {
 export interface GuardCheck extends GuardResult {
   guard: string;
   labelFa: string;
+  /** Present when the guard does not hold but a governed exception covers it (roadmap #7). */
+  waived?: { id: string; grantedById: string; reason: string; expiresAt: Date };
+}
+
+export interface ActiveWaiver { id: string; guard: string; action: string | null; grantedById: string; reason: string; expiresAt: Date }
+
+/** The waivers that could apply to a transition of this record right now: unexpired, unused, unrevoked. */
+export async function activeWaivers(tx: Tx, entity: string, id: string, action?: string): Promise<ActiveWaiver[]> {
+  const now = new Date();
+  const rows = await tx.waiver.findMany({
+    where: {
+      entityType: entity, entityId: id, usedAt: null, revokedAt: null, expiresAt: { gt: now },
+      ...(action ? { OR: [{ action: null }, { action }] } : {}),
+    },
+    select: { id: true, guard: true, action: true, grantedById: true, reason: true, expiresAt: true },
+    orderBy: { grantedAt: 'asc' },
+  });
+  return rows;
 }
 
 /**
@@ -465,6 +483,7 @@ export interface GuardCheck extends GuardResult {
 export async function runAllGuards(
   guardIds: readonly string[] | undefined,
   ctx: GuardContext,
+  waivers: readonly ActiveWaiver[] = [],
 ): Promise<GuardCheck[]> {
   const checks: GuardCheck[] = [];
   for (const gid of guardIds ?? []) {
@@ -474,22 +493,37 @@ export async function runAllGuards(
       checks.push({ guard: gid, labelFa, ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.` });
       continue;
     }
-    checks.push({ guard: gid, labelFa, ...(await guard(ctx)) });
+    const result = await guard(ctx);
+    const waiver = result.ok ? undefined : waivers.find((w) => w.guard === gid);
+    checks.push(waiver
+      ? { guard: gid, labelFa, ok: true, rule: result.rule, messageFa: result.messageFa, waived: { id: waiver.id, grantedById: waiver.grantedById, reason: waiver.reason, expiresAt: waiver.expiresAt } }
+      : { guard: gid, labelFa, ...result });
   }
   return checks;
 }
 
+/**
+ * Enforcement: stops at the first failing guard. A failing guard covered by an active waiver is
+ * treated as holding — and the waiver is reported back so the caller can consume it: a waiver is
+ * good for one use, which is what keeps an exception an exception.
+ */
 export async function runGuards(
   guardIds: readonly string[] | undefined,
   ctx: GuardContext,
-): Promise<GuardResult> {
+  waivers: readonly ActiveWaiver[] = [],
+): Promise<GuardResult & { usedWaivers: ActiveWaiver[] }> {
+  const usedWaivers: ActiveWaiver[] = [];
   for (const gid of guardIds ?? []) {
     const guard = GUARDS[gid];
     if (!guard) {
-      return { ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.` };
+      return { ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.`, usedWaivers };
     }
     const result = await guard(ctx);
-    if (!result.ok) return result;
+    if (!result.ok) {
+      const waiver = waivers.find((w) => w.guard === gid);
+      if (!waiver) return { ...result, usedWaivers };
+      usedWaivers.push(waiver);
+    }
   }
-  return pass;
+  return { ...pass, usedWaivers };
 }

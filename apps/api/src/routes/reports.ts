@@ -208,6 +208,11 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         slaBreached: breachedSlas,
         slaAtRisk: atRiskSlas,
         pendingApprovals: pendingForms,
+        // Exceptions granted against the rules: open ones and those spent in the last 30 days.
+        // An exception should be rare enough to count by hand; this is where management sees
+        // whether it still is.
+        waiversOpen: await prisma.waiver.count({ where: { organizationId: org, usedAt: null, revokedAt: null, expiresAt: { gt: now } } }),
+        waiversUsed30d: await prisma.waiver.count({ where: { organizationId: org, usedAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } } }),
       },
       customers: {
         total: companies,
@@ -573,8 +578,15 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
       }),
     ]);
 
+    // The register of exceptions belongs here too: a waiver is a rule set aside on purpose, and
+    // the report that hunts rules set aside by accident should show the deliberate ones beside them.
+    const openWaivers = await prisma.waiver.findMany({
+      where: { organizationId: org, usedAt: null, revokedAt: null, expiresAt: { gt: now } },
+      select: { id: true, entityType: true, entityId: true, guard: true, reason: true, expiresAt: true },
+    });
     const findings = [
       { key: 'incompleteBriefs', labelFa: 'بریف‌های ناقص در جریان', count: incompleteBriefs, severity: 'MEDIUM' },
+      { key: 'openWaivers', labelFa: 'استثناهای باز بر قوانین حاکم', count: openWaivers.length, severity: 'MEDIUM', samples: openWaivers },
       { key: 'unauthorizedActiveProjects', labelFa: 'پروژه فعال بدون مجوز شروع (نقض §۱۳)', count: unauthorizedActive.length, severity: 'CRITICAL', samples: unauthorizedActive },
       { key: 'tasksWithoutSource', labelFa: 'وظیفه بدون سند مرجع (نقض §۶)', count: tasksNoSource, severity: 'HIGH' },
       { key: 'proposalsWithoutPrice', labelFa: 'پروپوزال در QC نهایی بدون قیمت', count: pricelessProposals, severity: 'HIGH' },

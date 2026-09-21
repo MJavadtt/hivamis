@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
+import { AuthProvider } from '../src/lib/auth';
+import { setAccessToken, setRefreshToken } from '../src/lib/api';
 import { WorkflowActions } from '../src/components/common';
 
 /**
@@ -32,19 +34,31 @@ function json(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-function mount() {
+const VIEWER = { id: 'u1', email: 'x@hiva.local', fullName: 'x', jobTitle: '', departmentCode: 'A', roles: [], permissions: ['project.read'], locale: 'fa' };
+const DEPUTY = { ...VIEWER, permissions: ['project.read', 'governance.waive'] };
+
+function mount(user: unknown = VIEWER) {
   const urls: string[] = [];
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-    urls.push(String(input));
+  const posts: any[] = [];
+  setAccessToken('t'); setRefreshToken('r');
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes('/auth/refresh')) return json({ accessToken: 't', refreshToken: 'r' });
+    if (url.includes('/auth/me')) return json(user);
+    if (url.includes('/waivers')) { posts.push(JSON.parse(String(init?.body))); return json({ id: 'w1' }); }
     return json(preflight);
   }));
+  (mount as any).posts = posts;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <MemoryRouter>
-          <WorkflowActions entity="project" id="prj-1" transitions={transitions} />
-        </MemoryRouter>
+        <AuthProvider>
+          <MemoryRouter>
+            <WorkflowActions entity="project" id="prj-1" transitions={transitions} />
+          </MemoryRouter>
+        </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -52,6 +66,25 @@ function mount() {
 }
 
 describe('Workflow actions — preflight checklist', () => {
+  it('offers a governed exception on a failing check only to those who may grant one', async () => {
+    mount();
+    await screen.findByTestId('preflight');
+    expect(screen.queryByRole('button', { name: 'صدور استثنا' })).toBeNull();
+  });
+
+  it('lets the executive waive one guard with a reason, and asks the engine again', async () => {
+    mount(DEPUTY);
+    await screen.findByTestId('preflight');
+    const offers = await screen.findAllByRole('button', { name: 'صدور استثنا' });
+    expect(offers).toHaveLength(2);                                   // one per failing check
+    fireEvent.click(offers[0]!);
+    const reason = screen.getByLabelText('دلیل استثنا');
+    fireEvent.change(reason, { target: { value: 'قرارداد در راه است؛ با مسئولیت من' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ثبت استثنا با مسئولیت من' }));
+    await waitFor(() => expect((mount as any).posts).toHaveLength(1));
+    expect((mount as any).posts[0]).toMatchObject({ entityType: 'project', entityId: 'prj-1', guard: 'project.isAuthorized', action: 'activate' });
+  });
+
   it('asks the engine for the preflight of this record', async () => {
     const urls = mount();
     await screen.findByTestId('preflight');

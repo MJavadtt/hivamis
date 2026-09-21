@@ -181,6 +181,9 @@ Each requires both `ai.use` and the underlying data permission.
 | `POST /delegations` `{ toUserId, permissions[], roles[], startsAt?, endsAt, reason, fromUserId? }` | authenticated — lend your own authority (a subset of what you hold; ≤ 90 days; reason mandatory); `fromUserId` other than yourself needs `admin.users`. Takes effect on the delegate's next token |
 | `GET /delegations?scope=all&active=true` | mine, given and received, with names and status (ACTIVE / SCHEDULED / EXPIRED / REVOKED); `scope=all` needs `admin.users` |
 | `POST /delegations/:id/revoke` | the delegator, the delegate or `admin.users`; ends the delegate's sessions so it cannot linger past the access-token lifetime |
+| `POST /waivers` `{ entityType, entityId, guard, action?, reason, expiresAt? }` | `governance.waive` (CEO, deputy) — set one guard aside on one record, once; the guard must stand on a transition of that entity; reason ≥ 10 chars; expiry ≤ 30 days (default 7); one live waiver per guard per record. Audited `WAIVER_GRANTED` |
+| `GET /waivers?entityType=&entityId=&status=` | `governance.read` — the register, with names and status (OPEN / USED / EXPIRED / REVOKED) |
+| `POST /waivers/:id/revoke` | `governance.waive` — an unused waiver only; a spent one is history |
 | `GET /sla-policies`, `PATCH /sla-policies/:code` | `admin.settings` for writes |
 | `GET /organization`, `PATCH /organization` | `admin.settings` for writes |
 | `GET /audit-events` | `admin.audit` |
