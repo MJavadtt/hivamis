@@ -1666,6 +1666,41 @@ model Notification {
 }
 
 /// Doc_H-derived AI governance: every AI call is recorded with its actor, scope and grounding.
+/// One indexed piece of organisational memory (roadmap #21): a brief, a proposal, a set of
+/// meeting minutes, a lesson learned, a piece of client feedback — reduced to the text worth
+/// remembering and the vector that text embeds to.
+///
+/// The vector is a plain float array rather than a pgvector column so the feature needs no
+/// extension to work (ADR-006 — one datastore, and no new one). Where pgvector *is* installed,
+/// an ANN index is a drop-in addition; the arithmetic below does not change.
+model MemoryDocument {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// brief | proposal | meeting | lessonLearned | feedback | statusReport | caseStudy
+  entityType     String
+  entityId       String
+  /// The project this memory belongs to, when it has one — for filtering and for #44.
+  projectId      String?
+  companyId      String?
+  titleFa        String
+  /// The text that was embedded, kept so a result can show why it matched.
+  body           String
+  /// Normalised, lower-cased text used for the lexical half of the search.
+  searchText     String
+  vector         Float[]
+  dims           Int
+  /// Which embedder produced the vector — results say so rather than implying one quality.
+  model          String
+  /// updatedAt of the source record when this was indexed; a later one means it is stale.
+  sourceUpdatedAt DateTime
+  indexedAt      DateTime @default(now())
+
+  @@unique([entityType, entityId])
+  @@index([organizationId, entityType])
+  @@index([organizationId, projectId])
+  @@map("memory_documents")
+}
+
 model AiInteraction {
   id             String   @id @default(uuid())
   organizationId String

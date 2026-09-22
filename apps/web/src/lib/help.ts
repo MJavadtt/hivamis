@@ -64,6 +64,7 @@ export const SECTION_TITLE_FA: Record<string, string> = {
   'PMO / Operations': 'عملیات / PMO',
   Management: 'مدیریت',
   Forms: 'فرم‌ها',
+  'Organisational memory': 'حافظهٔ سازمان',
   'The AI assistant': 'دستیار هوشمند',
   'When the system blocks you': 'وقتی سامانه مانع می‌شود',
 };

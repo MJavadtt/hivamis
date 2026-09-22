@@ -39,8 +39,8 @@ Status vocabulary, and it is used strictly:
 | 17 | Conditional routing and approval | — | Verified | b2ba689 |
 | 18 | Approval chains and quorum | 17 | Verified | b8b9f6d |
 | 15 | No-code form designer | 16 | Verified | 671c78a |
-| 19 | Offline forms (PWA) | — | Verified | next |
-| 21 | Semantic search over organisational memory (pgvector) | — | Pending | |
+| 19 | Offline forms (PWA) | — | Verified | e364cf2 |
+| 21 | Semantic search over organisational memory | — | Verified | next |
 | 44 | Lessons-learned surfacing at project start | 21 | Pending | |
 | 25 | Brief quality scoring | — | Pending | |
 | 24 | Estimation assistant | 14 | Pending | |

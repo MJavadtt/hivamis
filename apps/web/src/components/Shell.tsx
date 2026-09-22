@@ -77,6 +77,8 @@ const NAV: NavGroup[] = [
     label: 'تحلیل و مدیریت',
     items: [
       { to: '/reports', label: 'گزارش‌ها', icon: IconChart, permission: 'report.read' },
+      // No permission of its own: memory only ever searches what the caller may already read.
+      { to: '/memory', label: 'حافظهٔ سازمان', icon: IconSearch },
       { to: '/ai', label: 'دستیار هوشمند', icon: IconSpark, permission: 'ai.use' },
       { to: '/admin', label: 'مدیریت سیستم', icon: IconSettings, permission: 'admin.audit' },
     ],

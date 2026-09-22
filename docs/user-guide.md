@@ -246,6 +246,22 @@ company names — and lists each row's problems before anything is written. Vali
 drafts by default (a migration of last year's records should not open two hundred approvals),
 or through approval if you say so.
 
+## Organisational memory
+
+**حافظهٔ سازمان** searches what the organisation has already learned: briefs, proposals, meeting
+minutes, lessons learned, client feedback and status reports. Ask it the way you would ask a
+colleague — «برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟» — and it ranks records by what
+they are about, not only by the words you happened to choose.
+
+Every result shows two numbers: how close it is in *meaning* and how close in *wording*. That
+matters, because the quality of the first depends on how the system is configured. With an
+embedding service configured (a hosted one, or a local model on your own network) the meaning
+half is real; without one, the system embeds locally with a word-based method and says so on
+every search — the page tells you which you are looking at rather than letting you assume.
+
+You only ever see records you could already open: a kind you have no permission to read is
+never searched.
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

@@ -4,6 +4,7 @@ import { env, mailEnabled } from '../env.js';
 import { prisma } from '../db.js';
 import { tickSlaClocks } from '../sla/engine.js';
 import { notifyPredictedBreaches } from '../sla/predict.js';
+import { reindexMemory } from '../memory/index.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 
@@ -27,7 +28,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -91,11 +92,22 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   });
 
   // Every 5 minutes: advance SLA clocks. Daily at 08:00: overdue digest. Saturday 09:00: reports.
+  await boss.work('memory:index', async () => {
+    // Only what changed is re-embedded (roadmap #21), so an unchanged corpus costs a few
+    // queries and no model calls at all.
+    const orgs = await prisma.organization.findMany({ select: { id: true } });
+    for (const org of orgs) {
+      const result = await reindexMemory(org.id);
+      if (result.indexed || result.removed) logger.info({ ...result, organizationId: org.id }, 'memory index');
+    }
+  });
+
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
 
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00)');
+  await boss.schedule('memory:index', '17 * * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly)');
   return boss;
 }
 

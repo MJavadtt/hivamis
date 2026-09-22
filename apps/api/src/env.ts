@@ -29,6 +29,14 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   AI_MODEL: z.string().default('claude-sonnet-4-5'),
   AI_ENABLED: z.string().transform((v) => v === 'true').default('false'),
+  /**
+   * Semantic memory (roadmap #21). Any OpenAI-shaped /embeddings endpoint — hosted, or a local
+   * Ollama / LM Studio / vLLM, which is what an on-prem deployment with no egress will use.
+   * Left empty, the system embeds locally and says so on every result.
+   */
+  EMBEDDING_URL: z.string().default(''),
+  EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  EMBEDDING_API_KEY: z.string().default(''),
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),

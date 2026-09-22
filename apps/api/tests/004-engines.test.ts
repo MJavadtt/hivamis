@@ -995,6 +995,114 @@ describe('Conditional approval routing', () => {
   });
 });
 
+describe('Organisational memory', () => {
+  /**
+   * Doc_H's whole closure ritual exists so the next project is better than the last, and
+   * nobody reads last year's closure forms because finding the relevant one means remembering
+   * it exists. This is the index that answers "what have we done before that looks like this",
+   * and it says out loud which embedder produced its numbers.
+   */
+  const memory = () => import('../src/memory/index.js');
+  const embed = () => import('../src/memory/embed.js');
+
+  it('normalises Persian so two spellings of one word meet, and embeds deterministically', async () => {
+    const { normalisePersian, localEmbed, cosine, tokenise } = await embed();
+    // Arabic ي/ك, ZWNJ and Arabic-Indic digits are all the same word to a reader.
+    expect(normalisePersian('مي‌شود ٤ كمپين')).toBe('می شود 4 کمپین');
+    expect(normalisePersian('طراحیِ بَرند')).toBe('طراحی برند');
+    expect(tokenise('این یک کمپین برای برند است')).toEqual(['کمپین', 'برند']);
+
+    const a = localEmbed('کمپین دیجیتال برای برند صنایع غذایی');
+    const again = localEmbed('کمپین دیجیتال برای برند صنایع غذایی');
+    expect(a).toEqual(again);                                   // a persisted index needs stability
+    expect(Math.sqrt(a.reduce((s, v) => s + v * v, 0))).toBeCloseTo(1, 6);   // unit length: dot = cosine
+
+    const near = localEmbed('کمپین دیجیتال برند غذایی');
+    const far = localEmbed('قرارداد حقوقی و الحاقیه مالیاتی');
+    expect(cosine(a, near)).toBeGreaterThan(cosine(a, far));
+  });
+
+  it('indexes what the organisation knows, and re-embeds only what changed', async () => {
+    const { reindexMemory } = await memory();
+    const org = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+
+    const lesson = await prisma.lessonLearned.create({ data: {
+      organizationId: org.id, projectId: project.id, title: 'تدوین ویدئو در فصل پرکار',
+      category: 'PRODUCTION', situation: 'ظرفیت تدوین در دی و بهمن پر بود و تحویل عقب افتاد.',
+      lesson: 'برای پروژه‌های ویدئویی فصل پرکار، ظرفیت تدوین باید از قبل رزرو شود.',
+      recommendation: 'در برآورد زمان تدوین، دو هفته حاشیه بگذارید.', recordedById: pmo.id,
+    } });
+
+    const first = await reindexMemory(org.id);
+    expect(first.indexed).toBeGreaterThan(0);
+    const row = await prisma.memoryDocument.findFirstOrThrow({ where: { entityType: 'lessonLearned', entityId: lesson.id } });
+    expect(row.dims).toBeGreaterThan(0);
+    expect(row.vector.length).toBe(row.dims);
+    expect(row.searchText).toContain('تدوین');
+
+    // Nothing changed: a second pass embeds nothing.
+    const second = await reindexMemory(org.id);
+    expect(second.indexed).toBe(0);
+    expect(second.scanned).toBe(first.scanned);
+
+    // A record that disappears stops being remembered.
+    await prisma.lessonLearned.delete({ where: { id: lesson.id } });
+    const third = await reindexMemory(org.id);
+    expect(third.removed).toBeGreaterThan(0);
+    expect(await prisma.memoryDocument.findFirst({ where: { entityId: lesson.id } })).toBeNull();
+  });
+
+  it('finds the lesson by what it is about, and refuses to search what the caller may not read', async () => {
+    const { reindexMemory, searchMemory } = await memory();
+    const org = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    await prisma.lessonLearned.create({ data: {
+      organizationId: org.id, projectId: project.id, title: 'استراتژی مشتریان صنایع غذایی',
+      category: 'STRATEGY', situation: 'برای دو مشتری صنایع غذایی کمپین محتوایی اجرا شد.',
+      lesson: 'در صنایع غذایی، محتوای دستور پخت بیشترین تعامل را می‌گیرد.',
+      recommendation: 'برای برندهای غذایی از ابتدا محتوای دستور پخت پیشنهاد دهید.', recordedById: pmo.id,
+    } });
+    await reindexMemory(org.id);
+
+    const found = await searchMemory(org.id, 'برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟', {
+      permissions: ['project.read', 'brief.read', 'proposal.read', 'report.read'],
+    });
+    expect(found.hits.length).toBeGreaterThan(0);
+    expect(found.hits[0]!.titleFa).toContain('صنایع غذایی');
+    expect(found.hits[0]!.kindFa).toBe('درس آموخته');
+    expect(found.hits[0]!.snippetFa).toContain('غذایی');
+    // Both halves of the score are shown, so a keyword hit cannot pose as understanding.
+    expect(found.hits[0]!.semantic).toBeGreaterThanOrEqual(0);
+    expect(found.hits[0]!.lexical).toBeGreaterThanOrEqual(0);
+    expect(found.hits[0]!.score).toBeGreaterThan(0);
+
+    // A caller without project.read never sees lessons, whatever they search for.
+    const blind = await searchMemory(org.id, 'صنایع غذایی', { permissions: ['crm.lead.read'] });
+    expect(blind.hits).toEqual([]);
+    expect(blind.candidates).toBe(0);
+  });
+
+  it('serves the search and the status over the API, and says which embedder answered', async () => {
+    const res = expectOk(await get('/memory/search', T.pmo, { q: 'صنایع غذایی', limit: '5' }), 'search');
+    expect(res.hits.length).toBeGreaterThan(0);
+    expect(res.usedService).toBe(false);                       // no service configured in tests
+    expect(res.basisFa).toContain('سرویس embedding پیکربندی نشده');
+    expect(res.kinds.map((k: any) => k.key)).toContain('lessonLearned');
+
+    const status = expectOk(await get('/memory/status', T.pmo), 'status');
+    expect(status.total).toBeGreaterThan(0);
+    expect(status.serviceConfigured).toBe(false);
+    expect(status.byKind.find((k: any) => k.key === 'lessonLearned').count).toBeGreaterThan(0);
+
+    // Reindexing is an administrator's button, not everyone's.
+    expect((await post('/memory/reindex', T.pmo, {})).status).toBe(403);
+    expect(expectOk(await post('/memory/reindex', T.admin, {}), 'reindex').scanned).toBeGreaterThan(0);
+  });
+});
+
 describe('Forms filled offline', () => {
   /**
    * Production is on set and Media is at the client's office; the D and E forms are filled

@@ -645,3 +645,33 @@ point of the feature.
 than a generated bundle: a form the production unit fills on set is not the place to discover
 what a plugin's default strategy decided.
 
+## ADR-028 — Semantic memory on stock PostgreSQL, with the embedder named on every answer
+
+**Decision.** `memory_documents` holds one row per remembered record — brief, proposal, meeting
+minutes, lesson learned, client feedback, status report — with the text worth keeping and its
+embedding as a `double precision[]`. Retrieval is hybrid: the cosine of the query's vector
+(computed in the API over a trigram-filtered shortlist) blended 65/35 with `pg_trgm` word
+similarity. Both halves come back with every hit, and the search states which embedder produced
+the vectors.
+
+Embeddings come from `EMBEDDING_URL` — any OpenAI-shaped `/embeddings` endpoint, which includes
+a local Ollama, LM Studio or vLLM — when one is configured, and from a deterministic local hash
+embedder (feature hashing over words and bigrams, TF-weighted, L2-normalised) otherwise. A
+service that fails falls back rather than failing the search.
+
+**Why not pgvector.** The roadmap asked for it, and ADR-006's reasoning does allow it: it is a
+PostgreSQL extension, not a new datastore. But requiring an extension means a deployment that
+cannot install one has no feature at all, and an agency-sized corpus does not need approximate
+search — a few thousand rows, filtered by trigram first, is milliseconds of dot products. Where
+pgvector *is* installed, adding a `vector` column and an HNSW index is a drop-in optimisation
+that changes none of the arithmetic above; `docs/operations.md` carries the migration.
+
+**Why the embedder is named.** A hash embedder is not a language model: it cannot know that
+«کمپین» and «campaign» are the same idea. Presenting its output as "semantic search" without
+qualification would be a claim the system cannot support, so both scores are shown and the basis
+is stated in words on every response and on the page.
+
+**Permissions.** Memory is indexed once and read per caller: each kind declares the permission
+its records carry, and a kind the caller cannot read is never searched. Memory can widen what
+somebody *finds*, never what they may see.
+

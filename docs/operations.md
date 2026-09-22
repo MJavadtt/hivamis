@@ -222,3 +222,25 @@ Failures are queued, not raised: a relay outage leaves the in-app notification i
 ```sql
 SELECT COUNT(*) FROM pgboss.job WHERE name = 'mail:send' AND state = 'failed';
 ```
+
+## Faster memory search with pgvector (optional)
+
+`memory_documents.vector` is a `double precision[]`, and retrieval filters with `pg_trgm` before
+computing cosines in the API (ADR-028). That is fast enough for an agency-sized corpus — a few
+thousand documents — and needs nothing beyond a stock PostgreSQL.
+
+If the corpus grows into the tens of thousands, and the deployment can install the extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;
+ALTER TABLE memory_documents ADD COLUMN embedding public.vector(256);
+UPDATE memory_documents SET embedding = vector::text::public.vector;
+CREATE INDEX memory_documents_embedding_hnsw
+  ON memory_documents USING hnsw (embedding public.vector_cosine_ops);
+```
+
+The dimension must match the embedder in use (`local-hash-v1` is 256; a service model is
+whatever it returns — `GET /memory/status` reports the models in the index). With the column in
+place, the shortlist query can order by `embedding <=> $1` and the blend stays as it is. Nothing
+else changes, and a deployment without the extension keeps working exactly as before.
+

@@ -29,6 +29,7 @@ import searchRoutes from './routes/search.js';
 import pdfRoutes from './routes/pdf.js';
 import historyRoutes from './routes/history.js';
 import myWorkRoutes from './routes/my-work.js';
+import memoryRoutes from './routes/memory.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -163,6 +164,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(delegationRoutes);
     await api.register(waiverRoutes);
     await api.register(ruleRoutes);
+    await api.register(memoryRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

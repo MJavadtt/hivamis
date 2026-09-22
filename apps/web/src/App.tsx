@@ -23,6 +23,7 @@ const Reports = lazy(() => import('./pages/Reports'));
 const MyWork = lazy(() => import('./pages/MyWork'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Delegations = lazy(() => import('./pages/Delegations'));
+const Memory = lazy(() => import('./pages/Memory'));
 
 /** Renders `element` only when the user holds `permission`; otherwise sends them home. */
 function Guarded({ permission, element }: { permission: string; element: React.ReactNode }) {
@@ -83,6 +84,7 @@ export default function App() {
 
         <Route path="/forms" element={<Guarded permission="form.read" element={<Forms />} />} />
         <Route path="/reports" element={<Guarded permission="report.read" element={<Reports />} />} />
+        <Route path="/memory" element={<Memory />} />
         <Route path="/ai" element={<Guarded permission="ai.use" element={<Assistant />} />} />
         <Route path="/admin" element={<Guarded permission="admin.audit" element={<Admin />} />} />
 

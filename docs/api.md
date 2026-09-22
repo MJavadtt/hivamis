@@ -174,6 +174,20 @@ A submitter cannot approve their own form.
 | `GET /traffic` | `traffic.read` | Per-person capacity vs committed hours over a window, on each person's own calendar and leave; `leaveHours` per row, `onLeave` in the summary. Same arithmetic as the assignment suggestion |
 | `GET /tasks/suggest-assignee` | `task.assign` | Who has room for the work. `taskId` reads the unit, estimate and due date off a task; or pass `unit`, `hours`, `by` directly (`limit` ≤ 50). Each candidate carries free capacity, `utilisationAfter`, `earliestFinish` on their own calendar, `missesDueDate`, delivery history, a score and its `reasonsFa`/`warningsFa`. Advisory — nothing here refuses an assignment |
 
+## Organisational memory
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /memory/search?q=&kinds=&projectId=&limit=` | authenticated | Hybrid retrieval over briefs, proposals, meeting minutes, lessons learned, client feedback and status reports (roadmap #21). Each hit carries `score` and both halves of it (`semantic`, `lexical`), a snippet, and the embedder that produced its vector. Kinds the caller may not read are never searched |
+| `GET /memory/similar/:entityType/:id` | authenticated | The same retrieval seeded by a record's own text — "what have we done before that looks like this". Excludes the record's own project |
+| `GET /memory/status` | `report.read` | What the index holds per kind, which models produced it, when it last ran, and whether an embedding service is configured |
+| `POST /memory/reindex` `{ force?, kinds? }` | `admin.settings` | Rebuild; only changed sources are re-embedded unless `force` |
+
+Embeddings come from `EMBEDDING_URL` (any OpenAI-shaped `/embeddings` endpoint, including a
+local Ollama or vLLM) when configured, and from a deterministic local hash embedder otherwise —
+every response says which. Vectors are stored as float arrays in PostgreSQL, so no extension is
+required; the lexical half is `pg_trgm`, which ships with PostgreSQL.
+
 ## AI
 
 | Endpoint | Purpose |
