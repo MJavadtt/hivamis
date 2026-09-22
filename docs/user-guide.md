@@ -226,6 +226,19 @@ and cannot be removed or retyped; everything else is yours. **فرم تازه** 
 outside the Doc_H catalogue and numbered from ۱۰۰۰, which no future update will overwrite. Once
 you edit a Doc_H form, the catalogue stops speaking for it too: your fields stay.
 
+**Filling forms with no signal.** The app installs (Add to Home Screen on a phone) and opens
+without a connection: the shell and the form catalogue are cached, so a unit form or a QC form
+can be filled on set or at the client's office. A form submitted offline is held in **صف ارسال
+فرم‌ها** at the top of the forms page and sent by itself when the network returns — the header
+says «آفلاین» meanwhile, and shows how many forms the device is still carrying.
+
+What the queue will not do is pretend. When a queued form finally reaches the server, the rules
+run as they always do: a project closed while the phone was in a pocket refuses the form, and
+the refusal appears in the queue in the server's own words, beside your data, to fix and retry
+or discard knowingly. Nothing is deleted on your behalf. And a form sent twice — a dropped
+connection after the server already had it — files once: the device stamps each form with its
+own key, and a repeat returns the submission already filed.
+
 **Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels
 and a hint per column), an export of everything filed on it, and an import. Choose a file and
 the system checks every row first — references can be codes like `PRJ-000002`, emails or

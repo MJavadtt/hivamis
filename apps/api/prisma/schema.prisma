@@ -1421,6 +1421,9 @@ model FormSubmission {
   company        Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   opportunityId  String?
   opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  /// A key the client generated before the form left the device (roadmap #19). A submission
+  /// queued offline and retried over a flaky link must file once, not once per attempt.
+  clientKey      String?
   /// Who must approve this submission: the form's own roles plus whatever its routing rules
   /// added for these values (roadmap #17). Empty on rows written before routing existed.
   requiredRoles  String[] @default([])
@@ -1445,6 +1448,7 @@ model FormSubmission {
   approvals FormApproval[]
   documents Document[]
 
+  @@unique([organizationId, clientKey])
   @@index([organizationId, state])
   @@index([definitionId, state])
   @@index([assignedToId, state])

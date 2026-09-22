@@ -995,6 +995,53 @@ describe('Conditional approval routing', () => {
   });
 });
 
+describe('Forms filled offline', () => {
+  /**
+   * Production is on set and Media is at the client's office; the D and E forms are filled
+   * exactly where the signal is worst. A queued form is retried over a link that may drop after
+   * the server has already written it, so the device's own key decides identity: the first
+   * write wins and every retry gets that same submission back.
+   */
+  it('files a replayed submission once, and hands back the one it already has', async () => {
+    const brief = await prisma.brief.findFirstOrThrow();
+    const clientKey = `field-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const body = {
+      formCode: 'B10_BRIEF_COMPLETION', clientKey,
+      data: { briefId: brief.id, addedInformation: 'در محل فیلم‌برداری پر شد' },
+    };
+
+    const first = await post('/forms/submissions', T.sales, body);
+    expect(first.status).toBe(201);
+    expect(first.body.clientKey).toBe(clientKey);
+
+    // The phone never saw the answer and sent it again.
+    const replay = await post('/forms/submissions', T.sales, body);
+    expect(replay.status).toBe(200);
+    expect(replay.body.id).toBe(first.body.id);
+    expect(replay.body.duplicateOf).toBe(first.body.code);
+
+    const rows = await prisma.formSubmission.findMany({ where: { clientKey } });
+    expect(rows).toHaveLength(1);
+
+    // A different key is a different form, even with identical data.
+    const second = await post('/forms/submissions', T.sales, { ...body, clientKey: `${clientKey}-b` });
+    expect(second.status).toBe(201);
+    expect(second.body.id).not.toBe(first.body.id);
+  });
+
+  it('still refuses a queued form the rules do not allow, rather than letting the queue smuggle it in', async () => {
+    // A closed project cannot take new work — and a form filled before it closed is no exception.
+    const closed = await prisma.project.findFirst({ where: { state: 'CLOSED' } });
+    if (!closed) return;
+    const refused = await post('/forms/submissions', T.designer, {
+      formCode: 'D34_UNIT_OUTPUT_DELIVERY', clientKey: `late-${Date.now()}`,
+      data: { projectId: closed.id },
+    });
+    expect(refused.status).toBeGreaterThanOrEqual(400);
+    expect(refused.body.error.message).toBeTruthy();       // a Persian reason the queue can show
+  });
+});
+
 describe('The form designer', () => {
   /**
    * ADR-004 said adding a form is a data change, not a code change — but a programmer still had

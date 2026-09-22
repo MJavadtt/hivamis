@@ -508,14 +508,15 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     const submission = await submitForm({
       formCode: input.formCode, data: input.data, projectId: input.projectId,
       companyId: input.companyId, opportunityId: input.opportunityId,
-      assignedToId: input.assignedToId, asDraft: input.asDraft,
+      assignedToId: input.assignedToId, asDraft: input.asDraft, clientKey: input.clientKey,
       actor: {
         id: actor.id, organizationId: actor.organizationId, departmentCode: actor.departmentCode,
         roles: actor.roles, permissions: actor.permissions, delegatedRoles: actor.delegatedRoles,
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });
-    return reply.code(201).send(submission);
+    // A replayed key is not a new submission: say so with 200 and hand back the original.
+    return reply.code((submission as { duplicateOf?: string }).duplicateOf ? 200 : 201).send(submission);
   });
 
   app.post('/forms/submissions/:id/decision', {

@@ -484,6 +484,12 @@ export const submitFormSchema = z.object({
   opportunityId: idSchema.optional(),
   assignedToId: idSchema.optional(),
   asDraft: z.boolean().default(false),
+  /**
+   * Generated on the device before the form was queued (roadmap #19). Re-sending the same key
+   * returns the submission already filed rather than filing a second one — which is what makes
+   * a retry over a bad link safe.
+   */
+  clientKey: z.string().trim().min(8).max(80).optional(),
 });
 
 export const formDecisionSchema = z.object({

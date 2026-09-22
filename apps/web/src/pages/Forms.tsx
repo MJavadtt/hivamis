@@ -14,6 +14,8 @@ import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { BulkImport } from '../components/BulkImport';
+import { Outbox } from '../components/Outbox';
+import { enqueue, newKey } from '../lib/outbox';
 import { evaluateRouting, buildStages, type ApprovalStage, type ResolvedStage, type RoutingRule } from '@hiva/contracts';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
@@ -79,7 +81,9 @@ export default function Forms() {
           ]}
         />
       </div>
-      <PageBody>
+      <PageBody className="space-y-5">
+        {/* Whatever this device is still carrying, before anything else on the page. */}
+        <Outbox />
         {tab === 'catalogue' && <Catalogue />}
         {tab === 'inbox' && <Submissions awaitingMe />}
         {tab === 'mine' && <Submissions mine />}
@@ -206,12 +210,24 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
   const submit = async (asDraft: boolean) => {
     setBusy(true);
     setIssues({});
+    // The device's own id for this form, so a retry over a bad link files it once (roadmap #19).
+    const clientKey = newKey();
+    const queue = async (reason: string) => {
+      await enqueue({ id: clientKey, formCode: definition.code, formNameFa: definition.nameFa, data: values, asDraft });
+      toast(`${reason} — فرم در صف ارسال نگه داشته شد و با بازگشت اینترنت خودش ارسال می‌شود.`, 'warning');
+      await qc.invalidateQueries({ queryKey: ['outbox'] });
+      onClose();
+    };
     try {
-      await apiPost('/forms/submissions', { formCode: definition.code, data: values, asDraft });
+      if (navigator.onLine === false) { await queue('اینترنت در دسترس نیست'); return; }
+      await apiPost('/forms/submissions', { formCode: definition.code, data: values, asDraft, clientKey });
       toast(asDraft ? 'پیش‌نویس ذخیره شد.' : `فرم «${definition.nameFa}» ثبت شد.`);
       await qc.invalidateQueries();
       onClose();
     } catch (e: any) {
+      // A refusal is an answer and belongs on the form; an unreachable server is not, and the
+      // form belongs in the queue rather than in the bin.
+      if (e?.status === undefined) { await queue('ارتباط با سامانه برقرار نشد'); return; }
       const list: Record<string, string> = {};
       for (const i of e?.issues ?? []) list[i.path] = i.message;
       setIssues(list);

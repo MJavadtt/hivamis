@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
+import { OutboxBadge } from './Outbox';
 import { useAuth } from '../lib/auth';
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useLocale, type Locale } from '../lib/locale';
@@ -202,6 +203,23 @@ export function Shell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Says «آفلاین» only when the browser is sure — silence is the normal, connected case. */
+function ConnectionState() {
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  useEffect(() => {
+    const mark = () => setOnline(navigator.onLine);
+    window.addEventListener('online', mark);
+    window.addEventListener('offline', mark);
+    return () => { window.removeEventListener('online', mark); window.removeEventListener('offline', mark); };
+  }, []);
+  if (online) return null;
+  return (
+    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800" role="status">
+      آفلاین — فرم‌ها در صف می‌مانند
+    </span>
+  );
+}
+
 function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-surface px-4">
@@ -214,6 +232,9 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
       </button>
       <GlobalSearch />
       <div className="flex items-center gap-1">
+        {/* What this device is still carrying, and whether it can send it (roadmap #19). */}
+        <ConnectionState />
+        <OutboxBadge />
         <HelpButton />
         <LocaleToggle />
         <ThemeToggle />

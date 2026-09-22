@@ -13,6 +13,17 @@ import './index.css';
 applyStoredThemeEarly();
 applyStoredLocaleEarly();
 
+/**
+ * The service worker caches the shell and the form catalogue so the app opens, and a form can
+ * be filled, where there is no signal (roadmap #19). Registration is deliberately silent and
+ * non-blocking: a browser that refuses it simply gets the online-only app.
+ */
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

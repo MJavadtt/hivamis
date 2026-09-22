@@ -32,6 +32,8 @@ export interface SubmitFormInput {
   opportunityId?: string;
   assignedToId?: string;
   asDraft?: boolean;
+  /** The device's own id for this submission; a repeat is the same form, not a second one. */
+  clientKey?: string;
   actor: FormActor;
 }
 
@@ -47,6 +49,29 @@ const BYPASS_ROLES = new Set(['SUPER_ADMIN', 'CEO', 'DEPUTY']);
  */
 export async function submitForm(input: SubmitFormInput) {
   const { actor } = input;
+
+  /**
+   * A form filled on set and queued (roadmap #19) may be sent more than once: the phone gets a
+   * bar of signal, the request times out after the server already wrote it, the queue retries.
+   * The key the device generated settles it — the first write wins and every retry gets that
+   * same submission back, rather than the unit discovering three identical QC forms.
+   */
+  if (input.clientKey) {
+    const already = await prisma.formSubmission.findFirst({
+      where: { organizationId: actor.organizationId, clientKey: input.clientKey },
+      include: { definition: { select: { code: true, nameFa: true, category: true, module: true, nextProcessFa: true } } },
+    });
+    if (already) {
+      return {
+        ...already,
+        definition: already.definition,
+        duplicateOf: already.code,
+        requiredRoles: already.requiredRoles,
+        routedBy: [],
+        stages: (already.stages ?? []) as unknown,
+      };
+    }
+  }
 
   const definition = await prisma.formDefinition.findUnique({ where: { code: input.formCode } });
   if (!definition) throw notFound('تعریف فرم');
@@ -104,6 +129,7 @@ export async function submitForm(input: SubmitFormInput) {
         companyId: input.companyId ?? (clean.companyId ? String(clean.companyId) : null),
         opportunityId: input.opportunityId ?? (clean.opportunityId ? String(clean.opportunityId) : null),
         submittedAt: input.asDraft ? null : new Date(),
+        clientKey: input.clientKey ?? null,
       },
     });
 

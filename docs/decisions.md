@@ -617,3 +617,31 @@ renamed field, changed type, removed option — and would silently produce a sch
 Yielding is predictable and says so in the seed output; an organisation that wants the catalogue's
 version back can clear the customisation deliberately.
 
+## ADR-027 — The offline queue is the app's, not the service worker's, and it never lies about what happened
+
+**Decision.** A form submitted with no connection is written to an outbox (IndexedDB, falling
+back to localStorage and then memory) with a key the device generates, and sent by the app when
+the network returns. The service worker caches only three things — the app shell, hashed build
+assets, and GETs of form definitions — and never intercepts a submission. `clientKey` on
+`form_submissions` is unique per organisation, so a retry over a link that dropped after the
+server wrote the row returns the original submission rather than filing a second one.
+
+Sync keeps three outcomes apart: **accepted** (marked sent, carrying the code the server gave
+it), **refused** (a 4xx — the item stays in the queue with the server's Persian message, for a
+person to fix or discard) and **unreached** (5xx or network — the item waits, attempts counted).
+
+**Rationale.** Background Sync in a worker can retry, but it cannot explain. The roadmap named
+the hard part exactly: a form filled offline may be refused by a guard on arrival, and the
+person has to be told, in their own screen, with their own data still in front of them. Queueing
+in the app is what makes that possible; it also means the queue is visible — a device carrying
+three unsent forms says so in the header rather than looking like everything went through.
+
+**Why a storage fallback rather than IndexedDB alone.** A phone in private mode, or a browser
+with site data restricted, would otherwise silently lose a form somebody typed standing in a
+warehouse. localStorage is smaller and less private, but a queued form that survives is the
+point of the feature.
+
+**No new dependencies.** The service worker is forty lines of cache rules written by hand rather
+than a generated bundle: a form the production unit fills on set is not the place to discover
+what a plugin's default strategy decided.
+

@@ -152,7 +152,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | `POST /forms/definitions/:code/import` `{ csv \| rows, mode }` | `mode: preview` checks every row and writes nothing — references are resolved by code, email or name, and each row's issues are listed; `draft` (default for a migration) and `submit` write the valid rows through the form engine, skipping the invalid ones. `form.submit`; ≤ 2000 rows; audited as `BULK_IMPORT` |
 | `GET /forms/definitions/:code/export.csv` | Every submission of the form, bookkeeping columns then the union of field keys across versions. `form.read`; audited |
 | `GET /forms/submissions` | Submissions; `?awaitingMe=true` is the approval inbox — a single submission includes `definitionVersion` and `schema`, the fields as they stood when it was filled in |
-| `POST /forms/submissions` | Submit or save a draft |
+| `POST /forms/submissions` | Submit or save a draft. An optional `clientKey` (roadmap #19) makes it idempotent: the first write wins, a replay returns that same submission with `duplicateOf` and HTTP 200 instead of filing a second one |
 | `POST /forms/submissions/:id/decision` | Approve, reject or return (a reason is required to reject or return). Stage-aware (roadmap #18): an approval clears the current stage only when it has the distinct approvals its quorum asks for, then the form waits on the next stage (`stageCleared`, `nextStageFa`, `stages[]` come back with the response); a rejection or return ends the chain wherever it stands. The executive bypass does not apply to a declared stage, and nobody may fill a quorum twice (`ALREADY_APPROVED`) |
 
 Submitting enforces the sender department Doc_H assigns to the form, validates against the
