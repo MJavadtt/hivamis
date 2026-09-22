@@ -134,6 +134,14 @@ One pause is declared by the state machines themselves: a work order in `CLARIFI
 pauses the unit's acceptance clock, because the unit is waiting on Account, whose own
 clarification clock is running meanwhile. It resumes when the clarification is provided.
 
+**Time and cost accuracy (Doc_H unit KPI).** Hours are logged on tasks — as work goes, or as
+one number when the task is submitted, which is the least a person can be asked. Each person
+has an hourly cost (their own or the unit's default), so hours become money, and
+`/reports/cost-accuracy` puts what a unit declared beside what its hours cost: a ratio near 1
+is an honest declaration, above 1 the unit is absorbing cost it did not price, below 1 it is
+padding. Hours logged by people without a rate are counted and shown as unpriced, never
+silently dropped. The same entries feed the estimation assistant and the delivery forecast.
+
 **Exceptions (governed waivers).** A guard that blocks a transition can be set aside by the CEO
 or deputy for one record, once, with a reason, for at most thirty days. The transition that uses
 it records which guard was waived and on whose authority; the register of exceptions is on the

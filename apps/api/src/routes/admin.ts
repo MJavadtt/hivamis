@@ -240,6 +240,31 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     return updated;
   });
 
+  /** Internal hourly cost, on a unit (the default) or a person (their own). pricing.read is not enough to set it. */
+  app.patch('/departments/:code/rate', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const { hourlyCost } = (req.body ?? {}) as { hourlyCost?: number | null };
+    const dept = await prisma.department.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!dept) throw notFound('واحد');
+    if (hourlyCost != null && (!Number.isFinite(Number(hourlyCost)) || Number(hourlyCost) < 0)) throw badRequest('INVALID_RATE', 'نرخ ساعتی معتبر نیست');
+    const updated = await prisma.department.update({ where: { id: dept.id }, data: { hourlyCost: hourlyCost == null ? null : Number(hourlyCost) } });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'department', entityId: dept.id, before: { hourlyCost: dept.hourlyCost }, after: { hourlyCost: updated.hourlyCost }, reason: 'hourly cost', ipAddress: actor.ipAddress });
+    return { code: updated.code, hourlyCost: updated.hourlyCost };
+  });
+
+  app.patch('/users/:id/rate', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { hourlyCost } = (req.body ?? {}) as { hourlyCost?: number | null };
+    const user = await prisma.user.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!user) throw notFound('کاربر');
+    if (hourlyCost != null && (!Number.isFinite(Number(hourlyCost)) || Number(hourlyCost) < 0)) throw badRequest('INVALID_RATE', 'نرخ ساعتی معتبر نیست');
+    const updated = await prisma.user.update({ where: { id }, data: { hourlyCost: hourlyCost == null ? null : Number(hourlyCost) }, select: { id: true, hourlyCost: true } });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: id, before: { hourlyCost: user.hourlyCost }, after: { hourlyCost: updated.hourlyCost }, reason: 'hourly cost', ipAddress: actor.ipAddress });
+    return updated;
+  });
+
   app.patch('/users/:id/calendar', {
     preHandler: [app.authenticate, app.requirePermissions('admin.users')],
   }, async (req) => {

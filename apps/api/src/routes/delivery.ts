@@ -10,11 +10,13 @@ import { registerCrud } from '../lib/crud.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { badRequest, forbidden, notFound, GovernanceError } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { hasPermission } from '../auth/plugin.js';
 import { nextCode } from '../lib/codes.js';
 import { briefCompleteness } from '../workflow/guards.js';
 import { allowedFor } from '../workflow/engine.js';
 import { startSla } from '../sla/engine.js';
 import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
+import { logTime, recomputeActual } from '../reports/time.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -501,6 +503,62 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
     if (!project) throw notFound('پروژه');
     return projectBudget(prisma, id);
+  });
+
+  /* ── Time on tasks (roadmap #14) ─────────────────────────────────────── */
+
+  async function taskFor(req: Parameters<typeof actorFrom>[0], id: string) {
+    const actor = actorFrom(req);
+    const task = await prisma.task.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!task) throw notFound('وظیفه');
+    return { actor, task };
+  }
+
+  app.get('/tasks/:id/time', { preHandler: [app.authenticate, app.requirePermissions('task.read')] }, async (req) => {
+    const { id } = req.params as { id: string };
+    const { task } = await taskFor(req, id);
+    const entries = await prisma.timeEntry.findMany({
+      where: { taskId: id }, orderBy: { workedOn: 'desc' }, include: { user: { select: { id: true, fullName: true } } },
+    });
+    return { taskId: id, estimateHours: task.estimateHours, actualHours: task.actualHours, entries };
+  });
+
+  /** The assignee logs their own time; task.write may log for anyone on the task. */
+  app.post('/tasks/:id/time', { preHandler: [app.authenticate] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { actor, task } = await taskFor(req, id);
+    const { hours, workedOn, note, userId } = (req.body ?? {}) as { hours?: number; workedOn?: string; note?: string; userId?: string };
+    const forUser = userId ?? actor.id;
+    if (task.assigneeId !== actor.id && !hasPermission(req, 'task.write')) throw forbidden('فقط مسئول وظیفه می‌تواند زمان ثبت کند');
+    if (forUser !== actor.id && !hasPermission(req, 'task.write')) throw forbidden();
+    const when = workedOn ? new Date(workedOn) : new Date();
+    if (Number.isNaN(when.getTime())) throw badRequest('INVALID_DATE', 'تاریخ معتبر نیست');
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await logTime(tx, { organizationId: actor.organizationId, taskId: id, userId: forUser, hours: Number(hours), workedOn: when, note: note ?? null });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'timeEntry', entityId: r.entry.id,
+        after: { taskId: id, userId: forUser, hours: r.entry.hours, workedOn: r.entry.workedOn }, ipAddress: actor.ipAddress,
+      }, tx);
+      return r;
+    });
+    return reply.code(201).send(result);
+  });
+
+  app.delete('/tasks/:id/time/:entryId', { preHandler: [app.authenticate] }, async (req) => {
+    const { id, entryId } = req.params as { id: string; entryId: string };
+    const { actor } = await taskFor(req, id);
+    const entry = await prisma.timeEntry.findFirst({ where: { id: entryId, taskId: id } });
+    if (!entry) throw notFound('ثبت زمان');
+    if (entry.userId !== actor.id && !hasPermission(req, 'task.write')) throw forbidden();
+    const actualHours = await prisma.$transaction(async (tx) => {
+      await tx.timeEntry.delete({ where: { id: entryId } });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'timeEntry', entityId: entryId,
+        before: { taskId: id, hours: entry.hours }, ipAddress: actor.ipAddress,
+      }, tx);
+      return recomputeActual(tx, id);
+    });
+    return { ok: true, actualHours };
   });
 
   /* ── Tasks ───────────────────────────────────────────────────────────── */

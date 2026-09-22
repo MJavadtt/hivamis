@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { logTime } from '../reports/time.js';
 import { cascadeState } from './engine.js';
 
 export interface EffectContext {
@@ -108,7 +109,14 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   'task.accept': async () => ({ acceptedAt: new Date() }),
   'task.block': async ({ reason }) => ({ blockReason: reason ?? null }),
   'task.start': async () => ({ blockReason: null }),
-  'task.submit': async () => ({ submittedAt: new Date() }),
+  // The least a person can be asked and still close the cost loop (roadmap #14): one number
+  // with the submission. Logged as a time entry like any other, so it is never "the" figure.
+  'task.submit': async ({ tx, id, payload, actorId, organizationId }) => {
+    if (payload.hours != null && payload.hours !== '') {
+      await logTime(tx, { organizationId, taskId: id, userId: actorId, hours: Number(payload.hours), note: 'ثبت هنگام تحویل' });
+    }
+    return { submittedAt: new Date() };
+  },
   'task.close': async () => ({ closedAt: new Date() }),
 
   'deliverable.submit': async () => ({ submittedAt: new Date() }),

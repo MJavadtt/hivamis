@@ -710,6 +710,86 @@ describe('Calendars per unit and per person', () => {
   });
 });
 
+describe('Time logging and cost accuracy', () => {
+  /**
+   * cost_declarations held what the units declared; nothing measured what it took. Hours are
+   * the other side of the Doc_H "cost accuracy" KPI, and they become money through a rate.
+   */
+  async function orderWithTask(budget: number, estimate: number) {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const wo = expectOk(await post('/work-orders', T.accountManager, {
+      projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش با زمان',
+      scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
+      deadline: new Date(Date.now() + 10 * 86_400_000).toISOString(), ownerId: creative.id, budget, priority: 'NORMAL',
+    }), 'wo');
+    const task = await prisma.task.create({ data: {
+      organizationId: project.organizationId, code: `TSK-T-${Date.now()}`, projectId: project.id, workOrderId: wo.id,
+      title: 'طراحی', departmentCode: 'CR', assigneeId: designer.id, priority: 'NORMAL', state: 'IN_PROGRESS',
+      sourceType: 'ORDER_FORM', sourceRef: wo.code, createdById: creative.id, estimateHours: estimate,
+    } });
+    return { wo, task, designer, creative };
+  }
+
+  it('logs hours on a task and keeps actualHours as their sum', async () => {
+    const { task, designer } = await orderWithTask(1, 10);
+    const a = expectOk(await post(`/tasks/${task.id}/time`, T.designer, { hours: 3.5, workedOn: '2026-09-20', note: 'وایرفریم' }), 'log');
+    expect(a.actualHours).toBe(3.5);
+    const b = expectOk(await post(`/tasks/${task.id}/time`, T.designer, { hours: 4 }), 'log 2');
+    expect(b.actualHours).toBe(7.5);
+    expect(Number((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).actualHours)).toBe(7.5);
+    const listed = expectOk(await get(`/tasks/${task.id}/time`, T.creative), 'list');
+    expect(listed.entries).toHaveLength(2);
+    expect(listed.entries[0].user.id).toBe(designer.id);
+    expect(listed.entries.find((e: any) => e.note === 'وایرفریم')).toBeTruthy();
+
+    // Only the assignee, or task.write; only sane numbers.
+    expect((await post(`/tasks/${task.id}/time`, T.sales, { hours: 1 })).status).toBe(403);
+    expect((await post(`/tasks/${task.id}/time`, T.designer, { hours: 0 })).status).toBe(400);
+    expect((await post(`/tasks/${task.id}/time`, T.designer, { hours: 30 })).status).toBe(400);
+    expectOk(await call('DELETE', `/tasks/${task.id}/time/${a.entry.id}`, { token: T.designer }), 'delete');
+    expect(Number((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).actualHours)).toBe(4);
+  });
+
+  it('takes one number with the submission — the least that closes the loop', async () => {
+    const { task } = await orderWithTask(1, 6);
+    expectOk(await post(`/workflow/task/${task.id}/transitions`, T.designer, { action: 'submit', payload: { hours: 8 } }), 'submit with hours');
+    const after = await prisma.task.findUniqueOrThrow({ where: { id: task.id }, include: { timeEntries: true } });
+    expect(after.state).toBe('SUBMITTED');
+    expect(Number(after.actualHours)).toBe(8);
+    expect(after.timeEntries[0]!.note).toBe('ثبت هنگام تحویل');
+  });
+
+  it('turns declared cost against the hours, per unit and per order, and says what it could not price', async () => {
+    const { wo, task, designer, creative } = await orderWithTask(100_000_000, 10);
+    // The unit declares 40M; the designer logs 20h at 1.5M/h = 30M; the creative manager logs 4h with no rate.
+    expectOk(await patch('/departments/CR/rate', T.admin, { hourlyCost: 1_000_000 }), 'unit rate');
+    expectOk(await patch(`/users/${designer.id}/rate`, T.admin, { hourlyCost: 1_500_000 }), 'person rate');
+    expectOk(await patch(`/users/${creative.id}/rate`, T.admin, { hourlyCost: null }), 'clear');
+    expectOk(await post(`/work-orders/${wo.id}/cost`, T.creative, { departmentCode: 'CR', internalCost: 40_000_000, externalCost: 0, items: [{ description: 'x', quantity: 1, unitCost: 40_000_000 }] }), 'declare');
+    expectOk(await post(`/tasks/${task.id}/time`, T.designer, { hours: 20 }), 'designer hours');
+
+    const r = expectOk(await get('/reports/cost-accuracy', T.accountManager), 'report');
+    const row = r.workOrders.find((w: any) => w.workOrderId === wo.id);
+    expect(row).toMatchObject({ departmentCode: 'CR', declared: 40_000_000, hours: 20, actualCost: 30_000_000, ratio: 0.75, unpricedHours: 0 });
+    expect(row.estimateErrorPercent).toBe(100);           // estimated 10, took 20
+    const cr = r.units.find((u: any) => u.departmentCode === 'CR');
+    expect(cr.declared).toBeGreaterThanOrEqual(40_000_000);
+    expect(cr.actualCost).toBeGreaterThanOrEqual(30_000_000);
+
+    // A person with no rate of their own uses the unit's; clear the unit's and the hours are unpriced.
+    expectOk(await post(`/tasks/${task.id}/time`, T.creative, { hours: 4, userId: creative.id }), 'manager hours');
+    const withUnitRate = expectOk(await get('/reports/cost-accuracy', T.accountManager), 'report 2');
+    expect(withUnitRate.workOrders.find((w: any) => w.workOrderId === wo.id)).toMatchObject({ hours: 24, actualCost: 34_000_000, unpricedHours: 0 });
+    expectOk(await patch('/departments/CR/rate', T.admin, { hourlyCost: null }), 'clear unit rate');
+    const unpriced = expectOk(await get('/reports/cost-accuracy', T.accountManager), 'report 3');
+    expect(unpriced.workOrders.find((w: any) => w.workOrderId === wo.id)).toMatchObject({ actualCost: 30_000_000, unpricedHours: 4 });
+    // Doc_H §12: Sales never sees cost.
+    expect((await get('/reports/cost-accuracy', T.sales)).status).toBe(403);
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 

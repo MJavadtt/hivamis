@@ -3,6 +3,7 @@ import { prisma } from '../db.js';
 import { badRequest } from '../lib/errors.js';
 import { loadCalendar } from '../sla/engine.js';
 import { mine } from '../reports/mining.js';
+import { costAccuracy } from '../reports/time.js';
 import { isWorkflowEntity } from '@hiva/contracts';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { actorFrom } from '../lib/http.js';
@@ -565,6 +566,19 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     }
     const cal = await loadCalendar(actor.organizationId);
     return mine(prisma, actor.organizationId, entity, cal, window);
+  });
+
+  /** Declared cost against the hours (roadmap #14). The Doc_H KPI "cost accuracy", with both sides. */
+  app.get('/reports/cost-accuracy', {
+    preHandler: [app.authenticate, app.requirePermissions('report.read', 'pricing.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { from, to } = req.query as { from?: string; to?: string };
+    const window = { ...(from ? { from: new Date(from) } : {}), ...(to ? { to: new Date(to) } : {}) };
+    if ((window.from && Number.isNaN(window.from.getTime())) || (window.to && Number.isNaN(window.to.getTime()))) {
+      throw badRequest('INVALID_RANGE', 'بازهٔ زمانی معتبر نیست');
+    }
+    return costAccuracy(prisma, actor.organizationId, window);
   });
 
   /** Data-quality register — records that would silently break the process if left alone. */

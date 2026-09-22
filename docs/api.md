@@ -92,6 +92,9 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Proposals | `/proposals` | `proposal.read` |
 | Projects | `/projects` (+ `/:id/360`, `/finance`, `/closure`) | `project.read` |
 | Project budget | `GET /projects/:id/budget` — budget against declared cost per work order (`status`: NO_BUDGET / UNDER / NEAR / OVER, variance, declaration count), rolled up per unit and for the project | `project.read` + `pricing.read` |
+| Time on tasks | `GET /tasks/:id/time`; `POST /tasks/:id/time { hours, workedOn?, note?, userId? }` (the assignee, or `task.write`; 0 < hours ≤ 24); `DELETE /tasks/:id/time/:entryId`. `actualHours` is maintained as the sum. `POST /workflow/task/:id/transitions { action: 'submit', payload: { hours } }` logs one entry with the submission | `task.read` to read |
+| Cost accuracy | `GET /reports/cost-accuracy?from=&to=` — declared internal cost against Σ hours × hourly cost per unit and per work order, with `unpricedHours` for people without a rate, `ratio` (actual / declared) and the mean estimate error of tasks | `report.read` + `pricing.read` |
+| Hourly cost | `PATCH /departments/:code/rate { hourlyCost }` (`admin.settings`), `PATCH /users/:id/rate { hourlyCost }` (`admin.users`); a person's own rate beats the unit's default; null clears |
 | Work orders | `/work-orders` (+ `POST /:id/cost`) | `workorder.read` |
 | Tasks | `/tasks` | `task.read` |
 | Deliverables | `/deliverables` | `deliverable.read` |

@@ -14,6 +14,7 @@ import {
   Modal, ProgressBar, Select, StateBadge, StatTile, Table, Td, Textarea, Th, Tr, cx,
 } from '../components/ui';
 import { daysFromNow, formatCurrency, formatDate, formatRelative, toPersianDigits } from '../lib/format';
+import { TaskTime } from '../components/TaskTime';
 
 const UNITS = [
   { value: 'ST', label: 'استراتژی' }, { value: 'CR', label: 'خلاقیت / گرافیک / تولید' },
@@ -133,6 +134,7 @@ export function TaskDetail() {
           </Card>
 
           {/* Doc_H §6: no task is valid without a source document behind it. */}
+          <TaskTime taskId={data.id} assigneeId={data.assigneeId ?? null} />
           <Card title="سند مبنا" subtitle="Doc_H §۶ — هیچ Task شفاهی معتبر نیست">
             <dl className="px-4 py-1">
               <DescRow label="نوع سند">{SOURCE_LABELS[data.sourceType] ?? data.sourceType}</DescRow>

@@ -30,6 +30,7 @@ export default function Reports() {
     { key: 'sla', label: 'پایبندی به SLA' },
     { key: 'quality', label: 'کیفیت داده' },
     { key: 'mining', label: 'کشف فرآیند' },
+    { key: 'cost', label: 'دقت برآورد' },
   ];
 
   return (
@@ -49,6 +50,7 @@ export default function Reports() {
         {tab === 'sla' && <SlaReport />}
         {tab === 'quality' && <DataQuality />}
         {tab === 'mining' && <ProcessMap />}
+        {tab === 'cost' && <CostAccuracy />}
       </PageBody>
     </>
   );
@@ -470,6 +472,41 @@ function WaiverRegister() {
         </Table>
       )}
     </Card>
+  );
+}
+
+/** Declared cost against the hours, per unit — the Doc_H "cost accuracy" KPI with both sides. */
+function CostAccuracy() {
+  const { data, isLoading, error, refetch } = useQuery<any>({ queryKey: ['/reports/cost-accuracy'], queryFn: () => apiGet('/reports/cost-accuracy') });
+  if (isLoading) return <LoadingBlock />;
+  if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
+  if (!data) return null;
+  const ratioTone = (r: number | null) => (r == null ? 'neutral' : r > 1.15 ? 'danger' : r < 0.85 ? 'warning' : 'success');
+  return (
+    <div className="space-y-5">
+      <Card title="دقت برآورد هزینه به تفکیک واحد" subtitle="قیمت تمام‌شدهٔ اعلامی در برابر نفر-ساعت واقعی × نرخ ساعتی. نسبت ۱ یعنی اعلام دقیق؛ بالاتر یعنی واحد هزینه‌ای را جذب می‌کند که قیمت نکرده">
+        {!data.units.length ? <EmptyState title="هنوز زمانی ثبت نشده" /> : (
+          <Table>
+            <thead className="bg-ink-50/60">
+              <tr><Th>واحد</Th><Th>سفارش‌ها</Th><Th>اعلام‌شده</Th><Th>ساعت واقعی</Th><Th>هزینهٔ واقعی</Th><Th>نسبت</Th><Th>خطای برآورد زمان</Th></tr>
+            </thead>
+            <tbody data-testid="cost-accuracy">
+              {data.units.map((u: any) => (
+                <Tr key={u.departmentCode}>
+                  <Td className="text-xs">{u.departmentCode}</Td>
+                  <Td className="nums text-xs">{toPersianDigits(u.workOrders)}</Td>
+                  <Td className="nums text-xs">{formatCurrency(u.declared)}</Td>
+                  <Td className="nums text-xs">{toPersianDigits(u.hours)}{u.unpricedHours > 0 && <span className="text-ink-400"> ({toPersianDigits(u.unpricedHours)} بدون نرخ)</span>}</Td>
+                  <Td className="nums text-xs">{u.actualCost == null ? '—' : formatCurrency(u.actualCost)}</Td>
+                  <Td><Badge tone={ratioTone(u.ratio)}>{u.ratio == null ? '—' : toPersianDigits(u.ratio)}</Badge></Td>
+                  <Td className="nums text-xs">{u.estimateErrorPercent == null ? '—' : `${toPersianDigits(u.estimateErrorPercent)}٪`}<span className="text-ink-400"> ({toPersianDigits(u.tasksWithBoth)} وظیفه)</span></Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
+    </div>
   );
 }
 

@@ -87,6 +87,11 @@ again, what is currently on their plate, and a timeline of requests and evaluati
 the top of the list ranks who to send the next request to, by that evidence — a supplier with no
 history ranks by free capacity alone, so a proven one always comes first.
 
+**Log your hours.** On a task, «ثبت زمان» takes a number, a day and an optional note; or type the
+hours once when you submit the task. The card shows the estimate beside the actual. Your unit's
+declared cost is compared with these hours on the «دقت برآورد» report — that is the Doc_H
+cost-accuracy KPI, and after a few months it is how quotes get sharper.
+
 ## Finance
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.

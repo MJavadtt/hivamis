@@ -29,6 +29,7 @@ export function WorkflowActions({
 }) {
   const [pending, setPending] = useState<Transition | null>(null);
   const [reason, setReason] = useState('');
+  const [extra, setExtra] = useState('');
   const [busy, setBusy] = useState(false);
   const [waiving, setWaiving] = useState<{ action: string; guard: string; labelFa: string } | null>(null);
   const [waiverReason, setWaiverReason] = useState('');
@@ -49,11 +50,14 @@ export function WorkflowActions({
 
   if (!transitions?.length) return null;
 
+  const prompt = PAYLOAD_PROMPTS[`${entity}.${pending?.action ?? ''}`];
   const run = async (t: Transition, why?: string) => {
     setBusy(true);
     try {
+      const p = PAYLOAD_PROMPTS[`${entity}.${t.action}`];
+      const payload = p && extra.trim() !== '' ? { [p.key]: extra.trim() } : undefined;
       const result = await apiPost<{ toState?: string }>(
-        `/workflow/${entity}/${id}/transitions`, { action: t.action, reason: why },
+        `/workflow/${entity}/${id}/transitions`, { action: t.action, reason: why, ...(payload ? { payload } : {}) },
       );
       // Name the state it landed in, not just the action taken — the engine returns it.
       toast(result?.toState
@@ -61,6 +65,7 @@ export function WorkflowActions({
         : `«${t.labelFa}» انجام شد.`);
       setPending(null);
       setReason('');
+      setExtra('');
       await qc.invalidateQueries();
       onDone?.();
     } catch (e: any) {
@@ -81,7 +86,7 @@ export function WorkflowActions({
               key={t.action}
               size={size}
               variant={destructive(t.action) ? 'danger' : primary(t.action) ? 'primary' : 'secondary'}
-              onClick={() => (t.requiresReason ? setPending(t) : void run(t))}
+              onClick={() => (t.requiresReason || PAYLOAD_PROMPTS[`${entity}.${t.action}`] ? setPending(t) : void run(t))}
               disabled={busy}
               // Still clickable: the engine is the authority, and its 422 names the clause.
               // The marker just says the answer is already known.
@@ -137,17 +142,24 @@ export function WorkflowActions({
             <Button
               variant={destructive(pending?.action ?? '') ? 'danger' : 'primary'}
               loading={busy}
-              disabled={reason.trim().length < 3}
-              onClick={() => pending && void run(pending, reason.trim())}
+              disabled={!!pending?.requiresReason && reason.trim().length < 3}
+              onClick={() => pending && void run(pending, pending.requiresReason ? reason.trim() : undefined)}
             >
               ثبت و ادامه
             </Button>
           </>
         }
       >
-        <Field label="دلیل" required hint="ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.">
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus />
-        </Field>
+        {pending?.requiresReason && (
+          <Field label="دلیل" required hint="ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.">
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus />
+          </Field>
+        )}
+        {prompt && (
+          <Field label={prompt.labelFa} hint={prompt.hintFa}>
+            <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={prompt.labelFa} autoFocus={!pending?.requiresReason} />
+          </Field>
+        )}
       </Modal>
 
       {/* A governed exception: one guard, this record, once, on the executive's authority. */}
@@ -186,6 +198,15 @@ export function WorkflowActions({
     </>
   );
 }
+
+/**
+ * A transition that may carry one extra value, asked for in the same dialog as the reason.
+ * task.submit asks for hours — the least a person can be told to type and still close the cost
+ * loop (roadmap #14). Optional: leaving it blank submits without logging.
+ */
+const PAYLOAD_PROMPTS: Record<string, { key: string; labelFa: string; hintFa: string }> = {
+  'task.submit': { key: 'hours', labelFa: 'ساعت‌های صرف‌شده', hintFa: 'یک عدد کافی است — به‌عنوان ثبت زمان روی وظیفه نگه داشته می‌شود. خالی یعنی بدون ثبت.' },
+};
 
 interface PreflightEntry {
   action: string;
