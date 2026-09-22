@@ -995,6 +995,116 @@ describe('Conditional approval routing', () => {
   });
 });
 
+describe('Approval chains and quorum', () => {
+  /**
+   * Doc_H's resource-request form says «تأیید مدیر واحد و مدیریت» — two approvals, in order.
+   * One approverRoles list could not say that: whoever clicked first ended the form. A chain
+   * says who decides at each step and how many of them, and a conditional stage attaches a
+   * legal review to the large contracts without bothering the small ones.
+   */
+  const OUTSOURCE = 'D31_OUTSOURCE_REQUEST';
+  const CONTRACT = 'F50_CONTRACT_SCALE';
+
+  async function outsourceRequest(estimatedCost: number) {
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    return expectOk(await post('/forms/submissions', T.designer, {
+      formCode: OUTSOURCE,
+      data: {
+        projectId: project.id, kind: 'OUTSOURCE', supplierName: 'استودیو نمونه',
+        scopeOfWork: 'تدوین ویدئو', estimatedCost, neededBy: '2026-11-01', justification: 'ظرفیت داخلی پر است',
+      },
+    }), 'outsource request');
+  }
+
+  it('walks the stages in order, and will not let a later approver jump the queue', async () => {
+    const sub = await outsourceRequest(100_000_000);
+    expect(sub.state).toBe('PENDING_APPROVAL');
+    expect(sub.stages.map((s: any) => s.id)).toEqual(['unit', 'management']);   // the CEO stage is conditional
+    expect(sub.stages[0].labelFa).toBe('تأیید مدیر واحد');
+
+    // Management is in the chain, but not yet: the unit manager decides first.
+    const early = await post(`/forms/submissions/${sub.id}/decision`, T.deputy, { decision: 'APPROVE' });
+    expect(early.status).toBe(403);
+    expect(early.body.error.message).toContain('تأیید مدیر واحد');
+
+    const first = expectOk(await post(`/forms/submissions/${sub.id}/decision`, T.creative, { decision: 'APPROVE' }), 'unit manager');
+    expect(first.state).toBe('PENDING_APPROVAL');        // one stage down, not done
+    expect(first.stageCleared).toBe(true);
+    expect(first.nextStageFa).toBe('تأیید مدیریت');
+    const mid = await prisma.formSubmission.findUniqueOrThrow({ where: { id: sub.id } });
+    expect(mid.currentStage).toBe(1);
+    expect(mid.currentRoles).toEqual(['DEPUTY']);
+    expect(mid.decidedAt).toBeNull();                    // not decided while it is still climbing
+
+    const second = expectOk(await post(`/forms/submissions/${sub.id}/decision`, T.deputy, { decision: 'APPROVE' }), 'management');
+    expect(second.state).toBe('APPROVED');
+    const done = await prisma.formSubmission.findUniqueOrThrow({ where: { id: sub.id }, include: { approvals: true } });
+    expect(done.currentRoles).toEqual([]);
+    expect(done.decidedAt).not.toBeNull();
+    // Each approval records the stage it satisfied, so the trail reads as a chain.
+    expect(done.approvals.map((a) => a.stage).sort()).toEqual(['management', 'unit']);
+  });
+
+  it('adds a stage only when the values call for it, and a rejection ends the chain wherever it stands', async () => {
+    const costly = await outsourceRequest(900_000_000);
+    expect(costly.stages.map((s: any) => s.id)).toEqual(['unit', 'management', 'ceo']);
+    expect(costly.requiredRoles).toContain('CEO');        // the routing rule agrees with the stage
+
+    expectOk(await post(`/forms/submissions/${costly.id}/decision`, T.creative, { decision: 'APPROVE' }), 'unit');
+    const rejected = expectOk(await post(`/forms/submissions/${costly.id}/decision`, T.deputy, { decision: 'REJECT', comment: 'بودجه امسال اجازه نمی‌دهد' }), 'management rejects');
+    expect(rejected.state).toBe('REJECTED');
+    // No further stage is waiting for anyone.
+    const after = await prisma.formSubmission.findUniqueOrThrow({ where: { id: costly.id } });
+    expect(after.currentRoles).toEqual([]);
+    expect((await post(`/forms/submissions/${costly.id}/decision`, T.ceo, { decision: 'APPROVE' })).status).toBe(400);
+  });
+
+  it('counts people rather than clicks when a stage asks for a quorum', async () => {
+    const p = await prisma.proposal.findFirstOrThrow();
+    // Two of the three managers must agree before this contract moves.
+    expectOk(await call('PUT', `/forms/definitions/${CONTRACT}/chain`, {
+      token: T.admin,
+      payload: {
+        note: 'حد نصاب دو از سه',
+        stages: [{ id: 'board', labelFa: 'هیئت مدیره — دو تأیید از سه', roles: ['DEPUTY', 'CEO', 'FINANCE_MANAGER'], quorum: 2 }],
+      },
+    }), 'set quorum');
+
+    const sub = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: CONTRACT,
+      data: { proposalId: p.id, contractValue: 2_000_000_000, scaleBand: 'M', notes: 'قرارداد سالانه' },
+    }), 'submit');
+    expect(sub.stages).toHaveLength(2);                   // the quorum stage, plus Legal routed in
+    expect(sub.stages[0].quorum).toBe(2);
+
+    const one = expectOk(await post(`/forms/submissions/${sub.id}/decision`, T.deputy, { decision: 'APPROVE' }), 'first approval');
+    expect(one.state).toBe('PENDING_APPROVAL');
+    expect(one.stageCleared).toBe(false);
+    // The same person cannot make up the numbers alone.
+    expect((await post(`/forms/submissions/${sub.id}/decision`, T.deputy, { decision: 'APPROVE' })).body.error.code).toBe('ALREADY_APPROVED');
+
+    const two = expectOk(await post(`/forms/submissions/${sub.id}/decision`, T.ceo, { decision: 'APPROVE' }), 'second approval');
+    expect(two.stageCleared).toBe(true);
+    expect(two.state).toBe('PENDING_APPROVAL');           // Legal still has to look at it
+    const stored = await prisma.formSubmission.findUniqueOrThrow({ where: { id: sub.id } });
+    expect((stored.stages as any)[0].approvedBy).toHaveLength(2);
+    expect(stored.currentRoles).toEqual(['LEGAL_MANAGER']);
+  });
+
+  it('leaves a form with no chain exactly as it was', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
+    const sub = expectOk(await post('/forms/submissions', T.sales, {
+      formCode: 'B10_BRIEF_COMPLETION',
+      data: { briefId: brief.id, addedInformation: 'اطلاعات تکمیلی' },
+    }), 'no chain');
+    expect(sub.stages).toHaveLength(1);
+    expect(sub.stages[0].id).toBe('approval');
+    expect(sub.stages[0].quorum).toBe(1);
+    const decided = expectOk(await post(`/forms/submissions/${sub.id}/decision`, T.accountManager, { decision: 'APPROVE' }), 'single approval');
+    expect(decided.state).toBe('APPROVED');
+  });
+});
+
 describe('SLA breach prediction', () => {
   /**
    * `warnAt` fires three-quarters of the way through the budget — it tells a person they were

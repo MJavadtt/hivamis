@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { evaluateRouting } from '@hiva/contracts';
+import { evaluateRouting, buildStages, currentStage } from '@hiva/contracts';
 import { FormRouting } from '../src/components/FormRouting';
 
 const routing = {
@@ -49,5 +49,35 @@ describe('conditional routing', () => {
     const fixed = screen.getAllByText(/تأییدکنندهٔ ثابت/).find((el) => el.textContent?.includes('قائم‌مقام'));
     expect(fixed?.textContent).toContain('قائم‌مقام، مدیرعامل');
     expect(fixed?.textContent).toContain('نسخهٔ ۲');
+  });
+});
+
+describe('approval chains', () => {
+  const chain = [
+    { id: 'unit', labelFa: 'تأیید مدیر واحد', roles: ['UNIT_MANAGER'] },
+    { id: 'management', labelFa: 'تأیید مدیریت', roles: ['DEPUTY'] },
+    { id: 'ceo', labelFa: 'تأیید مدیرعامل برای هزینهٔ بالا', roles: ['CEO'], when: { field: 'estimatedCost', op: 'gt', value: 500_000_000 } },
+  ] as any;
+
+  it('drops a conditional stage the values do not call for, and keeps the order', () => {
+    const cheap = buildStages(chain, ['UNIT_MANAGER', 'DEPUTY'], { estimatedCost: 100_000_000 });
+    expect(cheap.map((s) => s.id)).toEqual(['unit', 'management']);
+    expect(currentStage(cheap)!.labelFa).toBe('تأیید مدیر واحد');
+
+    const costly = buildStages(chain, ['UNIT_MANAGER', 'DEPUTY', 'CEO'], { estimatedCost: 900_000_000 });
+    expect(costly.map((s) => s.id)).toEqual(['unit', 'management', 'ceo']);
+    expect(costly.every((s) => s.declared)).toBe(true);
+  });
+
+  it('appends a routed-in role no stage covers, and a form without a chain keeps one stage', () => {
+    const withLegal = buildStages(chain, ['UNIT_MANAGER', 'DEPUTY', 'LEGAL_MANAGER'], { estimatedCost: 1 });
+    expect(withLegal.at(-1)!.roles).toEqual(['LEGAL_MANAGER']);
+    expect(withLegal.at(-1)!.declared).toBe(false);
+
+    const plain = buildStages([], ['ACCOUNT_MANAGER'], {});
+    expect(plain).toHaveLength(1);
+    expect(plain[0]!.quorum).toBe(1);
+    expect(plain[0]!.declared).toBe(false);
+    expect(buildStages([], [], {})).toEqual([]);
   });
 });

@@ -207,6 +207,14 @@ sentences. Administrators edit the rules in **مدیریت → مسیریابی 
 with the system are defaults, not Doc_H law, and changing them mints a new version of the form
 definition so anything already filed keeps the rules it was judged under.
 
+**Some forms are approved in stages.** Doc_H's resource request says «تأیید مدیر واحد و
+مدیریت» — two signatures, in order — and forms like it now show their chain before you submit:
+«۱. تأیید مدیر واحد ← ۲. تأیید مدیریت». Only the stage that is actually waiting is notified, so
+the second approver hears about the form when it is their turn and not before. A stage can ask
+for more than one signature («۲ تأیید از ۳»): two *different* people must approve, and nobody
+can make up the numbers alone. A rejection or a return ends the chain wherever it stands, and
+the reviewer sees the whole ladder — who has signed, who is next, and where it is now.
+
 ---
 
 **Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels

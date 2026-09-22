@@ -1357,6 +1357,8 @@ model FormDefinition {
   schema         Json
   /// Conditional approval rules evaluated against the submitted values (roadmap #17).
   routing        Json     @default("[]")
+  /// Ordered approval stages with optional quorum (roadmap #18); empty means a single stage.
+  approvalChain  Json     @default("[]")
   isActive       Boolean  @default(true)
   /// Bumped whenever `schema` changes; each value has a FormDefinitionVersion row behind it.
   version        Int      @default(1)
@@ -1381,6 +1383,8 @@ model FormDefinitionVersion {
   schema       Json
   /// The routing rules in force at this version — a submission is judged by its own version.
   routing      Json           @default("[]")
+  /// The approval chain in force at this version.
+  approvalChain Json          @default("[]")
   nameFa       String
   note         String?
   createdById  String?
@@ -1416,6 +1420,13 @@ model FormSubmission {
   requiredRoles  String[] @default([])
   /// The rules that fired, with the sentence each was written in — why those roles are there.
   routing        Json?
+  /// The approval stages this submission must pass, and how far it has got (roadmap #18).
+  stages         Json?
+  /// Index of the stage awaiting a decision; equals stages.length once every stage has cleared.
+  currentStage   Int      @default(0)
+  /// Roles that may decide *right now* — the waiting stage's roles. Kept as a column so an
+  /// approval inbox is one query, and empty once the form is decided.
+  currentRoles   String[] @default([])
   /// The domain record this submission created or drove, when the form has a typed binding.
   boundEntity    String?
   boundEntityId  String?
@@ -1441,6 +1452,8 @@ model FormApproval {
   submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   approverId   String
   approver     User           @relation(fields: [approverId], references: [id])
+  /// The stage this decision was recorded against (roadmap #18); null on pre-chain rows.
+  stage        String?
   decision     String
   comment      String?
   decidedAt    DateTime       @default(now())

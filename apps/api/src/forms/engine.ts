@@ -1,6 +1,6 @@
 import {
-  DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting,
-  type DepartmentCode, type FieldDef, type RoleCode, type RoutingRule,
+  DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting, buildStages, currentStage,
+  type ApprovalStage, type DepartmentCode, type FieldDef, type ResolvedStage, type RoleCode, type RoutingRule,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { nextCode } from '../lib/codes.js';
@@ -75,6 +75,13 @@ export async function submitForm(input: SubmitFormInput) {
     ? null
     : evaluateRouting(definition.approverRoles, definition.routing as unknown as RoutingRule[], clean);
   const requiredRoles = routed?.roles ?? [];
+  /**
+   * And in what order they speak (roadmap #18). A form with no declared chain gets one stage
+   * over those roles — the behaviour every form had before chains existed.
+   */
+  const stages = input.asDraft
+    ? []
+    : buildStages(definition.approvalChain as unknown as ApprovalStage[], requiredRoles, clean);
 
   const result = await prisma.$transaction(async (tx) => {
     const submission = await tx.formSubmission.create({
@@ -84,8 +91,10 @@ export async function submitForm(input: SubmitFormInput) {
         definitionId: definition.id,
         definitionVersion: definition.version,
         data: clean as object,
-        state: input.asDraft ? 'DRAFT' : requiredRoles.length > 0 ? 'PENDING_APPROVAL' : 'SUBMITTED',
+        state: input.asDraft ? 'DRAFT' : stages.length > 0 ? 'PENDING_APPROVAL' : 'SUBMITTED',
         requiredRoles,
+        stages: stages.length ? (stages as unknown as object) : undefined,
+        currentRoles: currentStage(stages)?.roles ?? [],
         routing: routed && routed.matched.length
           ? ({ matched: routed.matched, notifyRoles: routed.notifyRoles } as object)
           : undefined,
@@ -148,8 +157,17 @@ export async function submitForm(input: SubmitFormInput) {
     return { submission, bound };
   }, { timeout: 20_000 });
 
+  // Only the stage that is actually waiting hears about it: telling every eventual approver at
+  // once is how a chain becomes noise and people stop reading approval mail.
+  const first = currentStage(stages);
   await notifyApprovers(
-    { ...definition, approverRoles: requiredRoles, notifyRoles: routed?.notifyRoles ?? [], matchedFa: routed?.matched.map((m) => m.whenFa) ?? [] },
+    {
+      ...definition,
+      approverRoles: first?.roles ?? [],
+      notifyRoles: routed?.notifyRoles ?? [],
+      matchedFa: routed?.matched.map((m) => m.whenFa) ?? [],
+      stageFa: stages.length > 1 ? `مرحلهٔ ۱ از ${stages.length}: ${first?.labelFa ?? ''}` : null,
+    },
     result.submission.id, actor,
   );
 
@@ -161,13 +179,14 @@ export async function submitForm(input: SubmitFormInput) {
     },
     requiredRoles,
     routedBy: routed?.matched ?? [],
+    stages,
     boundEntity: result.bound?.entity ?? null,
     boundEntityId: result.bound?.entityId ?? null,
   };
 }
 
 async function notifyApprovers(
-  definition: { approverRoles: string[]; nameFa: string; receiverDepts: string[]; notifyRoles?: string[]; matchedFa?: string[] },
+  definition: { approverRoles: string[]; nameFa: string; receiverDepts: string[]; notifyRoles?: string[]; matchedFa?: string[]; stageFa?: string | null },
   submissionId: string,
   actor: FormActor,
 ): Promise<void> {
@@ -203,11 +222,12 @@ async function notifyApprovers(
   // When a rule put an approver here, the notification says which rule — an approval request
   // that does not explain itself is the thing this feature exists to replace.
   const because = definition.matchedFa?.length ? ` — ${definition.matchedFa.join('؛ ')}` : '';
+  const stagePrefix = definition.stageFa ? `${definition.stageFa} — ` : '';
   for (const a of approvers) {
     await notify({
       userId: a.id,
       kind: 'FORM_APPROVAL_REQUIRED',
-      title: `فرم در انتظار تأیید: ${definition.nameFa}`,
+      title: `فرم در انتظار تأیید: ${stagePrefix}${definition.nameFa}`,
       body: `برای بررسی و تصمیم‌گیری کلیک کنید.${because}`,
       entityType: 'formSubmission',
       entityId: submissionId,
@@ -261,8 +281,17 @@ export async function decideForm(input: DecideFormInput) {
 
   // The roles this submission required when it was filled — not whatever the definition says
   // today, and not the form's floor alone. Older rows have none and fall back to the floor.
-  const approverRoles = submission.requiredRoles.length ? submission.requiredRoles : submission.definition.approverRoles;
-  const bypass = input.actor.roles.some((r) => BYPASS_ROLES.has(r));
+  const fallbackRoles = submission.requiredRoles.length ? submission.requiredRoles : submission.definition.approverRoles;
+  // The stages this submission must pass (roadmap #18). A row written before chains existed has
+  // none, and behaves as it always did: one approval from any required role finishes it.
+  const stages = (Array.isArray(submission.stages) ? submission.stages : []) as unknown as ResolvedStage[];
+  const stage = stages.length ? currentStage(stages) : null;
+  if (stages.length && !stage) throw badRequest('FORM_NOT_PENDING', 'این فرم در وضعیت انتظار تأیید نیست.');
+  const approverRoles = stage ? stage.roles : fallbackRoles;
+
+  // A declared stage names whose sign-off is the point of it, so the executive bypass that
+  // works on an ordinary form does not let someone stand in for the unit manager (roadmap #18).
+  const bypass = input.actor.roles.some((r) => BYPASS_ROLES.has(r)) && !stage?.declared;
   const isApprover = bypass || input.actor.roles.some((r) => approverRoles.includes(r));
   // The role that qualifies the actor — if it is a borrowed one, the decision says whose.
   const qualifying = input.actor.roles.find((r) => approverRoles.includes(r));
@@ -271,23 +300,48 @@ export async function decideForm(input: DecideFormInput) {
     const roleNames = approverRoles
       .map((r) => ROLE_LABELS[r as RoleCode]?.fa ?? r)
       .join('، ');
-    throw forbidden(`تأیید این فرم فقط توسط نقش‌های ${roleNames} مجاز است.`);
+    throw forbidden(stage && stages.length > 1
+      ? `این فرم در «${stage.labelFa}» است و تصمیم آن با نقش‌های ${roleNames} است.`
+      : `تأیید این فرم فقط توسط نقش‌های ${roleNames} مجاز است.`);
   }
   if (submission.submittedById === input.actor.id && !bypass) {
     // Separation of duties: a submitter cannot approve their own form.
     throw forbidden('تأیید فرم توسط ثبت‌کننده همان فرم مجاز نیست.');
   }
+  // A quorum counts people, not clicks: the same approver cannot fill a stage twice, and a
+  // bypassing executive standing in for a stage still only counts once.
+  if (stage?.approvedBy.includes(input.actor.id)) {
+    throw badRequest('ALREADY_APPROVED', 'شما پیش‌تر در همین مرحله تأیید کرده‌اید.');
+  }
 
+  /**
+   * An approval clears the stage only when the stage has the distinct approvals it asks for;
+   * a rejection or a return ends the whole form wherever it stands.
+   */
+  const nextStages = stages.map((s) => ({ ...s, approvedBy: [...s.approvedBy] }));
+  let stageAdvanced = false;
+  if (input.decision === 'APPROVE' && stage) {
+    const live = nextStages.find((s) => s.id === stage.id && s.state === 'PENDING')!;
+    live.approvedBy.push(input.actor.id);
+    if (live.approvedBy.length >= live.quorum) { live.state = 'APPROVED'; stageAdvanced = true; }
+  }
+  const remaining = currentStage(nextStages);
+  const chainComplete = !stages.length || !remaining;
   const nextState =
-    input.decision === 'APPROVE' ? 'APPROVED' : input.decision === 'REJECT' ? 'REJECTED' : 'RETURNED';
+    input.decision !== 'APPROVE'
+      ? (input.decision === 'REJECT' ? 'REJECTED' : 'RETURNED')
+      : chainComplete ? 'APPROVED' : 'PENDING_APPROVAL';
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.formSubmission.update({
       where: { id: submission.id },
       data: {
         state: nextState,
-        decidedAt: new Date(),
+        // A form still climbing its chain has not been decided yet.
+        decidedAt: nextState === 'PENDING_APPROVAL' ? null : new Date(),
         returnReason: input.decision === 'APPROVE' ? null : input.comment ?? null,
+        ...(stages.length ? { stages: nextStages as unknown as object, currentStage: nextStages.filter((s) => s.state === 'APPROVED').length } : {}),
+        currentRoles: nextState === 'PENDING_APPROVAL' ? remaining?.roles ?? [] : [],
       },
     });
 
@@ -295,12 +349,14 @@ export async function decideForm(input: DecideFormInput) {
       data: {
         submissionId: submission.id,
         approverId: input.actor.id,
+        stage: stage?.id ?? null,
         decision: input.decision,
         comment: input.comment ?? null,
       },
     });
 
-    if (submission.definition.slaCode) {
+    // The form's clock runs until the form is actually decided, not until the first signature.
+    if (submission.definition.slaCode && nextState !== 'PENDING_APPROVAL') {
       await stopSla(tx, [submission.definition.slaCode], 'formSubmission', submission.id);
     }
 
@@ -312,27 +368,50 @@ export async function decideForm(input: DecideFormInput) {
       entityType: 'formSubmission',
       entityId: submission.id,
       before: { state: submission.state },
-      after: { state: nextState },
+      after: {
+        state: nextState,
+        ...(stage ? { stage: stage.id, stageFa: stage.labelFa, quorum: stage.quorum, cleared: stageAdvanced } : {}),
+      },
       reason: input.comment ?? null,
       ipAddress: input.actor.ipAddress,
       userAgent: input.actor.userAgent,
       requestId: input.actor.requestId,
     }, tx);
 
+    const index = nextStages.findIndex((s) => s.state === 'PENDING');
+    const progressFa = stages.length > 1 && stage
+      ? ` (${stage.labelFa}${stage.quorum > 1 ? ` — ${nextStages.find((s) => s.id === stage.id)!.approvedBy.length} از ${stage.quorum} تأیید` : ''})`
+      : '';
     await tx.notification.create({
       data: {
         userId: submission.submittedById,
-        kind: `FORM_${nextState}`,
-        title: `فرم «${submission.definition.nameFa}» ${nextState === 'APPROVED' ? 'تأیید شد' : nextState === 'REJECTED' ? 'رد شد' : 'بازگشت داده شد'}`,
+        kind: `FORM_${nextState === 'PENDING_APPROVAL' ? 'STAGE_APPROVED' : nextState}`,
+        title: nextState === 'PENDING_APPROVAL'
+          ? `فرم «${submission.definition.nameFa}» یک مرحله جلو رفت${progressFa}`
+          : `فرم «${submission.definition.nameFa}» ${nextState === 'APPROVED' ? 'تأیید شد' : nextState === 'REJECTED' ? 'رد شد' : 'بازگشت داده شد'}`,
         body: input.comment ?? null,
         entityType: 'formSubmission',
         entityId: submission.id,
-        severity: nextState === 'APPROVED' ? 'INFO' : 'WARNING',
+        severity: nextState === 'REJECTED' || nextState === 'RETURNED' ? 'WARNING' : 'INFO',
       },
     });
 
-    return updated;
+    return { ...updated, stages: nextStages, stageCleared: stageAdvanced, nextStageFa: remaining?.labelFa ?? null, stageIndex: index };
   });
+
+  // A stage that has just cleared hands the form to the next one, and only then are its
+  // approvers told — the chain is a queue of decisions, not a broadcast.
+  if (result.state === 'PENDING_APPROVAL' && stageAdvanced && remaining) {
+    await notifyApprovers(
+      {
+        ...submission.definition,
+        approverRoles: remaining.roles,
+        stageFa: `مرحلهٔ ${result.stageIndex + 1} از ${nextStages.length}: ${remaining.labelFa}`,
+      },
+      submission.id, input.actor,
+    );
+  }
+  return result;
 }
 
 /**
@@ -342,7 +421,9 @@ export async function decideForm(input: DecideFormInput) {
  */
 export const pendingForRoles = (roles: string[]) => ({
   OR: [
-    { requiredRoles: { hasSome: roles } },
-    { AND: [{ requiredRoles: { isEmpty: true } }, { definition: { approverRoles: { hasSome: roles } } }] },
+    // The stage actually waiting (roadmap #18) — a later stage's approver is not asked yet.
+    { currentRoles: { hasSome: roles } },
+    { AND: [{ currentRoles: { isEmpty: true } }, { requiredRoles: { hasSome: roles } }] },
+    { AND: [{ currentRoles: { isEmpty: true } }, { requiredRoles: { isEmpty: true } }, { definition: { approverRoles: { hasSome: roles } } }] },
   ],
 });

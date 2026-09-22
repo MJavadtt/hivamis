@@ -14,7 +14,7 @@ import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { BulkImport } from '../components/BulkImport';
-import { evaluateRouting, type RoutingRule } from '@hiva/contracts';
+import { evaluateRouting, buildStages, type ApprovalStage, type ResolvedStage, type RoutingRule } from '@hiva/contracts';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -47,6 +47,8 @@ interface FormDefinition {
   nextProcessFa: string | null; schema: FieldDef[]; canSubmit: boolean; version?: number;
   /** Conditional approvers, evaluated against what is typed (roadmap #17). */
   routing?: RoutingRule[];
+  /** Ordered approval stages with quorum (roadmap #18). */
+  approvalChain?: ApprovalStage[];
 }
 
 interface Submission {
@@ -193,6 +195,11 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
     [definition.approverRoles, detail?.routing, values],
   );
   const added = routed.roles.filter((r) => !definition.approverRoles.includes(r));
+  // The stages these values would walk through — built by the same function the server uses.
+  const stages = useMemo(
+    () => buildStages(detail?.approvalChain ?? [], routed.roles, values),
+    [detail?.approvalChain, routed.roles, values],
+  );
 
   const set = (key: string, value: unknown) => setValues((v) => ({ ...v, [key]: value }));
 
@@ -244,6 +251,17 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
             <Badge tone="warning" className="ms-1">+{roleNames(added)} به‌دلیل مقادیر این فرم</Badge>
           )}
         </p>
+        {stages.length > 1 && (
+          <p data-testid="routing-chain">
+            <span className="font-medium">زنجیرهٔ تأیید: </span>
+            {stages.map((st, i) => (
+              <span key={st.id}>
+                {i > 0 && ' ← '}
+                {toPersianDigits(i + 1)}. {st.labelFa} ({roleNames(st.roles)}{st.quorum > 1 ? ` — ${toPersianDigits(st.quorum)} تأیید` : ''})
+              </span>
+            ))}
+          </p>
+        )}
         {routed.matched.length > 0 && (
           <ul className="space-y-0.5 text-[11px] text-amber-800" data-testid="routing-matched">
             {routed.matched.map((m) => (
@@ -618,6 +636,9 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
     schema?: FieldDef[]; definitionVersion?: number;
     requiredRoles?: string[];
     routing?: { matched: { id: string; whenFa: string; addApprovers: string[]; notifyRoles: string[] }[] } | null;
+    stages?: ResolvedStage[] | null;
+    currentStage?: number;
+    approvals?: { id: string; stage: string | null; decision: string; approver: { fullName: string } }[];
   }>({
     queryKey: [`/forms/submissions/${submission.id}`],
     queryFn: () => apiGet(`/forms/submissions/${submission.id}`),
@@ -666,6 +687,30 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       }
     >
       {versionNote && <p className="mb-3 text-xs text-ink-500">{versionNote}</p>}
+      {data?.stages && data.stages.length > 1 ? (
+        <ol className="mb-3 space-y-1 rounded-lg bg-ink-50/60 px-3 py-2 text-xs" data-testid="decision-stages">
+          {data.stages.map((st, i) => {
+            const names = (data.approvals ?? []).filter((a) => a.stage === st.id && a.decision === 'APPROVE').map((a) => a.approver.fullName);
+            const waiting = st.state === 'PENDING' && i === (data.currentStage ?? 0);
+            return (
+              <li key={st.id} className={cx('flex flex-wrap items-center gap-1.5', waiting && 'font-medium text-ink-800')}>
+                <span aria-hidden className={st.state === 'APPROVED' ? 'text-emerald-600' : waiting ? 'text-amber-600' : 'text-ink-300'}>
+                  {st.state === 'APPROVED' ? '✓' : waiting ? '◆' : '○'}
+                </span>
+                <span>{toPersianDigits(i + 1)}. {st.labelFa}</span>
+                <span className="text-ink-500">({roleNames(st.roles)})</span>
+                {st.quorum > 1 && (
+                  <Badge tone={st.state === 'APPROVED' ? 'success' : 'neutral'}>
+                    {toPersianDigits(st.approvedBy.length)} از {toPersianDigits(st.quorum)} تأیید
+                  </Badge>
+                )}
+                {names.length > 0 && <span className="text-[11px] text-ink-400">— {names.join('، ')}</span>}
+                {waiting && <Badge tone="warning">اکنون با شماست</Badge>}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
       {data?.routing?.matched?.length ? (
         <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200" data-testid="routing-why">
           <p className="font-medium">چرا به تأیید {roleNames(data.requiredRoles ?? [])} رسید؟</p>

@@ -57,33 +57,34 @@ export async function publishDefinition(tx: Tx, input: PublishInput): Promise<{ 
   // Routing decides who must approve, so it is versioned with the schema rather than refreshed
   // silently: a submission is judged under the rules it was filled under (roadmap #16, #17).
   const routing = (form.routing ?? []) as unknown as object;
+  const approvalChain = (form.approvalChain ?? []) as unknown as object;
 
   const existing = await tx.formDefinition.findUnique({ where: { code: form.code } });
   if (!existing) {
     const created = await tx.formDefinition.create({
-      data: { organizationId: input.organizationId, no: form.no, code: form.code, ...metadata, schema, routing, version: 1 },
+      data: { organizationId: input.organizationId, no: form.no, code: form.code, ...metadata, schema, routing, approvalChain, version: 1 },
     });
     await tx.formDefinitionVersion.create({
-      data: { definitionId: created.id, version: 1, schema, routing, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
+      data: { definitionId: created.id, version: 1, schema, routing, approvalChain, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
     });
     return { version: 1, changed: true };
   }
 
-  if (sameSchema(existing.schema, schema) && sameSchema(existing.routing, routing)) {
+  if (sameSchema(existing.schema, schema) && sameSchema(existing.routing, routing) && sameSchema(existing.approvalChain, approvalChain)) {
     await tx.formDefinition.update({ where: { id: existing.id }, data: metadata });
     // A definition that predates versioning may have no row for its current version yet.
     await tx.formDefinitionVersion.upsert({
       where: { definitionId_version: { definitionId: existing.id, version: existing.version } },
-      create: { definitionId: existing.id, version: existing.version, schema: existing.schema as object, routing: existing.routing as object, nameFa: existing.nameFa },
+      create: { definitionId: existing.id, version: existing.version, schema: existing.schema as object, routing: existing.routing as object, approvalChain: existing.approvalChain as object, nameFa: existing.nameFa },
       update: {},
     });
     return { version: existing.version, changed: false };
   }
 
   const version = existing.version + 1;
-  await tx.formDefinition.update({ where: { id: existing.id }, data: { ...metadata, schema, routing, version } });
+  await tx.formDefinition.update({ where: { id: existing.id }, data: { ...metadata, schema, routing, approvalChain, version } });
   await tx.formDefinitionVersion.create({
-    data: { definitionId: existing.id, version, schema, routing, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
+    data: { definitionId: existing.id, version, schema, routing, approvalChain, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
   });
   return { version, changed: true };
 }

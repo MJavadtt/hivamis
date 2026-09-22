@@ -563,3 +563,17 @@ export const updateRoutingSchema = z.object({
   rules: z.array(routingRuleSchema).max(20),
   note: z.string().trim().max(200).optional(),
 });
+
+/** Ordered approval stages with quorum (roadmap #18), as an administrator may edit them. */
+export const approvalStageSchema = z.object({
+  id: z.string().trim().min(2).max(40).regex(/^[a-z0-9.-]+$/i, 'شناسهٔ مرحله فقط حروف لاتین، رقم، نقطه و خط تیره می‌پذیرد'),
+  labelFa: z.string().trim().min(2).max(80),
+  roles: z.array(z.enum(ROLE_CODES)).min(1).max(8),
+  quorum: z.number().int().min(1).max(10).optional(),
+  when: routingConditionSchema.optional(),
+});
+
+export const updateApprovalChainSchema = z.object({
+  stages: z.array(approvalStageSchema).max(6),
+  note: z.string().trim().max(200).optional(),
+});

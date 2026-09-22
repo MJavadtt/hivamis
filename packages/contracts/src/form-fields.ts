@@ -1,5 +1,5 @@
 import type { DepartmentCode, ModuleCode, RoleCode } from './enums.js';
-import type { RoutingRule } from './routing.js';
+import type { ApprovalStage, RoutingRule } from './routing.js';
 
 /** Field primitives supported by the form engine renderer and the server-side validator. */
 export type FieldType =
@@ -57,6 +57,11 @@ export interface FormDef {
    * not Doc_H clauses; the rule says which it is.
    */
   readonly routing?: readonly RoutingRule[];
+  /**
+   * Ordered approval stages with optional quorum (roadmap #18). Absent means what it always
+   * meant: one approval from any of the required roles finishes the form.
+   */
+  readonly approvalChain?: readonly ApprovalStage[];
   readonly fields: readonly FieldDef[];
 }
 

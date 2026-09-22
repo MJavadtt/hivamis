@@ -343,6 +343,16 @@ export const FORMS_A_F: readonly FormDef[] = [
     senderDepts: ['ST', 'CR', 'ME', 'DM'], receiverDepts: ['OP', 'FI', 'M'],
     approverRoles: ['UNIT_MANAGER', 'DEPUTY'], slaCode: 'SLA_RESOURCE_REQUEST',
     binding: 'outsourceRequest', nextProcessFa: 'تأیید مدیر واحد و مدیریت',
+    // Doc_H's own "next process" for this form is two approvals in order, which the catalogue
+    // used to express as one approverRoles list — whoever clicked first ended it (roadmap #18).
+    approvalChain: [
+      { id: 'unit', labelFa: 'تأیید مدیر واحد', roles: ['UNIT_MANAGER'] },
+      { id: 'management', labelFa: 'تأیید مدیریت', roles: ['DEPUTY'] },
+      {
+        id: 'ceo', labelFa: 'تأیید مدیرعامل برای هزینهٔ بالا', roles: ['CEO'],
+        when: { field: 'estimatedCost', op: 'gt', value: 500_000_000 },
+      },
+    ],
     routing: [
       {
         id: 'outsource.costly', whenFa: 'هزینهٔ تخمینی بیش از ۵۰۰٬۰۰۰٬۰۰۰ ریال باشد',
@@ -629,6 +639,13 @@ export const FORMS_A_F: readonly FormDef[] = [
     no: 50, code: 'F50_CONTRACT_SCALE', nameFa: 'فرم اشل قرارداد', nameEn: 'Contract scale', category: 'F',
     module: 'CONTRACT_LEGAL', senderDepts: ['A', 'FI'], receiverDepts: ['LG'], approverRoles: ['DEPUTY', 'CEO'],
     nextProcessFa: 'درخواست انعقاد قرارداد',
+    approvalChain: [
+      { id: 'management', labelFa: 'تأیید مدیریت', roles: ['DEPUTY', 'CEO'] },
+      {
+        id: 'legal', labelFa: 'بررسی حقوقی قراردادهای بزرگ', roles: ['LEGAL_MANAGER'],
+        when: { any: [{ field: 'contractValue', op: 'gt', value: 5_000_000_000 }, { field: 'scaleBand', op: 'in', value: ['L', 'XL'] }] },
+      },
+    ],
     routing: [
       {
         id: 'contract.large-value', whenFa: 'مبلغ قرارداد بیش از ۵٬۰۰۰٬۰۰۰٬۰۰۰ ریال باشد',

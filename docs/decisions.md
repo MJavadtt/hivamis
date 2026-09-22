@@ -566,3 +566,29 @@ the thing this feature exists to replace.
 so the shipped rules are marked `DEFAULT` and the admin screen exists to change them. A rule
 that does restate a clause is marked `DOC_H` and carries its `docRef`.
 
+## ADR-025 — An approval is a chain of stages, and the executive bypass stops at a declared one
+
+**Decision.** A form definition may declare `approvalChain`: ordered stages, each naming roles, a
+quorum (default one) and optionally a condition on the submitted values. `buildStages` resolves
+it against a submission — dropping stages whose condition does not hold, and appending one final
+stage for any role that routing (ADR-024) added but no stage covers. The submission stores the
+resolved stages, the index it has reached and `currentRoles`, the roles that may decide *now*.
+
+An approval clears a stage only when that stage has the distinct approvals its quorum asks for;
+the same person cannot count twice. A rejection or a return ends the chain wherever it stands.
+The form's SLA clock runs until the form is decided, not until the first signature, and only the
+waiting stage is notified.
+
+A form with no declared chain resolves to a single stage over its required roles, quorum one —
+bit for bit the behaviour every form had before chains existed.
+
+**Rationale.** Doc_H has multi-step approvals in several places; the catalogue could only express
+them as one `approverRoles` list, where whoever clicked first ended the form, or as two separate
+forms, which is how the organisation had been working around it. Stages say the thing directly.
+
+**The bypass stops at a declared stage.** SUPER_ADMIN, CEO and DEPUTY can approve any ordinary
+form. A declared stage exists precisely because *that* person's sign-off is the point of it, so
+the bypass does not apply there — otherwise a deputy could clear the unit manager's stage and
+then their own, and the chain would be decoration. The bypass still applies to the implicit
+single stage and to the routed-in stage, where it never meant anything more than convenience.
+

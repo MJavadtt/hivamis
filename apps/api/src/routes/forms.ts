@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  formDecisionSchema, submitFormSchema, paginationSchema, updateRoutingSchema,
-  FORM_CATEGORY_LABELS, evaluateRouting, describeCondition, rolesFa,
+  formDecisionSchema, submitFormSchema, paginationSchema, updateRoutingSchema, updateApprovalChainSchema,
+  FORM_CATEGORY_LABELS, evaluateRouting, describeCondition, rolesFa, buildStages, stagesSummaryFa,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
@@ -11,7 +11,7 @@ import { decideForm, pendingForRoles, submitForm } from '../forms/engine.js';
 import { schemaForSubmission } from '../forms/versions.js';
 import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
 import type { FormActor } from '../forms/engine.js';
-import type { FieldDef, RoutingRule } from '@hiva/contracts';
+import type { ApprovalStage, FieldDef, RoutingRule } from '@hiva/contracts';
 
 const formRoutes: FastifyPluginAsync = async (app) => {
   /** The full Doc_H form catalogue, grouped for the navigator. */
@@ -73,6 +73,64 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       ...outcome,
       rolesFa: rolesFa(outcome.roles),
     };
+  });
+
+  /** The stages a submission of this form must pass, and who decides each (roadmap #18). */
+  app.get('/forms/definitions/:code/chain', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const def = await prisma.formDefinition.findFirst({
+      where: { code, organizationId: actor.organizationId },
+      select: { code: true, nameFa: true, version: true, approverRoles: true, approvalChain: true },
+    });
+    if (!def) throw notFound('تعریف فرم');
+    const chain = (Array.isArray(def.approvalChain) ? def.approvalChain : []) as unknown as ApprovalStage[];
+    return {
+      formCode: def.code, nameFa: def.nameFa, version: def.version, baseRoles: def.approverRoles,
+      stages: chain,
+      // What a submission with no conditional values would actually walk through.
+      resolved: buildStages(chain, def.approverRoles, {}),
+      summaryFa: stagesSummaryFa(buildStages(chain, def.approverRoles, {})),
+    };
+  });
+
+  /** Replace the chain. Like a routing change, it mints a new version of the definition. */
+  app.put('/forms/definitions/:code/chain', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateApprovalChainSchema, req.body);
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!def) throw notFound('تعریف فرم');
+    const ids = new Set<string>();
+    for (const st of input.stages) {
+      if (ids.has(st.id)) throw badRequest('DUPLICATE_STAGE_ID', `شناسهٔ مرحلهٔ «${st.id}» تکراری است`);
+      ids.add(st.id);
+    }
+    const chain = input.stages as unknown as object;
+    const updated = await prisma.$transaction(async (tx) => {
+      const version = def.version + 1;
+      const row = await tx.formDefinition.update({ where: { id: def.id }, data: { approvalChain: chain, version } });
+      await tx.formDefinitionVersion.create({
+        data: {
+          definitionId: def.id, version, schema: def.schema as object, routing: def.routing as object,
+          approvalChain: chain, nameFa: def.nameFa, note: input.note ?? 'تغییر زنجیرهٔ تأیید', createdById: actor.id,
+        },
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'formDefinition', entityId: def.id,
+        before: { approvalChain: def.approvalChain, version: def.version },
+        after: { approvalChain: chain, version },
+        reason: input.note ?? null,
+        ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return row;
+    });
+    return { formCode: updated.code, version: updated.version, stages: updated.approvalChain };
   });
 
   /** The conditional rules on a definition, in the order they are evaluated. */

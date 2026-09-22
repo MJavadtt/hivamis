@@ -137,6 +137,8 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 |---|---|
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
 | `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
+| `GET /forms/definitions/:code/chain` | `form.read` — the approval stages of a form (roadmap #18): each stage's roles, quorum and condition, plus the chain a submission with no conditional values would walk and a Persian summary |
+| `PUT /forms/definitions/:code/chain` `{ stages[], note? }` | `admin.settings` — replace the chain (≤ 6 stages, quorum ≤ 10, unique ids — `DUPLICATE_STAGE_ID`). Mints a new definition version like a routing change |
 | `GET /forms/definitions/:code/routing` | `form.read` — the conditional approval rules on a definition (roadmap #17), each with its Persian sentence and a rendered description of its condition, plus the fields available to build one |
 | `PUT /forms/definitions/:code/routing` `{ rules[], note? }` | `admin.settings` — replace the rules. Rule ids must be unique (`DUPLICATE_RULE_ID`) and conditions are validated; saving mints a new definition version, so filed submissions keep the rules they were judged under |
 | `POST /forms/definitions/:code/routing/preview` `{ data }` | `form.read` — who these values would need: `roles`, `notifyRoles`, `matched[]` (id + the sentence) and `unmatched[]` (thresholds not yet crossed). The same pure evaluator the engine submits with, and the one the browser runs while the form is filled |
@@ -146,7 +148,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | `GET /forms/definitions/:code/export.csv` | Every submission of the form, bookkeeping columns then the union of field keys across versions. `form.read`; audited |
 | `GET /forms/submissions` | Submissions; `?awaitingMe=true` is the approval inbox — a single submission includes `definitionVersion` and `schema`, the fields as they stood when it was filled in |
 | `POST /forms/submissions` | Submit or save a draft |
-| `POST /forms/submissions/:id/decision` | Approve, reject or return (a reason is required to reject or return) |
+| `POST /forms/submissions/:id/decision` | Approve, reject or return (a reason is required to reject or return). Stage-aware (roadmap #18): an approval clears the current stage only when it has the distinct approvals its quorum asks for, then the form waits on the next stage (`stageCleared`, `nextStageFa`, `stages[]` come back with the response); a rejection or return ends the chain wherever it stands. The executive bypass does not apply to a declared stage, and nobody may fill a quorum twice (`ALREADY_APPROVED`) |
 
 Submitting enforces the sender department Doc_H assigns to the form, validates against the
 stored field schema, runs the typed binding when present, and starts the declared SLA clock.

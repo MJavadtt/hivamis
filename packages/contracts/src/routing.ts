@@ -160,3 +160,79 @@ export const rolesFa = (roles: readonly string[]): string =>
 
 export const ROUTING_OPERATORS = Object.keys(OP_FA) as RoutingOperator[];
 export const ROUTING_OPERATOR_LABELS = OP_FA;
+
+/* ── Approval chains and quorum (roadmap #18) ──────────────────────────── */
+
+/**
+ * One step of an approval. Doc_H has multi-step approvals in several places — a resource
+ * request goes «تأیید مدیر واحد و مدیریت» — and until now that was two separate forms, or a
+ * single approval from whichever of the two roles happened to click first.
+ *
+ * A stage names who may decide at that step and how many distinct people must. A stage with a
+ * `when` runs only for submissions whose values match it, which is how a legal review attaches
+ * itself to large contracts and stays out of the way of small ones.
+ */
+export interface ApprovalStage {
+  readonly id: string;
+  readonly labelFa: string;
+  readonly roles: readonly RoleCode[];
+  /** Distinct approvals needed to clear the stage. Defaults to one. */
+  readonly quorum?: number;
+  readonly when?: RoutingCondition;
+}
+
+export interface ResolvedStage {
+  id: string;
+  labelFa: string;
+  roles: RoleCode[];
+  quorum: number;
+  /** Approvals recorded against this stage so far — user ids, distinct. */
+  approvedBy: string[];
+  state: 'PENDING' | 'APPROVED';
+  /**
+   * True when the stage comes from a declared chain rather than being the implicit single
+   * stage or the one appended for routed-in roles. A declared stage names the person whose
+   * sign-off is the point of it, so an executive's blanket bypass does not apply to it.
+   */
+  declared: boolean;
+}
+
+/**
+ * The stages a submission has to pass, for these values.
+ *
+ * With no declared chain there is one stage over the roles routing produced, quorum one — which
+ * is exactly the behaviour every form had before chains existed. With a chain, its stages run
+ * in order, conditional ones drop out, and any role that routing added but no stage covers is
+ * appended as a final stage: a rule may add an approver, and the chain decides when they speak.
+ */
+export function buildStages(
+  chain: readonly ApprovalStage[] | null | undefined,
+  requiredRoles: readonly RoleCode[] | readonly string[],
+  data: Record<string, unknown>,
+): ResolvedStage[] {
+  const roles = [...requiredRoles] as RoleCode[];
+  if (!chain?.length) {
+    return roles.length ? [{ id: 'approval', labelFa: 'تأیید', roles, quorum: 1, approvedBy: [], state: 'PENDING', declared: false }] : [];
+  }
+  const stages: ResolvedStage[] = [];
+  for (const stage of chain) {
+    if (stage.when && !matchesCondition(stage.when, data)) continue;
+    stages.push({
+      id: stage.id, labelFa: stage.labelFa, roles: [...stage.roles],
+      quorum: Math.max(1, Math.min(stage.quorum ?? 1, 10)), approvedBy: [], state: 'PENDING', declared: true,
+    });
+  }
+  const covered = new Set(stages.flatMap((s) => s.roles));
+  const extra = roles.filter((r) => !covered.has(r));
+  if (extra.length) {
+    stages.push({ id: 'routed', labelFa: 'تأیید افزوده بر اساس مقادیر فرم', roles: extra, quorum: 1, approvedBy: [], state: 'PENDING', declared: false });
+  }
+  return stages;
+}
+
+/** The stage awaiting a decision, or null when every stage has cleared. */
+export const currentStage = (stages: readonly ResolvedStage[]): ResolvedStage | null =>
+  stages.find((s) => s.state === 'PENDING') ?? null;
+
+export const stagesSummaryFa = (stages: readonly ResolvedStage[]): string =>
+  stages.map((s, i) => `${i + 1}. ${s.labelFa} (${rolesFa(s.roles)}${s.quorum > 1 ? ` — ${s.quorum} تأیید` : ''})`).join(' → ');
