@@ -10,6 +10,7 @@ import {
   StateBadge, Table, Td, Textarea, Th, Tr, useToast, cx, Field, IconSearch, IconRefresh,
 } from './ui';
 import { formatRelative, toPersianDigits } from '../lib/format';
+import { AssigneePicker } from './AssigneePicker';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
 
@@ -142,7 +143,7 @@ export function WorkflowActions({
             <Button
               variant={destructive(pending?.action ?? '') ? 'danger' : 'primary'}
               loading={busy}
-              disabled={!!pending?.requiresReason && reason.trim().length < 3}
+              disabled={(!!pending?.requiresReason && reason.trim().length < 3) || (!!prompt?.required && extra.trim() === '')}
               onClick={() => pending && void run(pending, pending.requiresReason ? reason.trim() : undefined)}
             >
               ثبت و ادامه
@@ -156,8 +157,10 @@ export function WorkflowActions({
           </Field>
         )}
         {prompt && (
-          <Field label={prompt.labelFa} hint={prompt.hintFa}>
-            <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={prompt.labelFa} autoFocus={!pending?.requiresReason} />
+          <Field label={prompt.labelFa} hint={prompt.hintFa} required={prompt.required}>
+            {prompt.kind === 'assignee'
+              ? <AssigneePicker taskId={id} value={extra} onChange={setExtra} />
+              : <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={prompt.labelFa} autoFocus={!pending?.requiresReason} />}
           </Field>
         )}
       </Modal>
@@ -200,12 +203,14 @@ export function WorkflowActions({
 }
 
 /**
- * A transition that may carry one extra value, asked for in the same dialog as the reason.
+ * A transition that carries one extra value, asked for in the same dialog as the reason.
  * task.submit asks for hours — the least a person can be told to type and still close the cost
- * loop (roadmap #14). Optional: leaving it blank submits without logging.
+ * loop (roadmap #14); optional, and blank submits without logging. task.assign asks who, which
+ * is not optional, and asks it beside each candidate's free capacity (roadmap #12).
  */
-const PAYLOAD_PROMPTS: Record<string, { key: string; labelFa: string; hintFa: string }> = {
+const PAYLOAD_PROMPTS: Record<string, { key: string; labelFa: string; hintFa: string; kind?: 'number' | 'assignee'; required?: boolean }> = {
   'task.submit': { key: 'hours', labelFa: 'ساعت‌های صرف‌شده', hintFa: 'یک عدد کافی است — به‌عنوان ثبت زمان روی وظیفه نگه داشته می‌شود. خالی یعنی بدون ثبت.' },
+  'task.assign': { key: 'assigneeId', labelFa: 'مسئول وظیفه', hintFa: 'رتبه‌بندی بر پایهٔ ظرفیت آزاد روی تقویم خود فرد و سابقهٔ تحویل او — انتخاب پرظرفیت مجاز است، فقط با عدد جلوی چشم.', kind: 'assignee', required: true },
 };
 
 interface PreflightEntry {

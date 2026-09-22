@@ -8,6 +8,7 @@ import { actorFrom, parse } from '../lib/http.js';
 import { businessHoursBetween, DEFAULT_CALENDAR } from '../lib/business-calendar.js';
 import { loadCalendar } from '../sla/engine.js';
 import { notFound } from '../lib/errors.js';
+import { personLoads } from '../reports/capacity.js';
 
 const resourceRoutes: FastifyPluginAsync = async (app) => {
   registerCrud(app, {
@@ -120,86 +121,60 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
 
   /**
    * Traffic board (Doc_H §J.85 — «فرم Traffic پروژه», RACI step 32 «کنترل Traffic»).
-   * Computes per-person capacity vs. committed hours over a window and flags over-allocation,
-   * which is the bottleneck signal the PMO needs.
+   * Per-person capacity against committed work, from the same arithmetic the assignment
+   * suggestion uses (roadmap #12) — so the board and the suggestion can never disagree. Each
+   * person's own calendar and leave are honoured (#13), and capacity is the smaller of what
+   * their calendar holds and what their contract says.
    */
   app.get('/traffic', {
     preHandler: [app.authenticate, app.requirePermissions('traffic.read')],
   }, async (req) => {
     const actor = actorFrom(req);
     const { from, to, unit } = req.query as Record<string, string | undefined>;
-    const fromDate = from ? new Date(from) : new Date();
-    const toDate = to ? new Date(to) : new Date(Date.now() + 28 * 86_400_000);
+    const window = {
+      from: from ? new Date(from) : new Date(),
+      to: to ? new Date(to) : new Date(Date.now() + 28 * 86_400_000),
+    };
     const cal = await loadCalendar(actor.organizationId).catch(() => DEFAULT_CALENDAR);
+    const loads = await personLoads(prisma, actor.organizationId, window, { departmentCode: unit });
 
-    const users = await prisma.user.findMany({
-      where: {
-        organizationId: actor.organizationId, isActive: true, deletedAt: null,
-        ...(unit ? { department: { code: unit } } : {}),
-      },
-      include: { department: { select: { code: true, nameFa: true } } },
-      orderBy: { fullName: 'asc' },
+    // The projects each person is allocated to, for the board's row detail.
+    const allocations = await prisma.allocation.findMany({
+      where: { userId: { in: loads.map((l) => l.userId) }, fromDate: { lte: window.to }, toDate: { gte: window.from } },
+      select: { userId: true, project: { select: { id: true, code: true, name: true } } },
     });
+    const units = await prisma.department.findMany({ where: { organizationId: actor.organizationId }, select: { code: true, nameFa: true } });
+    const unitByCode = new Map(units.map((d) => [d.code, d]));
 
-    const [allocations, tasks] = await Promise.all([
-      prisma.allocation.findMany({
-        where: { fromDate: { lte: toDate }, toDate: { gte: fromDate } },
-        include: { project: { select: { id: true, code: true, name: true } } },
-      }),
-      prisma.task.findMany({
-        where: {
-          organizationId: actor.organizationId,
-          state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] },
-          dueDate: { gte: fromDate, lte: toDate },
-        },
-        include: { project: { select: { id: true, code: true, name: true } } },
-      }),
-    ]);
+    const rows = loads.map((l) => ({
+      user: { id: l.userId, fullName: l.fullName, jobTitle: l.jobTitle },
+      department: l.departmentCode ? unitByCode.get(l.departmentCode) ?? { code: l.departmentCode, nameFa: l.departmentCode } : null,
+      capacityHours: Math.round(l.capacityHours),
+      allocatedHours: Math.round(l.allocatedHours),
+      taskHours: Math.round(l.taskHours),
+      committedHours: Math.round(l.committedHours),
+      availableHours: Math.round(l.remainingHours),
+      leaveHours: Math.round(l.leaveHours),
+      utilisation: l.utilisation,
+      status: l.status,
+      openTasks: l.openTasks,
+      overdueTasks: l.overdueTasks,
+      projects: [...new Map(allocations.filter((a) => a.userId === l.userId).map((a) => [a.project.id, a.project])).values()],
+    }));
 
-    // Working hours available in the window, from the organisation's own calendar.
-    const windowHours = businessHoursBetween(fromDate, toDate, cal);
-    const workingDays = windowHours / (cal.endHour - cal.startHour - cal.breakHours);
-
-    const rows = users.map((u) => {
-      const mine = allocations.filter((a) => a.userId === u.id);
-      const myTasks = tasks.filter((t) => t.assigneeId === u.id);
-      const allocatedHours = mine.reduce((sum, a) => {
-        const start = a.fromDate > fromDate ? a.fromDate : fromDate;
-        const end = a.toDate < toDate ? a.toDate : toDate;
-        const days = Math.max(0, (end.getTime() - start.getTime()) / 86_400_000);
-        // Approximate working days inside the overlap using the calendar's weekly ratio.
-        const workingRatio = cal.workingDays.length / 7;
-        return sum + days * workingRatio * Number(a.hoursPerDay);
-      }, 0);
-      const taskHours = myTasks.reduce((s, t) => s + Number(t.estimateHours ?? 0), 0);
-      const capacityHours = (Number(u.weeklyCapacityHours) / 5) * workingDays;
-      const committed = Math.max(allocatedHours, taskHours);
-      const utilisation = capacityHours > 0 ? Math.round((committed / capacityHours) * 100) : 0;
-
-      return {
-        user: { id: u.id, fullName: u.fullName, jobTitle: u.jobTitle },
-        department: u.department,
-        capacityHours: Math.round(capacityHours),
-        allocatedHours: Math.round(allocatedHours),
-        taskHours: Math.round(taskHours),
-        committedHours: Math.round(committed),
-        availableHours: Math.round(capacityHours - committed),
-        utilisation,
-        status: utilisation > 100 ? 'OVER_ALLOCATED' : utilisation >= 85 ? 'AT_CAPACITY' : utilisation >= 40 ? 'HEALTHY' : 'UNDER_UTILISED',
-        openTasks: myTasks.length,
-        overdueTasks: myTasks.filter((t) => t.dueDate && t.dueDate < new Date()).length,
-        projects: [...new Map(mine.map((a) => [a.project.id, a.project])).values()],
-      };
-    });
-
+    const windowHours = businessHoursBetween(window.from, window.to, cal);
     return {
-      window: { from: fromDate, to: toDate, workingDays: Math.round(workingDays) },
+      window: {
+        from: window.from, to: window.to,
+        workingDays: Math.round(windowHours / (cal.endHour - cal.startHour - cal.breakHours)),
+      },
       rows,
       summary: {
         people: rows.length,
         overAllocated: rows.filter((r) => r.status === 'OVER_ALLOCATED').length,
         atCapacity: rows.filter((r) => r.status === 'AT_CAPACITY').length,
         underUtilised: rows.filter((r) => r.status === 'UNDER_UTILISED').length,
+        onLeave: rows.filter((r) => r.leaveHours > 0).length,
         averageUtilisation: rows.length
           ? Math.round(rows.reduce((s, r) => s + r.utilisation, 0) / rows.length)
           : 0,

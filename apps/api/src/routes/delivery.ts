@@ -19,6 +19,7 @@ import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
 import { logTime, recomputeActual } from '../reports/time.js';
 import { scheduleProject } from '../reports/schedule.js';
 import { forecastProject } from '../reports/forecast.js';
+import { suggestAssignees } from '../reports/capacity.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -517,6 +518,38 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
     if (!project) throw notFound('پروژه');
     return scheduleProject(prisma, actor.organizationId, id);
+  });
+
+  /**
+   * Who has room for this work (roadmap #12). Takes the unit, the hours and the due date —
+   * or a task, and reads all three from it — and ranks the unit's people by free capacity on
+   * their own calendar, then by how their finished tasks actually went. Advisory: the warnings
+   * travel beside the names, and nothing here refuses an assignment.
+   */
+  app.get('/tasks/suggest-assignee', {
+    preHandler: [app.authenticate, app.requirePermissions('task.assign')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { taskId, unit, hours, by, limit } = req.query as Record<string, string | undefined>;
+    let input: { departmentCode?: string; hours?: number; by?: Date; limit?: number } = {
+      departmentCode: unit, hours: hours ? Number(hours) : undefined,
+      by: by ? new Date(by) : undefined, limit: limit ? Number(limit) : undefined,
+    };
+    let task = null;
+    if (taskId) {
+      task = await prisma.task.findFirst({
+        where: { id: taskId, organizationId: actor.organizationId },
+        select: { id: true, code: true, title: true, departmentCode: true, estimateHours: true, dueDate: true, assigneeId: true },
+      });
+      if (!task) throw notFound('وظیفه');
+      input = {
+        ...input,
+        departmentCode: unit ?? task.departmentCode,
+        hours: input.hours ?? (task.estimateHours == null ? undefined : Number(task.estimateHours)),
+        by: input.by ?? task.dueDate ?? undefined,
+      };
+    }
+    return { task, ...(await suggestAssignees(prisma, actor.organizationId, input)) };
   });
 
   /** A distribution of finishes rather than one date (roadmap #11). `seed` reproduces a run. */

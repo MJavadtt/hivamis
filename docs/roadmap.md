@@ -33,8 +33,8 @@ Status vocabulary, and it is used strictly:
 | 5 | Rule lab — replay history under a changed policy | 1, 4 | Verified | cf4a0c0 |
 | 14 | Time logging and cost accuracy | — | Verified | e10973e |
 | 10 | Critical path and Gantt | 13 | Verified | 0e7c2d1 |
-| 11 | Monte Carlo delivery forecast | 13, 14 | Verified | next |
-| 12 | Capacity-aware assignment | 13 | Pending | |
+| 11 | Monte Carlo delivery forecast | 13, 14 | Verified | 4b85505 |
+| 12 | Capacity-aware assignment | 13 | Verified | next |
 | 8 | SLA breach prediction | 13 | Pending | |
 | 17 | Conditional routing and approval | — | Pending | |
 | 18 | Parallel approval chains and quorum | 17 | Pending | |

@@ -654,7 +654,7 @@ export function Traffic() {
     <>
       <PageHeader
         title="ترافیک و ظرفیت"
-        subtitle="ظرفیت در دسترس در برابر کار تعهدشده — بر پایه تقویم کاری سازمان"
+        subtitle="ظرفیت در دسترس در برابر کار تعهدشده — روی تقویم و مرخصی خود هر فرد، و همان حسابی که پیشنهاد تخصیص از آن می‌آید"
         actions={
           <div className="w-48"><Select value={unit} onChange={(e) => setUnit(e.target.value)}>
             <option value="">همه واحدها</option>
@@ -665,11 +665,13 @@ export function Traffic() {
       <PageBody className="space-y-5">
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : data && (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               <StatTile label="افراد" value={toPersianDigits(data.summary.people)} />
               <StatTile label="اضافه‌تخصیص" value={toPersianDigits(data.summary.overAllocated)}
                 tone={data.summary.overAllocated > 0 ? 'danger' : 'success'} hint="بیش از ۱۰۰٪ ظرفیت" />
               <StatTile label="در سقف ظرفیت" value={toPersianDigits(data.summary.atCapacity)} tone="warning" />
+              <StatTile label="در مرخصی" value={toPersianDigits(data.summary.onLeave ?? 0)} tone={data.summary.onLeave > 0 ? 'info' : 'neutral'}
+                hint="بخشی از این بازه را نیستند" />
               <StatTile label="میانگین بهره‌وری" value={`${toPersianDigits(data.summary.averageUtilisation)}٪`}
                 tone={data.summary.averageUtilisation > 90 ? 'danger' : data.summary.averageUtilisation > 60 ? 'success' : 'warning'} />
             </div>
@@ -684,7 +686,10 @@ export function Traffic() {
                     <Tr key={r.user.id}>
                       <Td><p className="text-sm">{r.user.fullName}</p><p className="text-[11px] text-ink-400">{r.user.jobTitle}</p></Td>
                       <Td className="text-xs">{r.department?.nameFa ?? '—'}</Td>
-                      <Td className="nums text-xs">{toPersianDigits(r.capacityHours)} س</Td>
+                      <Td className="nums text-xs">
+                        {toPersianDigits(r.capacityHours)} س
+                        {r.leaveHours > 0 && <Badge tone="info" className="ms-1">{toPersianDigits(r.leaveHours)} س مرخصی</Badge>}
+                      </Td>
                       <Td className="nums text-xs">{toPersianDigits(r.committedHours)} س</Td>
                       <Td className={cx('nums text-xs', r.availableHours < 0 && 'font-medium text-rose-600')}>
                         {toPersianDigits(r.availableHours)} س

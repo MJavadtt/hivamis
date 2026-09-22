@@ -866,6 +866,133 @@ describe('Critical path and schedule', () => {
   });
 });
 
+describe('Capacity-aware assignment', () => {
+  /**
+   * weeklyCapacityHours and the allocations table both existed and nothing read them where it
+   * counts: the moment work is handed to a person. Two people in one unit, one already loaded,
+   * and the suggestion has to put the free one first — and say why, in words a unit manager
+   * can argue with.
+   */
+  const inDays = (n: number) => new Date(Date.now() + n * 86_400_000);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  async function person(name: string, opts: { weeklyCapacityHours?: number } = {}) {
+    const org = await prisma.organization.findFirstOrThrow();
+    const dept = await prisma.department.findFirstOrThrow({ where: { code: 'CR' } });
+    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    return prisma.user.create({ data: {
+      organizationId: org.id, departmentId: dept.id, email: `${name}.${Date.now()}@hiva.local`,
+      fullName: name, passwordHash: template.passwordHash, jobTitle: 'طراح',
+      weeklyCapacityHours: opts.weeklyCapacityHours ?? 40,
+    } });
+  }
+
+  /** One project to hang the fixtures' tasks on; every task needs one. */
+  async function holder() {
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const project = await prisma.project.findFirst({ where: { code: { startsWith: 'PRJ-CAP-' } } }) ?? await prisma.project.create({ data: {
+      organizationId: org.id, code: 'PRJ-CAP-1', name: 'پروژهٔ ظرفیت', companyId: company.id, accountOwnerId: pmo.id,
+      objective: 'x', state: 'ACTIVE',
+    } });
+    return { org, pmo, project };
+  }
+
+  async function load(userId: string, hours: number, due: Date) {
+    const { org, pmo, project } = await holder();
+    return prisma.task.create({ data: {
+      organizationId: org.id, projectId: project.id, code: `TSK-CAP-${Math.random().toString(36).slice(2, 9)}`, title: 'کار جاری',
+      departmentCode: 'CR', assigneeId: userId, priority: 'NORMAL', state: 'IN_PROGRESS',
+      sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: pmo.id, estimateHours: hours, dueDate: due,
+    } });
+  }
+
+  it('ranks the person with room above the person without, and gives the reasons in words', async () => {
+    const free = await person('آزاد یکم');
+    const busy = await person('پرکار یکم');
+    await load(busy.id, 60, inDays(9));          // more than a fortnight's capacity, already held
+    resetCalendarCache();
+
+    const res = expectOk(await get('/tasks/suggest-assignee', T.pmo, { unit: 'CR', hours: '16', by: inDays(10).toISOString(), limit: '50' }), 'suggest');
+    const ids = res.candidates.map((c: any) => c.load.userId);
+    expect(ids).toContain(free.id);
+    expect(ids.indexOf(free.id)).toBeLessThan(ids.indexOf(busy.id));
+
+    const f = res.candidates.find((c: any) => c.load.userId === free.id);
+    const b = res.candidates.find((c: any) => c.load.userId === busy.id);
+    expect(f.fits).toBe(true);
+    expect(f.warningsFa).toEqual([]);
+    expect(f.reasonsFa.join(' ')).toContain('ساعت ظرفیت آزاد');
+    expect(f.load.committedHours).toBe(0);
+    expect(f.score).toBeGreaterThan(b.score);
+
+    // The loaded one is not hidden — they are ranked last and carry the warning.
+    expect(b.load.taskHours).toBe(60);
+    expect(b.fits).toBe(false);
+    expect(b.utilisationAfter).toBeGreaterThan(100);
+    expect(b.warningsFa.join(' ')).toContain('ظرفیت می‌رساند');
+    expect(b.missesDueDate).toBe(true);
+    // Nothing is refused: this is advice, and both people are returned.
+    expect(res.hours).toBe(16);
+  });
+
+  it('counts only what is left of a task, and takes leave out of the capacity', async () => {
+    const worker = await person('نیمه‌کاره');
+    const t = await load(worker.id, 20, inDays(9));
+    await prisma.task.update({ where: { id: t.id }, data: { actualHours: 15 } });   // 5 hours left, not 20
+    resetCalendarCache();
+
+    const before = expectOk(await get('/tasks/suggest-assignee', T.pmo, { unit: 'CR', hours: '8', limit: '50' }), 'before');
+    const b = before.candidates.find((c: any) => c.load.userId === worker.id);
+    expect(b.load.taskHours).toBe(5);
+    expect(b.load.leaveHours).toBe(0);
+
+    // A week away, starting tomorrow: their calendar loses those days, and so does their capacity.
+    expectOk(await post(`/users/${worker.id}/leaves`, T.admin, { from: iso(inDays(1)), to: iso(inDays(7)), kind: 'VACATION' }), 'leave');
+    resetCalendarCache();
+    const after = expectOk(await get('/tasks/suggest-assignee', T.pmo, { unit: 'CR', hours: '8', limit: '50' }), 'after');
+    const a = after.candidates.find((c: any) => c.load.userId === worker.id);
+    expect(a.load.leaveHours).toBeGreaterThan(0);
+    expect(a.load.capacityHours).toBeLessThan(b.load.capacityHours);
+    expect(a.reasonsFa.join(' ')).toContain('مرخصی');
+    // The traffic board reads the same arithmetic, so it cannot disagree with the suggestion.
+    const traffic = expectOk(await get('/traffic', T.pmo, { unit: 'CR' }), 'traffic');
+    const row = traffic.rows.find((r: any) => r.user.id === worker.id);
+    expect(row.leaveHours).toBeGreaterThan(0);
+    expect(traffic.summary.onLeave).toBeGreaterThan(0);
+  });
+
+  it('will not dispatch a task to nobody, and hands the acceptance clock to the person named', async () => {
+    const { org, pmo, project } = await holder();
+    const taker = await person('گیرندهٔ وظیفه');
+    const task = await prisma.task.create({ data: {
+      organizationId: org.id, projectId: project.id, code: `TSK-ASG-${Date.now()}`, title: 'وظیفهٔ بدون مسئول', departmentCode: 'CR',
+      priority: 'NORMAL', state: 'CREATED', sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: pmo.id, estimateHours: 8,
+    } });
+
+    expect((await move('task', task.id, 'assign', T.pmo)).body.error.code).toBe('ASSIGNEE_REQUIRED');
+    expect((await move('task', task.id, 'assign', T.pmo, undefined, { assigneeId: org.id })).body.error.code).toBe('ASSIGNEE_INVALID');
+
+    const done = expectOk(await move('task', task.id, 'assign', T.pmo, undefined, { assigneeId: taker.id }), 'assign');
+    expect(done.toState).toBe('ASSIGNED');
+    const after = await prisma.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(after.assigneeId).toBe(taker.id);
+    // Doc_H RACI #7/#8: dispatch starts the acceptance clock, and it belongs to the person named.
+    const clock = await prisma.slaClock.findFirstOrThrow({ where: { entityType: 'task', entityId: task.id, policy: { code: 'SLA_TASK_ACCEPTANCE' } } });
+    expect(clock.ownerId).toBe(taker.id);
+
+    // And the suggestion knows about the new work without being told.
+    resetCalendarCache();
+    const res = expectOk(await get('/tasks/suggest-assignee', T.pmo, { taskId: task.id, limit: '50' }), 'by task');
+    expect(res.task.code).toBe(after.code);
+    expect(res.hours).toBe(8);                                  // read off the task's own estimate
+    const t = res.candidates.find((c: any) => c.load.userId === taker.id);
+    expect(t.load.taskHours).toBe(8);
+    expect(t.load.openTasks).toBe(1);
+  });
+});
+
 describe('Probabilistic delivery forecast', () => {
   /**
    * One plannedEnd is a promise nobody can keep. The ratios of finished tasks are the

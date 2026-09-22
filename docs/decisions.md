@@ -489,3 +489,27 @@ assumptions are returned with every result, and the UI prints them under the num
 against the rules, by guard, over time. The rule editor of the future (roadmap #47) should run the
 lab before publishing — the shape is ready for that.
 
+## ADR-022 — Capacity is advice, not a rule
+
+**Decision.** `GET /tasks/suggest-assignee` ranks a unit's people by free capacity on their own
+calendar (ADR-005 addendum, roadmap #13) and by how their finished tasks actually went, and
+returns the ranking with its reasons and its warnings in Persian. Over-capacity is a warning
+carried beside the name. It is not a guard, and nothing in the assignment path refuses a
+transition on capacity grounds. The traffic board reads the same function, so the board and the
+suggestion cannot disagree.
+
+Capacity itself is the smaller of what a person's calendar holds in the window and what their
+contract (`weeklyCapacityHours`) says, and commitment is what is *left* of their open tasks —
+estimate minus hours already logged (roadmap #14) — or their allocations, whichever is larger,
+which is the convention the traffic board has always used.
+
+**Rationale.** Doc_H nowhere forbids overloading a person; a deadline sometimes costs a weekend,
+and that is a manager's call to make with the number in front of them. A system that refuses the
+assignment does not prevent the overload — it moves the work to a chat message, where nothing is
+measured. Advice at the moment of decision changes behaviour; a 422 changes where the decision
+is recorded.
+
+**Consequence.** One thing *did* become a rule: `task.assign` now requires `payload.assigneeId`
+(400 `ASSIGNEE_REQUIRED`). Dispatch starts the four-hour acceptance clock, and a clock with no
+owner measures nobody — which was possible before and is not a judgement call.
+

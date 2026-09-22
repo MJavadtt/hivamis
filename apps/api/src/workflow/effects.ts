@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { badRequest } from '../lib/errors.js';
 import { logTime } from '../reports/time.js';
 import { cascadeState } from './engine.js';
 
@@ -106,6 +107,16 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   'workOrder.submit': async () => ({ submittedAt: new Date() }),
   'workOrder.cancel': async ({ reason }) => ({ cancelReason: reason ?? null }),
 
+  // Doc_H RACI #7/#8 — dispatch names a person, because the 4-hour acceptance clock this
+  // transition starts belongs to somebody. Whose capacity it lands on is advisory (#12), and
+  // is shown when the assignment is made; who it lands on is not optional.
+  'task.assign': async ({ tx, payload, record, organizationId }) => {
+    const assigneeId = (payload.assigneeId as string | undefined) ?? record.assigneeId ?? null;
+    if (!assigneeId) throw badRequest('ASSIGNEE_REQUIRED', 'تخصیص بدون نام مسئول ممکن نیست');
+    const user = await tx.user.findFirst({ where: { id: assigneeId, organizationId, isActive: true, deletedAt: null }, select: { id: true } });
+    if (!user) throw badRequest('ASSIGNEE_INVALID', 'کاربر انتخاب‌شده فعال نیست یا در این سازمان نیست', { assigneeId });
+    return { assigneeId };
+  },
   'task.accept': async () => ({ acceptedAt: new Date() }),
   'task.block': async ({ reason }) => ({ blockReason: reason ?? null }),
   'task.start': async () => ({ blockReason: null }),

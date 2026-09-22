@@ -113,8 +113,17 @@ and the project end date together.
 
 ## PMO / Operations
 
-- **Traffic** — capacity versus committed hours per person, with over-allocation flagged. The
-  window uses the organisation's real working calendar.
+- **Traffic** — capacity versus committed hours per person, with over-allocation flagged. Each
+  person is measured on their own working calendar and leave, and capacity is the smaller of
+  what their calendar holds and what their contract says. Only what is *left* of a task counts:
+  hours already logged are spent. The numbers are the ones the assignment suggestion uses, so
+  the board and the suggestion cannot disagree.
+- **Assigning a task** — «تخصیص» asks who, beside each candidate's free capacity: what they are
+  at now, what this task would take them to, when they would actually finish it on their own
+  calendar after the work they already hold, and their delivery history. Choosing someone
+  already full is allowed — the warning is there to be read, not to block — but a task can no
+  longer be dispatched to nobody, because the four-hour acceptance clock it starts has to belong
+  to someone.
 - **Reports → Units** — on-time delivery, first pass yield and revision rate per unit.
 - **Reports → Data quality** — records that will silently break the process: an ACTIVE project
   with no authorisation, a task with no source document, overdue revisions. Treat CRITICAL
