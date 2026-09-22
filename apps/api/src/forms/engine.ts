@@ -1,6 +1,6 @@
 import {
-  DEPARTMENT_LABELS, ROLE_LABELS,
-  type DepartmentCode, type FieldDef, type RoleCode,
+  DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting,
+  type DepartmentCode, type FieldDef, type RoleCode, type RoutingRule,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { nextCode } from '../lib/codes.js';
@@ -66,6 +66,16 @@ export async function submitForm(input: SubmitFormInput) {
   const fields = definition.schema as unknown as FieldDef[];
   const clean = validateFormData(fields, input.data, { partial: input.asDraft === true });
 
+  /**
+   * Who has to approve *these values* (roadmap #17). Doc_H's approverRoles are the floor; the
+   * definition's rules add to it — Legal on a large contract, the CEO on a price below cost.
+   * A draft is not routed: it has no final values to judge.
+   */
+  const routed = input.asDraft
+    ? null
+    : evaluateRouting(definition.approverRoles, definition.routing as unknown as RoutingRule[], clean);
+  const requiredRoles = routed?.roles ?? [];
+
   const result = await prisma.$transaction(async (tx) => {
     const submission = await tx.formSubmission.create({
       data: {
@@ -74,7 +84,11 @@ export async function submitForm(input: SubmitFormInput) {
         definitionId: definition.id,
         definitionVersion: definition.version,
         data: clean as object,
-        state: input.asDraft ? 'DRAFT' : definition.approverRoles.length > 0 ? 'PENDING_APPROVAL' : 'SUBMITTED',
+        state: input.asDraft ? 'DRAFT' : requiredRoles.length > 0 ? 'PENDING_APPROVAL' : 'SUBMITTED',
+        requiredRoles,
+        routing: routed && routed.matched.length
+          ? ({ matched: routed.matched, notifyRoles: routed.notifyRoles } as object)
+          : undefined,
         submittedById: actor.id,
         assignedToId: input.assignedToId ?? null,
         projectId: input.projectId ?? (clean.projectId ? String(clean.projectId) : null),
@@ -122,7 +136,10 @@ export async function submitForm(input: SubmitFormInput) {
       action: 'CREATE',
       entityType: 'formSubmission',
       entityId: submission.id,
-      after: { formCode: definition.code, state: submission.state, bound },
+      after: {
+        formCode: definition.code, state: submission.state, bound,
+        ...(routed?.matched.length ? { routedBy: routed.matched.map((m) => m.id), requiredRoles } : {}),
+      },
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
       requestId: actor.requestId,
@@ -131,7 +148,10 @@ export async function submitForm(input: SubmitFormInput) {
     return { submission, bound };
   }, { timeout: 20_000 });
 
-  await notifyApprovers(definition, result.submission.id, actor);
+  await notifyApprovers(
+    { ...definition, approverRoles: requiredRoles, notifyRoles: routed?.notifyRoles ?? [], matchedFa: routed?.matched.map((m) => m.whenFa) ?? [] },
+    result.submission.id, actor,
+  );
 
   return {
     ...result.submission,
@@ -139,16 +159,21 @@ export async function submitForm(input: SubmitFormInput) {
       code: definition.code, nameFa: definition.nameFa, category: definition.category,
       module: definition.module, nextProcessFa: definition.nextProcessFa,
     },
+    requiredRoles,
+    routedBy: routed?.matched ?? [],
     boundEntity: result.bound?.entity ?? null,
     boundEntityId: result.bound?.entityId ?? null,
   };
 }
 
 async function notifyApprovers(
-  definition: { approverRoles: string[]; nameFa: string; receiverDepts: string[] },
+  definition: { approverRoles: string[]; nameFa: string; receiverDepts: string[]; notifyRoles?: string[]; matchedFa?: string[] },
   submissionId: string,
   actor: FormActor,
 ): Promise<void> {
+  // Roles told for information carry no veto, and are addressed separately below.
+  const forInformation = (definition.notifyRoles ?? []).filter((r) => !definition.approverRoles.includes(r));
+  if (forInformation.length) await notifyForInformation(forInformation, definition, submissionId, actor);
   if (definition.approverRoles.length === 0) return;
   const approvers = await prisma.user.findMany({
     where: {
@@ -175,16 +200,43 @@ async function notifyApprovers(
     senderFa: sender?.fullName ?? 'کاربر سامانه',
     url: appUrl(`/forms?submission=${submissionId}`),
   });
+  // When a rule put an approver here, the notification says which rule — an approval request
+  // that does not explain itself is the thing this feature exists to replace.
+  const because = definition.matchedFa?.length ? ` — ${definition.matchedFa.join('؛ ')}` : '';
   for (const a of approvers) {
     await notify({
       userId: a.id,
       kind: 'FORM_APPROVAL_REQUIRED',
       title: `فرم در انتظار تأیید: ${definition.nameFa}`,
-      body: 'برای بررسی و تصمیم‌گیری کلیک کنید.',
+      body: `برای بررسی و تصمیم‌گیری کلیک کنید.${because}`,
       entityType: 'formSubmission',
       entityId: submissionId,
       severity: 'INFO',
       mail,
+    });
+  }
+}
+
+/** Told, not asked: a role a rule wanted in the loop without giving it a veto. */
+async function notifyForInformation(
+  roles: string[],
+  definition: { nameFa: string; matchedFa?: string[] },
+  submissionId: string,
+  actor: FormActor,
+): Promise<void> {
+  const people = await prisma.user.findMany({
+    where: { organizationId: actor.organizationId, isActive: true, deletedAt: null, roles: { some: { role: { code: { in: roles } } } } },
+    select: { id: true }, take: 50,
+  });
+  for (const p of people) {
+    await notify({
+      userId: p.id,
+      kind: 'FORM_FOR_INFORMATION',
+      title: `برای اطلاع: ${definition.nameFa}`,
+      body: `این فرم ثبت شد و طبق قاعدهٔ مسیریابی به اطلاع شما می‌رسد${definition.matchedFa?.length ? ` — ${definition.matchedFa.join('؛ ')}` : ''}.`,
+      entityType: 'formSubmission',
+      entityId: submissionId,
+      severity: 'INFO',
     });
   }
 }
@@ -207,7 +259,9 @@ export async function decideForm(input: DecideFormInput) {
     throw badRequest('FORM_NOT_PENDING', 'این فرم در وضعیت انتظار تأیید نیست.');
   }
 
-  const approverRoles = submission.definition.approverRoles;
+  // The roles this submission required when it was filled — not whatever the definition says
+  // today, and not the form's floor alone. Older rows have none and fall back to the floor.
+  const approverRoles = submission.requiredRoles.length ? submission.requiredRoles : submission.definition.approverRoles;
   const bypass = input.actor.roles.some((r) => BYPASS_ROLES.has(r));
   const isApprover = bypass || input.actor.roles.some((r) => approverRoles.includes(r));
   // The role that qualifies the actor — if it is a borrowed one, the decision says whose.
@@ -280,3 +334,15 @@ export async function decideForm(input: DecideFormInput) {
     return updated;
   });
 }
+
+/**
+ * Prisma filter for "forms awaiting a decision from one of these roles". A submission routed by
+ * a rule (roadmap #17) carries its own required roles; one written before routing existed falls
+ * back to its definition's. Both cases have to match, or an approver loses their inbox.
+ */
+export const pendingForRoles = (roles: string[]) => ({
+  OR: [
+    { requiredRoles: { hasSome: roles } },
+    { AND: [{ requiredRoles: { isEmpty: true } }, { definition: { approverRoles: { hasSome: roles } } }] },
+  ],
+});

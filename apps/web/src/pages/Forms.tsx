@@ -14,6 +14,7 @@ import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { BulkImport } from '../components/BulkImport';
+import { evaluateRouting, type RoutingRule } from '@hiva/contracts';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
@@ -44,6 +45,8 @@ interface FormDefinition {
   category: string; module: string; senderDepts: string[]; receiverDepts: string[];
   approverRoles: string[]; slaCode: string | null; binding: string | null;
   nextProcessFa: string | null; schema: FieldDef[]; canSubmit: boolean; version?: number;
+  /** Conditional approvers, evaluated against what is typed (roadmap #17). */
+  routing?: RoutingRule[];
 }
 
 interface Submission {
@@ -183,6 +186,14 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
 
   const fields = detail?.schema ?? definition.schema;
 
+  // The same pure evaluator the server routes with, so what the person is told while filling is
+  // exactly what they will get on submit — no round-trip, and no chance of the two disagreeing.
+  const routed = useMemo(
+    () => evaluateRouting(definition.approverRoles, detail?.routing ?? [], values),
+    [definition.approverRoles, detail?.routing, values],
+  );
+  const added = routed.roles.filter((r) => !definition.approverRoles.includes(r));
+
   const set = (key: string, value: unknown) => setValues((v) => ({ ...v, [key]: value }));
 
   const submit = async (asDraft: boolean) => {
@@ -226,10 +237,28 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
           <span className="font-medium">مسیر فرم: </span>
           از {deptNames(definition.senderDepts)} به {deptNames(definition.receiverDepts)}
         </p>
-        <p>
+        <p data-testid="routing-approvers">
           <span className="font-medium">تأییدکننده: </span>
-          {roleNames(definition.approverRoles)}
+          {roleNames(routed.roles)}
+          {added.length > 0 && (
+            <Badge tone="warning" className="ms-1">+{roleNames(added)} به‌دلیل مقادیر این فرم</Badge>
+          )}
         </p>
+        {routed.matched.length > 0 && (
+          <ul className="space-y-0.5 text-[11px] text-amber-800" data-testid="routing-matched">
+            {routed.matched.map((m) => (
+              <li key={m.id}>⚠ {m.whenFa} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
+            ))}
+          </ul>
+        )}
+        {routed.unmatched.length > 0 && (
+          <details className="text-[11px] text-ink-500">
+            <summary className="cursor-pointer">قواعد مشروط این فرم ({toPersianDigits(routed.unmatched.length)} مورد هنوز فعال نشده)</summary>
+            <ul className="mt-1 space-y-0.5 ps-3">
+              {routed.unmatched.map((u) => <li key={u.id}>· {u.whenFa}</li>)}
+            </ul>
+          </details>
+        )}
         {detail?.sla && (
           <p>
             <span className="font-medium">SLA: </span>
@@ -587,6 +616,8 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
     data: Record<string, unknown>; definition: FormDefinition;
     /** The fields as they stood when this was filled in — the definition may have moved on since. */
     schema?: FieldDef[]; definitionVersion?: number;
+    requiredRoles?: string[];
+    routing?: { matched: { id: string; whenFa: string; addApprovers: string[]; notifyRoles: string[] }[] } | null;
   }>({
     queryKey: [`/forms/submissions/${submission.id}`],
     queryFn: () => apiGet(`/forms/submissions/${submission.id}`),
@@ -635,6 +666,16 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       }
     >
       {versionNote && <p className="mb-3 text-xs text-ink-500">{versionNote}</p>}
+      {data?.routing?.matched?.length ? (
+        <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200" data-testid="routing-why">
+          <p className="font-medium">چرا به تأیید {roleNames(data.requiredRoles ?? [])} رسید؟</p>
+          <ul className="mt-1 space-y-0.5">
+            {data.routing.matched.map((m) => (
+              <li key={m.id}>· {m.whenFa} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <dl className="mb-4 divide-y divide-ink-100 rounded-lg bg-ink-50/60 px-3">
         {Object.entries(data?.data ?? {})
           .filter(([, v]) => v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))

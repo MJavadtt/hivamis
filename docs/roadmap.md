@@ -35,8 +35,8 @@ Status vocabulary, and it is used strictly:
 | 10 | Critical path and Gantt | 13 | Verified | 0e7c2d1 |
 | 11 | Monte Carlo delivery forecast | 13, 14 | Verified | 4b85505 |
 | 12 | Capacity-aware assignment | 13 | Verified | bfaa4a1 |
-| 8 | SLA breach prediction | 13 | Verified | next |
-| 17 | Conditional routing and approval | — | Pending | |
+| 8 | SLA breach prediction | 13 | Verified | f00170a |
+| 17 | Conditional routing and approval | — | Verified | next |
 | 18 | Parallel approval chains and quorum | 17 | Pending | |
 | 15 | No-code form designer | 16 | Pending | |
 | 19 | Offline forms (PWA) | — | Pending | |

@@ -1,14 +1,17 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { formDecisionSchema, submitFormSchema, paginationSchema, FORM_CATEGORY_LABELS } from '@hiva/contracts';
+import {
+  formDecisionSchema, submitFormSchema, paginationSchema, updateRoutingSchema,
+  FORM_CATEGORY_LABELS, evaluateRouting, describeCondition, rolesFa,
+} from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
-import { decideForm, submitForm } from '../forms/engine.js';
+import { decideForm, pendingForRoles, submitForm } from '../forms/engine.js';
 import { schemaForSubmission } from '../forms/versions.js';
 import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
 import type { FormActor } from '../forms/engine.js';
-import type { FieldDef } from '@hiva/contracts';
+import type { FieldDef, RoutingRule } from '@hiva/contracts';
 
 const formRoutes: FastifyPluginAsync = async (app) => {
   /** The full Doc_H form catalogue, grouped for the navigator. */
@@ -50,6 +53,92 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     return { ...def, sla };
   });
 
+  /**
+   * Who this form will need, for these values, before it is submitted (roadmap #17). The
+   * evaluator is the same pure function the server routes with, so the answer the person sees
+   * while filling and the answer they get on submit cannot differ.
+   */
+  app.post('/forms/definitions/:code/routing/preview', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const { data } = (req.body ?? {}) as { data?: Record<string, unknown> };
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!def) throw notFound('تعریف فرم');
+    const outcome = evaluateRouting(def.approverRoles, def.routing as unknown as RoutingRule[], data ?? {});
+    return {
+      formCode: def.code,
+      baseRoles: def.approverRoles,
+      ...outcome,
+      rolesFa: rolesFa(outcome.roles),
+    };
+  });
+
+  /** The conditional rules on a definition, in the order they are evaluated. */
+  app.get('/forms/definitions/:code/routing', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const def = await prisma.formDefinition.findFirst({
+      where: { code, organizationId: actor.organizationId },
+      select: { code: true, nameFa: true, version: true, approverRoles: true, routing: true, schema: true },
+    });
+    if (!def) throw notFound('تعریف فرم');
+    const rules = (Array.isArray(def.routing) ? def.routing : []) as unknown as RoutingRule[];
+    const fields = (Array.isArray(def.schema) ? def.schema : []) as unknown as FieldDef[];
+    return {
+      formCode: def.code, nameFa: def.nameFa, version: def.version,
+      baseRoles: def.approverRoles,
+      fields: fields.filter((f) => f.type !== 'table' && f.type !== 'attachment').map((f) => ({ key: f.key, labelFa: f.labelFa, type: f.type, options: f.options ?? null })),
+      rules: rules.map((r) => ({ ...r, describedFa: describeCondition(r.when, fields) })),
+    };
+  });
+
+  /**
+   * Replace the rules on a definition. A routing change decides who must approve, so it mints a
+   * new definition version (#16) exactly as a schema change does — submissions already filed
+   * keep the rules they were judged under.
+   */
+  app.put('/forms/definitions/:code/routing', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateRoutingSchema, req.body);
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!def) throw notFound('تعریف فرم');
+
+    const ids = new Set<string>();
+    for (const r of input.rules) {
+      if (ids.has(r.id)) throw badRequest('DUPLICATE_RULE_ID', `شناسهٔ قانون «${r.id}» تکراری است`);
+      ids.add(r.id);
+    }
+    const rules = input.rules.map((r) => ({ source: 'ORG' as const, ...r })) as unknown as object;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const version = def.version + 1;
+      const row = await tx.formDefinition.update({ where: { id: def.id }, data: { routing: rules, version } });
+      await tx.formDefinitionVersion.create({
+        data: {
+          definitionId: def.id, version, schema: def.schema as object, routing: rules,
+          nameFa: def.nameFa, note: input.note ?? 'تغییر قواعد مسیریابی', createdById: actor.id,
+        },
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'formDefinition', entityId: def.id,
+        before: { routing: def.routing, version: def.version },
+        after: { routing: rules, version },
+        reason: input.note ?? null,
+        ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return row;
+    });
+    return { formCode: updated.code, version: updated.version, rules: updated.routing };
+  });
+
   app.get('/forms/submissions', {
     preHandler: [app.authenticate, app.requirePermissions('form.read')],
   }, async (req) => {
@@ -67,7 +156,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     // Approval inbox: forms pending a decision from one of the caller's roles.
     if (awaitingMe === 'true') {
       where.state = 'PENDING_APPROVAL';
-      where.definition = { approverRoles: { hasSome: actor.roles } };
+      Object.assign(where, pendingForRoles(actor.roles));
       where.submittedById = { not: actor.id };
     }
 

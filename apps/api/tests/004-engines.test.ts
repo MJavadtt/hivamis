@@ -867,6 +867,134 @@ describe('Critical path and schedule', () => {
   });
 });
 
+describe('Conditional approval routing', () => {
+  /**
+   * Doc_H fixes who must approve each form; real authority is conditional — "a contract above
+   * this figure goes through Legal", "a price below cost needs the CEO". The rules are data on
+   * the definition, evaluated against the values actually submitted, and every rule carries the
+   * sentence it was written in so the extra approver is never a mystery.
+   */
+  const PRICING = 'F47_PRICING';
+  const CONTRACT = 'F50_CONTRACT_SCALE';
+
+  async function proposal() {
+    return prisma.proposal.findFirstOrThrow();
+  }
+
+  it('adds the approver the values call for, and says which rule did it', async () => {
+    const p = await proposal();
+    // Sold above cost with a healthy margin: nobody beyond the form's own approvers.
+    const healthy = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: PRICING,
+      data: { proposalId: p.id, totalCost: 100_000_000, salePrice: 150_000_000, marginPercent: 33, rationale: 'قیمت استاندارد' },
+    }), 'healthy pricing');
+    expect(healthy.requiredRoles.sort()).toEqual(['CEO', 'DEPUTY']);
+    expect(healthy.routedBy).toEqual([]);
+
+    // Sold below cost: the CEO is added, and the submission carries the reason.
+    const belowCost = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: PRICING,
+      data: { proposalId: p.id, totalCost: 200_000_000, salePrice: 150_000_000, marginPercent: 12, rationale: 'ورود به مشتری راهبردی' },
+    }), 'below cost');
+    expect(belowCost.requiredRoles).toContain('CEO');
+    const ids = belowCost.routedBy.map((m: any) => m.id);
+    expect(ids).toContain('pricing.below-cost');
+    expect(ids).toContain('pricing.thin-margin');          // 12 % is under the default floor too
+    expect(belowCost.routedBy[0].whenFa).toContain('قیمت فروش کمتر از قیمت تمام‌شده');
+
+    const stored = await prisma.formSubmission.findUniqueOrThrow({ where: { id: belowCost.id } });
+    expect(stored.requiredRoles).toContain('CEO');
+    expect((stored.routing as any).matched).toHaveLength(2);
+  });
+
+  it('answers the same question before the form is sent as it does after', async () => {
+    const p = await proposal();
+    const big = expectOk(await call('POST', `/forms/definitions/${CONTRACT}/routing/preview`, {
+      token: T.accountManager,
+      payload: { data: { proposalId: p.id, contractValue: 9_000_000_000, scaleBand: 'XL' } },
+    }), 'preview large');
+    expect(big.roles).toContain('LEGAL_MANAGER');
+    expect(big.matched.map((m: any) => m.id).sort()).toEqual(['contract.large-band', 'contract.large-value']);
+    expect(big.rolesFa).toContain('مدیر حقوقی');
+    // Rules that did not fire are returned too — a threshold should be visible before it is hit.
+    const small = expectOk(await call('POST', `/forms/definitions/${CONTRACT}/routing/preview`, {
+      token: T.accountManager,
+      payload: { data: { proposalId: p.id, contractValue: 100_000_000, scaleBand: 'S' } },
+    }), 'preview small');
+    expect(small.matched).toEqual([]);
+    expect(small.unmatched).toHaveLength(2);
+    expect(small.roles).toEqual(small.baseRoles);
+
+    // And the real submission agrees with the preview.
+    const submitted = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: CONTRACT,
+      data: { proposalId: p.id, contractValue: 9_000_000_000, scaleBand: 'XL', notes: 'قرارداد سالانه' },
+    }), 'submit large');
+    expect(submitted.requiredRoles.sort()).toEqual(big.roles.sort());
+  });
+
+  it('lets the added approver decide, and refuses someone the rules did not name', async () => {
+    const p = await proposal();
+    const submitted = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: PRICING,
+      data: { proposalId: p.id, totalCost: 300_000_000, salePrice: 250_000_000, marginPercent: 8, rationale: 'تخفیف استثنایی' },
+    }), 'below cost');
+    expect(submitted.state).toBe('PENDING_APPROVAL');
+
+    // A unit manager was never in this form's approver set, by rule or by Doc_H.
+    expect((await post(`/forms/submissions/${submitted.id}/decision`, T.creative, { decision: 'APPROVE' })).status).toBe(403);
+    const decided = expectOk(await post(`/forms/submissions/${submitted.id}/decision`, T.ceo, { decision: 'APPROVE', comment: 'به‌خاطر رابطهٔ بلندمدت تأیید شد' }), 'ceo approves');
+    expect(decided.state).toBe('APPROVED');
+  });
+
+  it('versions a rule change, so a form already filed keeps the rules it was judged under', async () => {
+    const p = await proposal();
+    const before = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CONTRACT } });
+    const filed = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: CONTRACT,
+      data: { proposalId: p.id, contractValue: 1_000_000_000, scaleBand: 'M', notes: 'پیش از تغییر قاعده' },
+    }), 'filed under the old rules');
+    expect(filed.requiredRoles).not.toContain('LEGAL_MANAGER');
+
+    // The organisation drops its threshold to a tenth of what it was.
+    const put = expectOk(await call('PUT', `/forms/definitions/${CONTRACT}/routing`, {
+      token: T.admin,
+      payload: {
+        note: 'سخت‌گیرانه‌تر شد',
+        rules: [{
+          id: 'contract.large-value', whenFa: 'مبلغ قرارداد بیش از ۵۰۰٬۰۰۰٬۰۰۰ ریال باشد',
+          when: { field: 'contractValue', op: 'gt', value: 500_000_000 },
+          addApprovers: ['LEGAL_MANAGER'],
+        }],
+      },
+    }), 'tighten');
+    expect(put.version).toBe(before.version + 1);
+
+    // The same value now routes through Legal; the form already filed is untouched.
+    const after = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: CONTRACT,
+      data: { proposalId: p.id, contractValue: 1_000_000_000, scaleBand: 'M', notes: 'پس از تغییر قاعده' },
+    }), 'filed under the new rules');
+    expect(after.requiredRoles).toContain('LEGAL_MANAGER');
+    const untouched = await prisma.formSubmission.findUniqueOrThrow({ where: { id: filed.id } });
+    expect(untouched.requiredRoles).not.toContain('LEGAL_MANAGER');
+    expect(untouched.definitionVersion).toBe(before.version);
+
+    // Rules are validated, and only an administrator may change them.
+    expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, { token: T.accountManager, payload: { rules: [] } })).status).toBe(403);
+    expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, {
+      token: T.admin, payload: { rules: [{ id: 'x!', whenFa: 'بدون شناسهٔ معتبر', when: { field: 'a', op: 'gt', value: 1 } }] },
+    })).status).toBe(400);
+    expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, {
+      token: T.admin,
+      payload: { rules: [
+        { id: 'dup', whenFa: 'قاعدهٔ نخست', when: { field: 'contractValue', op: 'gt', value: 1 } },
+        { id: 'dup', whenFa: 'قاعدهٔ دوم با همان شناسه', when: { field: 'contractValue', op: 'gt', value: 2 } },
+      ] },
+    })).body.error.code).toBe('DUPLICATE_RULE_ID');
+  });
+});
+
 describe('SLA breach prediction', () => {
   /**
    * `warnAt` fires three-quarters of the way through the budget — it tells a person they were

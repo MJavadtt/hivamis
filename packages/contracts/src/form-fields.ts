@@ -1,4 +1,5 @@
 import type { DepartmentCode, ModuleCode, RoleCode } from './enums.js';
+import type { RoutingRule } from './routing.js';
 
 /** Field primitives supported by the form engine renderer and the server-side validator. */
 export type FieldType =
@@ -50,6 +51,12 @@ export interface FormDef {
   readonly binding?: string;
   /** Doc_H "Next Process" column — what this form triggers downstream. */
   readonly nextProcessFa?: string;
+  /**
+   * Conditional approvers on top of `approverRoles` (roadmap #17) — evaluated against the
+   * submitted values. The thresholds shipped here are defaults for an organisation to adjust,
+   * not Doc_H clauses; the rule says which it is.
+   */
+  readonly routing?: readonly RoutingRule[];
   readonly fields: readonly FieldDef[];
 }
 

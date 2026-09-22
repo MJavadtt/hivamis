@@ -198,6 +198,17 @@ rest are visible so you can see the shape of the process.
 
 ---
 
+**Who has to approve this depends on what you typed.** The approver line at the top of a form
+updates as you fill it in: price a job below cost and the CEO joins; put a contract over the
+organisation's threshold and Legal does. Each addition names the rule that caused it, in the
+sentence a manager wrote — and the thresholds you have *not* crossed are listed under it, so a
+limit is visible before you hit it. The approver reviewing the form later sees the same
+sentences. Administrators edit the rules in **مدیریت → مسیریابی فرم‌ها**; the thresholds shipped
+with the system are defaults, not Doc_H law, and changing them mints a new version of the form
+definition so anything already filed keeps the rules it was judged under.
+
+---
+
 **Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels
 and a hint per column), an export of everything filed on it, and an import. Choose a file and
 the system checks every row first — references can be codes like `PRJ-000002`, emails or

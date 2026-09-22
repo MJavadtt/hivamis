@@ -538,3 +538,31 @@ claiming a discount for it would be inventing evidence the clocks do not contain
 **Consequences.** `riskProbability` is kept beside `riskNotifiedAt`, so the predictions can be
 scored against what happened — the honest way to find out whether the model earns its place.
 
+## ADR-024 — Conditional approvers are data on the form, evaluated by one pure function
+
+**Decision.** A form definition carries `routing`: rules of the shape *condition on the submitted
+values → roles that must also approve*. `evaluateRouting` in `@hiva/contracts` is pure and total,
+so the browser runs it on every keystroke while the form is filled, the server runs it at submit,
+and `POST /forms/definitions/:code/routing/preview` runs it for any other client — all three
+reach the same answer by construction. Doc_H's `approverRoles` are a floor the rules can only add
+to. The result is stored on the submission (`requiredRoles`, plus the rules that fired), and the
+decision endpoint authorises against *that*, not against whatever the definition says today.
+
+Routing is versioned with the schema: a rule change mints a new definition version (ADR-004,
+roadmap #16), because it changes who was entitled to approve.
+
+**Rationale.** The field-condition pattern already existed for `visibleWhen`; lifting it to the
+routing level covers "a discount above X needs the CEO", "a contract above Y goes through Legal"
+and most of the customisation requests that would otherwise arrive as code. Storing the outcome
+rather than recomputing it means a submission's approvers cannot be changed retroactively by an
+administrator editing a threshold.
+
+**Every rule carries a sentence.** `whenFa` is written by the person who made the rule and is
+shown three times: while the form is filled, in the approver's notification, and beside the
+decision afterwards. An approval request that cannot explain why it landed on someone's desk is
+the thing this feature exists to replace.
+
+**Thresholds are defaults, not Doc_H.** Doc_H fixes who approves each form but names no figures,
+so the shipped rules are marked `DEFAULT` and the admin screen exists to change them. A rule
+that does restate a clause is marked `DOC_H` and carries its `docRef`.
+

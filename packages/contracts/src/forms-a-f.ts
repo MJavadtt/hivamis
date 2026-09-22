@@ -343,6 +343,13 @@ export const FORMS_A_F: readonly FormDef[] = [
     senderDepts: ['ST', 'CR', 'ME', 'DM'], receiverDepts: ['OP', 'FI', 'M'],
     approverRoles: ['UNIT_MANAGER', 'DEPUTY'], slaCode: 'SLA_RESOURCE_REQUEST',
     binding: 'outsourceRequest', nextProcessFa: 'تأیید مدیر واحد و مدیریت',
+    routing: [
+      {
+        id: 'outsource.costly', whenFa: 'هزینهٔ تخمینی بیش از ۵۰۰٬۰۰۰٬۰۰۰ ریال باشد',
+        when: { field: 'estimatedCost', op: 'gt', value: 500_000_000 },
+        addApprovers: ['CEO'], notifyRoles: ['FINANCE_MANAGER'], source: 'DEFAULT',
+      },
+    ],
     fields: [
       f.ref('projectId', 'پروژه', 'Project', 'project', true),
       { key: 'kind', labelFa: 'نوع تأمین', labelEn: 'Supply type', type: 'select', required: true, options: OPT.supplierKind },
@@ -554,6 +561,18 @@ export const FORMS_A_F: readonly FormDef[] = [
     no: 47, code: 'F47_PRICING', nameFa: 'فرم قیمت‌گذاری', nameEn: 'Pricing', category: 'F',
     module: 'FINANCE', senderDepts: ['A', 'FI'], receiverDepts: ['M'], approverRoles: ['DEPUTY', 'CEO'],
     slaCode: 'SLA_PRICING', binding: 'pricing', nextProcessFa: 'QC نهایی',
+    routing: [
+      {
+        id: 'pricing.below-cost', whenFa: 'قیمت فروش کمتر از قیمت تمام‌شده باشد',
+        when: { field: 'salePrice', op: 'ltField', value: 'totalCost' },
+        addApprovers: ['CEO'], source: 'DOC_H', docRef: 'قوانین §قیمت‌گذاری — قیمت فروش نهایی صرفاً پس از تأیید فرآیند Pricing',
+      },
+      {
+        id: 'pricing.thin-margin', whenFa: 'درصد Margin کمتر از ۲۰ باشد',
+        when: { field: 'marginPercent', op: 'lt', value: 20 },
+        addApprovers: ['CEO'], source: 'DEFAULT',
+      },
+    ],
     fields: [
       f.ref('proposalId', 'پروپوزال', 'Proposal', 'proposal', true),
       f.money('totalCost', 'قیمت تمام‌شده', 'Total cost', true),
@@ -566,6 +585,18 @@ export const FORMS_A_F: readonly FormDef[] = [
     no: 48, code: 'F48_PRICING_MARGIN', nameFa: 'فرم Pricing & Margin', nameEn: 'Pricing & margin review', category: 'F',
     module: 'FINANCE', senderDepts: ['A', 'FI'], receiverDepts: ['M'], approverRoles: ['DEPUTY', 'CEO'],
     slaCode: 'SLA_PRICING', nextProcessFa: 'تأیید مدیریت',
+    routing: [
+      {
+        id: 'margin.below-target', whenFa: 'Margin محاسبه‌شده کمتر از Margin هدف باشد',
+        when: { field: 'actualMargin', op: 'ltField', value: 'targetMargin' },
+        notifyRoles: ['FINANCE_MANAGER'], source: 'DEFAULT',
+      },
+      {
+        id: 'margin.far-below-target', whenFa: 'Margin محاسبه‌شده کمتر از ۱۵ باشد',
+        when: { field: 'actualMargin', op: 'lt', value: 15 },
+        addApprovers: ['CEO'], source: 'DEFAULT',
+      },
+    ],
     fields: [
       f.ref('proposalId', 'پروپوزال', 'Proposal', 'proposal', true),
       f.pct('targetMargin', 'Margin هدف', 'Target margin', true),
@@ -577,6 +608,13 @@ export const FORMS_A_F: readonly FormDef[] = [
     no: 49, code: 'F49_PAYMENT_TERMS', nameFa: 'فرم شرایط پرداخت', nameEn: 'Payment terms', category: 'F',
     module: 'FINANCE', senderDepts: ['A', 'FI'], receiverDepts: ['LG', 'S'], approverRoles: ['FINANCE_MANAGER', 'DEPUTY'],
     nextProcessFa: 'تنظیم قرارداد',
+    routing: [
+      {
+        id: 'terms.long-credit', whenFa: 'مهلت پرداخت بیش از ۶۰ روز باشد',
+        when: { field: 'creditDays', op: 'gt', value: 60 },
+        addApprovers: ['CEO'], source: 'DEFAULT',
+      },
+    ],
     fields: [
       f.ref('proposalId', 'پروپوزال', 'Proposal', 'proposal', true),
       f.table('milestones', 'مراحل پرداخت', 'Payment milestones', [
@@ -591,6 +629,18 @@ export const FORMS_A_F: readonly FormDef[] = [
     no: 50, code: 'F50_CONTRACT_SCALE', nameFa: 'فرم اشل قرارداد', nameEn: 'Contract scale', category: 'F',
     module: 'CONTRACT_LEGAL', senderDepts: ['A', 'FI'], receiverDepts: ['LG'], approverRoles: ['DEPUTY', 'CEO'],
     nextProcessFa: 'درخواست انعقاد قرارداد',
+    routing: [
+      {
+        id: 'contract.large-value', whenFa: 'مبلغ قرارداد بیش از ۵٬۰۰۰٬۰۰۰٬۰۰۰ ریال باشد',
+        when: { field: 'contractValue', op: 'gt', value: 5_000_000_000 },
+        addApprovers: ['LEGAL_MANAGER', 'CEO'], source: 'DEFAULT',
+      },
+      {
+        id: 'contract.large-band', whenFa: 'اشل قرارداد بزرگ یا ویژه باشد',
+        when: { field: 'scaleBand', op: 'in', value: ['L', 'XL'] },
+        addApprovers: ['LEGAL_MANAGER'], source: 'DEFAULT',
+      },
+    ],
     fields: [
       f.ref('proposalId', 'پروپوزال', 'Proposal', 'proposal', true),
       f.money('contractValue', 'مبلغ قرارداد', 'Contract value', true),

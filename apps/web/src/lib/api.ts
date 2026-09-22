@@ -60,7 +60,7 @@ async function attemptRefresh(): Promise<boolean> {
 }
 
 export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
   raw?: boolean;
@@ -101,6 +101,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
 
 export const apiGet = <T>(path: string, query?: RequestOptions['query']) => api<T>(path, { query });
 export const apiPost = <T>(path: string, body?: unknown) => api<T>(path, { method: 'POST', body });
+export const apiPut = <T>(path: string, body?: unknown) => api<T>(path, { method: 'PUT', body });
 export const apiPatch = <T>(path: string, body?: unknown) => api<T>(path, { method: 'PATCH', body });
 export const apiDelete = <T>(path: string) => api<T>(path, { method: 'DELETE' });
 

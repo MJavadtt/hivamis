@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import { badRequest } from '../lib/errors.js';
 import { loadCalendar } from '../sla/engine.js';
+import { pendingForRoles } from '../forms/engine.js';
 import { mine } from '../reports/mining.js';
 import { costAccuracy } from '../reports/time.js';
 import { isWorkflowEntity } from '@hiva/contracts';
@@ -257,7 +258,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         where: {
           organizationId: org, state: 'PENDING_APPROVAL',
           submittedById: { not: actor.id },
-          definition: { approverRoles: { hasSome: actor.roles } },
+          ...pendingForRoles(actor.roles),
         },
       }),
       prisma.revision.findMany({

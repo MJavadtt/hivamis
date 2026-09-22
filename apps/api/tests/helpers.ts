@@ -40,7 +40,7 @@ export interface CallOptions {
 }
 
 export async function call(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   url: string,
   opts: CallOptions = {},
 ) {
@@ -63,6 +63,8 @@ export const post = (url: string, token: string, payload?: unknown) =>
   call('POST', url, { token, payload });
 export const patch = (url: string, token: string, payload?: unknown) =>
   call('PATCH', url, { token, payload });
+export const put = (url: string, token: string, payload?: unknown) =>
+  call('PUT', url, { token, payload });
 
 /** Drive an entity through the workflow engine. */
 export const move = (entity: string, id: string, action: string, token: string, reason?: string, payload?: Record<string, unknown>) =>

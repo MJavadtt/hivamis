@@ -9,7 +9,7 @@
  * under, and readers ask `schemaForSubmission` rather than the definition. The definition's own
  * `schema` column stays the *current* version for new submissions.
  */
-import type { FieldDef, FormDef } from '@hiva/contracts';
+import type { FieldDef, FormDef, RoutingRule } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 
 /**
@@ -54,33 +54,36 @@ export async function publishDefinition(tx: Tx, input: PublishInput): Promise<{ 
     nextProcessFa: form.nextProcessFa ?? null,
   };
   const schema = form.fields as unknown as object;
+  // Routing decides who must approve, so it is versioned with the schema rather than refreshed
+  // silently: a submission is judged under the rules it was filled under (roadmap #16, #17).
+  const routing = (form.routing ?? []) as unknown as object;
 
   const existing = await tx.formDefinition.findUnique({ where: { code: form.code } });
   if (!existing) {
     const created = await tx.formDefinition.create({
-      data: { organizationId: input.organizationId, no: form.no, code: form.code, ...metadata, schema, version: 1 },
+      data: { organizationId: input.organizationId, no: form.no, code: form.code, ...metadata, schema, routing, version: 1 },
     });
     await tx.formDefinitionVersion.create({
-      data: { definitionId: created.id, version: 1, schema, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
+      data: { definitionId: created.id, version: 1, schema, routing, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
     });
     return { version: 1, changed: true };
   }
 
-  if (sameSchema(existing.schema, schema)) {
+  if (sameSchema(existing.schema, schema) && sameSchema(existing.routing, routing)) {
     await tx.formDefinition.update({ where: { id: existing.id }, data: metadata });
     // A definition that predates versioning may have no row for its current version yet.
     await tx.formDefinitionVersion.upsert({
       where: { definitionId_version: { definitionId: existing.id, version: existing.version } },
-      create: { definitionId: existing.id, version: existing.version, schema: existing.schema as object, nameFa: existing.nameFa },
+      create: { definitionId: existing.id, version: existing.version, schema: existing.schema as object, routing: existing.routing as object, nameFa: existing.nameFa },
       update: {},
     });
     return { version: existing.version, changed: false };
   }
 
   const version = existing.version + 1;
-  await tx.formDefinition.update({ where: { id: existing.id }, data: { ...metadata, schema, version } });
+  await tx.formDefinition.update({ where: { id: existing.id }, data: { ...metadata, schema, routing, version } });
   await tx.formDefinitionVersion.create({
-    data: { definitionId: existing.id, version, schema, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
+    data: { definitionId: existing.id, version, schema, routing, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
   });
   return { version, changed: true };
 }
@@ -100,4 +103,17 @@ export async function schemaForSubmission(
   });
   const schema = row?.schema ?? submission.definition?.schema;
   return (Array.isArray(schema) ? schema : []) as FieldDef[];
+}
+
+/** The routing rules a submission was filled under — the ones that decided its approvers. */
+export async function routingForSubmission(
+  tx: Tx,
+  submission: { definitionId: string; definitionVersion: number; definition?: { routing?: unknown } | null },
+): Promise<RoutingRule[]> {
+  const row = await tx.formDefinitionVersion.findUnique({
+    where: { definitionId_version: { definitionId: submission.definitionId, version: submission.definitionVersion } },
+    select: { routing: true },
+  });
+  const rules = row?.routing ?? submission.definition?.routing;
+  return (Array.isArray(rules) ? rules : []) as RoutingRule[];
 }

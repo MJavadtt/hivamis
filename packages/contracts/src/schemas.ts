@@ -526,3 +526,40 @@ export const bundleSchema = z.object({
 export const updateLocaleSchema = z.object({
   locale: z.enum(['fa', 'en']),
 });
+
+/**
+ * Conditional approval routing (roadmap #17), as an administrator may edit it. The evaluator
+ * that reads these rules is pure and total — an unknown field is simply absent — so validation
+ * here is about shape and blast radius: a bounded number of rules, bounded nesting, and roles
+ * that exist.
+ */
+const routingLeafSchema = z.object({
+  field: z.string().trim().min(1).max(80),
+  op: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in', 'notIn', 'isTrue', 'isFalse', 'isSet', 'isEmpty', 'ltField', 'gtField']),
+  value: z.union([z.number(), z.string().max(200), z.array(z.string().max(120)).max(50)]).optional(),
+});
+type RoutingConditionInput =
+  | z.infer<typeof routingLeafSchema>
+  | { all: RoutingConditionInput[] }
+  | { any: RoutingConditionInput[] };
+export const routingConditionSchema: z.ZodType<RoutingConditionInput> = z.lazy(() => z.union([
+  routingLeafSchema,
+  z.object({ all: z.array(routingConditionSchema).min(1).max(10) }),
+  z.object({ any: z.array(routingConditionSchema).min(1).max(10) }),
+]));
+
+export const routingRuleSchema = z.object({
+  id: z.string().trim().min(2).max(60).regex(/^[a-z0-9.-]+$/i, 'شناسه قانون فقط حروف لاتین، رقم، نقطه و خط تیره می‌پذیرد'),
+  whenFa: z.string().trim().min(5).max(200),
+  when: routingConditionSchema,
+  addApprovers: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  notifyRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  source: z.enum(['DOC_H', 'DEFAULT', 'ORG']).optional(),
+  docRef: z.string().trim().max(200).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateRoutingSchema = z.object({
+  rules: z.array(routingRuleSchema).max(20),
+  note: z.string().trim().max(200).optional(),
+});

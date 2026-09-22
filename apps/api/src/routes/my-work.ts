@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { allowedFor } from '../workflow/engine.js';
+import { pendingForRoles } from '../forms/engine.js';
 import { loadCalendar } from '../sla/engine.js';
 import { predictClocks, type Risk } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
@@ -85,7 +86,7 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
         ? prisma.formSubmission.findMany({
             where: {
               organizationId: org, state: 'PENDING_APPROVAL', submittedById: { not: actor.id },
-              definition: { approverRoles: { hasSome: actor.roles } },
+              ...pendingForRoles(actor.roles),
             },
             include: { definition: { select: { nameFa: true } }, project: proj },
           })

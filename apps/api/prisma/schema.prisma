@@ -1355,6 +1355,8 @@ model FormDefinition {
   binding        String?
   nextProcessFa  String?
   schema         Json
+  /// Conditional approval rules evaluated against the submitted values (roadmap #17).
+  routing        Json     @default("[]")
   isActive       Boolean  @default(true)
   /// Bumped whenever `schema` changes; each value has a FormDefinitionVersion row behind it.
   version        Int      @default(1)
@@ -1377,6 +1379,8 @@ model FormDefinitionVersion {
   definition   FormDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
   version      Int
   schema       Json
+  /// The routing rules in force at this version — a submission is judged by its own version.
+  routing      Json           @default("[]")
   nameFa       String
   note         String?
   createdById  String?
@@ -1407,6 +1411,11 @@ model FormSubmission {
   company        Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   opportunityId  String?
   opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  /// Who must approve this submission: the form's own roles plus whatever its routing rules
+  /// added for these values (roadmap #17). Empty on rows written before routing existed.
+  requiredRoles  String[] @default([])
+  /// The rules that fired, with the sentence each was written in — why those roles are there.
+  routing        Json?
   /// The domain record this submission created or drove, when the form has a typed binding.
   boundEntity    String?
   boundEntityId  String?

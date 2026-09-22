@@ -137,6 +137,9 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 |---|---|
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
 | `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
+| `GET /forms/definitions/:code/routing` | `form.read` — the conditional approval rules on a definition (roadmap #17), each with its Persian sentence and a rendered description of its condition, plus the fields available to build one |
+| `PUT /forms/definitions/:code/routing` `{ rules[], note? }` | `admin.settings` — replace the rules. Rule ids must be unique (`DUPLICATE_RULE_ID`) and conditions are validated; saving mints a new definition version, so filed submissions keep the rules they were judged under |
+| `POST /forms/definitions/:code/routing/preview` `{ data }` | `form.read` — who these values would need: `roles`, `notifyRoles`, `matched[]` (id + the sentence) and `unmatched[]` (thresholds not yet crossed). The same pure evaluator the engine submits with, and the one the browser runs while the form is filled |
 | `GET /forms/definitions/:code/versions` | Every version the definition has had, newest first, each with its schema, note and how many submissions pin it |
 | `GET /forms/definitions/:code/template` / `template.csv` | The importable columns of a form from its schema (key, label, type, required, options, a Persian hint); the CSV has a key row and a label row |
 | `POST /forms/definitions/:code/import` `{ csv \| rows, mode }` | `mode: preview` checks every row and writes nothing — references are resolved by code, email or name, and each row's issues are listed; `draft` (default for a migration) and `submit` write the valid rows through the form engine, skipping the invalid ones. `form.submit`; ≤ 2000 rows; audited as `BULK_IMPORT` |

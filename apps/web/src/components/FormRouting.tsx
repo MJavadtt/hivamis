@@ -1,0 +1,158 @@
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ROLE_CODES, ROLE_LABELS, ROUTING_OPERATOR_LABELS, type RoutingOperator } from '@hiva/contracts';
+import { apiGet, apiPut } from '../lib/api';
+import { useAction } from '../hooks/queries';
+import { Code } from './common';
+import { Badge, Button, Card, EmptyState, Field, Input, LoadingBlock, Select, Table, Td, Th, Tr, useToast } from './ui';
+import { toPersianDigits } from '../lib/format';
+
+interface Rule {
+  id: string; whenFa: string; describedFa?: string;
+  when: { field?: string; op?: RoutingOperator; value?: unknown; all?: unknown[]; any?: unknown[] };
+  addApprovers?: string[]; notifyRoles?: string[]; source?: string; docRef?: string; isActive?: boolean;
+}
+interface Routing {
+  formCode: string; nameFa: string; version: number; baseRoles: string[];
+  fields: { key: string; labelFa: string; type: string; options: { value: string; labelFa: string }[] | null }[];
+  rules: Rule[];
+}
+const roleFa = (c: string) => ROLE_LABELS[c as keyof typeof ROLE_LABELS]?.fa ?? c;
+const SOURCE_FA: Record<string, string> = { DOC_H: 'Doc_H', DEFAULT: 'پیش‌فرض سامانه', ORG: 'قاعدهٔ سازمان' };
+/** Operators an editor can set without writing JSON; grouping (all/any) stays an API affair. */
+const SIMPLE_OPS: RoutingOperator[] = ['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in', 'isTrue', 'isFalse', 'isSet', 'isEmpty', 'ltField', 'gtField'];
+
+/**
+ * Who must approve a form, beyond the roles Doc_H fixed (roadmap #17). The thresholds the
+ * catalogue ships are defaults — this is where an organisation makes them its own. Saving mints
+ * a new definition version, so forms already filed keep the rules they were judged under.
+ */
+export function FormRouting() {
+  const [code, setCode] = useState('F47_PRICING');
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { data: catalogue } = useQuery<{ definitions: { code: string; nameFa: string; category: string }[] }>({
+    queryKey: ['/forms/definitions'], queryFn: () => apiGet('/forms/definitions'),
+  });
+  const { data, isLoading } = useQuery<Routing>({
+    queryKey: ['/forms/definitions', code, 'routing'], queryFn: () => apiGet(`/forms/definitions/${code}/routing`),
+  });
+  const [draft, setDraft] = useState<Rule | null>(null);
+
+  const save = useAction(
+    (rules: Rule[]) => apiPut(`/forms/definitions/${code}/routing`, { rules, note: 'ویرایش از پنل مدیریت' }),
+    'قواعد مسیریابی ذخیره شد — نسخهٔ تازه‌ای از تعریف فرم ساخته شد.',
+  );
+  const commit = (rules: Rule[]) =>
+    save.mutate(rules, { onSuccess: () => { setDraft(null); void qc.invalidateQueries({ queryKey: ['/forms/definitions', code, 'routing'] }); } });
+
+  const rules = data?.rules ?? [];
+  const numeric = (op?: RoutingOperator) => !['isTrue', 'isFalse', 'isSet', 'isEmpty'].includes(op ?? '');
+
+  return (
+    <Card
+      title="مسیریابی شرطی تأیید"
+      subtitle="تأییدکنندهٔ ثابت هر فرم از Doc_H می‌آید؛ این قواعد بر اساس مقادیر همان فرم، تأییدکننده اضافه می‌کنند. آستانه‌ها پیش‌فرض‌اند و جای تغییرشان همین‌جاست."
+      action={
+        <div className="w-72">
+          <Select value={code} onChange={(e) => { setCode(e.target.value); setDraft(null); }} aria-label="فرم">
+            {(catalogue?.definitions ?? []).map((d) => (
+              <option key={d.code} value={d.code}>{d.category} — {d.nameFa}</option>
+            ))}
+          </Select>
+        </div>
+      }
+    >
+      {isLoading || !data ? <LoadingBlock /> : (
+        <>
+          <p className="px-4 py-2 text-xs text-ink-600">
+            تأییدکنندهٔ ثابت: <span className="font-medium">{data.baseRoles.map(roleFa).join('، ') || '—'}</span>
+            <Badge tone="neutral" className="ms-2">نسخهٔ {toPersianDigits(data.version)}</Badge>
+          </p>
+          {!rules.length ? <EmptyState title="قاعدهٔ شرطی‌ای برای این فرم تعریف نشده" description="هر فرم بدون قاعده، فقط تأییدکنندهٔ ثابت خود را دارد." /> : (
+            <Table>
+              <thead className="bg-ink-50/60">
+                <tr><Th>شناسه</Th><Th>قاعده</Th><Th>شرط</Th><Th>تأییدکنندهٔ افزوده</Th><Th>برای اطلاع</Th><Th>منبع</Th><Th> </Th></tr>
+              </thead>
+              <tbody>
+                {rules.map((r) => (
+                  <Tr key={r.id}>
+                    <Td><Code>{r.id}</Code></Td>
+                    <Td className="max-w-xs text-xs">{r.whenFa}</Td>
+                    <Td className="text-[11px] text-ink-500">{r.describedFa}</Td>
+                    <Td className="text-xs">{(r.addApprovers ?? []).map(roleFa).join('، ') || '—'}</Td>
+                    <Td className="text-xs">{(r.notifyRoles ?? []).map(roleFa).join('، ') || '—'}</Td>
+                    <Td><Badge tone={r.source === 'DOC_H' ? 'info' : r.source === 'ORG' ? 'success' : 'neutral'}>{SOURCE_FA[r.source ?? 'DEFAULT']}</Badge></Td>
+                    <Td>
+                      <Button size="sm" variant="ghost" loading={save.isPending}
+                        onClick={() => { if (confirm(`قاعدهٔ «${r.whenFa}» حذف شود؟`)) commit(rules.filter((x) => x.id !== r.id)); }}>
+                        حذف
+                      </Button>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+
+          <div className="border-t border-ink-100 px-4 py-3">
+            {!draft ? (
+              <Button size="sm" variant="secondary" onClick={() => setDraft({ id: '', whenFa: '', when: { field: data.fields[0]?.key, op: 'gt', value: '' }, addApprovers: [] })}>
+                افزودن قاعده
+              </Button>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="routing-draft">
+                <Field label="شناسه" required hint="حروف لاتین، رقم، نقطه — مثل contract.large-value">
+                  <Input value={draft.id} onChange={(e) => setDraft({ ...draft, id: e.target.value })} className="ltr" aria-label="شناسه" />
+                </Field>
+                <Field label="قاعده به زبان فارسی" required hint="همین جمله هنگام پر کردن فرم و کنار تصمیم دیده می‌شود.">
+                  <Input value={draft.whenFa} onChange={(e) => setDraft({ ...draft, whenFa: e.target.value })} aria-label="قاعده" />
+                </Field>
+                <Field label="فیلد">
+                  <Select value={String(draft.when.field ?? '')} onChange={(e) => setDraft({ ...draft, when: { ...draft.when, field: e.target.value } })} aria-label="فیلد">
+                    {data.fields.map((f) => <option key={f.key} value={f.key}>{f.labelFa}</option>)}
+                  </Select>
+                </Field>
+                <Field label="عملگر">
+                  <Select value={String(draft.when.op ?? 'gt')} onChange={(e) => setDraft({ ...draft, when: { ...draft.when, op: e.target.value as RoutingOperator } })} aria-label="عملگر">
+                    {SIMPLE_OPS.map((op) => <option key={op} value={op}>{ROUTING_OPERATOR_LABELS[op]}</option>)}
+                  </Select>
+                </Field>
+                {numeric(draft.when.op) && (
+                  <Field label="مقدار" hint={draft.when.op === 'in' ? 'چند مقدار را با کاما جدا کنید' : draft.when.op?.endsWith('Field') ? 'کلید فیلد دیگر' : undefined}>
+                    <Input value={String(draft.when.value ?? '')} onChange={(e) => setDraft({ ...draft, when: { ...draft.when, value: e.target.value } })} className="ltr" aria-label="مقدار" />
+                  </Field>
+                )}
+                <Field label="تأییدکنندهٔ افزوده">
+                  <Select value={draft.addApprovers?.[0] ?? ''} onChange={(e) => setDraft({ ...draft, addApprovers: e.target.value ? [e.target.value] : [] })} aria-label="تأییدکنندهٔ افزوده">
+                    <option value="">— بدون تأییدکنندهٔ تازه —</option>
+                    {ROLE_CODES.map((r) => <option key={r} value={r}>{roleFa(r)}</option>)}
+                  </Select>
+                </Field>
+                <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
+                  <Button size="sm" variant="primary" loading={save.isPending}
+                    disabled={draft.id.trim().length < 2 || draft.whenFa.trim().length < 5}
+                    onClick={() => {
+                      const op = draft.when.op ?? 'gt';
+                      const raw = String(draft.when.value ?? '').trim();
+                      const value = op === 'in'
+                        ? raw.split(/[,،]/).map((v) => v.trim()).filter(Boolean)
+                        : op.endsWith('Field') || op === 'eq' || op === 'ne'
+                          ? raw
+                          : Number(raw.replace(/[,٬\s]/g, ''));
+                      if (typeof value === 'number' && !Number.isFinite(value)) { toast('مقدار عددی معتبر نیست.', 'danger'); return; }
+                      commit([...rules, { ...draft, id: draft.id.trim(), whenFa: draft.whenFa.trim(), when: { field: draft.when.field, op, ...(['isTrue', 'isFalse', 'isSet', 'isEmpty'].includes(op) ? {} : { value }) } }]);
+                    }}>
+                    ذخیره قاعده
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>انصراف</Button>
+                  <p className="text-[11px] text-ink-500">ذخیره، نسخهٔ تازه‌ای از تعریف فرم می‌سازد؛ فرم‌های ثبت‌شده با قواعد زمان خودشان می‌مانند.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
