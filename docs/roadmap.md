@@ -31,8 +31,8 @@ Status vocabulary, and it is used strictly:
 | 4 | Effective-dated rule sets | — | Verified | e73d4dc |
 | 1 | Process mining and conformance | — | Verified | fbc8a47 |
 | 5 | Rule lab — replay history under a changed policy | 1, 4 | Verified | cf4a0c0 |
-| 14 | Time logging and cost accuracy | — | Verified | next |
-| 10 | Critical path and Gantt | 13 | Pending | |
+| 14 | Time logging and cost accuracy | — | Verified | e10973e |
+| 10 | Critical path and Gantt | 13 | Verified | next |
 | 11 | Monte Carlo delivery forecast | 13, 14 | Pending | |
 | 12 | Capacity-aware assignment | 13 | Pending | |
 | 8 | SLA breach prediction | 13 | Pending | |

@@ -790,6 +790,82 @@ describe('Time logging and cost accuracy', () => {
   });
 });
 
+describe('Critical path and schedule', () => {
+  /**
+   * The value is the float: "three days late and it does not matter" against "a day late and
+   * the whole project moves". A chain A→B→C beside a short D: the chain is critical, D floats.
+   */
+  // The plan starts next Saturday 09:00 and ends the Wednesday after at 17:00: five working
+  // days, in the future, so "now" does not intrude on the arithmetic.
+  const nextSaturday = () => { const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); d.setHours(9, 0, 0, 0); return d; };
+  const START = nextSaturday();
+  const dayAt = (offset: number, hour: number) => { const d = new Date(START); d.setDate(d.getDate() + offset); d.setHours(hour, 0, 0, 0); return d; };
+  async function project() {
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const p = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-CPM-${Date.now()}`, name: 'پروژهٔ مسیر بحرانی', companyId: company.id, accountOwnerId: pmo.id,
+      objective: 'x', state: 'ACTIVE', plannedStart: START, plannedEnd: dayAt(4, 17),
+    } });
+    // Unassigned on purpose: the schedule runs on the assignee's calendar, and the calendar tests
+    // above give the designer their own hours. The organisation's calendar is the fixture here.
+    const mk = (title: string, estimate: number | null, due?: Date) => prisma.task.create({ data: {
+      organizationId: org.id, code: `TSK-${title}-${Date.now()}`, projectId: p.id, title, departmentCode: 'CR', assigneeId: null,
+      priority: 'NORMAL', state: 'ASSIGNED', sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: pmo.id, estimateHours: estimate, dueDate: due ?? null,
+    } });
+    return { p, mk };
+  }
+
+  it('finds the chain that sets the finish, and gives the rest their float', async () => {
+    const { p, mk } = await project();
+    const a = await mk('A', 8); const b = await mk('B', 16); const c = await mk('C', 8); const d = await mk('D', 4);
+    expectOk(await post(`/tasks/${b.id}/dependencies`, T.pmo, { prerequisiteId: a.id }), 'B after A');
+    expectOk(await post(`/tasks/${c.id}/dependencies`, T.pmo, { prerequisiteId: b.id }), 'C after B');
+    // A loop is refused before it exists.
+    expect((await post(`/tasks/${a.id}/dependencies`, T.pmo, { prerequisiteId: c.id })).body.error.code).toBe('CYCLE');
+    expect((await post(`/tasks/${a.id}/dependencies`, T.pmo, { prerequisiteId: a.id })).body.error.code).toBe('SELF_DEPENDENCY');
+
+    const s = expectOk(await get(`/projects/${p.id}/schedule`, T.pmo), 'schedule');
+    const by = Object.fromEntries(s.tasks.map((t: any) => [t.taskId, t]));
+    expect(by[a.id].critical).toBe(true);
+    expect(by[b.id].critical).toBe(true);
+    expect(by[c.id].critical).toBe(true);
+    expect(by[d.id].critical).toBe(false);
+    expect(by[d.id].floatHours).toBeGreaterThan(20);           // 32h of chain, 4h of work
+    expect(s.criticalPath.sort()).toEqual([a.id, b.id, c.id].sort());
+    expect(by[b.id].prerequisites).toEqual([a.id]);
+    // B cannot start before A finishes.
+    expect(new Date(by[b.id].earliestStart).getTime()).toBeGreaterThanOrEqual(new Date(by[a.id].earliestFinish).getTime());
+    // The chain is four working days; the project is planned for five: slack, not slip.
+    expect(s.slipHours).toBeLessThan(0);
+    expect(s.cycles).toEqual([]);
+  });
+
+  it('projects a slip when the chain outgrows the plan, flags tasks that miss their own due date, and marks assumed estimates', async () => {
+    const { p, mk } = await project();
+    const a = await mk('A', 24); const b = await mk('B', 24, dayAt(2, 17)); const c = await mk('C', null);
+    expectOk(await post(`/tasks/${b.id}/dependencies`, T.pmo, { prerequisiteId: a.id }), 'B after A');
+    expectOk(await post(`/tasks/${c.id}/dependencies`, T.pmo, { prerequisiteId: b.id }), 'C after B');
+    const s = expectOk(await get(`/projects/${p.id}/schedule`, T.pmo), 'schedule');
+    const by = Object.fromEntries(s.tasks.map((t: any) => [t.taskId, t]));
+    expect(s.slipHours).toBeGreaterThan(0);                     // 56h of chain into a 40h plan
+    expect(by[b.id].missesDueDate).toBe(true);                  // B ends after Monday 17:00
+    expect(by[c.id]).toMatchObject({ estimateAssumed: true, estimateHours: 8 });
+    expectOk(await call('DELETE', `/tasks/${c.id}/dependencies/${b.id}`, { token: T.pmo }), 'unlink');
+    const after = expectOk(await get(`/projects/${p.id}/schedule`, T.pmo), 'schedule again');
+    expect(Object.fromEntries(after.tasks.map((t: any) => [t.taskId, t]))[c.id].prerequisites).toEqual([]);
+  });
+
+  it('walks working hours backwards exactly', async () => {
+    const { subtractBusinessHours } = await import('../src/reports/schedule.js');
+    const end = new Date(2026, 8, 9, 13, 0, 0);                 // Wednesday 13:00
+    const start = subtractBusinessHours(end, 12, DEFAULT_CALENDAR);
+    expect(businessHoursBetween(start, end, DEFAULT_CALENDAR)).toBeCloseTo(12, 2);
+    expect(addBusinessHours(start, 12, DEFAULT_CALENDAR).getTime()).toBeLessThanOrEqual(end.getTime() + 1000);
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 

@@ -17,6 +17,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { startSla } from '../sla/engine.js';
 import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
 import { logTime, recomputeActual } from '../reports/time.js';
+import { scheduleProject } from '../reports/schedule.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -503,6 +504,64 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
     if (!project) throw notFound('پروژه');
     return projectBudget(prisma, id);
+  });
+
+  /* ── Schedule and dependencies (roadmap #10) ─────────────────────────── */
+
+  app.get('/projects/:id/schedule', {
+    preHandler: [app.authenticate, app.requirePermissions('project.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    return scheduleProject(prisma, actor.organizationId, id);
+  });
+
+  /** "B cannot start until A is finished." Refused if it would close a loop. */
+  app.post('/tasks/:id/dependencies', {
+    preHandler: [app.authenticate, app.requirePermissions('task.write')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { prerequisiteId } = (req.body ?? {}) as { prerequisiteId?: string };
+    if (!prerequisiteId) throw badRequest('PREREQUISITE_REQUIRED', 'وظیفهٔ پیش‌نیاز مشخص نشده است');
+    if (prerequisiteId === id) throw badRequest('SELF_DEPENDENCY', 'وظیفه نمی‌تواند پیش‌نیاز خودش باشد');
+    const [task, pre] = await Promise.all([
+      prisma.task.findFirst({ where: { id, organizationId: actor.organizationId } }),
+      prisma.task.findFirst({ where: { id: prerequisiteId, organizationId: actor.organizationId } }),
+    ]);
+    if (!task || !pre) throw notFound('وظیفه');
+    if (task.projectId !== pre.projectId) throw badRequest('CROSS_PROJECT', 'پیش‌نیاز باید در همان پروژه باشد');
+    // Would `id` be reachable from `prerequisiteId` by following prerequisites upward? Then a loop.
+    const seen = new Set<string>();
+    const frontier = [prerequisiteId];
+    while (frontier.length) {
+      const cur = frontier.pop()!;
+      if (cur === id) throw badRequest('CYCLE', 'این وابستگی یک حلقه می‌سازد', { via: [...seen] });
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      const ups = await prisma.taskDependency.findMany({ where: { taskId: cur }, select: { prerequisiteId: true } });
+      frontier.push(...ups.map((u) => u.prerequisiteId));
+    }
+    const dep = await prisma.taskDependency.upsert({
+      where: { taskId_prerequisiteId: { taskId: id, prerequisiteId } },
+      create: { taskId: id, prerequisiteId }, update: {},
+    });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'task', entityId: id, after: { dependsOn: prerequisiteId }, reason: 'dependency', ipAddress: actor.ipAddress });
+    return reply.code(201).send(dep);
+  });
+
+  app.delete('/tasks/:id/dependencies/:prerequisiteId', {
+    preHandler: [app.authenticate, app.requirePermissions('task.write')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id, prerequisiteId } = req.params as { id: string; prerequisiteId: string };
+    const task = await prisma.task.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!task) throw notFound('وظیفه');
+    await prisma.taskDependency.deleteMany({ where: { taskId: id, prerequisiteId } });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'task', entityId: id, before: { dependsOn: prerequisiteId }, reason: 'dependency removed', ipAddress: actor.ipAddress });
+    return { ok: true };
   });
 
   /* ── Time on tasks (roadmap #14) ─────────────────────────────────────── */

@@ -11,6 +11,7 @@ import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
 import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
+import { Gantt } from '../components/Gantt';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -184,6 +185,7 @@ export function ProjectDetail() {
           tabs={[
             { key: 'overview', label: 'نمای کلی' },
             { key: 'work', label: 'اجرا', count: data.tasks.length },
+            { key: 'schedule', label: 'زمان‌بندی' },
             { key: 'quality', label: 'کیفیت', count: data.revisions.length },
             { key: 'governance', label: 'حاکمیت', count: data.risks.length + data.issues.length + data.changeRequests.length },
             ...(data.finance ? [{ key: 'finance', label: 'مالی' }] : []),
@@ -195,6 +197,7 @@ export function ProjectDetail() {
       <PageBody className="space-y-5">
         {tab === 'overview' && <Overview data={data} />}
         {tab === 'work' && <WorkTab data={data} />}
+        {tab === 'schedule' && <Gantt projectId={p.id} />}
         {tab === 'quality' && <QualityTab data={data} />}
         {tab === 'governance' && <GovernanceTab data={data} />}
         {tab === 'finance' && data.finance && <FinanceTab finance={data.finance} project={p} />}

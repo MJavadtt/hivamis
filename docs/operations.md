@@ -196,7 +196,7 @@ Stated plainly rather than buried.
 | Multi-tenancy | Schema is tenant-ready (`organizationId` everywhere) but tenant provisioning, per-tenant branding and isolation testing are not built. Single-organisation deployment by design (ADR-008) |
 | SSO / MFA | Password authentication with lockout is implemented; OIDC and MFA are not |
 | Calendar | No calendar integration — meetings are recorded in the platform but not written to anyone's calendar. Email notifications ARE supported; see `MAIL_ENABLED` above. |
-| Gantt and dependency scheduling | `task_dependencies` exists in the schema; critical-path computation and a Gantt view are not built. Milestones and a timeline are |
+| Gantt and dependency scheduling | Built (roadmap #10): `/projects/:id/schedule` computes earliest/latest dates and float per task on the assignee's calendar; the project's «زمان‌بندی» tab draws it. Finish-to-start only; the `kind` column is there for the other dependency types when they are needed. |
 | Document versioning | Documents carry a `version` column and full audit, but there is no diff or rollback UI |
 | E-signature | Contract signature is *recorded*, not executed. No e-signature integration |
 | Full accounting | Project-level financial control per Doc_H — cost, revenue, margin, invoices, payments, settlement. Not a general ledger, and deliberately so |

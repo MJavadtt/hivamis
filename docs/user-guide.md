@@ -123,6 +123,13 @@ and the project end date together.
 
 ---
 
+**Schedule and critical path («زمان‌بندی» on a project).** Link tasks — «ب» after «الف» — and
+the chart shows every task's earliest and latest dates, its float (the lighter stretch it can
+slide into), and in red the critical chain: a task there that slips an hour moves the project's
+end. A task without an estimate is drawn as one working day and marked as assumed; give it an
+estimate and the chart tightens. The projected end is compared with the plan as a slip in
+working hours.
+
 ## Management
 
 **Reports → Executive control tower** answers the questions Doc_H asks of management: what is
