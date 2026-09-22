@@ -18,6 +18,7 @@ import { startSla } from '../sla/engine.js';
 import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
 import { logTime, recomputeActual } from '../reports/time.js';
 import { scheduleProject } from '../reports/schedule.js';
+import { forecastProject } from '../reports/forecast.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -516,6 +517,20 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
     if (!project) throw notFound('پروژه');
     return scheduleProject(prisma, actor.organizationId, id);
+  });
+
+  /** A distribution of finishes rather than one date (roadmap #11). `seed` reproduces a run. */
+  app.get('/projects/:id/forecast', {
+    preHandler: [app.authenticate, app.requirePermissions('project.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { runs, seed } = req.query as { runs?: string; seed?: string };
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    return forecastProject(prisma, actor.organizationId, id, {
+      runs: runs ? Number(runs) : undefined, seed: seed ? Number(seed) : undefined,
+    });
   });
 
   /** "B cannot start until A is finished." Refused if it would close a loop. */

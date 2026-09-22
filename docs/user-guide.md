@@ -130,6 +130,14 @@ end. A task without an estimate is drawn as one working day and marked as assume
 estimate and the chart tightens. The projected end is compared with the plan as a slip in
 working hours.
 
+**Delivery forecast (below the chart).** One projected end is a promise nobody can keep. The
+forecast runs the same task chain a few thousand times, each time stretching every estimate by
+a ratio drawn from how the same unit's finished tasks actually went against their estimates
+(the time logged on them — #14), and reports three dates: the 50 % date, the 85 % date (the safe
+commitment) and the 95 % date, with the probability of meeting the plan. The bars show where the
+runs landed. With too little logged history the forecast says so and uses a mild default
+distribution; log time on tasks and it sharpens.
+
 ## Management
 
 **Reports → Executive control tower** answers the questions Doc_H asks of management: what is

@@ -6,6 +6,7 @@ import { useAction } from '../hooks/queries';
 import { Code } from './common';
 import { Badge, Button, Card, EmptyState, Select, StatTile } from './ui';
 import { formatDate, toPersianDigits } from '../lib/format';
+import { Forecast } from './Forecast';
 
 interface Row {
   taskId: string; code: string; title: string; state: string; assigneeName: string | null; departmentCode: string;
@@ -97,6 +98,8 @@ export function Gantt({ projectId }: { projectId: string }) {
           </div>
         </div>
       </Card>
+
+      <Forecast projectId={projectId} />
 
       {can('task.write') && (
         <Card title="وابستگی‌ها" subtitle="«ب» تا «الف» تمام نشود شروع نمی‌شود — حلقه‌ها پیش از ثبت رد می‌شوند">

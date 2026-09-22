@@ -866,6 +866,79 @@ describe('Critical path and schedule', () => {
   });
 });
 
+describe('Probabilistic delivery forecast', () => {
+  /**
+   * One plannedEnd is a promise nobody can keep. The ratios of finished tasks are the
+   * distribution, the dependency chain the structure, a few thousand runs the forecast.
+   */
+  async function projectWithHistory(ratios: number[], dept = 'CR') {
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const history = await prisma.project.create({ data: { organizationId: org.id, code: `PRJ-H-${Date.now()}`, name: 'گذشته', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'CLOSED' } });
+    // Finished tasks whose actual/estimate ratios are exactly the list given.
+    for (const [i, r] of ratios.entries()) {
+      await prisma.task.create({ data: {
+        organizationId: org.id, code: `TSK-H-${i}-${Date.now()}`, projectId: history.id, title: `h${i}`, departmentCode: dept, priority: 'NORMAL', state: 'CLOSED',
+        sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: pmo.id, estimateHours: 10, actualHours: 10 * r,
+      } });
+    }
+    const start = new Date(); const plannedEnd = new Date(start.getTime() + 14 * 86_400_000);
+    const p = await prisma.project.create({ data: { organizationId: org.id, code: `PRJ-F-${Date.now()}`, name: 'آینده', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'ACTIVE', plannedStart: start, plannedEnd } });
+    const mk = (title: string, estimate: number) => prisma.task.create({ data: {
+      organizationId: org.id, code: `TSK-F-${title}-${Date.now()}`, projectId: p.id, title, departmentCode: dept, priority: 'NORMAL', state: 'ASSIGNED',
+      sourceType: 'ORDER_FORM', sourceRef: 'x', createdById: pmo.id, estimateHours: estimate,
+    } });
+    return { p, mk };
+  }
+
+  it('turns the history into percentiles, reproducibly, and says where the ratios came from', async () => {
+    // Eight CR tasks that took exactly their estimate, and two that took double.
+    const { p, mk } = await projectWithHistory([1, 1, 1, 1, 1, 1, 1, 1, 2, 2]);
+    const a = await mk('A', 16); const b = await mk('B', 16);
+    expectOk(await post(`/tasks/${b.id}/dependencies`, T.pmo, { prerequisiteId: a.id }), 'B after A');
+
+    const f = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '1000', seed: '42' }), 'forecast');
+    expect(f).toMatchObject({ runs: 1000, seed: 42, openTasks: 2, deterministicHours: 32 });
+    expect(f.percentiles.p50Hours).toBeLessThanOrEqual(f.percentiles.p85Hours);
+    expect(f.percentiles.p85Hours).toBeLessThanOrEqual(f.percentiles.p95Hours);
+    // The chain is 32h at ratio 1; with a 20% chance each task doubles, the tail reaches 64.
+    expect(f.percentiles.p50Hours).toBe(32);
+    expect(f.percentiles.p95Hours).toBeGreaterThan(32);
+    expect(f.percentiles.p95Hours).toBeLessThanOrEqual(64);
+    expect(f.samples[0]).toMatchObject({ departmentCode: 'CR', source: 'department', count: 10 });
+    expect(new Date(f.percentiles.p50).getTime()).toBeLessThanOrEqual(new Date(f.percentiles.p85).getTime());
+    expect(f.histogram.reduce((s: number, h: any) => s + h.runs, 0)).toBe(1000);
+    // Two weeks of plan against at most 64 working hours of chain: on time in every run.
+    expect(f.probabilityOnTime).toBe(1);
+
+    const again = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '1000', seed: '42' }), 'same seed');
+    expect(again.percentiles.p95Hours).toBe(f.percentiles.p95Hours);
+    const other = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '1000', seed: '7' }), 'other seed');
+    expect(other.percentiles.p50Hours).toBe(32);   // the median is robust to the seed here
+  });
+
+  it('gets less sure as the plan tightens, and falls back to a default distribution with no history', async () => {
+    const { p, mk } = await projectWithHistory([1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5], 'ME');
+    const a = await mk('A', 40); const b = await mk('B', 40);
+    expectOk(await post(`/tasks/${b.id}/dependencies`, T.pmo, { prerequisiteId: a.id }), 'chain');
+    // 80h of chain at ratio 1.5 = 120 working hours = 15 working days; the plan gives 14 calendar days.
+    const loose = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '500', seed: '1' }), 'loose');
+    expect(loose.percentiles.p50Hours).toBe(120);
+    expect(loose.probabilityOnTime).toBe(0);
+    await prisma.project.update({ where: { id: p.id }, data: { plannedEnd: new Date(Date.now() + 60 * 86_400_000) } });
+    const wide = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '500', seed: '1' }), 'wide');
+    expect(wide.probabilityOnTime).toBe(1);
+
+    // A department with no history borrows the organisation's; an organisation with none uses the default.
+    const dm = await mk('DM', 8);
+    await prisma.task.update({ where: { id: dm.id }, data: { departmentCode: 'DM' } });
+    const mixed = expectOk(await get(`/projects/${p.id}/forecast`, T.pmo, { runs: '200', seed: '1' }), 'mixed');
+    expect(mixed.samples.some((s: any) => s.source === 'department' && s.departmentCode === 'ME')).toBe(true);
+    expect(mixed.samples.some((s: any) => s.source !== 'department')).toBe(true);
+  });
+});
+
 describe('Business calendar', () => {
   const cal = DEFAULT_CALENDAR;
 
