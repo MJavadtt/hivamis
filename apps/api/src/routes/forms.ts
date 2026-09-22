@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
   formDecisionSchema, submitFormSchema, paginationSchema, updateRoutingSchema, updateApprovalChainSchema,
+  updateFormSchemaSchema, createFormDefinitionSchema, updateFormDefinitionSchema,
   FORM_CATEGORY_LABELS, evaluateRouting, describeCondition, rolesFa, buildStages, stagesSummaryFa,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
@@ -9,6 +10,7 @@ import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { decideForm, pendingForRoles, submitForm } from '../forms/engine.js';
 import { schemaForSubmission } from '../forms/versions.js';
+import { nextCustomNumber, protectedKeys, saveDesign, validateDesign } from '../forms/designer.js';
 import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
 import type { FormActor } from '../forms/engine.js';
 import type { ApprovalStage, FieldDef, RoutingRule } from '@hiva/contracts';
@@ -73,6 +75,140 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       ...outcome,
       rolesFa: rolesFa(outcome.roles),
     };
+  });
+
+  /**
+   * The designer's view of a form (roadmap #15): its fields as they are now, and which of them
+   * the process will not let go — so the screen can grey them out instead of letting somebody
+   * discover the rule by being refused.
+   */
+  app.get('/forms/definitions/:code/design', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!def) throw notFound('تعریف فرم');
+    const submissions = await prisma.formSubmission.count({ where: { definitionId: def.id } });
+    return {
+      code: def.code, nameFa: def.nameFa, nameEn: def.nameEn, category: def.category, module: def.module,
+      no: def.no, version: def.version, isCustom: def.isCustom, isActive: def.isActive,
+      customizedAt: def.customizedAt, binding: def.binding, slaCode: def.slaCode,
+      senderDepts: def.senderDepts, receiverDepts: def.receiverDepts, approverRoles: def.approverRoles,
+      nextProcessFa: def.nextProcessFa,
+      fields: def.schema,
+      protectedKeys: def.isCustom ? [] : protectedKeys(def.code),
+      submissions,
+    };
+  });
+
+  /** Check a design without saving it — the screen asks as the administrator types. */
+  app.post('/forms/definitions/:code/design/validate', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateFormSchemaSchema, req.body);
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId }, select: { binding: true, isCustom: true } });
+    if (!def) throw notFound('تعریف فرم');
+    const problems = validateDesign(code, input.fields as never, { binding: def.binding, isCustom: def.isCustom });
+    return { ok: problems.length === 0, problems };
+  });
+
+  /** Replace a form's fields. A new version every time, so filed submissions keep their own. */
+  app.put('/forms/definitions/:code/design', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateFormSchemaSchema, req.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const saved = await saveDesign(tx, {
+        code, fields: input.fields as never, note: input.note, actorId: actor.id, organizationId: actor.organizationId,
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'formDefinition', entityId: saved.definition.id,
+        before: { version: saved.before.version, fields: (saved.before.schema as unknown[])?.length ?? 0 },
+        after: { version: saved.version, fields: input.fields.length },
+        reason: input.note ?? null,
+        ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return saved;
+    });
+    return { code: result.definition.code, version: result.version, fields: result.definition.schema };
+  });
+
+  /** A form this organisation adds for itself, outside the Doc_H catalogue. */
+  app.post('/forms/definitions', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const input = parse(createFormDefinitionSchema, req.body);
+    const clash = await prisma.formDefinition.findUnique({ where: { code: input.code } });
+    if (clash) throw badRequest('FORM_CODE_TAKEN', `کد «${input.code}» قبلاً استفاده شده است`);
+    const problems = validateDesign(input.code, input.fields as never, { isCustom: true });
+    if (problems.length) throw badRequest('INVALID_FORM_DESIGN', 'طراحی فرم ایراد دارد', { problems });
+
+    const created = await prisma.$transaction(async (tx) => {
+      const def = await tx.formDefinition.create({
+        data: {
+          organizationId: actor.organizationId,
+          no: await nextCustomNumber(tx, actor.organizationId),
+          code: input.code, nameFa: input.nameFa, nameEn: input.nameEn,
+          category: input.category, module: input.module,
+          senderDepts: input.senderDepts, receiverDepts: input.receiverDepts, approverRoles: input.approverRoles,
+          slaCode: input.slaCode ?? null, nextProcessFa: input.nextProcessFa ?? null,
+          schema: input.fields as unknown as object,
+          isCustom: true, customizedAt: new Date(), customizedById: actor.id, version: 1,
+        },
+      });
+      await tx.formDefinitionVersion.create({
+        data: { definitionId: def.id, version: 1, schema: def.schema as object, nameFa: def.nameFa, note: 'ایجاد در طراح فرم', createdById: actor.id },
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE',
+        entityType: 'formDefinition', entityId: def.id,
+        after: { code: def.code, nameFa: def.nameFa, fields: input.fields.length, isCustom: true },
+        ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return def;
+    });
+    return reply.code(201).send(created);
+  });
+
+  /** Names, routing metadata and whether the form is offered at all. */
+  app.patch('/forms/definitions/:code', {
+    preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateFormDefinitionSchema, req.body);
+    const def = await prisma.formDefinition.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!def) throw notFound('تعریف فرم');
+    const updated = await prisma.formDefinition.update({
+      where: { id: def.id },
+      data: {
+        ...(input.nameFa !== undefined ? { nameFa: input.nameFa } : {}),
+        ...(input.nameEn !== undefined ? { nameEn: input.nameEn } : {}),
+        ...(input.senderDepts ? { senderDepts: input.senderDepts } : {}),
+        ...(input.receiverDepts ? { receiverDepts: input.receiverDepts } : {}),
+        ...(input.approverRoles ? { approverRoles: input.approverRoles } : {}),
+        ...(input.slaCode !== undefined ? { slaCode: input.slaCode ?? null } : {}),
+        ...(input.nextProcessFa !== undefined ? { nextProcessFa: input.nextProcessFa ?? null } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        // Metadata the organisation set is theirs too: the seed stops overwriting this form.
+        customizedAt: new Date(), customizedById: actor.id,
+      },
+    });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+      entityType: 'formDefinition', entityId: def.id,
+      before: { nameFa: def.nameFa, isActive: def.isActive, approverRoles: def.approverRoles },
+      after: { nameFa: updated.nameFa, isActive: updated.isActive, approverRoles: updated.approverRoles },
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+    });
+    return updated;
   });
 
   /** The stages a submission of this form must pass, and who decides each (roadmap #18). */

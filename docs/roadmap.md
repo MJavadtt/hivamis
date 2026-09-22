@@ -37,8 +37,8 @@ Status vocabulary, and it is used strictly:
 | 12 | Capacity-aware assignment | 13 | Verified | bfaa4a1 |
 | 8 | SLA breach prediction | 13 | Verified | f00170a |
 | 17 | Conditional routing and approval | — | Verified | b2ba689 |
-| 18 | Approval chains and quorum | 17 | Verified | next |
-| 15 | No-code form designer | 16 | Pending | |
+| 18 | Approval chains and quorum | 17 | Verified | b8b9f6d |
+| 15 | No-code form designer | 16 | Verified | next |
 | 19 | Offline forms (PWA) | — | Pending | |
 | 21 | Semantic search over organisational memory (pgvector) | — | Pending | |
 | 44 | Lessons-learned surfacing at project start | 21 | Pending | |

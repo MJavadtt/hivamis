@@ -318,7 +318,8 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
   );
 }
 
-function FormField({ field, value, onChange, error }: {
+/** Exported for the designer's live preview (roadmap #15): one renderer, not two. */
+export function FormField({ field, value, onChange, error }: {
   field: FieldDef; value: unknown; onChange: (v: unknown) => void; error?: string;
 }) {
   const { t } = useLocale();
@@ -561,7 +562,7 @@ function EntitySelect({ entity, value, onChange }: { entity: string; value: stri
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">— انتخاب —</option>
-      {data?.items.map((r) => <option key={r.id} value={r.id}>{config.label(r)}</option>)}
+      {data?.items?.map((r) => <option key={r.id} value={r.id}>{config.label(r)}</option>)}
     </Select>
   );
 }

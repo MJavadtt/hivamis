@@ -39,7 +39,9 @@ export interface PublishInput {
  * refreshed; the schema is compared, and only a real change produces a new version. Idempotent:
  * re-running the seed against an unchanged catalogue writes nothing new.
  */
-export async function publishDefinition(tx: Tx, input: PublishInput): Promise<{ version: number; changed: boolean }> {
+export async function publishDefinition(
+  tx: Tx, input: PublishInput,
+): Promise<{ version: number; changed: boolean; skippedCustomised?: boolean }> {
   const { form } = input;
   const metadata = {
     nameFa: form.nameFa,
@@ -68,6 +70,17 @@ export async function publishDefinition(tx: Tx, input: PublishInput): Promise<{ 
       data: { definitionId: created.id, version: 1, schema, routing, approvalChain, nameFa: form.nameFa, note: input.note ?? null, createdById: input.createdById ?? null },
     });
     return { version: 1, changed: true };
+  }
+
+  /**
+   * A definition this organisation has edited in the designer (roadmap #15) is theirs. The
+   * catalogue still refreshes the names and the routing metadata around it, but pushing the
+   * shipped schema back over their fields on the next boot would quietly undo their work — the
+   * seed reports these instead.
+   */
+  if (existing.customizedAt) {
+    await tx.formDefinition.update({ where: { id: existing.id }, data: metadata });
+    return { version: existing.version, changed: false, skippedCustomised: true };
   }
 
   if (sameSchema(existing.schema, schema) && sameSchema(existing.routing, routing) && sameSchema(existing.approvalChain, approvalChain)) {

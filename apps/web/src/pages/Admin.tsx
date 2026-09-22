@@ -13,6 +13,7 @@ import { WorkCalendars } from '../components/WorkCalendars';
 import { RuleVersions } from '../components/RuleVersions';
 import { RuleLab } from '../components/RuleLab';
 import { FormRouting } from '../components/FormRouting';
+import { FormDesigner } from '../components/FormDesigner';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
@@ -29,6 +30,7 @@ export default function Admin() {
             { key: 'calendar', label: 'تقویم کاری' },
             { key: 'rules', label: 'نسخه‌های قوانین' },
             { key: 'lab', label: 'آزمایشگاه قانون' },
+            { key: 'designer', label: 'طراح فرم' },
             { key: 'routing', label: 'مسیریابی فرم‌ها' },
             { key: 'audit', label: 'رهگیری حسابرسی' },
             { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
@@ -42,6 +44,7 @@ export default function Admin() {
         {tab === 'calendar' && <WorkCalendars />}
         {tab === 'rules' && <RuleVersions />}
         {tab === 'lab' && <RuleLab />}
+        {tab === 'designer' && <FormDesigner />}
         {tab === 'routing' && <FormRouting />}
         {tab === 'audit' && <AuditTrail />}
         {tab === 'ai' && <AiLog />}

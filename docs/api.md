@@ -137,6 +137,11 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 |---|---|
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
 | `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
+| `GET /forms/definitions/:code/design` | `form.read` — the designer's view (roadmap #15): the fields as they stand, `protectedKeys` (the required fields of the shipped definition, which cannot be removed or retyped), the binding, the submission count and whether this organisation has edited the form |
+| `POST /forms/definitions/:code/design/validate` `{ fields[] }` | `admin.settings` — every problem with a proposed field list at once, in Persian; nothing is written |
+| `PUT /forms/definitions/:code/design` `{ fields[], note? }` | `admin.settings` — replace the fields. Refused with `INVALID_FORM_DESIGN` and a `problems[]` list if it would break the process; mints a version and marks the definition as this organisation's, after which the seed stops overwriting it |
+| `POST /forms/definitions` `{ code, nameFa, …, fields[] }` | `admin.settings` — a form outside the Doc_H catalogue (`isCustom`, numbered from 1000). Validated, versioned and submitted exactly like any other |
+| `PATCH /forms/definitions/:code` | `admin.settings` — names, sender/receiver units, approver roles, SLA, next process, `isActive` |
 | `GET /forms/definitions/:code/chain` | `form.read` — the approval stages of a form (roadmap #18): each stage's roles, quorum and condition, plus the chain a submission with no conditional values would walk and a Persian summary |
 | `PUT /forms/definitions/:code/chain` `{ stages[], note? }` | `admin.settings` — replace the chain (≤ 6 stages, quorum ≤ 10, unique ids — `DUPLICATE_STAGE_ID`). Mints a new definition version like a routing change |
 | `GET /forms/definitions/:code/routing` | `form.read` — the conditional approval rules on a definition (roadmap #17), each with its Persian sentence and a rendered description of its condition, plus the fields available to build one |

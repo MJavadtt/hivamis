@@ -1359,6 +1359,12 @@ model FormDefinition {
   routing        Json     @default("[]")
   /// Ordered approval stages with optional quorum (roadmap #18); empty means a single stage.
   approvalChain  Json     @default("[]")
+  /// When this organisation last edited the form in the designer (roadmap #15). Set means the
+  /// seed must not push the catalogue's schema over it again.
+  customizedAt   DateTime?
+  customizedById String?
+  /// A form this organisation added for itself: outside the Doc_H catalogue, never re-seeded.
+  isCustom       Boolean  @default(false)
   isActive       Boolean  @default(true)
   /// Bumped whenever `schema` changes; each value has a FormDefinitionVersion row behind it.
   version        Int      @default(1)

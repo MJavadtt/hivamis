@@ -592,3 +592,28 @@ the bypass does not apply there — otherwise a deputy could clear the unit mana
 then their own, and the chain would be decoration. The bypass still applies to the implicit
 single stage and to the routed-in stage, where it never meant anything more than convenience.
 
+## ADR-026 — The designer writes the same FieldDef the catalogue declares, and the seed yields to it
+
+**Decision.** `PUT /forms/definitions/:code/design` replaces a definition's field list with the
+same `FieldDef` shape the Doc_H catalogue declares in TypeScript, validated by the same rules and
+rendered by the same component. Editing marks the definition `customizedAt`, and
+`publishDefinition` then refreshes only its metadata: the catalogue stops pushing its schema over
+the organisation's. A form the organisation invents is `isCustom`, numbered from 1000, and the
+seed never touches it at all.
+
+**What cannot be edited.** The required fields of the shipped definition are protected: they may
+not be removed, retyped or made optional. That set is derived from the catalogue rather than
+listed by hand, so it covers Doc_H §C's nine order elements and the keys every typed binding
+reads without a second source of truth to keep in step.
+
+**Rationale.** ADR-004 already said adding a form is a data change, not a code change — but a
+programmer still had to write TypeScript, so every new customer was a development project. This
+is the half that was missing. Keeping one `FieldDef`, one validator and one renderer is what
+makes it safe: a designed form is not a second-class form, and the preview cannot drift from the
+real thing because it *is* the real thing.
+
+**Why the seed yields rather than merges.** A merge would need a rule for every conflict —
+renamed field, changed type, removed option — and would silently produce a schema nobody wrote.
+Yielding is predictable and says so in the seed output; an organisation that wants the catalogue's
+version back can clear the customisation deliberately.
+

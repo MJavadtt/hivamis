@@ -995,6 +995,122 @@ describe('Conditional approval routing', () => {
   });
 });
 
+describe('The form designer', () => {
+  /**
+   * ADR-004 said adding a form is a data change, not a code change — but a programmer still had
+   * to write TypeScript, which made every new customer a development project. The designer
+   * writes the same FieldDef shape through the API, with two rules: what the process depends on
+   * cannot be removed, and every change mints a version so filed submissions keep their fields.
+   */
+  const CODE = 'B11_BRIEF_ANALYSIS';
+
+  it('adds a field, versions the change, and leaves the forms already filed alone', async () => {
+    const before = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const original = (before.schema as unknown as any[]);
+    const brief = await prisma.brief.findFirstOrThrow();
+
+    const design = expectOk(await get(`/forms/definitions/${CODE}/design`, T.admin), 'design');
+    expect(design.fields).toHaveLength(original.length);
+    expect(design.protectedKeys.length).toBeGreaterThan(0);
+    expect(design.customizedAt).toBeNull();
+
+    const fields = [...original, {
+      key: 'clientBudgetBand', labelFa: 'بازهٔ بودجهٔ مشتری', labelEn: 'Client budget band',
+      type: 'select', required: false, helpFa: 'برای گزارش‌های داخلی',
+      options: [{ value: 'S', labelFa: 'کمتر از یک میلیارد' }, { value: 'L', labelFa: 'بیش از یک میلیارد' }],
+    }];
+    const saved = expectOk(await call('PUT', `/forms/definitions/${CODE}/design`, {
+      token: T.admin, payload: { fields, note: 'افزودن بازهٔ بودجه' },
+    }), 'save design');
+    expect(saved.version).toBe(before.version + 1);
+
+    // The new field is offered, and validated, on the next submission.
+    const filled = expectOk(await post('/forms/submissions', T.accountManager, {
+      formCode: CODE,
+      data: {
+        briefId: brief.id, interpretedNeed: 'نیاز مشتری', proposedApproach: 'رویکرد پیشنهادی',
+        unitsInvolved: ['ST', 'CR'], clientBudgetBand: 'L',
+      },
+    }), 'submit under the new version');
+    expect(filled.definitionVersion).toBe(saved.version);
+    expect((await prisma.formSubmission.findUniqueOrThrow({ where: { id: filled.id } })).data).toMatchObject({ clientBudgetBand: 'L' });
+
+    // A submission filed under the old version still renders its own fields.
+    const old = await prisma.formSubmission.findFirst({ where: { definitionId: before.id, definitionVersion: before.version } });
+    if (old) {
+      const detail = expectOk(await get(`/forms/submissions/${old.id}`, T.admin), 'old submission');
+      expect(detail.schema.map((f: any) => f.key)).not.toContain('clientBudgetBand');
+    }
+  });
+
+  it('refuses a design that would break the process, and says everything wrong at once', async () => {
+    const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: 'C20_ORDER_STRATEGY' } });
+    const fields = (def.schema as unknown as any[]);
+    // Doc_H §C: the nine elements of an order form. Dropping the deadline is not a design choice.
+    const withoutDeadline = fields.filter((f) => f.key !== 'deadline');
+    const refused = await call('PUT', `/forms/definitions/C20_ORDER_STRATEGY/design`, {
+      token: T.admin, payload: { fields: withoutDeadline },
+    });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.code).toBe('INVALID_FORM_DESIGN');
+    expect(refused.body.error.details.problems.join(' ')).toContain('Deadline');
+
+    // Several problems come back together rather than one per attempt.
+    const messy = expectOk(await post(`/forms/definitions/C20_ORDER_STRATEGY/design/validate`, T.admin, {
+      fields: [
+        ...fields,
+        { key: 'ownerName', labelFa: 'نام مسئول', labelEn: 'Owner name', type: 'select', options: [] },
+        { key: 'ownerName', labelFa: 'تکراری', labelEn: 'Duplicate', type: 'text' },
+        { key: 'extra', labelFa: 'وابسته به فیلد ناموجود', labelEn: 'Dangling', type: 'text', visibleWhen: { field: 'nope', equals: ['x'] } },
+      ],
+    }), 'validate');
+    expect(messy.ok).toBe(false);
+    expect(messy.problems.length).toBeGreaterThanOrEqual(3);
+    expect(messy.problems.join(' ')).toContain('تکراری');
+    expect(messy.problems.join(' ')).toContain('گزینه');
+
+    // And only an administrator may design at all.
+    expect((await call('PUT', `/forms/definitions/${CODE}/design`, { token: T.accountManager, payload: { fields } })).status).toBe(403);
+  });
+
+  it('lets an organisation add a form of its own, and keeps the catalogue out of it', async () => {
+    const { publishDefinition } = await import('../src/forms/versions.js');
+    const org = await prisma.organization.findFirstOrThrow();
+    const code = `X_EQUIPMENT_${Date.now()}`;
+    const created = expectOk(await post('/forms/definitions', T.admin, {
+      code, nameFa: 'فرم تحویل تجهیزات', nameEn: 'Equipment handover', category: 'D', module: 'TRAFFIC_TASK',
+      senderDepts: ['CR'], receiverDepts: ['OP'], approverRoles: ['UNIT_MANAGER'],
+      fields: [
+        { key: 'item', labelFa: 'تجهیزات', labelEn: 'Item', type: 'text', required: true },
+        { key: 'handedTo', labelFa: 'تحویل‌گیرنده', labelEn: 'Handed to', type: 'user', required: true },
+        { key: 'returnBy', labelFa: 'بازگشت تا', labelEn: 'Return by', type: 'date' },
+      ],
+    }), 'create form');
+    expect(created.isCustom).toBe(true);
+    expect(created.no).toBeGreaterThanOrEqual(1000);
+
+    // It behaves like any other form: it is offered, filled, validated and approved.
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const missing = await post('/forms/submissions', T.designer, { formCode: code, data: { item: 'دوربین' } });
+    expect(missing.status).toBe(400);
+    const filed = expectOk(await post('/forms/submissions', T.designer, {
+      formCode: code, data: { item: 'دوربین سونی', handedTo: designer.id, returnBy: '2026-12-01' },
+    }), 'submit custom form');
+    expect(filed.state).toBe('PENDING_APPROVAL');
+    expect(expectOk(await post(`/forms/submissions/${filed.id}/decision`, T.creative, { decision: 'APPROVE' }), 'approve').state).toBe('APPROVED');
+
+    // A re-seed of the catalogue leaves an edited definition alone rather than overwriting it.
+    const edited = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    expect(edited.customizedAt).not.toBeNull();
+    const shipped = FORM_BY_CODE.get(CODE)!;
+    const again = await publishDefinition(prisma, { organizationId: org.id, form: shipped, note: 'seed' });
+    expect(again.skippedCustomised).toBe(true);
+    const after = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    expect((after.schema as unknown as any[]).some((f) => f.key === 'clientBudgetBand')).toBe(true);
+    expect(after.version).toBe(edited.version);
+  });
+});
+
 describe('Approval chains and quorum', () => {
   /**
    * Doc_H's resource-request form says «تأیید مدیر واحد و مدیریت» — two approvals, in order.

@@ -217,6 +217,15 @@ the reviewer sees the whole ladder — who has signed, who is next, and where it
 
 ---
 
+**Building a form (مدیریت → طراح فرم).** Fields are added, reordered, reworded and removed on
+the left while the real form draws itself on the right — the preview is the same component the
+person filling it will use, not a picture of it. Saving mints a new version, so the two hundred
+forms already filed keep the fields they were filled with. Fields the process depends on — Doc_H's
+nine order elements, the keys a form's record-creating handler reads — are marked «الزام فرآیند»
+and cannot be removed or retyped; everything else is yours. **فرم تازه** adds a form of your own,
+outside the Doc_H catalogue and numbered from ۱۰۰۰, which no future update will overwrite. Once
+you edit a Doc_H form, the catalogue stops speaking for it too: your fields stay.
+
 **Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels
 and a hint per column), an export of everything filed on it, and an import. Choose a file and
 the system checks every row first — references can be codes like `PRJ-000002`, emails or

@@ -577,3 +577,100 @@ export const updateApprovalChainSchema = z.object({
   stages: z.array(approvalStageSchema).max(6),
   note: z.string().trim().max(200).optional(),
 });
+
+/* ── The form designer (roadmap #15) ───────────────────────────────────── */
+
+/**
+ * A field as the designer may write it. ADR-004 says adding a form is a data change rather
+ * than a code change; this is the shape that makes that true for somebody who does not write
+ * TypeScript. Deliberately the same `FieldDef` the catalogue declares — one renderer, one
+ * validator, one truth.
+ */
+const FIELD_TYPES = [
+  'text', 'textarea', 'number', 'currency', 'percent', 'date', 'datetime',
+  'select', 'multiselect', 'checkbox', 'user', 'department', 'entityRef', 'attachment', 'table',
+] as const;
+
+const fieldOptionSchema = z.object({
+  value: z.string().trim().min(1).max(60),
+  labelFa: z.string().trim().min(1).max(120),
+});
+
+const baseFieldSchema = z.object({
+  key: z.string().trim().min(2).max(60).regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, 'کلید فیلد باید با حرف لاتین شروع شود و فقط حرف، رقم و زیرخط داشته باشد'),
+  labelFa: z.string().trim().min(1).max(120),
+  labelEn: z.string().trim().min(1).max(120),
+  type: z.enum(FIELD_TYPES),
+  required: z.boolean().optional(),
+  options: z.array(fieldOptionSchema).max(60).optional(),
+  entity: z.string().trim().max(40).optional(),
+  placeholderFa: z.string().trim().max(160).optional(),
+  helpFa: z.string().trim().max(240).optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  visibleWhen: z.object({
+    field: z.string().trim().min(1).max(60),
+    equals: z.array(z.string().max(60)).min(1).max(30),
+  }).optional(),
+});
+
+export const designerFieldSchema = baseFieldSchema.extend({
+  columns: z.array(baseFieldSchema).max(20).optional(),
+});
+
+/** Structural rules no form may break, whoever is editing it. */
+export function checkFieldList(fields: z.infer<typeof designerFieldSchema>[]): string[] {
+  const problems: string[] = [];
+  const keys = new Set<string>();
+  for (const f of fields) {
+    if (keys.has(f.key)) problems.push(`کلید «${f.key}» تکراری است`);
+    keys.add(f.key);
+    if ((f.type === 'select' || f.type === 'multiselect') && !f.options?.length) {
+      problems.push(`فیلد «${f.labelFa}» از نوع انتخابی است و باید دست‌کم یک گزینه داشته باشد`);
+    }
+    if (f.type === 'table' && !f.columns?.length) problems.push(`جدول «${f.labelFa}» باید دست‌کم یک ستون داشته باشد`);
+    if (f.type === 'entityRef' && !f.entity) problems.push(`فیلد «${f.labelFa}» باید بگوید به کدام موجودیت اشاره می‌کند`);
+    if (f.options?.length) {
+      const values = new Set(f.options.map((o) => o.value));
+      if (values.size !== f.options.length) problems.push(`گزینه‌های تکراری در «${f.labelFa}»`);
+    }
+  }
+  for (const f of fields) {
+    if (f.visibleWhen && !keys.has(f.visibleWhen.field)) {
+      problems.push(`فیلد «${f.labelFa}» به فیلدی وابسته است که در این فرم نیست: ${f.visibleWhen.field}`);
+    }
+    if (f.visibleWhen?.field === f.key) problems.push(`فیلد «${f.labelFa}» نمی‌تواند به خودش وابسته باشد`);
+  }
+  return problems;
+}
+
+export const updateFormSchemaSchema = z.object({
+  fields: z.array(designerFieldSchema).min(1).max(80),
+  note: z.string().trim().max(200).optional(),
+});
+
+/** A form an organisation adds for itself, outside the Doc_H catalogue. */
+export const createFormDefinitionSchema = z.object({
+  code: z.string().trim().min(3).max(60).regex(/^[A-Z][A-Z0-9_]*$/, 'کد فرم با حرف بزرگ لاتین شروع می‌شود و فقط حرف بزرگ، رقم و زیرخط می‌پذیرد'),
+  nameFa: z.string().trim().min(2).max(120),
+  nameEn: z.string().trim().min(2).max(120),
+  category: z.string().trim().min(1).max(2),
+  module: z.string().trim().min(2).max(40),
+  senderDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).default([]),
+  receiverDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).default([]),
+  approverRoles: z.array(z.enum(ROLE_CODES)).max(8).default([]),
+  slaCode: z.string().trim().max(60).nullish(),
+  nextProcessFa: z.string().trim().max(200).nullish(),
+  fields: z.array(designerFieldSchema).min(1).max(80),
+});
+
+export const updateFormDefinitionSchema = z.object({
+  nameFa: z.string().trim().min(2).max(120).optional(),
+  nameEn: z.string().trim().min(2).max(120).optional(),
+  senderDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).optional(),
+  receiverDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).optional(),
+  approverRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  slaCode: z.string().trim().max(60).nullish(),
+  nextProcessFa: z.string().trim().max(200).nullish(),
+  isActive: z.boolean().optional(),
+});

@@ -185,11 +185,16 @@ async function main() {
   // Through the versioning module: a changed schema becomes a new version, an unchanged one
   // writes nothing, and submissions keep pointing at the version they were filled under.
   let newVersions = 0;
+  let customised = 0;
   for (const form of ALL_FORMS) {
-    const { changed } = await publishDefinition(prisma, { organizationId: org.id, form, note: 'seed' });
+    const { changed, skippedCustomised } = await publishDefinition(prisma, { organizationId: org.id, form, note: 'seed' });
     if (changed) newVersions++;
+    if (skippedCustomised) customised++;
   }
   if (newVersions) console.log(`  ${newVersions} definition(s) gained a new version`);
+  // Said out loud: a form the organisation has edited keeps its own fields, and the catalogue
+  // no longer speaks for it (roadmap #15).
+  if (customised) console.log(`  ${customised} definition(s) left as this organisation edited them`);
 
   await syncCounters();
 
