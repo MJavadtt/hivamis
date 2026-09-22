@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
+import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { SLA_PAUSE_KINDS, type SlaPauseKind } from '@hiva/contracts';
 
@@ -502,6 +503,33 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         budgetHours: Number(c.policy.hours),
       };
     });
+  });
+
+  /**
+   * Which open deadlines are going to be missed (roadmap #8) — before the fixed threshold
+   * fires, and with the evidence attached. `mine=true` narrows it to the caller's own clocks;
+   * `minProbability` (0–1) to the ones worth acting on.
+   */
+  app.get('/sla-clocks/predictions', { preHandler: [app.authenticate] }, async (req) => {
+    const actor = actorFrom(req);
+    const { mine, minProbability, limit } = req.query as Record<string, string | undefined>;
+    const predictions = await predictClocks(prisma, actor.organizationId);
+    const floor = minProbability ? Number(minProbability) : 0;
+    const rows = predictions
+      .filter((p) => p.probability >= floor && (mine === 'true' ? p.ownerId === actor.id : true))
+      .slice(0, Math.min(Number(limit ?? 50) || 50, 200));
+    return {
+      generatedAt: new Date(),
+      model: 'نسبت نقض در مهلت‌های مشابهِ همان سیاست و واحد که تا همین مرحله باز مانده بودند، تعدیل‌شده با بار کاری فعلی مسئول',
+      counts: {
+        total: rows.length,
+        critical: rows.filter((p) => p.risk === 'CRITICAL').length,
+        likely: rows.filter((p) => p.risk === 'LIKELY').length,
+        // Predicted to fail while the fixed warnAt threshold is still silent — the whole point.
+        earlierThanThreshold: rows.filter((p) => p.beatsWarnAt).length,
+      },
+      predictions: rows,
+    };
   });
 
   /* ── SLA pause / resume ─────────────────────────────────────────────── */

@@ -51,8 +51,10 @@ describe('Notifications', () => {
   /** The set is a deliberate list, not a side effect of whatever calls notify(). */
   it('emails only the kinds that warrant interrupting someone', () => {
     expect([...EMAILED_KINDS].sort()).toEqual(
-      ['FORM_APPROVAL_REQUIRED', 'OVERDUE_DIGEST', 'SLA_BREACH', 'SLA_WARNING'],
+      ['FORM_APPROVAL_REQUIRED', 'OVERDUE_DIGEST', 'SLA_BREACH', 'SLA_PREDICTED_BREACH', 'SLA_WARNING'],
     );
+    // The prediction earns a mail for the same reason the warning does, and arrives earlier.
+    expect(EMAILED_KINDS.has('SLA_PREDICTED_BREACH')).toBe(true);
     // An approval outcome reaches someone already looking at the app.
     expect(EMAILED_KINDS.has('FORM_APPROVED')).toBe(false);
     expect(EMAILED_KINDS.has('FORM_REJECTED')).toBe(false);

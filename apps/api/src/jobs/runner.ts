@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import { env, mailEnabled } from '../env.js';
 import { prisma } from '../db.js';
 import { tickSlaClocks } from '../sla/engine.js';
+import { notifyPredictedBreaches } from '../sla/predict.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 
@@ -47,8 +48,11 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
 
   await boss.work('sla:tick', async () => {
     const result = await tickSlaClocks();
-    if (result.warned || result.breached) {
-      logger.info({ ...result }, 'SLA tick');
+    // The fixed threshold says "you are nearly out of time"; the prediction says "you are
+    // going to run out", and says it earlier. Once per clock (roadmap #8).
+    const predicted = await notifyPredictedBreaches();
+    if (result.warned || result.breached || predicted.notified) {
+      logger.info({ ...result, ...predicted }, 'SLA tick');
     }
   });
 

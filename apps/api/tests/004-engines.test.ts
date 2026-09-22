@@ -3,6 +3,7 @@ import { call, closeApp, get, login, post, patch, move, expectOk } from './helpe
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../src/sla/engine.js';
+import { predictClocks, notifyPredictedBreaches } from '../src/sla/predict.js';
 import {
   ALL_FORMS, ALL_PERMISSIONS, DEPARTMENT_CODES, FORM_BY_CODE, MODULES, ROLE_CODES, SLA_POLICIES, WORKFLOWS,
 } from '@hiva/contracts';
@@ -863,6 +864,139 @@ describe('Critical path and schedule', () => {
     const start = subtractBusinessHours(end, 12, DEFAULT_CALENDAR);
     expect(businessHoursBetween(start, end, DEFAULT_CALENDAR)).toBeCloseTo(12, 2);
     expect(addBusinessHours(start, 12, DEFAULT_CALENDAR).getTime()).toBeLessThanOrEqual(end.getTime() + 1000);
+  });
+});
+
+describe('SLA breach prediction', () => {
+  /**
+   * `warnAt` fires three-quarters of the way through the budget — it tells a person they were
+   * late. The clocks already hold how long this policy really takes in this unit, so the same
+   * question can be answered at the start: of the past clocks still open at this point, how
+   * many went on to breach. History of misses should read as risk long before the threshold.
+   */
+  const H = 3_600_000;
+  // A fixed working week inside the default calendar: Saturday 2026-09-05 onwards.
+  const sat = (h: number) => new Date(2026, 8, 5, h, 0, 0);
+
+  async function policyWith(code: string, hours: number) {
+    const org = await prisma.organization.findFirstOrThrow();
+    const p = await prisma.slaPolicy.upsert({
+      where: { code }, update: { hours },
+      create: { organizationId: org.id, code, labelFa: `سیاست آزمایشی ${code}`, labelEn: code, hours, warnAt: 0.75 },
+    });
+    return { p, org };
+  }
+
+  /** A clock that ran for `hours` of working time and stopped — one observation. */
+  async function finished(policyId: string, organizationId: string, ownerId: string, hours: number, tag: string, budget = 8) {
+    const startedAt = sat(9);
+    return prisma.slaClock.create({ data: {
+      organizationId, policyId, entityType: 'test', entityId: `pred-${tag}-${Math.random().toString(36).slice(2, 8)}`,
+      startedAt, dueAt: addBusinessHours(startedAt, budget, DEFAULT_CALENDAR), ownerId,
+      stoppedAt: addBusinessHours(startedAt, hours, DEFAULT_CALENDAR),
+      state: hours > budget ? 'BREACHED' : 'MET',
+    } });
+  }
+
+  it('calls a clock likely to breach while the fixed threshold is still silent, and shows its working', async () => {
+    const { p: policy, org } = await policyWith(`SLA_PRED_${Date.now()}`, 8);
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    // Ten past clocks of this policy in this unit: eight of them ran past the 8-hour budget.
+    for (let i = 0; i < 8; i++) await finished(policy.id, org.id, owner.id, 14, `over${i}`);
+    for (let i = 0; i < 2; i++) await finished(policy.id, org.id, owner.id, 5, `under${i}`);
+
+    const startedAt = sat(9);
+    const open = await prisma.slaClock.create({ data: {
+      organizationId: org.id, policyId: policy.id, entityType: 'test', entityId: `pred-open-${Date.now()}`,
+      startedAt, dueAt: addBusinessHours(startedAt, 8, DEFAULT_CALENDAR), ownerId: owner.id, state: 'RUNNING',
+    } });
+
+    // Two working hours in: a quarter of the budget spent, so warnAt (0.75) is nowhere near.
+    const now = new Date(startedAt.getTime() + 2 * H);
+    const [prediction] = await predictClocks(prisma, org.id, [open.id], { now });
+    expect(prediction!.ratio).toBeLessThan(0.75);
+    expect(prediction!.probability).toBeGreaterThan(0.6);
+    expect(prediction!.risk === 'LIKELY' || prediction!.risk === 'CRITICAL').toBe(true);
+    expect(prediction!.beatsWarnAt).toBe(true);
+    expect(prediction!.basis.source).toBe('POLICY_AND_UNIT');
+    expect(prediction!.basis.samples).toBe(10);
+    expect(prediction!.basis.survivors).toBe(10);          // all ten were still open at 2 hours
+    // The reasons are the working, not decoration: the count, the share, and the median.
+    expect(prediction!.becauseFa.join(' ')).toContain('واحد CR');
+    expect(prediction!.becauseFa.join(' ')).toContain('آستانهٔ هشدار ثابت خاموش است');
+    expect(prediction!.basis.medianHours).toBeGreaterThan(8);
+    expect(prediction!.expectedOverrunHours).toBeGreaterThan(0);
+    expect(new Date(prediction!.expectedFinish!).getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it('conditions on how far the clock has already run, and says when it has no history to go on', async () => {
+    const { p: policy, org } = await policyWith(`SLA_PRED2_${Date.now()}`, 10);
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'strategy@hiva.local' } });
+    // Nine finished in 4 hours, three took 20. At the start, three in twelve went over.
+    for (let i = 0; i < 9; i++) await finished(policy.id, org.id, owner.id, 4, `fast${i}`, 10);
+    for (let i = 0; i < 3; i++) await finished(policy.id, org.id, owner.id, 20, `slow${i}`, 10);
+
+    const startedAt = sat(9);
+    const open = await prisma.slaClock.create({ data: {
+      organizationId: org.id, policyId: policy.id, entityType: 'test', entityId: `pred2-open-${Date.now()}`,
+      startedAt, dueAt: addBusinessHours(startedAt, 10, DEFAULT_CALENDAR), ownerId: owner.id, state: 'RUNNING',
+    } });
+
+    const atStart = (await predictClocks(prisma, org.id, [open.id], { now: new Date(startedAt.getTime() + 1 * H) }))[0]!;
+    expect(atStart.basis.survivors).toBe(12);
+    expect(atStart.probability).toBeLessThan(0.4);           // three in twelve, plus the load factor
+
+    // Six working hours in, the fast ones are already out of the comparison: everyone still
+    // running at this point had gone long. The same clock, the same rules, a different answer.
+    const later = (await predictClocks(prisma, org.id, [open.id], { now: new Date(startedAt.getTime() + 6 * H) }))[0]!;
+    expect(later.basis.survivors).toBe(3);
+    expect(later.probability).toBeGreaterThan(atStart.probability);
+    expect(later.risk).toBe('CRITICAL');
+
+    // A policy nobody has ever finished says so rather than inventing a number.
+    const { p: fresh } = await policyWith(`SLA_PRED3_${Date.now()}`, 6);
+    const bare = await prisma.slaClock.create({ data: {
+      organizationId: org.id, policyId: fresh.id, entityType: 'test', entityId: `pred3-${Date.now()}`,
+      startedAt, dueAt: addBusinessHours(startedAt, 6, DEFAULT_CALENDAR), ownerId: owner.id, state: 'RUNNING',
+    } });
+    const guess = (await predictClocks(prisma, org.id, [bare.id], { now: new Date(startedAt.getTime() + 3 * H) }))[0]!;
+    expect(guess.basis.source).toBe('NONE');
+    expect(guess.basis.samples).toBe(0);
+    expect(guess.becauseFa.join(' ')).toContain('سابقهٔ کافی');
+  });
+
+  it('tells the owner once, and serves the same ranking over the API', async () => {
+    const { p: policy, org } = await policyWith(`SLA_PRED4_${Date.now()}`, 8);
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    for (let i = 0; i < 10; i++) await finished(policy.id, org.id, owner.id, 16, `bad${i}`);
+    const startedAt = sat(9);
+    const open = await prisma.slaClock.create({ data: {
+      organizationId: org.id, policyId: policy.id, entityType: 'test', entityId: `pred4-open-${Date.now()}`,
+      startedAt, dueAt: addBusinessHours(startedAt, 8, DEFAULT_CALENDAR), ownerId: owner.id, state: 'RUNNING',
+    } });
+
+    const sent: string[] = [];
+    const now = new Date(startedAt.getTime() + 2 * H);
+    const first = await notifyPredictedBreaches(now, async (p) => { sent.push(p.clockId); });
+    expect(sent).toContain(open.id);
+    expect(first.notified).toBeGreaterThan(0);
+    const stamped = await prisma.slaClock.findUniqueOrThrow({ where: { id: open.id } });
+    expect(stamped.riskNotifiedAt).not.toBeNull();
+    expect(Number(stamped.riskProbability)).toBeGreaterThan(0.7);
+
+    // A probability that wobbles around the line must not produce a stream of messages.
+    sent.length = 0;
+    await notifyPredictedBreaches(new Date(now.getTime() + H), async (p) => { sent.push(p.clockId); });
+    expect(sent).not.toContain(open.id);
+
+    const res = expectOk(await get('/sla-clocks/predictions', T.pmo, { minProbability: '0.5' }), 'predictions');
+    const row = res.predictions.find((p: any) => p.clockId === open.id);
+    expect(row.probability).toBeGreaterThan(0.7);
+    expect(row.policyCode).toBe(policy.code);
+    expect(res.counts.total).toBeGreaterThan(0);
+    // Ranked by probability, worst first.
+    const ps = res.predictions.map((p: any) => p.probability);
+    expect([...ps].sort((a: number, b: number) => b - a)).toEqual(ps);
   });
 });
 

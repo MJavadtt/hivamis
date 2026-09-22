@@ -3,6 +3,7 @@ import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { allowedFor } from '../workflow/engine.js';
 import { loadCalendar } from '../sla/engine.js';
+import { predictClocks, type Risk } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 
 /**
@@ -33,6 +34,8 @@ export interface WorkItem {
   sla: {
     policyCode: string; labelFa: string; state: string; dueAt: Date;
     budgetHours: number; controlledHours: number;
+    /** Where this deadline is heading, judged against comparable past ones (roadmap #8). */
+    risk?: { probability: number; risk: Risk; becauseFa: string | null } | null;
   } | null;
   href: string;
   availableTransitions: ReturnType<typeof allowedFor>;
@@ -127,6 +130,18 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
         budgetHours: Number(c.policy.hours), controlledHours: Math.round((elapsed - paused) * 100) / 100,
       };
     }
+    // "You are going to be late", where the work actually is — not only in a manager's report.
+    const openClockIds = clocks.filter((c) => ['RUNNING', 'AT_RISK'].includes(c.state)).map((c) => c.id);
+    if (openClockIds.length) {
+      const byClock = new Map((await predictClocks(prisma, org, openClockIds, { now })).map((p) => [p.clockId, p]));
+      for (const i of items) {
+        const c = nearest.get(`${i.entityType}:${i.entityId}`);
+        const p = c && byClock.get(c.id);
+        if (!p || !i.sla || p.risk === 'LOW') continue;
+        i.sla.risk = { probability: p.probability, risk: p.risk, becauseFa: p.becauseFa[0] ?? null };
+      }
+    }
+
     for (const i of items) {
       i.availableTransitions = i.entityType === 'formSubmission' ? [] : allowedFor(i.entityType, i.state, actor.permissions);
     }

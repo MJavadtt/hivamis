@@ -23,6 +23,9 @@ import {
 export const EMAILED_KINDS = new Set([
   'SLA_BREACH',
   'SLA_WARNING',
+  // The prediction (roadmap #8) is emailed for the same reason the warning is, and fires at
+  // most once per clock — earlier than the fixed threshold, which is the whole point of it.
+  'SLA_PREDICTED_BREACH',
   'FORM_APPROVAL_REQUIRED',
   'OVERDUE_DIGEST',
 ]);

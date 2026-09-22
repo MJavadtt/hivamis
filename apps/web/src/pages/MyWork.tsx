@@ -10,7 +10,10 @@ import { formatDate, formatRelative, toPersianDigits } from '../lib/format';
 interface WorkItem {
   kind: string; entityType: string; entityId: string; code: string; title: string; state: string;
   projectCode: string | null; projectName: string | null; dueAt: string | null;
-  sla: { policyCode: string; labelFa: string; state: string; dueAt: string; budgetHours: number; controlledHours: number } | null;
+  sla: {
+    policyCode: string; labelFa: string; state: string; dueAt: string; budgetHours: number; controlledHours: number;
+    risk?: { probability: number; risk: 'WATCH' | 'LIKELY' | 'CRITICAL'; becauseFa: string | null } | null;
+  } | null;
   href: string;
   availableTransitions: { action: string; labelFa: string; labelEn: string; requiresReason: boolean; to: string }[];
 }
@@ -26,6 +29,21 @@ function SlaChip({ sla }: { sla: NonNullable<WorkItem['sla']> }) {
     : sla.state === 'PAUSED' ? 'متوقف'
     : `${toPersianDigits(Math.round(left * 10) / 10)} ساعت کاری مانده`;
   return <Badge tone={tone} className="whitespace-nowrap">{sla.labelFa}: {text}</Badge>;
+}
+
+/**
+ * "You are going to run out of time" — said while there is still time to act (roadmap #8),
+ * with the reason attached, because a bare percentage is not something anyone can act on.
+ */
+function RiskChip({ risk }: { risk: NonNullable<NonNullable<WorkItem['sla']>['risk']> }) {
+  return (
+    <Badge tone={risk.risk === 'CRITICAL' ? 'danger' : risk.risk === 'LIKELY' ? 'warning' : 'info'}
+      className="whitespace-nowrap" >
+      <span title={risk.becauseFa ?? undefined}>
+        احتمال نقض {toPersianDigits(Math.round(risk.probability * 100))}٪
+      </span>
+    </Badge>
+  );
 }
 
 /**
@@ -82,6 +100,7 @@ export default function MyWork() {
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-2">
                           {i.sla && <SlaChip sla={i.sla} />}
+                          {i.sla?.risk && <RiskChip risk={i.sla.risk} />}
                           {i.availableTransitions.length > 0
                             ? <WorkflowActions entity={i.entityType} id={i.entityId} transitions={i.availableTransitions} onDone={() => void refetch()} />
                             : <Link to={i.href}><Button size="sm">باز کردن</Button></Link>}

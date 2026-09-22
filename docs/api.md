@@ -154,7 +154,7 @@ A submitter cannot approve their own form.
 | Endpoint | Permission | Contents |
 |---|---|---|
 | `GET /reports/my-dashboard` | authenticated | My tasks, projects, approvals, revisions, SLAs |
-| `GET /me/work` | authenticated | One work queue: tasks, owned work orders, QC for my level, forms awaiting my roles, my revisions, clarification requests if I issue orders. Each item has `availableTransitions`, its nearest open `sla` with `controlledHours`, and `href`; ordered breached → soonest SLA → due date |
+| `GET /me/work` | authenticated | One work queue: tasks, owned work orders, QC for my level, forms awaiting my roles, my revisions, clarification requests if I issue orders. Each item has `availableTransitions`, its nearest open `sla` with `controlledHours` (and `sla.risk` when that deadline is predicted to breach — probability, band and the first reason), and `href`; ordered breached → soonest SLA → due date |
 | `GET /reports/executive` | `report.executive` | Pipeline, portfolio health, finance, delivery, governance |
 | `GET /reports/sales` | `report.read` | Funnel, conversion, brief quality, per-owner performance |
 | `GET /reports/units` | `report.read` | On-time delivery, first pass yield, revision rate, declared cost |
@@ -205,6 +205,7 @@ Each requires both `ai.use` and the underlying data permission.
 | `GET /history/:entityType/:entityId/at?ts=` | The record as it stood at `ts`, reconstructed by folding the trail; `known: false` before its first event |
 | `GET /history/:entityType/:entityId/diff?from=&to=` | Field-level differences between two instants, with the count of events and the actors in between |
 | `GET /sla-clocks` | authenticated — each clock carries `elapsedHours`, `pausedHours`, `controlledHours`, `budgetHours` and its `pauses`; `entityType`+`entityId` scope it to one record, `state=ALL` includes closed clocks |
+| `GET /sla-clocks/predictions?mine=&minProbability=&limit=` | authenticated — open clocks ranked by the probability they will breach (roadmap #8). Each row carries `probability`, `risk`, `ratio` against the fixed `warnAt`, `beatsWarnAt` (predicted to fail while the threshold is still silent), `expectedFinish`/`expectedOverrunHours`, the `basis` (source `POLICY_AND_UNIT` / `POLICY` / `NONE`, samples, survivors, breach rate, median, p85), `loadFactor` and `becauseFa[]` |
 | `POST /workflow/task/:id/transitions` `{ action: "assign", payload: { assigneeId } }` | `task.assign` — dispatch names a person: `ASSIGNEE_REQUIRED` (400) without one, `ASSIGNEE_INVALID` (400) for someone inactive or outside the organisation. The acceptance clock is opened in that person's name |
 | `POST /sla-clocks/:id/pause` `{ kind, reason }`, `POST /sla-clocks/:id/resume` | the clock's owner, or `traffic.manage`. `kind` is one of `WAITING_ON_CLIENT`, `WAITING_ON_SUPPLIER`, `INTERNAL_DEPENDENCY`; `reason` is mandatory |
 | `GET /notifications`, `POST /notifications/read-all` | authenticated |

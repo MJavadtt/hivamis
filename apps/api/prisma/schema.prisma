@@ -1477,6 +1477,10 @@ model SlaClock {
   pausedHours  Decimal   @default(0) @db.Decimal(8, 2)
   state        String    @default("RUNNING")
   warnedAt     DateTime?
+  /// When the owner was told this clock was *predicted* to breach — once per clock (roadmap #8).
+  riskNotifiedAt DateTime?
+  /// The probability that prompted that message, kept so the prediction can be judged afterwards.
+  riskProbability Decimal? @db.Decimal(4, 3)
   breachedAt   DateTime?
   ownerId      String?
   pauses       SlaPause[]

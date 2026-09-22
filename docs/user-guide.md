@@ -124,6 +124,12 @@ and the project end date together.
   already full is allowed — the warning is there to be read, not to block — but a task can no
   longer be dispatched to nobody, because the four-hour acceptance clock it starts has to belong
   to someone.
+- **Reports → SLA** — compliance per policy, and above it the deadlines *predicted* to be
+  missed: for each open clock, the share of comparable past deadlines — same policy, same unit,
+  still open at the same point — that went on to breach, raised when the owner is over capacity.
+  A row marked «پیش از آستانهٔ ثابت» is one the fixed warning threshold cannot see yet. Each row
+  shows its evidence: how many comparable deadlines, how many went over, and the median they
+  took. With no history the row says so instead of inventing a number.
 - **Reports → Units** — on-time delivery, first pass yield and revision rate per unit.
 - **Reports → Data quality** — records that will silently break the process: an ACTIVE project
   with no authorisation, a task with no source document, overdue revisions. Treat CRITICAL
@@ -131,6 +137,10 @@ and the project end date together.
 - **Lessons learned** — record them at closure; they satisfy one of the eight closure conditions.
 
 ---
+
+**Being told before, not after.** «کارهای من» shows «احتمال نقض ٪…» beside a deadline heading
+for a breach, and the owner is emailed once when it passes 70 %. The fixed threshold still
+fires at three-quarters of the budget; the prediction is what arrives earlier.
 
 **Schedule and critical path («زمان‌بندی» on a project).** Link tasks — «ب» after «الف» — and
 the chart shows every task's earliest and latest dates, its float (the lighter stretch it can

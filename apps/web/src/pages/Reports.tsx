@@ -16,6 +16,7 @@ import {
 } from '../components/ui';
 import { formatCurrency, formatPercent, toPersianDigits, formatDate } from '../lib/format';
 import { ProcessMap } from '../components/ProcessMap';
+import { BreachRisk } from '../components/BreachRisk';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -336,6 +337,7 @@ function SlaReport() {
 
   return (
     <div className="space-y-5">
+      <BreachRisk />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="نرخ پایبندی کلی"
           value={data.overall.complianceRate != null ? `${toPersianDigits(data.overall.complianceRate)}٪` : '—'}

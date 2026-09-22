@@ -34,8 +34,8 @@ Status vocabulary, and it is used strictly:
 | 14 | Time logging and cost accuracy | — | Verified | e10973e |
 | 10 | Critical path and Gantt | 13 | Verified | 0e7c2d1 |
 | 11 | Monte Carlo delivery forecast | 13, 14 | Verified | 4b85505 |
-| 12 | Capacity-aware assignment | 13 | Verified | next |
-| 8 | SLA breach prediction | 13 | Pending | |
+| 12 | Capacity-aware assignment | 13 | Verified | bfaa4a1 |
+| 8 | SLA breach prediction | 13 | Verified | next |
 | 17 | Conditional routing and approval | — | Pending | |
 | 18 | Parallel approval chains and quorum | 17 | Pending | |
 | 15 | No-code form designer | 16 | Pending | |

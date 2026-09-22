@@ -513,3 +513,28 @@ is recorded.
 (400 `ASSIGNEE_REQUIRED`). Dispatch starts the four-hour acceptance clock, and a clock with no
 owner measures nobody — which was possible before and is not a judgement call.
 
+## ADR-023 — A breach is predicted from comparable clocks, and the prediction shows its working
+
+**Decision.** `predictClocks` answers, for every open SLA clock: of the finished clocks of the
+same policy and the same unit that were *still open at the point this one has reached*, what
+share went on to exceed the budget. That conditional share is the probability. It is raised —
+never lowered — when the owner is over capacity, by at most half again at 200 % utilisation
+(roadmap #12). Below eight comparable clocks the model falls back to the policy across all
+units, and below eight of those it returns the consumption ratio and says `source: NONE`.
+
+Every prediction returns `becauseFa[]`: the number of comparable clocks, the share that
+breached, the median they took, and whether the fixed threshold is still silent. The owner is
+told once per clock (`riskNotifiedAt`) when the probability passes 0.7.
+
+**Rationale.** `warnAt` fires at a fixed fraction of the budget, which tells a person they *were*
+late — three-quarters of the deadline is already spent by then. The clocks are a complete record
+of how long each policy really takes in each unit, so the same question can be answered at the
+start. A conditional share over real observations is defensible in a way a fitted curve is not:
+a unit manager can check it by counting.
+
+**Why the load adjustment only goes up.** A person with free capacity still has to do the work;
+claiming a discount for it would be inventing evidence the clocks do not contain.
+
+**Consequences.** `riskProbability` is kept beside `riskNotifiedAt`, so the predictions can be
+scored against what happened — the honest way to find out whether the model earns its place.
+
