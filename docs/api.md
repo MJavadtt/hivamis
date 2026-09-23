@@ -180,6 +180,8 @@ A submitter cannot approve their own form.
 |---|---|---|
 | `GET /memory/search?q=&kinds=&projectId=&limit=` | authenticated | Hybrid retrieval over briefs, proposals, meeting minutes, lessons learned, client feedback and status reports (roadmap #21). Each hit carries `score` and both halves of it (`semantic`, `lexical`), a snippet, and the embedder that produced its vector. Kinds the caller may not read are never searched |
 | `GET /memory/similar/:entityType/:id` | authenticated | The same retrieval seeded by a record's own text — "what have we done before that looks like this". Excludes the record's own project |
+| `GET /projects/:id/lessons?limit=&includeReviewed=` | `project.read` | Lessons from past projects that bear on this one (roadmap #44): retrieval over the project's own text, raised for the same client, the same execution units and the same account owner, each hit carrying `whyFa[]`. Reviewed lessons drop out of the list and are counted instead |
+| `POST /projects/:id/lessons/:lessonId/review` `{ decision, note? }` | `project.plan` | `APPLIED` or `NOT_RELEVANT`; a reason is required to set one aside (`REASON_REQUIRED`). Recorded on the project's history as `LESSON_REVIEWED` |
 | `GET /memory/status` | `report.read` | What the index holds per kind, which models produced it, when it last ran, and whether an embedding service is configured |
 | `POST /memory/reindex` `{ force?, kinds? }` | `admin.settings` | Rebuild; only changed sources are re-embedded unless `force` |
 

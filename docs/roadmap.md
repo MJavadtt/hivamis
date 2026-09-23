@@ -40,8 +40,8 @@ Status vocabulary, and it is used strictly:
 | 18 | Approval chains and quorum | 17 | Verified | b8b9f6d |
 | 15 | No-code form designer | 16 | Verified | 671c78a |
 | 19 | Offline forms (PWA) | — | Verified | e364cf2 |
-| 21 | Semantic search over organisational memory | — | Verified | next |
-| 44 | Lessons-learned surfacing at project start | 21 | Pending | |
+| 21 | Semantic search over organisational memory | — | Verified | 8295207 |
+| 44 | Lessons-learned surfacing at project start | 21 | Verified | next |
 | 25 | Brief quality scoring | — | Pending | |
 | 24 | Estimation assistant | 14 | Pending | |
 | 22 | Automated QC, stage zero | — | Pending | |

@@ -1103,6 +1103,125 @@ describe('Organisational memory', () => {
   });
 });
 
+describe('Lessons at the start of a project', () => {
+  /**
+   * Doc_H §15 has made lessons learned mandatory for years, and the closing checklist asks for
+   * them. What nobody does is read last year's, because finding the relevant one means
+   * remembering it exists. These tests are about the two halves of the fix: the right lesson
+   * arriving without being asked for, and a record of what the team did with it.
+   */
+  const memory = () => import('../src/memory/index.js');
+
+  async function seedLesson(input: { projectId: string; title: string; situation: string; lesson: string; recommendation: string }) {
+    const org = await prisma.organization.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    return prisma.lessonLearned.create({ data: {
+      organizationId: org.id, projectId: input.projectId, title: input.title, category: 'DELIVERY',
+      situation: input.situation, lesson: input.lesson, recommendation: input.recommendation, recordedById: pmo.id,
+    } });
+  }
+
+  it('brings the client’s own past lesson to a new project, and says why it is there', async () => {
+    const { reindexMemory } = await memory();
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+
+    // A finished project for this client, with a lesson worth carrying forward.
+    const past = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-PAST-${Date.now()}`, name: 'کمپین سال گذشتهٔ همین مشتری',
+      companyId: company.id, accountOwnerId: pmo.id, state: 'CLOSED',
+      objective: 'کمپین ویدئویی برای معرفی محصول تازه',
+    } });
+    const lesson = await seedLesson({
+      projectId: past.id,
+      title: 'تدوین ویدئو دیرتر از برآورد تمام می‌شود',
+      situation: 'در کمپین ویدئویی سال گذشته، تدوین دو هفته بیشتر از برآورد طول کشید.',
+      lesson: 'برآورد تدوین ویدئو برای این مشتری همیشه خوش‌بینانه بوده است.',
+      recommendation: 'برای تدوین ویدئو دو هفته حاشیه بگذارید و ظرفیت را از قبل رزرو کنید.',
+    });
+    // And an unrelated lesson from a different client, which should not win.
+    const otherCompany = await prisma.company.create({ data: {
+      organizationId: org.id, legalName: 'شرکت نامرتبط', industry: 'OTHER',
+      salesOwnerId: pmo.id, accountOwnerId: pmo.id,
+    } });
+    const unrelated = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-OTHER-${Date.now()}`, name: 'پروژهٔ حقوقی نامرتبط',
+      companyId: otherCompany.id, accountOwnerId: pmo.id, state: 'CLOSED', objective: 'تنظیم قرارداد و الحاقیه',
+    } });
+    await seedLesson({
+      projectId: unrelated.id, title: 'الحاقیهٔ قرارداد را زودتر امضا بگیرید',
+      situation: 'امضای الحاقیه دیر شد.', lesson: 'امضای الحاقیه زمان‌بر است.',
+      recommendation: 'امضای الحاقیه را از ابتدای کار شروع کنید.',
+    });
+
+    const fresh = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-NEW-${Date.now()}`, name: 'کمپین ویدئویی تازه',
+      companyId: company.id, accountOwnerId: pmo.id, state: 'ACTIVE',
+      objective: 'کمپین ویدئویی برای معرفی محصول جدید با تدوین سنگین',
+    } });
+    await reindexMemory(org.id);
+
+    const res = expectOk(await get(`/projects/${fresh.id}/lessons`, T.pmo), 'lessons');
+    expect(res.lessons.length).toBeGreaterThan(0);
+    const top = res.lessons[0];
+    expect(top.lessonId).toBe(lesson.id);
+    expect(top.fromProject.name).toBe('کمپین سال گذشتهٔ همین مشتری');
+    expect(top.recommendation).toContain('دو هفته حاشیه');
+    // The reasons are shown, not just a ranking.
+    expect(top.whyFa.join(' ')).toContain('همین مشتری');
+    expect(res.reviewed).toBe(0);
+    // A project never learns from itself.
+    expect(res.lessons.some((l: any) => l.fromProject?.id === fresh.id)).toBe(false);
+  });
+
+  it('records what the project did with a lesson, and will not take “not relevant” without a reason', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const { reindexMemory } = await import('../src/memory/index.js');
+
+    const past = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-P2-${Date.now()}`, name: 'پروژهٔ پیشین رسانه',
+      companyId: company.id, accountOwnerId: pmo.id, state: 'CLOSED', objective: 'خرید رسانه و اجرای کمپین',
+    } });
+    const lesson = await seedLesson({
+      projectId: past.id, title: 'تأیید رسانه را زودتر بگیرید',
+      situation: 'تأیید پلن رسانه سه روز طول کشید.', lesson: 'تأیید رسانه گلوگاه است.',
+      recommendation: 'پلن رسانه را یک هفته زودتر بفرستید.',
+    });
+    const fresh = await prisma.project.create({ data: {
+      organizationId: org.id, code: `PRJ-N2-${Date.now()}`, name: 'کمپین رسانه‌ای تازه',
+      companyId: company.id, accountOwnerId: pmo.id, state: 'ACTIVE', objective: 'خرید رسانه و اجرای کمپین فصلی',
+    } });
+    await reindexMemory(org.id);
+
+    // Setting a lesson aside is a judgement; a judgement with no reason teaches nobody.
+    expect((await post(`/projects/${fresh.id}/lessons/${lesson.id}/review`, T.pmo, { decision: 'NOT_RELEVANT' })).body.error.code).toBe('REASON_REQUIRED');
+    expect((await post(`/projects/${fresh.id}/lessons/${lesson.id}/review`, T.pmo, { decision: 'SEEN' })).body.error.code).toBe('INVALID_DECISION');
+    // And it is a planner's call, not everyone's.
+    expect((await post(`/projects/${fresh.id}/lessons/${lesson.id}/review`, T.designer, { decision: 'APPLIED' })).status).toBe(403);
+
+    const applied = expectOk(await post(`/projects/${fresh.id}/lessons/${lesson.id}/review`, T.pmo, {
+      decision: 'APPLIED', note: 'پلن رسانه را در هفتهٔ اول می‌فرستیم.',
+    }), 'apply');
+    expect(applied.decision).toBe('APPLIED');
+
+    // Reviewed lessons leave the list, and are counted instead.
+    const after = expectOk(await get(`/projects/${fresh.id}/lessons`, T.pmo), 'after review');
+    expect(after.lessons.some((l: any) => l.lessonId === lesson.id)).toBe(false);
+    expect(after.reviewed).toBe(1);
+    const withReviewed = expectOk(await get(`/projects/${fresh.id}/lessons`, T.pmo, { includeReviewed: 'true' }), 'with reviewed');
+    const seen = withReviewed.lessons.find((l: any) => l.lessonId === lesson.id);
+    expect(seen.review.decision).toBe('APPLIED');
+    expect(seen.review.note).toContain('هفتهٔ اول');
+
+    // The decision is on the project's own record, as an event about it.
+    const history = expectOk(await get(`/history/project/${fresh.id}`, T.pmo), 'history');
+    expect(history.events.some((e: any) => e.action === 'LESSON_REVIEWED')).toBe(true);
+  });
+});
+
 describe('Forms filled offline', () => {
   /**
    * Production is on set and Media is at the client's office; the D and E forms are filled

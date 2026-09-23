@@ -12,6 +12,7 @@ import { RecordHistory } from '../components/RecordHistory';
 import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
 import { Gantt } from '../components/Gantt';
+import { ProjectLessons } from '../components/ProjectLessons';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -195,7 +196,13 @@ export function ProjectDetail() {
       </div>
 
       <PageBody className="space-y-5">
-        {tab === 'overview' && <Overview data={data} />}
+        {tab === 'overview' && (
+          <>
+            {/* At the top of the project, where it can still change how the work is run. */}
+            <ProjectLessons projectId={p.id} />
+            <Overview data={data} />
+          </>
+        )}
         {tab === 'work' && <WorkTab data={data} />}
         {tab === 'schedule' && <Gantt projectId={p.id} />}
         {tab === 'quality' && <QualityTab data={data} />}

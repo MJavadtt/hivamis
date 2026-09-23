@@ -3,6 +3,9 @@ import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { notFound } from '../lib/errors.js';
 import { embeddingServiceConfigured, LOCAL_MODEL } from '../memory/embed.js';
+import { lessonsForProject } from '../memory/lessons.js';
+import { audit } from '../lib/audit.js';
+import { badRequest } from '../lib/errors.js';
 import {
   KIND_LABEL_FA, MEMORY_KINDS, reindexMemory, searchMemory, type MemoryKind,
 } from '../memory/index.js';
@@ -65,6 +68,65 @@ const memoryRoutes: FastifyPluginAsync = async (app) => {
       hits: result.hits.filter((h) => !(h.entityType === doc.entityType && h.entityId === doc.entityId)),
       model: result.model, usedService: result.usedService,
     };
+  });
+
+  /**
+   * What the organisation already learned that bears on this project (roadmap #44) — asked on
+   * the project's behalf rather than waiting for somebody to remember to search.
+   */
+  app.get('/projects/:id/lessons', {
+    preHandler: [app.authenticate, app.requirePermissions('project.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { limit, includeReviewed } = req.query as Record<string, string | undefined>;
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    return lessonsForProject(prisma, actor.organizationId, id, {
+      permissions: actor.permissions,
+      limit: limit ? Number(limit) : undefined,
+      includeReviewed: includeReviewed === 'true',
+    });
+  });
+
+  /**
+   * What this project did with a lesson. Two answers only — it changed how we work here, or it
+   * was considered and set aside — because "seen" is not a decision and would measure nothing.
+   */
+  app.post('/projects/:id/lessons/:lessonId/review', {
+    preHandler: [app.authenticate, app.requirePermissions('project.plan')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id, lessonId } = req.params as { id: string; lessonId: string };
+    const { decision, note } = (req.body ?? {}) as { decision?: string; note?: string };
+    if (decision !== 'APPLIED' && decision !== 'NOT_RELEVANT') {
+      throw badRequest('INVALID_DECISION', 'تصمیم باید «به‌کار گرفته شد» یا «مرتبط نبود» باشد');
+    }
+    const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    const lesson = await prisma.lessonLearned.findFirst({ where: { id: lessonId, organizationId: actor.organizationId }, select: { id: true, title: true } });
+    if (!lesson) throw notFound('درس آموخته');
+    if (decision === 'NOT_RELEVANT' && !note?.trim()) {
+      // Setting a lesson aside is a judgement, and a judgement with no reason teaches nobody.
+      throw badRequest('REASON_REQUIRED', 'برای «مرتبط نبود» نوشتن دلیل لازم است');
+    }
+
+    const review = await prisma.lessonReview.upsert({
+      where: { projectId_lessonId: { projectId: id, lessonId } },
+      create: {
+        organizationId: actor.organizationId, projectId: id, lessonId,
+        decision, note: note?.trim() || null, reviewedById: actor.id,
+      },
+      update: { decision, note: note?.trim() || null, reviewedById: actor.id },
+    });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'LESSON_REVIEWED',
+      entityType: 'project', entityId: id,
+      after: { lessonId, lessonTitle: lesson.title, decision },
+      reason: note?.trim() || null,
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+    });
+    return reply.code(201).send(review);
   });
 
   /** What the index holds, and how fresh it is. */

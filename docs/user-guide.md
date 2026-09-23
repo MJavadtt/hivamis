@@ -262,6 +262,17 @@ every search — the page tells you which you are looking at rather than letting
 You only ever see records you could already open: a kind you have no permission to read is
 never searched.
 
+**At the top of every project: what we already learned.** Doc_H has required lessons learned at
+closure for years; the problem was never writing them, it was that nobody reads last year's.
+The project's own overview now shows the past lessons that bear on it — matched on the project's
+description, and raised when they come from the same client, the same execution units or the
+same account owner. Each one says why it is there.
+
+Two answers are possible, and «دیدم» is not one of them: **در این پروژه به‌کار می‌گیریم**, or
+**مرتبط نیست** with a reason. A lesson you have answered leaves the list and is counted instead,
+and the decision is written to the project's history. That record is the difference between an
+organisation that learns and one that archives.
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

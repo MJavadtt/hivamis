@@ -675,3 +675,28 @@ is stated in words on every response and on the page.
 its records carry, and a kind the caller cannot read is never searched. Memory can widen what
 somebody *finds*, never what they may see.
 
+## ADR-029 — A lesson is surfaced without being asked for, and answered rather than acknowledged
+
+**Decision.** A project's overview retrieves past lessons against its own text (ADR-028),
+excluding its own project, and raises the score for three plain signals: the same client
+(+0.18), a shared execution unit (+0.10) and the same account owner (+0.05). Every hit returns
+`whyFa[]` — which signals applied, and whether the textual match was semantic or lexical.
+
+A lesson can be answered in exactly two ways: `APPLIED`, or `NOT_RELEVANT` with a written
+reason. An answered lesson leaves the list and joins a count; the answer is written to the
+project's history as `LESSON_REVIEWED`.
+
+**Rationale.** Doc_H §15 makes lessons mandatory and the closing checklist asks for them, so the
+organisation has been *writing* them for years. Reading them is the part that never happens,
+because finding the relevant one means remembering it exists. Asking the question on the team's
+behalf, at kick-off, is the whole feature.
+
+**Why there is no "seen" button.** "Acknowledged" measures attention, not learning, and would
+make the count meaningless within a quarter. Forcing a choice between *used it* and *set it
+aside, for this reason* produces something a manager can actually read — and the reasons
+accumulate into evidence about which lessons keep being written and never used.
+
+**Why boosts rather than filters.** A same-client filter would hide the lesson from another
+client that is exactly the trap this project is walking into. The signals move a lesson up the
+list; they never decide what is on it.
+

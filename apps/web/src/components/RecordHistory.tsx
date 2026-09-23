@@ -24,6 +24,7 @@ const ACTION_FA: Record<string, string> = {
   CREATE: 'ایجاد', UPDATE: 'ویرایش', DELETE: 'حذف', STATE_TRANSITION: 'تغییر وضعیت', APPROVE: 'تأیید',
   EXPORT: 'خروجی PDF', FILE_UPLOAD: 'بارگذاری فایل', FILE_DOWNLOAD: 'دانلود فایل',
   SLA_PAUSE: 'توقف مهلت', SLA_RESUME: 'از سرگیری مهلت',
+  LESSON_REVIEWED: 'بررسی درس آموخته',
 };
 const WITHHELD_FA: Record<string, string> = {
   cost: 'قیمت تمام‌شده — خارج از سطح دسترسی', price: 'قیمت فروش — خارج از سطح دسترسی', sensitive: 'محرمانه',

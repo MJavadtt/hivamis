@@ -627,6 +627,7 @@ model Project {
   deletedAt      DateTime?
 
   authorizations   ExecutionAuthorization[]
+  lessonReviews    LessonReview[]
   milestones       Milestone[]
   deliverables     Deliverable[]
   workOrders       WorkOrder[]
@@ -1325,6 +1326,7 @@ model LessonLearned {
   organizationId String
   projectId      String
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reviews        LessonReview[]
   title          String
   category       String
   situation      String
@@ -1666,6 +1668,28 @@ model Notification {
 }
 
 /// Doc_H-derived AI governance: every AI call is recorded with its actor, scope and grounding.
+/// A past lesson, weighed against a new project (roadmap #44). Doc_H makes lessons mandatory
+/// at closure and puts them on the closing checklist, but a lesson nobody reads is a ritual.
+/// Surfacing them at kick-off is half the answer; recording what the team *did* with each one
+/// is the other half, and it is what turns "we archive" into "we learn".
+model LessonReview {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         LessonLearned @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  /// APPLIED — it changed how this project is being run; NOT_RELEVANT — considered and set aside.
+  decision       String
+  note           String?
+  reviewedById   String
+  createdAt      DateTime @default(now())
+
+  @@unique([projectId, lessonId])
+  @@index([organizationId, projectId])
+  @@map("lesson_reviews")
+}
+
 /// One indexed piece of organisational memory (roadmap #21): a brief, a proposal, a set of
 /// meeting minutes, a lesson learned, a piece of client feedback — reduced to the text worth
 /// remembering and the vector that text embeds to.
