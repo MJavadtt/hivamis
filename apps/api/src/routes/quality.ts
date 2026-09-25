@@ -11,6 +11,7 @@ import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
 import { allowedFor } from '../workflow/engine.js';
 import { transitionWithin } from '../workflow/engine.js';
+import { stageZero } from '../quality/stage-zero.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
 const LEVEL_PERMISSION = { UNIT: 'qc.unit', ACCOUNT: 'qc.account', FINAL: 'qc.final' } as const;
@@ -290,6 +291,26 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
         overdueRevisions: openRevisions.filter((r) => r.dueDate < new Date()).length,
       },
     };
+  });
+
+  /**
+   * QC stage zero, on demand (roadmap #22): the unit checks its handover before making it, and
+   * Account re-checks after a file changes. Run outside any transition, so the result — a FAIL
+   * included — is kept on the deliverable for whoever looks next.
+   */
+  app.post('/deliverables/:id/stage-zero', {
+    preHandler: [app.authenticate, app.requirePermissions('deliverable.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const d = await prisma.deliverable.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
+    if (!d) throw notFound('خروجی');
+    const result = await stageZero(prisma, actor.organizationId, id);
+    await prisma.deliverable.update({
+      where: { id },
+      data: { stageZeroVerdict: result.verdict, stageZeroAt: new Date(), stageZeroFindings: result as unknown as object },
+    });
+    return result;
   });
 };
 

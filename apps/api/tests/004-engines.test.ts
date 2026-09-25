@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { call, closeApp, get, login, post, patch, move, expectOk } from './helpers.js';
+import { call, closeApp, get, login, post, patch, move, expectOk, upload, tinyPdf, zipOf } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../src/sla/engine.js';
@@ -1100,6 +1100,145 @@ describe('Organisational memory', () => {
     // Reindexing is an administrator's button, not everyone's.
     expect((await post('/memory/reindex', T.pmo, {})).status).toBe(403);
     expect(expectOk(await post('/memory/reindex', T.admin, {}), 'reindex').scanned).toBeGreaterThan(0);
+  });
+});
+
+describe('QC stage zero', () => {
+  /**
+   * A good share of what the Account desk sends back is not a judgement: the PDF that was asked
+   * for is not there, an image is the wrong size, a draft went up. These tests pin down the
+   * mechanical checks at the unit's handover, and the line between what may block (objective)
+   * and what may only warn (plausible).
+   */
+  const sz = () => import('../src/quality/stage-zero.js');
+
+  /** A real PNG header: 8-byte signature, IHDR chunk with width and height. */
+  const png = (w: number, h: number) => {
+    const b = Buffer.alloc(33);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
+    b.writeUInt32BE(13, 8); b.write('IHDR', 12, 'ascii');
+    b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20);
+    b.writeUInt8(8, 24); b.writeUInt8(2, 25);
+    return b;
+  };
+
+  async function orderAndDeliverable(outputFormat: string, expectedOutput = 'خروجی نهایی') {
+    const org = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const wo = await prisma.workOrder.create({ data: {
+      organizationId: org.id, code: `WO-SZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, projectId: project.id,
+      targetDepartmentCode: 'CR', title: 'بنر کمپین', scopeOfWork: 'طراحی بنر', brief: 'بریف',
+      expectedOutput, outputFormat, deadline: new Date(Date.now() + 10 * 86_400_000), ownerId: pmo.id, state: 'IN_PROGRESS',
+    } });
+    const d = await prisma.deliverable.create({ data: {
+      organizationId: org.id, code: `DLV-SZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, projectId: project.id,
+      workOrderId: wo.id, name: 'بنر کمپین', departmentCode: 'CR', state: 'IN_PROGRESS',
+    } });
+    return { wo, d, project };
+  }
+
+  it('reads what an order asks for without mistaking one word for another', async () => {
+    const { requestedFormats, requestedDimensions, requestedCounts } = await sz();
+    expect(requestedFormats('PDF + فایل باز')).toEqual(['pdf', 'open']);
+    // «مورد» is not «ورد», «تصویربرداری» is not «تصویر», and presenting is not a slide deck.
+    expect(requestedFormats('در هر مورد گزارش کامل')).toEqual([]);
+    expect(requestedFormats('تصویربرداری کمپین')).toEqual([]);
+    expect(requestedFormats('ارائه به مشتری')).toEqual([]);
+    expect(requestedDimensions('۱۲ پوستر ۱۰۸۰×۱۹۲۰')).toEqual([{ width: 1080, height: 1920 }]);
+    expect(requestedCounts('۳ ویدئو و ۱۲ پوستر').map((c) => c.count)).toEqual([3, 12]);
+  });
+
+  it('holds back a handover missing what the order named, and lets it through once it is there', async () => {
+    const { d } = await orderAndDeliverable('PDF + فایل باز');
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+
+    // Nothing attached, though the order asked for a PDF and an open file.
+    const empty = await move('deliverable', d.id, 'submit', T.creative);
+    expect(empty.status).toBe(422);
+    expect(empty.body.error.message).toContain('هیچ فایلی پیوست نشده');
+
+    // The PDF alone is not enough: the open file is missing too.
+    expectOk(await upload(T.creative, { name: 'banner.pdf', type: 'application/pdf', content: tinyPdf() }, { projectId: project.id, deliverableId: d.id }), 'pdf');
+    const halfway = await move('deliverable', d.id, 'submit', T.creative);
+    expect(halfway.status).toBe(422);
+    expect(halfway.body.error.message).toContain('فایل باز');
+    // The refusal is on the record, reasons and all, though the handover did not happen.
+    const blocked = await prisma.auditEvent.findFirstOrThrow({
+      where: { entityId: d.id, action: 'TRANSITION_BLOCKED' }, orderBy: { createdAt: 'desc' },
+    });
+    expect((blocked.after as any).guard).toBe('deliverable.passesStageZero');
+    expect((blocked.after as any).messageFa).toContain('فایل باز');
+
+    // Source formats are outside the upload allow-list, so an open file arrives as an archive —
+    // and stage zero looks inside it rather than demanding something nobody can upload.
+    expectOk(await upload(T.creative, {
+      name: 'banner-source.zip', type: 'application/zip',
+      content: zipOf([{ name: 'banner/banner.psd', content: '8BPS layered source' }, { name: 'banner/fonts.txt', content: 'Vazirmatn' }]),
+    }, { projectId: project.id, deliverableId: d.id }), 'source');
+    expectOk(await move('deliverable', d.id, 'submit', T.creative), 'submit');
+    const passed = await prisma.deliverable.findUniqueOrThrow({ where: { id: d.id } });
+    expect(passed.stageZeroVerdict).toBe('PASS');
+    expect(passed.stageZeroAt).not.toBeNull();
+    const recorded = passed.stageZeroFindings as any;
+    expect(recorded.archived.map((a: any) => a.name)).toContain('banner.psd');
+  });
+
+  it('measures image pixels against the dimensions the order spelled out', async () => {
+    const { stageZero } = await sz();
+    const org = await prisma.organization.findFirstOrThrow();
+    const { d, project } = await orderAndDeliverable('بنر PNG با ابعاد ۱۰۸۰×۱۹۲۰');
+
+    expectOk(await upload(T.creative, { name: 'story.png', type: 'image/png', content: png(1080, 1080) }, { projectId: project.id, deliverableId: d.id }), 'square');
+    const wrong = await stageZero(prisma, org.id, d.id);
+    expect(wrong.verdict).toBe('FAIL');
+    const dim = wrong.findings.find((f) => f.check === 'dimensions')!;
+    expect(dim.messageFa).toContain('1080×1080');
+    expect(dim.messageFa).toContain('1080×1920');
+    expect(wrong.files[0]).toMatchObject({ width: 1080, height: 1080 });
+
+    // Replace it with the right size: no dimension finding left.
+    await prisma.document.updateMany({ where: { deliverableId: d.id }, data: { deletedAt: new Date() } });
+    expectOk(await upload(T.creative, { name: 'story-final.png', type: 'image/png', content: png(1080, 1920) }, { projectId: project.id, deliverableId: d.id }), 'tall');
+    const right = await stageZero(prisma, org.id, d.id);
+    expect(right.findings.some((f) => f.check === 'dimensions')).toBe(false);
+    // And it says what it did not look at, so a pass is never mistaken for a review.
+    expect(right.notCheckedFa.join(' ')).toContain('بازبین انسانی');
+  });
+
+  it('never changes a record when asked "why can\'t I?", and keeps an on-demand check, FAIL included', async () => {
+    const { d, project } = await orderAndDeliverable('PDF');
+    // Preflight runs the guard on a read; the rule lab replays guards against history. Neither may write.
+    const pre = expectOk(await get(`/workflow/deliverable/${d.id}/preflight`, T.creative), 'preflight');
+    const submit = pre.transitions.find((t: any) => t.action === 'submit');
+    expect(submit.checks.find((c: any) => c.guard === 'deliverable.passesStageZero').ok).toBe(false);
+    expect((await prisma.deliverable.findUniqueOrThrow({ where: { id: d.id } })).stageZeroVerdict).toBeNull();
+
+    // The unit's own "check now" is kept, failures and all, for whoever looks next.
+    const checked = expectOk(await post(`/deliverables/${d.id}/stage-zero`, T.creative), 'check now');
+    expect(checked.verdict).toBe('FAIL');
+    expect((await prisma.deliverable.findUniqueOrThrow({ where: { id: d.id } })).stageZeroVerdict).toBe('FAIL');
+
+    // An archive that cannot be read makes a missing format uncertain — a warning, never a failure.
+    expectOk(await upload(T.creative, { name: 'bundle.zip', type: 'application/zip', content: Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('not really a zip')]) }, { projectId: project.id, deliverableId: d.id }), 'broken zip');
+    const opaque = expectOk(await post(`/deliverables/${d.id}/stage-zero`, T.creative), 'opaque');
+    expect(opaque.findings.find((f: any) => f.check === 'format').severity).toBe('WARN');
+    expect(opaque.notCheckedFa.join(' ')).toContain('bundle.zip');
+  });
+
+  it('only warns on what it cannot be sure of, and a warning never blocks', async () => {
+    const { stageZero } = await sz();
+    const org = await prisma.organization.findFirstOrThrow();
+    const { d, project } = await orderAndDeliverable('PDF', '۳ پوستر نهایی');
+    expectOk(await upload(T.creative, { name: 'poster-draft-v0.pdf', type: 'application/pdf', content: tinyPdf() }, { projectId: project.id, deliverableId: d.id }), 'draft');
+
+    const res = await stageZero(prisma, org.id, d.id);
+    expect(res.verdict).toBe('WARN');
+    expect(res.findings.find((f) => f.check === 'draft')!.severity).toBe('WARN');
+    // The order counted three posters and there are none as images: plausible, not certain.
+    expect(res.findings.find((f) => f.check === 'count')!.severity).toBe('WARN');
+    expect(res.findings.every((f) => f.severity !== 'FAIL')).toBe(true);
+    expectOk(await move('deliverable', d.id, 'submit', T.creative), 'warnings do not block');
   });
 });
 

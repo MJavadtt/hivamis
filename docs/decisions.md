@@ -756,3 +756,36 @@ unit's costs are not theirs to read; roles that set or approve prices see every 
 **Advisory.** Doc_H makes the unit responsible for its declaration. The assistant makes a
 figure visible; it does not overrule it.
 
+## ADR-032 — QC stage zero blocks only on certainties, reads inside archives, and never writes from a guard
+
+**Decision.** At the unit's handover (`deliverable.submit`), the guard `deliverable.passesStageZero`
+runs mechanical checks against the work order. FAIL findings — which alone block — are
+objective: a format named in the order's *format field* is absent both as a file and inside every
+readable ZIP; a file is zero bytes; a PNG/JPEG's pixels disagree with dimensions the order spelled
+out. WARN findings never block: fewer items than the order counted, draft-like file names, words
+resembling the project's out-of-scope list, empty entries inside an archive. Anything uncertain is
+downgraded — a missing format when an archive could not be read is a WARN, not a FAIL. Every
+result lists what was checked and what was not.
+
+**Formats come from the format field only.** The expected-output text says what is being made
+(«۳ پوستر»), not how it is delivered; posters routinely arrive as PDF. Reading it as a format
+requirement failed a correct handover in testing. Counts and dimensions may come from either.
+
+**Persian needs whole-word matching.** A substring match fails correct handovers: «ورد» (Word)
+sits inside «مورد», «تصویر» inside «تصویربرداری». Matching is on whole words, Unicode-aware.
+
+**Archives are read, not trusted blindly.** Source formats (PSD, AI, Figma, After Effects) are
+outside the upload allow-list, so an "open file" can only arrive inside a ZIP. A check that could
+not look inside one would demand something nobody can upload. The ZIP's central directory is read
+with no library and no decompression; ZIP64 and damaged archives answer "could not read".
+
+**Guards are pure.** Preflight (#2) runs guards on a read, and the rule lab (#5) replays them
+against history, so a guard that wrote would change real records on every "why can't I?" and
+every policy experiment. The result is stored by the `deliverable.submit` effect when the
+handover happens, and by the explicit check endpoint; a refused handover survives in its
+TRANSITION_BLOCKED audit event, reasons included. Waivable through the governed waiver (#7).
+
+**Rationale.** A good share of what the Account desk sends back needs no judgement. Catching it
+before a person spends time is the point; blocking on anything less than certain would teach
+people to route around the check.
+

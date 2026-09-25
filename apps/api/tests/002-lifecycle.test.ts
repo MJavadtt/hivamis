@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { closeApp, get, login, move, patch, post, expectOk } from './helpers.js';
+import { closeApp, get, login, move, patch, post, expectOk, upload, tinyPdf } from './helpers.js';
 import { prisma } from '../src/db.js';
 
 /**
@@ -234,6 +234,10 @@ describe('Scenario 3 — Account converts the brief into work orders', () => {
 
       const wo = await prisma.workOrder.findUnique({ where: { id: woId } });
       await prisma.deliverable.update({ where: { id: deliverable.id }, data: { workOrderId: woId } });
+      // The order asks for a PDF; QC stage zero (roadmap #22) will not hand over without one.
+      expectOk(await upload(T.accountManager, { name: `${key}.pdf`, type: 'application/pdf', content: tinyPdf(name) }, {
+        projectId: ctx.projectId, deliverableId: deliverable.id,
+      }), `upload ${unit}`);
 
       const task = expectOk(await post('/tasks', T.accountManager, {
         projectId: ctx.projectId, workOrderId: woId, deliverableId: deliverable.id,

@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { stageZero } from '../quality/stage-zero.js';
 
 export interface GuardContext {
   tx: Tx;
@@ -353,6 +354,30 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
         };
   },
 
+  /**
+   * QC stage zero (roadmap #22) — the mechanical checks, run fresh at the unit's handover. Only
+   * objective failures hold it back (a format the order named is missing, an empty file, pixels
+   * that disagree with dimensions the order spelled out); warnings travel with the deliverable
+   * for the reviewer.
+   *
+   * Pure, like every guard: preflight (#2) asks it "why can't I?" on a read, and the rule lab (#5)
+   * replays it against history — neither may change a record. The result is stored by the
+   * `deliverable.submit` effect when the handover actually happens; a refusal survives where
+   * every refusal does, in the TRANSITION_BLOCKED audit event, reasons included.
+   */
+  'deliverable.passesStageZero': async ({ tx, id, record }) => {
+    const result = await stageZero(tx, record.organizationId, id);
+    const failing = result.findings.filter((f) => f.severity === 'FAIL');
+    return failing.length === 0
+      ? pass
+      : {
+          ok: false,
+          rule: 'QC مرحلهٔ صفر — بررسی خودکار پیش از QC اکانت',
+          messageFa: `پیش از تحویل به اکانت رفع شود: ${failing.map((f) => f.messageFa).join('؛ ')}`,
+          details: { findings: failing },
+        };
+  },
+
   /** Doc_H §10 — a revision without a recorded reason is invalid. */
   'revision.hasReason': async ({ record }) =>
     typeof record.reason === 'string' && record.reason.trim().length > 0
@@ -444,6 +469,7 @@ export const GUARD_LABELS: Record<string, string> = {
   'workOrder.costDeclared': 'قیمت تمام‌شدهٔ واحد اعلام شده باشد',
   'workOrder.unitQcPassed': 'QC سطح ۱ واحد با نتیجهٔ قبول ثبت شده باشد',
   'deliverable.accountQcPassed': 'QC اکانت با نتیجهٔ قبول ثبت شده باشد',
+  'deliverable.passesStageZero': 'بررسی خودکار مرحلهٔ صفر: فرمت‌ها و ابعاد خواسته‌شده حاضر باشند و فایلی خالی نباشد',
   'revision.hasReason': 'دلیل اصلاحیه ثبت شده باشد',
   'change.isInScope': 'تغییر در محدودهٔ Scope ارزیابی شده باشد',
   'change.isOutOfScope': 'تغییر خارج از Scope ارزیابی شده باشد',

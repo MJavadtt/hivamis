@@ -80,3 +80,72 @@ export function expectOk(res: { status: number; body: any }, context: string): a
   }
   return res.body;
 }
+
+/**
+ * Upload one file through the real multipart endpoint, attached to whatever the fields name
+ * (deliverableId, projectId…). The content must match the declared type's signature — the
+ * server checks magic bytes, not the extension.
+ */
+export async function upload(
+  token: string, file: { name: string; type: string; content: Buffer | string }, fields: Record<string, string> = {},
+) {
+  const a = await app();
+  const boundary = `----hiva${Math.random().toString(36).slice(2)}`;
+  const parts: Buffer[] = [];
+  for (const [k, v] of Object.entries(fields)) {
+    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));
+  }
+  parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\nContent-Type: ${file.type}\r\n\r\n`));
+  parts.push(typeof file.content === 'string' ? Buffer.from(file.content) : file.content);
+  parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+  const res = await a.inject({
+    method: 'POST', url: '/api/v1/documents',
+    headers: { authorization: `Bearer ${token}`, 'content-type': `multipart/form-data; boundary=${boundary}` },
+    payload: Buffer.concat(parts),
+  });
+  let body: any = null;
+  try { body = res.body ? JSON.parse(res.body) : null; } catch { body = res.body; }
+  return { status: res.statusCode, body };
+}
+
+/** The smallest file a PDF signature check accepts. */
+export const tinyPdf = (title = 'Hiva') =>
+  `%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n% ${title}\ntrailer<</Root 1 0 R>>\n%%EOF\n`;
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (buf: Buffer) => {
+  let c = 0xffffffff;
+  for (const byte of buf) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+
+/** A real, stored (uncompressed) ZIP — what a unit hands over when the source file is a PSD. */
+export function zipOf(entries: { name: string; content: Buffer | string }[]): Buffer {
+  const locals: Buffer[] = []; const central: Buffer[] = [];
+  let offset = 0;
+  for (const e of entries) {
+    const data = typeof e.content === 'string' ? Buffer.from(e.content) : e.content;
+    const name = Buffer.from(e.name, 'utf8');
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
+    local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    locals.push(local, name, data);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6); cd.writeUInt16LE(0x0800, 8);
+    cd.writeUInt32LE(crc, 16); cd.writeUInt32LE(data.length, 20); cd.writeUInt32LE(data.length, 24);
+    cd.writeUInt16LE(name.length, 28); cd.writeUInt32LE(offset, 42);
+    central.push(cd, name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdBuf = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(cdBuf.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cdBuf, end]);
+}

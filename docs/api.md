@@ -102,6 +102,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Tasks | `/tasks` | `task.read` |
 | Deliverables | `/deliverables` | `deliverable.read` |
 | QC reviews | `/qc-reviews` (+ `/qc/queue`) | `qc.read` |
+| QC stage zero | `POST /deliverables/:id/stage-zero` — the mechanical checks, on demand (roadmap #22): every format the work order's *format field* names is present (directly or inside a ZIP, whose central directory is read), no file is empty, PNG/JPEG pixels match dimensions the order spelled out, and — as warnings only — as many items as the order counted, no draft-like file names, nothing resembling the project's out-of-scope list. Returns `verdict` (PASS/WARN/FAIL), `findings`, `checkedFa`, `notCheckedFa`, `files`, `archived`, and stores it on the deliverable. The same checks run as the guard `deliverable.passesStageZero` on `submit`, where only FAIL findings block | `deliverable.read` |
 | Revisions | `/revisions` | `revision.read` |
 | Change requests | `/change-requests` (+ `/:id/scope-review`, `/:id/impact`) | `change.read` |
 | Contracts | `/contracts` (+ `POST /:id/amendments`) | `contract.read` |

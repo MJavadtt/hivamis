@@ -1,6 +1,7 @@
 import type { Tx } from '../db.js';
 import { badRequest } from '../lib/errors.js';
 import { logTime } from '../reports/time.js';
+import { stageZero } from '../quality/stage-zero.js';
 import { cascadeState } from './engine.js';
 
 export interface EffectContext {
@@ -130,7 +131,15 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   },
   'task.close': async () => ({ closedAt: new Date() }),
 
-  'deliverable.submit': async () => ({ submittedAt: new Date() }),
+  // The handover happened, so its stage-zero result is kept with it: Account sees what the
+  // machine already checked — and what it could not — before opening a single file (#22).
+  'deliverable.submit': async ({ tx, id, organizationId }) => {
+    const result = await stageZero(tx, organizationId, id);
+    return {
+      submittedAt: new Date(),
+      stageZeroVerdict: result.verdict, stageZeroAt: new Date(), stageZeroFindings: result as unknown as object,
+    };
+  },
   'deliverable.deliver': async () => ({ deliveredAt: new Date() }),
   'deliverable.client_accept': async () => ({ acceptedAt: new Date() }),
   'deliverable.client_reject': async ({ reason }) => ({ rejectReason: reason ?? null }),

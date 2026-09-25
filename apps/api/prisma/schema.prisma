@@ -830,6 +830,11 @@ model Deliverable {
   deliveredAt    DateTime?
   acceptedAt     DateTime?
   rejectReason   String?
+  /// QC stage zero (roadmap #22): the mechanical checks run when the unit hands over — PASS,
+  /// WARN or FAIL — when they last ran, and what they found. A reviewer sees them before opening a file.
+  stageZeroVerdict  String?
+  stageZeroAt       DateTime?
+  stageZeroFindings Json?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

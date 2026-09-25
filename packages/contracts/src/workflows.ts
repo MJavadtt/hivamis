@@ -183,7 +183,8 @@ export const DELIVERABLE_WORKFLOW: WorkflowDef = {
   terminal: ['ACCEPTED'],
   transitions: [
     { from: ['PLANNED'], to: 'IN_PROGRESS', action: 'start', labelFa: 'شروع تولید', labelEn: 'Start production', permission: 'deliverable.write' },
-    { from: ['IN_PROGRESS', 'REVISION_REQUIRED'], to: 'SUBMITTED', action: 'submit', labelFa: 'تحویل به اکانت', labelEn: 'Submit to Account', permission: 'deliverable.write' },
+    // QC stage zero (roadmap #22): the mechanical checks before a person's time is spent.
+    { from: ['IN_PROGRESS', 'REVISION_REQUIRED'], to: 'SUBMITTED', action: 'submit', labelFa: 'تحویل به اکانت', labelEn: 'Submit to Account', permission: 'deliverable.write', guards: ['deliverable.passesStageZero'] },
     { from: ['SUBMITTED'], to: 'IN_QC', action: 'send_to_qc', labelFa: 'ارسال به QC اکانت', labelEn: 'Send to Account QC', permission: 'qc.account', startsSla: 'SLA_ACCOUNT_QC' },
     { from: ['IN_QC'], to: 'REVISION_REQUIRED', action: 'qc_reject', labelFa: 'عدم تأیید — صدور اصلاحیه', labelEn: 'QC rejected — raise revision', permission: 'qc.account', requiresReason: true, stopsSla: ['SLA_ACCOUNT_QC'] },
     { from: ['IN_QC'], to: 'APPROVED', action: 'qc_approve', labelFa: 'تأیید QC', labelEn: 'QC approved', permission: 'qc.account', stopsSla: ['SLA_ACCOUNT_QC'] },

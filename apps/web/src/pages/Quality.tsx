@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
+import { StageZero } from '../components/StageZero';
 import { Code, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import {
@@ -140,7 +141,11 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
       <tbody>
         {rows.map((r) => (
           <Tr key={r.id}>
-            <Td><p className="text-sm">{r.name ?? r.title}</p><Code>{r.code}</Code></Td>
+            <Td>
+              <p className="text-sm">{r.name ?? r.title}</p><Code>{r.code}</Code>
+              {/* What the machine already checked, before a person opens a file (roadmap #22). */}
+              {!isProposal && <div className="mt-1"><StageZero deliverable={r} /></div>}
+            </Td>
             {!isProposal && <Td className="text-xs">{r.departmentCode}</Td>}
             <Td className="text-xs">
               {isProposal ? r.brief?.title

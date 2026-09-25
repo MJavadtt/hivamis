@@ -110,6 +110,16 @@ below three-quarters of them, it says so in plain words, and your unit manager i
 price can still change. If your unit has been declaring low as a habit, the dialog says by how
 much. Nothing is blocked: the declaration is yours. And when there are too few finished orders to
 compare against, the dialog says that instead of inventing a range.
+
+**Before a deliverable reaches Account, the machine checks the obvious.** When you hand a
+deliverable over, it is checked against its work order: every format the order's format field
+asks for is attached (source files count if they are inside a ZIP — the system reads the list of
+files in it), no file is empty, and images are the pixel size the order spelled out. Any of those
+missing stops the handover, with the reason in words; fix it and hand over again. Other things
+only warn and never stop you: fewer files than the order counted, a file name that looks like a
+draft, something that sounds like the project's out-of-scope list. **بررسی دوباره** runs the check
+before you hand over. Every result also lists what the machine did *not* look at — the content,
+the brief, the brand — because that is still the reviewer's job.
 ## Finance
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.
