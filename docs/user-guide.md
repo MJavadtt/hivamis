@@ -163,6 +163,16 @@ and the project end date together.
   with no authorisation, a task with no source document, overdue revisions. Treat CRITICAL
   findings as incidents.
 - **Lessons learned** — record them at closure; they satisfy one of the eight closure conditions.
+- **Meetings → minutes → tasks** — a project's «حاکمیت» tab lists its meetings; one without
+  minutes is flagged, and after two days it appears in Data quality. «ثبت صورتجلسه» takes the
+  notes as they were written — one decision or action per line, the owner's name and the deadline
+  as they were said («تا شنبه»، «ظرف ۳ روز»، «۱۲ مهر») — and drafts the minutes: decisions, and
+  actions with an owner, a date and a unit. Nothing is saved until you confirm. Where a first name
+  fits two people, the draft asks which one rather than guessing; lines that promise something
+  with no owner and no date are listed separately, because those are the ones that stay verbal.
+  Each confirmed action becomes a task on the project, sourced to the minutes, and its acceptance
+  clock starts for the owner, who is told in the app. Where a transcription service is configured, meeting audio can be
+  uploaded instead of notes — read the transcript before drafting.
 
 ---
 

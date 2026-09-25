@@ -13,6 +13,7 @@ import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
 import { Gantt } from '../components/Gantt';
 import { ProjectLessons } from '../components/ProjectLessons';
+import { ProjectMeetings } from '../components/MeetingMinutes';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -468,6 +469,8 @@ function GovernanceTab({ data }: { data: Project360 }) {
           </Table>
         )}
       </Card>
+
+      <ProjectMeetings projectId={data.project.id} meetings={data.meetings} />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="ریسک‌ها">

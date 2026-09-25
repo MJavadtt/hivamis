@@ -423,6 +423,29 @@ export const createDecisionSchema = z.object({
   decidedAt: z.coerce.date(),
 });
 
+/**
+ * Confirmed minutes (roadmap #23): the decisions, and the actions the person who ran the meeting
+ * chose to turn into tasks. Doc_H §6 — a task sourced to a meeting traces to its minutes.
+ */
+export const recordMinutesSchema = z.object({
+  decisions: z.string().trim().max(8000).default(''),
+  /** The notes or transcript the draft came from — kept as the minutes' evidence. */
+  source: z.string().trim().max(50_000).optional(),
+  actions: z.array(z.object({
+    title: z.string().trim().min(2).max(200),
+    assigneeId: idSchema.optional(),
+    departmentCode: z.enum(DEPARTMENT_CODES).optional(),
+    dueDate: z.coerce.date().optional(),
+    priority: z.enum(PRIORITY_LEVELS).default('NORMAL'),
+    /** Record it in the minutes only, or also create the task. */
+    createTask: z.boolean().default(true),
+  })).max(40).default([]),
+});
+
+export const draftMinutesSchema = z.object({
+  notes: z.string().trim().min(10).max(50_000),
+});
+
 export const createMeetingSchema = z.object({
   projectId: idSchema.optional(),
   companyId: idSchema.optional(),

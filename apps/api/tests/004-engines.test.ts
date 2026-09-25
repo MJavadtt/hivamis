@@ -1103,6 +1103,185 @@ describe('Organisational memory', () => {
   });
 });
 
+describe('Meeting to minutes to tasks', () => {
+  /**
+   * Doc_H §6: no verbal task is valid. The minutes forms collected action items and stored them
+   * as JSON that never became tasks, so decisions stayed verbal. These tests pin down the path
+   * from notes to a draft a person corrects, to tasks sourced to the meeting — and the refusals
+   * that keep that record honest.
+   */
+  const ex = () => import('../src/meetings/extract.js');
+  const HELD = new Date(2026, 8, 22, 10, 0, 0);            // Tuesday 22 Sept 2026 = ۳۱ شهریور ۱۴۰۵
+  const people = [
+    { id: 'u1', fullName: 'بهراد مهرنیا', departmentCode: 'CR' },
+    { id: 'u2', fullName: 'سپیده آذر', departmentCode: 'CR' },
+    { id: 'u3', fullName: 'آرش نیک‌بین', departmentCode: 'ST' },
+    { id: 'u4', fullName: 'آرش رحیمی', departmentCode: 'ME' },
+  ];
+
+  it('reads Persian dates the way the calendar on the wall does', async () => {
+    const { jalaliToDate, parseDue } = await ex();
+    const persian = (d: Date) => new Intl.DateTimeFormat('en-u-ca-persian', { year: 'numeric', month: 'numeric', day: 'numeric' }).format(d);
+    // Round-trips through the platform's own Persian calendar, leap years included.
+    for (const [y, m, d] of [[1405, 7, 1], [1404, 1, 1], [1403, 12, 30], [1405, 12, 29]] as const) {
+      expect(persian(jalaliToDate(y, m, d)!)).toBe(`${m}/${d}/${y} AP`);
+    }
+    expect(jalaliToDate(1404, 12, 30)).toBeNull();          // 1404 is not a leap year
+    const due = (t: string) => parseDue(t, HELD)?.date;
+    expect(due('تا شنبه')!.getDay()).toBe(6);
+    expect(due('ظرف ۳ روز')!.getDate()).toBe(25);
+    expect(due('تا پایان هفته')!.getDay()).toBe(3);        // the Iranian working week ends on Wednesday
+    expect(persian(due('تا ۱۲ مهر')!)).toBe('7/12/1405 AP');
+    expect(persian(due('مهلت ۱۴۰۵/۰۷/۱۵')!)).toBe('7/15/1405 AP');
+    expect(due('بدون تاریخ')).toBeUndefined();
+  });
+
+  it('drafts decisions and actions from notes, and never guesses an owner it cannot be sure of', async () => {
+    const { draftMinutes } = await ex();
+    const notes = `- قرار شد لحن محتوا رسمی‌تر شود.
+- اقدام: مهرنیا نسخهٔ دوم کی‌ویژوال را تا شنبه آماده کند.
+- سپیده آذر پلن تولید ویدئو را ظرف ۳ روز بفرستد.
+- آرش گزارش رقبا را تا ۱۲ مهر تهیه کند.
+- مسئول: واحد رسانه — پلن رسانه را هفتهٔ آینده ارسال کند.
+- باید بودجه دوباره بررسی شود.`;
+    const d = draftMinutes(notes, HELD, people);
+    expect(d.decisions.map((x) => x.text)).toEqual(['قرار شد لحن محتوا رسمی‌تر شود.']);
+    expect(d.actions).toHaveLength(4);
+
+    const [kv, video, rivals, media] = d.actions;
+    expect(kv).toMatchObject({ title: 'نسخهٔ دوم کی‌ویژوال را آماده کند.', assigneeId: 'u1', departmentCode: 'CR', confidence: 'HIGH' });
+    expect(video).toMatchObject({ title: 'پلن تولید ویدئو را بفرستد.', assigneeId: 'u2', confidence: 'HIGH' });
+    // Two people are called Arash: both are offered, neither is picked, and «گزارش» stays whole.
+    expect(rivals!.assigneeId).toBeNull();
+    expect(rivals!.ownerRaw).toBe('آرش');
+    expect(rivals!.candidates.map((c) => c.id).sort()).toEqual(['u3', 'u4']);
+    expect(rivals!.title).toContain('گزارش رقبا');
+    expect(media).toMatchObject({ ownerRaw: 'واحد رسانه', departmentCode: 'ME', title: 'پلن رسانه را ارسال کند.' });
+    // A commitment with nobody and no date is exactly how a decision stays verbal: it is flagged.
+    expect(d.unresolvedFa).toEqual(['باید بودجه دوباره بررسی شود.']);
+  });
+
+  it('turns confirmed actions into tasks sourced to the meeting, with the acceptance clock running', async () => {
+    const o = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const meeting = expectOk(await post('/meetings', T.accountManager, {
+      projectId: project.id, kind: 'INTERNAL', subject: 'بازبینی کمپین پاییز', heldAt: HELD.toISOString(), attendees: 'تیم خلاقیت و اکانت',
+    }), 'meeting');
+
+    const draft = expectOk(await post(`/meetings/${meeting.id}/draft-minutes`, T.accountManager, {
+      notes: `قرار شد لحن رسمی‌تر شود.\nاقدام: ${designer.fullName} نسخهٔ دوم کی‌ویژوال را تا شنبه آماده کند.`,
+    }), 'draft');
+    expect(draft.canCreateTasks).toBe(true);
+    expect(draft.actions[0].assigneeId).toBe(designer.id);
+    // Drafting writes nothing.
+    expect((await prisma.meeting.findUniqueOrThrow({ where: { id: meeting.id } })).minutesRecordedAt).toBeNull();
+
+    const recorded = expectOk(await post(`/meetings/${meeting.id}/minutes`, T.accountManager, {
+      decisions: draft.decisions.map((x: any) => x.text).join('\n'),
+      source: 'یادداشت‌های جلسه',
+      actions: [
+        { title: draft.actions[0].title, assigneeId: designer.id, dueDate: draft.actions[0].dueDate, createTask: true },
+        { title: 'پیگیری تأیید مشتری', departmentCode: 'A', createTask: true },
+        { title: 'یادآوری در جلسهٔ بعد', createTask: false },
+      ],
+    }), 'minutes');
+    expect(recorded.tasks).toHaveLength(2);
+
+    const task = await prisma.task.findUniqueOrThrow({ where: { id: recorded.tasks[0].id } });
+    expect(task.sourceType).toBe('MEETING_MINUTES');          // Doc_H §6: traceable to the minutes
+    expect(task.sourceRef).toBe(meeting.code);
+    expect(task.state).toBe('ASSIGNED');
+    expect(task.departmentCode).toBe('CR');                  // from the owner's unit
+    const clock = await prisma.slaClock.findFirst({ where: { entityType: 'task', entityId: task.id, policy: { code: 'SLA_TASK_ACCEPTANCE' } } });
+    expect(clock?.ownerId).toBe(designer.id);
+    const unowned = await prisma.task.findUniqueOrThrow({ where: { id: recorded.tasks[1].id } });
+    expect(unowned.state).toBe('CREATED');
+    // The owner is told, in the app, before the acceptance clock can surprise them.
+    const told = await prisma.notification.findFirst({ where: { userId: designer.id, kind: 'MEETING_ACTION_ASSIGNED', entityId: task.id } });
+    expect(told?.title).toContain(meeting.code);
+
+    const m = await prisma.meeting.findUniqueOrThrow({ where: { id: meeting.id } });
+    expect(m.minutesRecordedAt).not.toBeNull();
+    expect(m.minutesSource).toBe('یادداشت‌های جلسه');
+    const actions = m.actions as any[];
+    expect(actions).toHaveLength(3);                         // every action is in the minutes...
+    expect(actions.filter((a) => a.taskId)).toHaveLength(2); // ...and each one that became a task says which
+    expect(actions[2].taskId).toBeNull();
+  });
+
+  it('refuses minutes that would make a task nobody can trace or own', async () => {
+    const orphan = expectOk(await post('/meetings', T.accountManager, {
+      kind: 'INTERNAL', subject: 'جلسهٔ بدون پروژه', heldAt: HELD.toISOString(), attendees: 'تیم',
+    }), 'orphan');
+    const noProject = await post(`/meetings/${orphan.id}/minutes`, T.accountManager, {
+      decisions: '', actions: [{ title: 'کاری', departmentCode: 'CR', createTask: true }],
+    });
+    expect(noProject.body.error.code).toBe('MEETING_HAS_NO_PROJECT');
+    // Without tasks, the minutes are still worth keeping.
+    expectOk(await post(`/meetings/${orphan.id}/minutes`, T.accountManager, {
+      decisions: 'تصمیمی ثبت شد', actions: [{ title: 'کاری', createTask: false }],
+    }), 'minutes only');
+
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const m = expectOk(await post('/meetings', T.accountManager, {
+      projectId: project.id, kind: 'INTERNAL', subject: 'جلسه', heldAt: HELD.toISOString(), attendees: 'تیم',
+    }), 'meeting');
+    const incomplete = await post(`/meetings/${m.id}/minutes`, T.accountManager, {
+      decisions: '', actions: [{ title: 'کاری بدون مسئول و واحد', createTask: true }],
+    });
+    expect(incomplete.body.error.code).toBe('INVALID_ACTIONS');
+    expect(incomplete.body.error.details.problems.join(' ')).toContain('اقدام ۱ («کاری بدون مسئول و واحد»): واحد مسئول مشخص نیست');
+    // Nothing half-written: no tasks, no minutes.
+    expect((await prisma.meeting.findUniqueOrThrow({ where: { id: m.id } })).minutesRecordedAt).toBeNull();
+
+    // A meeting left without minutes past two days is a data-quality finding until they exist.
+    const stale = expectOk(await post('/meetings', T.accountManager, {
+      projectId: project.id, kind: 'INTERNAL', subject: 'جلسهٔ فراموش‌شده',
+      heldAt: new Date(Date.now() - 3 * 86_400_000).toISOString(), attendees: 'تیم',
+    }), 'stale meeting');
+    const finding = async () => (expectOk(await get('/reports/data-quality', T.deputy), 'data quality') as any)
+      .findings.find((f: any) => f.key === 'meetingsWithoutMinutes');
+    expect((await finding())?.samples.map((x: any) => x.code)).toContain(stale.code);
+    expectOk(await post(`/meetings/${stale.id}/minutes`, T.accountManager, { decisions: 'ثبت شد', actions: [] }), 'late minutes');
+    expect(((await finding())?.samples ?? []).map((x: any) => x.code)).not.toContain(stale.code);
+  });
+
+  it('says plainly when it cannot hear a recording, and passes one to a configured service', async () => {
+    const { env } = await import('../src/env.js');
+    const { transcribe } = await import('../src/meetings/transcribe.js');
+    const original = { url: env.TRANSCRIPTION_URL };
+    await expect(transcribe(Buffer.from('audio'), 'm.webm', 'audio/webm')).rejects.toMatchObject({ code: 'TRANSCRIPTION_NOT_CONFIGURED', statusCode: 501 });
+
+    // A stand-in for a whisper server: the in-repo half of the adapter, exercised end to end.
+    const http = await import('node:http');
+    const seen: { contentType?: string; body?: string } = {};
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => {
+        seen.contentType = req.headers['content-type']; seen.body = Buffer.concat(chunks).toString('latin1');
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ text: 'قرار شد کمپین از ۱۵ مهر شروع شود.' }));
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, r));
+    const port = (server.address() as { port: number }).port;
+    (env as any).TRANSCRIPTION_URL = `http://127.0.0.1:${port}/v1/audio/transcriptions`;
+    try {
+      const out = await transcribe(Buffer.from('fake-audio-bytes'), 'meeting.webm', 'audio/webm');
+      expect(out.text).toContain('۱۵ مهر');
+      expect(seen.contentType).toContain('multipart/form-data');
+      expect(seen.body).toContain('name="language"');
+      expect(seen.body).toContain('fa');
+      expect(seen.body).toContain('fake-audio-bytes');
+    } finally {
+      (env as any).TRANSCRIPTION_URL = original.url;
+      server.close();
+    }
+  });
+});
+
 describe('Anomalies on the audit trail', () => {
   /**
    * The audit trail was always complete and inspectable, and nobody inspected it until after the

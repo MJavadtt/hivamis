@@ -99,6 +99,27 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   return opts.raw ? ((await res.text()) as T) : ((await res.json()) as T);
 }
 
+/** A multipart upload with the same bearer and refresh handling as `api` (the browser sets the boundary). */
+export async function apiUpload<T = unknown>(path: string, form: FormData): Promise<T> {
+  const send = () => fetch(`/api/v1${path}`, {
+    method: 'POST', body: form,
+    headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+  });
+  let res = await send();
+  if (res.status === 401 && getRefreshToken()) {
+    if (await attemptRefresh()) res = await send();
+  }
+  if (!res.ok) {
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    try {
+      const parsed = await res.json();
+      if (parsed?.error) body = parsed.error;
+    } catch { /* keep the fallback message */ }
+    throw new ApiError(res.status, body);
+  }
+  return (await res.json()) as T;
+}
+
 export const apiGet = <T>(path: string, query?: RequestOptions['query']) => api<T>(path, { query });
 export const apiPost = <T>(path: string, body?: unknown) => api<T>(path, { method: 'POST', body });
 export const apiPut = <T>(path: string, body?: unknown) => api<T>(path, { method: 'PUT', body });

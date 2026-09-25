@@ -191,6 +191,15 @@ A submitter cannot approve their own form.
 | `POST /security/alerts/:id/review` `{ status, note? }` | `admin.audit` | `ACKNOWLEDGED`, `DISMISSED` (a note of at least five characters is required — `REASON_REQUIRED`) or back to `OPEN`. An alert about the reviewer is refused (`SELF_REVIEW`). Audited as `SECURITY_ALERT_REVIEWED` |
 | `POST /security/scan` | `admin.audit` | Run the detectors now instead of at the next quarter-hour; returns `{ detected, created, updated, notified }` |
 
+## Meeting minutes
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /meetings/capabilities` | authenticated | `{ transcription }` — whether a speech-to-text service is configured |
+| `POST /meetings/:id/draft-minutes` `{ notes }` | `meeting.write` | A draft of the minutes from notes or a transcript (roadmap #23): `decisions[]`, `actions[]` (each with `title`, a resolved `assigneeId` or the `ownerRaw` it could not resolve with its `candidates[]`, `departmentCode`, `dueDate` with the `dueRaw` phrase it came from, `confidence` and `sourceLine`) and `unresolvedFa[]` — commitments with no owner and no date. Relative dates («تا شنبه», «ظرف ۳ روز») are counted from `heldAt`. Nothing is written |
+| `POST /meetings/:id/transcribe` (multipart `file`) | `meeting.write` | Audio → text through the configured service (`TRANSCRIPTION_URL`). 501 `TRANSCRIPTION_NOT_CONFIGURED` without one; 502 when it fails. The audio is not stored. Audited as `MEETING_TRANSCRIBED` |
+| `POST /meetings/:id/minutes` `{ decisions, source?, actions[] }` | `meeting.write` | Record the confirmed minutes. Every action with `createTask` becomes a task on the meeting's project in one transaction — `sourceType: MEETING_MINUTES`, `sourceRef` the meeting code, `ASSIGNED` with its acceptance clock when it has an owner, `CREATED` otherwise; each owner other than the recorder is told in the app (`MEETING_ACTION_ASSIGNED`). Refused whole with `MEETING_HAS_NO_PROJECT` or `INVALID_ACTIONS` (`problems[]`: an inactive owner, a task with no unit) |
+
 ## Organisational memory
 
 | Endpoint | Gate | Purpose |

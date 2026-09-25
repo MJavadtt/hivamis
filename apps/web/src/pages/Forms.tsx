@@ -531,7 +531,8 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (v: st
   );
 }
 
-function UserSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** Exported for the minutes dialog (roadmap #23): one people picker, not two. */
+export function UserSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { data } = useQuery<{ items: { id: string; fullName: string; department: { nameFa: string } | null }[] }>({
     queryKey: ['/users', 'picker'], queryFn: () => apiGet('/users', { pageSize: 200 }), staleTime: 300_000,
   });

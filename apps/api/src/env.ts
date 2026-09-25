@@ -37,6 +37,14 @@ const envSchema = z.object({
   EMBEDDING_URL: z.string().default(''),
   EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
   EMBEDDING_API_KEY: z.string().default(''),
+  /**
+   * Meeting recordings to text (roadmap #23): any OpenAI-shaped /audio/transcriptions endpoint —
+   * a hosted service, or a whisper server on the organisation's own network. Empty means the
+   * minutes are drafted from typed notes only, and the app says so.
+   */
+  TRANSCRIPTION_URL: z.string().default(''),
+  TRANSCRIPTION_MODEL: z.string().default('whisper-1'),
+  TRANSCRIPTION_API_KEY: z.string().default(''),
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),

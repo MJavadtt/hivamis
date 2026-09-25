@@ -819,3 +819,28 @@ that teaches reviewers to dismiss.
 Record *reads* are not audited, so browsing is invisible to them; and "downloads before a
 resignation" can only be approximated by a surge against the person's own baseline.
 
+## ADR-034 — Minutes are drafted by rule and confirmed by a person; audio is an adapter
+
+**Decision.** A meeting's notes become a *draft* (`meetings/extract.ts`): lines are split into
+decisions and actions by their markers and verbs, an owner is resolved against the organisation's
+active users (full name, then a first or family name only when it is unique), and a due date is
+read from the Persian phrases people actually use — Jalali dates, «۱۲ مهر», weekday names,
+«ظرف N روز», «پایان هفته» — counted from the meeting's date, not today's. The draft writes
+nothing. Only the confirmed minutes create tasks, in one transaction with the minutes themselves,
+each sourced `MEETING_MINUTES` to the meeting code so Rule 6 ("no verbal task") holds for them.
+
+**Rationale.** The damage in a meeting is the action nobody wrote down, and the second damage is
+the one written down against the wrong person. So ambiguity is surfaced, never resolved by
+guessing: two «آرش»s become a choice, a commitment with no owner and no date is listed as such,
+and every action shows the line it came from. A rule-based extractor is predictable and
+testable; an LLM could raise recall later behind the same draft shape, and the confirmation step
+would stay.
+
+**Audio.** Transcription is an adapter to any OpenAI-compatible speech endpoint
+(`TRANSCRIPTION_URL`), tested against a local stub. It is off by default: meeting audio is some
+of the most sensitive material an agency has, and where it goes is the operator's decision. The
+audio is not stored; the transcript is kept as the minutes' source.
+
+**Limits, stated.** The extractor reads Persian notes written a line per item; free-flowing prose
+yields fewer actions and more "unresolved" lines. A deadline phrase it does not know is left in
+the title for the person to see.

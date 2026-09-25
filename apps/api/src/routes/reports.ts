@@ -623,8 +623,21 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
       where: { organizationId: org, usedAt: null, revokedAt: null, expiresAt: { gt: now } },
       select: { id: true, entityType: true, entityId: true, guard: true, reason: true, expiresAt: true },
     });
+    /*
+     * Doc_H §6 — no verbal task is valid. A meeting that never got minutes is where decisions stay
+     * verbal (roadmap #23): two days is long enough to write them, short enough to still remember.
+     */
+    const meetingsWithoutMinutes = await prisma.meeting.findMany({
+      where: { organizationId: org, minutesRecordedAt: null, heldAt: { lt: new Date(Date.now() - 2 * 86_400_000) } },
+      select: { id: true, code: true, subject: true, heldAt: true }, orderBy: { heldAt: 'desc' }, take: 20,
+    });
+    const meetingsWithoutMinutesCount = await prisma.meeting.count({
+      where: { organizationId: org, minutesRecordedAt: null, heldAt: { lt: new Date(Date.now() - 2 * 86_400_000) } },
+    });
+
     const findings = [
       { key: 'incompleteBriefs', labelFa: 'بریف‌های ناقص در جریان', count: incompleteBriefs, severity: 'MEDIUM' },
+      { key: 'meetingsWithoutMinutes', labelFa: 'جلسهٔ برگزارشده بدون صورتجلسه — تصمیم‌ها شفاهی مانده‌اند (§۶)', count: meetingsWithoutMinutesCount, severity: 'MEDIUM', samples: meetingsWithoutMinutes },
       { key: 'openWaivers', labelFa: 'استثناهای باز بر قوانین حاکم', count: openWaivers.length, severity: 'MEDIUM', samples: openWaivers },
       { key: 'unauthorizedActiveProjects', labelFa: 'پروژه فعال بدون مجوز شروع (نقض §۱۳)', count: unauthorizedActive.length, severity: 'CRITICAL', samples: unauthorizedActive },
       { key: 'tasksWithoutSource', labelFa: 'وظیفه بدون سند مرجع (نقض §۶)', count: tasksNoSource, severity: 'HIGH' },

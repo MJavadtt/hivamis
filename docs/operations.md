@@ -64,6 +64,8 @@ on first sign-in), then deactivate the demo users.
 | `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts/minute per IP |
 | `TRUST_PROXY` | no | `false` | Which proxies may set `X-Forwarded-For`. `false` trusts nothing; a number is a hop count (`1` behind one reverse proxy — what the compose stack sets); a comma-separated list trusts those addresses. Leaving it at `false` behind a proxy means every client shares one rate-limit bucket; setting it too high lets a client forge its own IP and escape the login limit entirely. |
 | `JOBS_ENABLED` | no | true | SLA ticking and digests |
+| `TRANSCRIPTION_URL` | no | — | Speech-to-text endpoint for meeting audio (roadmap #23), OpenAI-compatible: `POST` multipart `file`, `model`, `language=fa`, returning `{ text }` — a self-hosted Whisper server works. Unset, the audio button is hidden and minutes are drafted from typed notes |
+| `TRANSCRIPTION_MODEL` / `TRANSCRIPTION_API_KEY` | no | whisper-1 / — | Sent as the `model` field and as a Bearer token. Audio leaves the building when the URL is not your own; point it at an internal service if that matters |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |

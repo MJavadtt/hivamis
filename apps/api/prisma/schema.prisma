@@ -1257,6 +1257,8 @@ model Meeting {
   decisions   String?
   actions     Json     @default("[]")
   minutesRecordedAt DateTime?
+  /// The notes or transcript the minutes were drawn from (roadmap #23) — the evidence behind them.
+  minutesSource     String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
