@@ -13,6 +13,8 @@ import { audit } from '../lib/audit.js';
 import { hasPermission } from '../auth/plugin.js';
 import { nextCode } from '../lib/codes.js';
 import { briefCompleteness } from '../workflow/guards.js';
+import { scoreBrief } from '../briefs/quality.js';
+import { briefBenchmark, winningExample } from '../briefs/benchmark.js';
 import { allowedFor } from '../workflow/engine.js';
 import { startSla } from '../sla/engine.js';
 import { checkWorkOrderBudget, projectBudget } from '../reports/budget.js';
@@ -52,9 +54,43 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const brief = await prisma.brief.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!brief) throw notFound('بریف');
     const { score, missing } = briefCompleteness(brief as unknown as Record<string, unknown>);
+    const quality = scoreBrief(brief as unknown as Record<string, unknown>);
     return prisma.brief.update({
-      where: { id }, data: { completenessScore: score, missingItems: missing },
+      where: { id }, data: { completenessScore: score, missingItems: missing, qualityScore: quality.score, qualityBand: quality.band },
     });
+  });
+
+  /**
+   * How specific this brief is, field by field, and what to fix first (roadmap #25) — beside
+   * what briefs that became won deals looked like here, and the closest one of them as an
+   * example. Reading it refreshes the stored score, so a list sorted by quality is never stale
+   * for a brief somebody has opened.
+   */
+  app.get('/briefs/:id/quality', {
+    preHandler: [app.authenticate, app.requirePermissions('brief.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const brief = await prisma.brief.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null } });
+    if (!brief) throw notFound('بریف');
+    const quality = scoreBrief(brief as unknown as Record<string, unknown>);
+    const completeness = briefCompleteness(brief as unknown as Record<string, unknown>);
+    if (brief.qualityScore !== quality.score || brief.qualityBand !== quality.band) {
+      await prisma.brief.update({ where: { id }, data: { qualityScore: quality.score, qualityBand: quality.band } });
+    }
+    const [benchmark, example] = await Promise.all([
+      briefBenchmark(prisma, actor.organizationId),
+      winningExample(prisma, actor.organizationId, id, actor.permissions),
+    ]);
+    return { briefId: id, completeness, quality, benchmark, example };
+  });
+
+  /** Does a low score actually predict a returned brief? The answer, per band. */
+  app.get('/reports/brief-quality', {
+    preHandler: [app.authenticate, app.requirePermissions('report.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    return briefBenchmark(prisma, actor.organizationId);
   });
 
   /* ── Proposals & pricing ─────────────────────────────────────────────── */

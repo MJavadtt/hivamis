@@ -1103,6 +1103,90 @@ describe('Organisational memory', () => {
   });
 });
 
+describe('Brief quality, not just completeness', () => {
+  /**
+   * briefCompleteness asks whether six fields are filled, so «افزایش فروش» and three precise
+   * paragraphs both scored 100. Doc_H's cycle 1 — the brief sent back to Sales — is mostly vague
+   * briefs, not empty ones. These tests pin down the difference, and the fact that every
+   * deduction quotes what it objects to.
+   */
+  const quality = () => import('../src/briefs/quality.js');
+  const inAMonth = new Date(Date.now() + 30 * 86_400_000);
+
+  const vagueBrief = {
+    businessObjective: 'افزایش فروش', targetAudience: 'عموم مردم', scope: 'کمپین تبلیغاتی جذاب',
+    expectedDeliverables: 'محتوای مناسب', successCriteria: 'موفقیت کمپین', constraints: '',
+    budgetRange: 1_000_000_000, desiredDeadline: inAMonth,
+  };
+  const preciseBrief = {
+    businessObjective: 'افزایش ۲۰ درصدی فروش آنلاین محصولات لبنی کم‌چرب در سه ماه نخست سال، با تمرکز بر خرید تکراری از اپلیکیشن فروشگاه',
+    targetAudience: 'زنان ۲۵ تا ۴۰ سالهٔ ساکن تهران و کرج، مادران شاغل که خرید خانه را آنلاین انجام می‌دهند',
+    scope: 'طراحی ایده کمپین، تولید ۳ ویدئوی کوتاه، طراحی ۱۲ پست شبکه اجتماعی، خرید رسانه دیجیتال، گزارش هفتگی عملکرد به تیم فروش',
+    expectedDeliverables: '۳ ویدئوی ۳۰ ثانیه‌ای، ۱۲ پست و ۱۲ استوری، ۱ صفحهٔ فرود، گزارش پایانی کمپین',
+    successCriteria: 'نرخ تبدیل اپلیکیشن ۳ درصد، ۵۰ هزار نصب تازه و افزایش ۲۰ درصدی فروش آنلاین',
+    constraints: 'بودجهٔ رسانه سقف دارد؛ رعایت هویت بصری و راهنمای برند الزامی است',
+    budgetRange: 3_000_000_000, desiredDeadline: inAMonth,
+  };
+
+  it('tells a precise brief from a vague one that is just as complete', async () => {
+    const { scoreBrief } = await quality();
+    const { briefCompleteness } = await import('../src/workflow/guards.js');
+    // Both are 100% complete — the old measure could not tell them apart.
+    expect(briefCompleteness(vagueBrief).score).toBe(100);
+    expect(briefCompleteness(preciseBrief).score).toBe(100);
+
+    const vague = scoreBrief(vagueBrief);
+    const precise = scoreBrief(preciseBrief);
+    expect(precise.score).toBeGreaterThan(vague.score + 30);
+    expect(precise.band).toBe('STRONG');
+    // Numbers typed in Persian digits are numbers: «۳ ویدئو، ۱۲ پست» is a counted list.
+    expect(precise.fields.find((f) => f.key === 'expectedDeliverables')!.findingsFa).toEqual([]);
+    expect(precise.fields.every((f) => f.findingsFa.length === 0)).toBe(true);
+    expect(['WEAK', 'ADEQUATE']).toContain(vague.band);
+    expect(vague.band).not.toBe('STRONG');
+  });
+
+  it('says exactly what is wrong, field by field, and what to fix first', async () => {
+    const { scoreBrief } = await quality();
+    const q = scoreBrief(vagueBrief);
+    const field = (k: string) => q.fields.find((f) => f.key === k)!;
+
+    expect(field('businessObjective').findingsFa.join(' ')).toContain('عدد ندارد');
+    expect(field('targetAudience').findingsFa.join(' ')).toContain('«همه» مخاطب نیست');
+    // Vague phrases are quoted back rather than silently penalised.
+    expect(field('scope').findingsFa.join(' ')).toContain('«جذاب»');
+    expect(field('expectedDeliverables').findingsFa.join(' ')).toContain('«مناسب»');
+    expect(field('successCriteria').findingsFa.join(' ')).toContain('شاخص');
+    expect(q.fixFirst).not.toBeNull();
+    expect(q.fixFirst!.lostPoints).toBeGreaterThan(0);
+
+    // A deadline already gone is its own finding, not just a missing one.
+    const late = scoreBrief({ ...preciseBrief, desiredDeadline: new Date(Date.now() - 86_400_000) });
+    expect(late.fields.find((f) => f.key === 'desiredDeadline')!.findingsFa.join(' ')).toContain('گذشته');
+    // And an empty required field makes the band INCOMPLETE whatever else is good.
+    expect(scoreBrief({ ...preciseBrief, scope: '' }).band).toBe('INCOMPLETE');
+  });
+
+  it('serves the quality with the organisation’s own history beside it, and stores the score', async () => {
+    const brief = await prisma.brief.findFirstOrThrow({ where: { deletedAt: null } });
+    const res = expectOk(await get(`/briefs/${brief.id}/quality`, T.accountManager), 'quality');
+    expect(res.quality.score).toBeGreaterThanOrEqual(0);
+    expect(res.quality.fields.length).toBe(8);
+    expect(res.completeness.score).toBeGreaterThanOrEqual(0);
+    expect(res.benchmark.returnRateByBand).toHaveLength(4);
+    // With too few won deals the page is told so, rather than shown a meaningless average.
+    expect(typeof res.benchmark.enoughHistory).toBe('boolean');
+    expect(res.benchmark.noteFa).toBeTruthy();
+
+    const stored = await prisma.brief.findUniqueOrThrow({ where: { id: brief.id } });
+    expect(stored.qualityScore).toBe(res.quality.score);
+    expect(stored.qualityBand).toBe(res.quality.band);
+
+    const report = expectOk(await get('/reports/brief-quality', T.ceo), 'report');
+    expect(report.briefs).toBeGreaterThan(0);
+  });
+});
+
 describe('Lessons at the start of a project', () => {
   /**
    * Doc_H §15 has made lessons learned mandatory for years, and the closing checklist asks for

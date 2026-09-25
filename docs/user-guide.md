@@ -64,6 +64,15 @@ financial status and internal decisions are left out, and the strip above the pr
 *ارسال برای مشتری* on the project page previews that copy and sends it now. If you did not file a
 report that week, you get a warning on Saturday instead of the client getting nothing.
 
+
+**Brief quality, not just brief completeness.** A brief could always be «کامل» with one word in
+every field. The brief page now scores how *specific* it is: a goal with no number, an audience
+of «همه», a scope that is one sentence, deliverables with no count, success with no measure —
+each is named, and vague words («جذاب»، «مناسب»، «در صورت امکان») are quoted back so it is clear
+what to replace. The card says which field to fix first. Beside it is this organisation's own
+evidence: how often briefs at each level were sent back to Sales, and the closest brief that
+became a won deal, showing what the field you need to fix looked like when it worked. When there
+are too few won deals to compare against, the card says so instead of averaging two.
 ## Execution units (Strategy, Creative, Media, Digital)
 
 **Your loop: accept → plan → execute → unit QC → declare cost → deliver.**

@@ -700,3 +700,32 @@ accumulate into evidence about which lessons keep being written and never used.
 client that is exactly the trap this project is walking into. The signals move a lesson up the
 list; they never decide what is on it.
 
+## ADR-030 — Brief quality is scored by rules that quote what they object to, and checked against returns
+
+**Decision.** `scoreBrief` scores six text fields and two structured ones. Each text field earns
+40 % for being present, up to 30 % for substance (words against a per-field minimum) and up to
+30 % for specificity (a measurable target and a timeframe in the objective, demographics and
+geography in the audience, an itemised scope, counted deliverables, a measurable KPI in the
+success criteria), and loses 10 % for every vague phrase it contains. Every deduction is a Persian
+sentence naming the field, and a vague phrase is quoted. Digits are read in Persian as well as
+Latin form. The score and band are stored on the brief.
+
+Beside the score, the organisation's own history is reported: the mean score of briefs that
+became won deals, and — the number that matters — the share of briefs in each band that were
+returned to Sales. Below five samples a figure is withheld and the page says why.
+
+**Rationale.** Doc_H names the incomplete brief as recurring cycle 1, and the returned briefs are
+mostly not empty but vague; completeness gave «افزایش فروش» the same 100 as three precise
+paragraphs. A rule-based score is used rather than a language model's judgement so that it is
+reproducible, explainable and arguable: a salesperson can see exactly what to change, and a
+manager can dispute a rule instead of a number. The AI assistant's `BRIEF_ANALYSIS` may *draft*
+improvements; it does not score them.
+
+**Why the return rate is shown.** A score that does not track returned briefs is decoration.
+Publishing the per-band return rate next to every score is how the rules get tested — and how
+the organisation finds out if a rule is wrong.
+
+**Advisory, not a guard.** The completeness guard still decides whether a brief can be approved
+(ADR-003). Blocking on a heuristic score would move the vague brief into an email rather than
+improve it.
+

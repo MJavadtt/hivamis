@@ -41,8 +41,8 @@ Status vocabulary, and it is used strictly:
 | 15 | No-code form designer | 16 | Verified | 671c78a |
 | 19 | Offline forms (PWA) | — | Verified | e364cf2 |
 | 21 | Semantic search over organisational memory | — | Verified | 8295207 |
-| 44 | Lessons-learned surfacing at project start | 21 | Verified | next |
-| 25 | Brief quality scoring | — | Pending | |
+| 44 | Lessons-learned surfacing at project start | 21 | Verified | f2d57fe |
+| 25 | Brief quality scoring | — | Verified | next |
 | 24 | Estimation assistant | 14 | Pending | |
 | 22 | Automated QC, stage zero | — | Pending | |
 | 26 | Anomaly detection on the audit trail | — | Pending | |

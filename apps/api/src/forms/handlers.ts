@@ -1,5 +1,6 @@
 import type { Tx } from '../db.js';
 import { nextCode } from '../lib/codes.js';
+import { scoreBrief } from '../briefs/quality.js';
 import { briefCompleteness } from '../workflow/guards.js';
 
 export interface HandlerContext {
@@ -104,6 +105,11 @@ export const FORM_HANDLERS: Record<string, (c: HandlerContext) => Promise<Handle
         successCriteria: str(data.successCriteria),
         completenessScore: score,
         missingItems: missing,
+        // Quality beside completeness (roadmap #25): filled is not the same as specific.
+        ...(() => {
+          const q = scoreBrief({ ...payload, competitorContext: data.competitorContext, constraints: data.constraints, successCriteria: data.successCriteria });
+          return { qualityScore: q.score, qualityBand: q.band };
+        })(),
         submittedById: actorId,
       },
     });
@@ -118,7 +124,7 @@ export const FORM_HANDLERS: Record<string, (c: HandlerContext) => Promise<Handle
       const { score, missing } = briefCompleteness(brief as unknown as Record<string, any>);
       await tx.brief.update({
         where: { id: briefId },
-        data: { completenessScore: score, missingItems: missing },
+        data: { completenessScore: score, missingItems: missing, ...(() => { const q = scoreBrief(brief as unknown as Record<string, unknown>); return { qualityScore: q.score, qualityBand: q.band }; })() },
       });
     }
     return { entity: 'brief', entityId: briefId };

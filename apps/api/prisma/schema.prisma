@@ -468,6 +468,10 @@ model Brief {
   state                String      @default("DRAFT")
   /** Populated by the completeness guard; drives the KPI "Brief Completeness". */
   completenessScore    Int         @default(0)
+  /// How *specific* the brief is, not merely whether it is filled (roadmap #25) — 0–100, and
+  /// the band it falls in. Kept so the return rate can be read against it over time.
+  qualityScore         Int?
+  qualityBand          String?
   missingItems         String[]    @default([])
   returnReason         String?
   returnCount          Int         @default(0)

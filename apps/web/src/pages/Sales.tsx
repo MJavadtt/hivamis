@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
+import { BriefQuality } from '../components/BriefQuality';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -97,6 +98,8 @@ export function BriefDetail() {
             {data.returnReason}
           </div>
         )}
+
+        <BriefQuality briefId={data.id} />
 
         <div className="grid gap-5 lg:grid-cols-3">
           <Card title="خلاصه" className="lg:col-span-1">

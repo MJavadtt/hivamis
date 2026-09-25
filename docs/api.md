@@ -131,6 +131,13 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | `POST /change-requests/:id/scope-review` | `change.scope_review` | §8 |
 | `POST /change-requests/:id/impact` | `change.commercial_review` | §8 — six mandatory dimensions |
 
+## Briefs
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /briefs/:id/quality` | `brief.read` — how *specific* the brief is, not only whether it is filled (roadmap #25): an overall score and band, per-field scores with Persian findings that quote the vague phrase they object to, `fixFirst` (the field losing the most points), a benchmark from this organisation's history (briefs that became won deals, and the return rate per band — with `enoughHistory: false` when there are too few) and the closest won brief as an example. Refreshes the stored `qualityScore`/`qualityBand` |
+| `GET /reports/brief-quality` | `report.read` — the benchmark alone: does a low score here actually predict a returned brief? |
+
 ## Forms
 
 | Endpoint | Purpose |
