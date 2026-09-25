@@ -101,6 +101,15 @@ hours once when you submit the task. The card shows the estimate beside the actu
 declared cost is compared with these hours on the «دقت برآورد» report — that is the Doc_H
 cost-accuracy KPI, and after a few months it is how quotes get sharper.
 
+
+**Declaring a cost, with the history beside it.** When you enter the cost of a work order, the
+dialog compares it with the finished orders of your own unit that look most like this one — same
+kind of output, similar size, similar description — and shows what they were declared at, what
+the hours logged on them actually cost, and how many working days they took. If your figure is
+below three-quarters of them, it says so in plain words, and your unit manager is told while the
+price can still change. If your unit has been declaring low as a habit, the dialog says by how
+much. Nothing is blocked: the declaration is yours. And when there are too few finished orders to
+compare against, the dialog says that instead of inventing a range.
 ## Finance
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
+import { EstimateCheck } from '../components/EstimateCheck';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -401,6 +402,8 @@ function CostModal({ workOrder, onClose }: { workOrder: any; onClose: () => void
         <Field label="هزینه داخلی (ریال)" required><Input type="number" value={internal} onChange={(e) => setInternal(e.target.value)} className="ltr" /></Field>
         <Field label="هزینه خارجی (ریال)"><Input type="number" value={external} onChange={(e) => setExternal(e.target.value)} className="ltr" /></Field>
         <Field label="مفروضات"><Textarea value={assumptions} onChange={(e) => setAssumptions(e.target.value)} rows={2} /></Field>
+        {/* What similar work actually cost, while the figure can still change (roadmap #24). */}
+        <EstimateCheck workOrderId={workOrder.id} proposed={Number(internal || 0) + Number(external || 0)} />
       </div>
     </Modal>
   );

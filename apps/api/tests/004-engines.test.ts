@@ -1103,6 +1103,159 @@ describe('Organisational memory', () => {
   });
 });
 
+describe('The estimation assistant', () => {
+  /**
+   * A unit declares what a work order will cost before anyone knows, and the declaration becomes
+   * the price. These tests pin down the comparison that should have happened at that moment:
+   * similar finished orders in the same unit, what they were declared at, what the logged hours
+   * say they really cost, how long they took — and a warning to the unit manager when a figure
+   * sits below all of it.
+   */
+  const DEPT = 'ME';
+  let seq = 0;
+  /** A media unit member: the person who actually declares a media order's cost. */
+  let M = '';
+  async function mediaMember() {
+    if (M) return M;
+    const role = await prisma.role.findUniqueOrThrow({ where: { code: 'UNIT_MEMBER' } });
+    const dept = await prisma.department.findFirstOrThrow({ where: { code: DEPT } });
+    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const email = `media.member.${Date.now()}@hiva.local`;
+    await prisma.user.create({ data: {
+      organizationId: template.organizationId, departmentId: dept.id, email, fullName: 'کارشناس رسانه',
+      passwordHash: template.passwordHash, roles: { create: { roleId: role.id } },
+    } });
+    M = await login(email);
+    return M;
+  }
+
+  async function order(input: {
+    title: string; scope: string; format: string; budget: number; state?: string;
+    declared?: number; hours?: number; days?: number;
+  }) {
+    const org = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const worker = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const accepted = new Date(2026, 7, 1, 9, 0, 0);                        // a Saturday morning
+    const submitted = input.days ? new Date(accepted.getTime() + input.days * 1.4 * 86_400_000) : null;
+    seq++;
+    const wo = await prisma.workOrder.create({ data: {
+      organizationId: org.id, code: `WO-EST-${Date.now()}-${seq}`, projectId: project.id,
+      targetDepartmentCode: DEPT, title: input.title, scopeOfWork: input.scope, brief: 'بریف',
+      expectedOutput: input.scope, outputFormat: input.format, deadline: new Date(Date.now() + 30 * 86_400_000),
+      ownerId: pmo.id, budget: input.budget, state: input.state ?? 'COMPLETED',
+      acceptedAt: accepted, submittedAt: submitted,
+    } });
+    if (input.declared) {
+      await prisma.costDeclaration.create({ data: {
+        organizationId: org.id, workOrderId: wo.id, departmentCode: DEPT,
+        internalCost: input.declared, externalCost: 0, declaredById: pmo.id,
+      } });
+    }
+    if (input.hours) {
+      const task = await prisma.task.create({ data: {
+        organizationId: org.id, projectId: project.id, workOrderId: wo.id, code: `TSK-EST-${Date.now()}-${seq}`,
+        title: input.title, departmentCode: DEPT, priority: 'NORMAL', state: 'CLOSED',
+        sourceType: 'ORDER_FORM', sourceRef: wo.code, createdById: pmo.id, assigneeId: worker.id,
+      } });
+      await prisma.timeEntry.create({ data: {
+        organizationId: org.id, taskId: task.id, userId: worker.id, hours: input.hours, workedOn: accepted,
+      } });
+    }
+    return wo;
+  }
+
+  it('compares a proposed figure with what similar finished orders actually cost and took', async () => {
+    // The worker's time is priced, so logged hours become money.
+    const worker = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    await prisma.user.update({ where: { id: worker.id }, data: { hourlyCost: 1_000_000 } });
+
+    // Four finished media-buying orders: declared around 40M, each really took ~50 hours (= 50M).
+    for (const [declared, hours] of [[40e6, 48], [42e6, 52], [38e6, 50], [44e6, 55]] as const) {
+      await order({
+        title: 'خرید رسانه دیجیتال کمپین', scope: 'برنامه‌ریزی و خرید رسانه دیجیتال برای کمپین فصلی',
+        format: 'پلن رسانه و گزارش', budget: 50e6, declared, hours, days: 6,
+      });
+    }
+    // One unrelated order in the same unit that should not dominate the comparison.
+    await order({ title: 'مشاوره حقوقی قرارداد', scope: 'بازبینی متن قرارداد با ناشر', format: 'نامه', budget: 5e6, declared: 3e6, hours: 3, days: 1 });
+
+    const target = await order({
+      title: 'خرید رسانه دیجیتال کمپین تازه', scope: 'برنامه‌ریزی و خرید رسانه دیجیتال برای کمپین', format: 'پلن رسانه',
+      budget: 55e6, state: 'ACCEPTED',
+    });
+
+    const res = expectOk(await get(`/work-orders/${target.id}/estimate`, await mediaMember(), { proposedCost: '28000000' }), 'estimate');
+    expect(res.basis).toBe('SIMILAR');
+    expect(res.summary.count).toBeGreaterThanOrEqual(3);
+    // The closest comparable is a media-buying order, not the legal one.
+    expect(res.comparables[0].title).toContain('خرید رسانه');
+    expect(res.comparables[0].whyFa.join(' ')).toContain('همان نوع خروجی');
+    // Actual cost comes from logged hours at the person's rate: ~50M against ~40M declared.
+    expect(res.summary.actual.median).toBeGreaterThanOrEqual(48e6);
+    expect(res.summary.declared.median).toBeLessThanOrEqual(44e6);
+    expect(res.summary.overrunRatio).toBeGreaterThan(1.1);
+    expect(res.summary.workingDays.median).toBeGreaterThan(0);
+    // 28M is below three-quarters of what similar orders really cost.
+    expect(res.verdict.band).toBe('LOW');
+    expect(res.verdict.ratioToMedian).toBeLessThan(0.7);
+    expect(res.verdict.messageFa).toContain('برآورد شما');
+    expect(res.verdict.messageFa).toContain('واقعاً هزینه برده‌اند');
+
+    // A figure inside the usual range is said to be so.
+    const fair = expectOk(await get(`/work-orders/${target.id}/estimate`, await mediaMember(), { proposedCost: '50000000' }), 'fair');
+    expect(fair.verdict.band).toBe('WITHIN');
+  });
+
+  it('warns the unit manager when a declaration lands below history, and keeps the declaration', async () => {
+    const target = await prisma.workOrder.findFirstOrThrow({ where: { title: 'خرید رسانه دیجیتال کمپین تازه' } });
+    const managerRole = await prisma.role.findUniqueOrThrow({ where: { code: 'UNIT_MANAGER' } });
+    const dept = await prisma.department.findFirstOrThrow({ where: { code: DEPT } });
+    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const manager = await prisma.user.create({ data: {
+      organizationId: template.organizationId, departmentId: dept.id, email: `media.manager.${Date.now()}@hiva.local`,
+      fullName: 'مدیر رسانه', passwordHash: template.passwordHash,
+      roles: { create: { roleId: managerRole.id } },
+    } });
+
+    const declared = expectOk(await post(`/work-orders/${target.id}/cost`, await mediaMember(), {
+      departmentCode: DEPT, internalCost: 25_000_000, externalCost: 0, items: [],
+    }), 'declare');
+    expect(declared.id).toBeTruthy();                       // advisory: the declaration stands
+    expect(declared.estimate.verdict.band).toBe('LOW');
+
+    const note = await prisma.notification.findFirst({ where: { userId: manager.id, kind: 'ESTIMATE_BELOW_HISTORY' } });
+    expect(note).not.toBeNull();
+    expect(note!.body).toContain('برآورد شما');
+  });
+
+  it('says there is nothing to compare against rather than inventing a range, and guards the figures', async () => {
+    const org = await prisma.organization.findFirstOrThrow();
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const lonely = await prisma.workOrder.create({ data: {
+      organizationId: org.id, code: `WO-LONE-${Date.now()}`, projectId: project.id, targetDepartmentCode: 'LG',
+      title: 'نخستین سفارش حقوقی', scopeOfWork: 'تنظیم قرارداد', brief: 'بریف', expectedOutput: 'قرارداد',
+      outputFormat: 'سند', deadline: new Date(Date.now() + 10 * 86_400_000), ownerId: pmo.id, state: 'ACCEPTED',
+    } });
+    const res = expectOk(await get(`/work-orders/${lonely.id}/estimate`, T.ceo, { proposedCost: '10000000' }), 'no history');
+    expect(res.basis).toBe('NONE');
+    expect(res.summary.count).toBe(0);
+    expect(res.summary.actual).toBeNull();
+    expect(res.verdict.ratioToMedian).toBeNull();
+    expect(res.verdict.messageFa).toContain('سابقهٔ کافی');
+    expect(res.noteFa).toContain('سفارش تمام‌شده‌ای ندارد');
+
+    // Other orders' costs are pricing data: no pricing permission, no comparison.
+    expect((await get(`/work-orders/${lonely.id}/estimate`, T.pmo)).status).toBe(403);
+    // And a unit sees its own history, not another unit's: a Creative member on a Legal order.
+    expect((await get(`/work-orders/${lonely.id}/estimate`, T.designer)).body.error.message).toContain('واحد دیگر');
+    // Those who set prices see every unit.
+    expect((await get(`/work-orders/${lonely.id}/estimate`, T.accountManager)).status).toBe(200);
+  });
+});
+
 describe('Brief quality, not just completeness', () => {
   /**
    * briefCompleteness asks whether six fields are filled, so «افزایش فروش» and three precise

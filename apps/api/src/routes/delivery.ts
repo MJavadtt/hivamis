@@ -22,6 +22,8 @@ import { logTime, recomputeActual } from '../reports/time.js';
 import { scheduleProject } from '../reports/schedule.js';
 import { forecastProject } from '../reports/forecast.js';
 import { suggestAssignees } from '../reports/capacity.js';
+import { estimateFor } from '../reports/estimate.js';
+import { notify } from '../mail/notify.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
   /* ── Briefs ──────────────────────────────────────────────────────────── */
@@ -530,7 +532,58 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     }
     // Budget control happens here, while the unit can still act — not in the monthly report.
     const budget = await checkWorkOrderBudget(prisma, id, actor.id);
-    return reply.code(201).send({ ...declaration, budget });
+
+    /*
+     * And the declaration against what similar work actually cost (roadmap #24). A figure well
+     * below history reaches the unit's manager now, while the price can still move — not at
+     * closure, when the loss is already booked. Advisory: the declaration stands either way.
+     */
+    const proposed = Number(input.internalCost) + Number(input.externalCost ?? 0);
+    const estimate = await estimateFor(prisma, actor.organizationId, id, { proposedCost: proposed });
+    if (estimate.verdict?.band === 'LOW' && estimate.summary.count >= 3) {
+      const managers = await prisma.user.findMany({
+        where: {
+          organizationId: actor.organizationId, isActive: true, deletedAt: null, id: { not: actor.id },
+          department: { code: input.departmentCode },
+          roles: { some: { role: { code: 'UNIT_MANAGER' } } },
+        },
+        select: { id: true },
+      });
+      for (const m of managers) {
+        await notify({
+          userId: m.id, kind: 'ESTIMATE_BELOW_HISTORY', severity: 'WARNING',
+          title: `برآورد پایین‌تر از سابقه — ${wo.code}`,
+          body: estimate.verdict.messageFa,
+          entityType: 'workOrder', entityId: id,
+        });
+      }
+    }
+    return reply.code(201).send({ ...declaration, budget, estimate: { verdict: estimate.verdict, summary: estimate.summary, basis: estimate.basis } });
+  });
+
+  /**
+   * What similar work in this unit actually cost and took (roadmap #24), with a verdict on a
+   * proposed figure when one is given — asked while the declaration is being typed. Other
+   * orders' costs are pricing data, so the caller needs to be allowed to see pricing.
+   */
+  app.get('/work-orders/:id/estimate', {
+    preHandler: [app.authenticate, app.requirePermissions('workorder.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    if (!hasPermission(req, 'pricing.declare_cost') && !hasPermission(req, 'pricing.read')) {
+      throw forbidden('مقایسه با هزینهٔ سفارش‌های دیگر نیازمند دسترسی قیمت‌گذاری است');
+    }
+    const { id } = req.params as { id: string };
+    const { proposedCost } = req.query as { proposedCost?: string };
+    const wo = await prisma.workOrder.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true, targetDepartmentCode: true } });
+    if (!wo) throw notFound('سفارش کار');
+    // A unit sees its own cost history, not another unit's: those who set or approve prices see all.
+    const seesAllUnits = hasPermission(req, 'pricing.set_price') || hasPermission(req, 'pricing.approve');
+    if (!seesAllUnits && actor.departmentCode !== wo.targetDepartmentCode) {
+      throw forbidden('سابقهٔ هزینهٔ واحد دیگر در دسترس شما نیست');
+    }
+    const proposed = proposedCost ? Number(String(proposedCost).replace(/[,٬\s]/g, '')) : undefined;
+    return estimateFor(prisma, actor.organizationId, id, { proposedCost: proposed && Number.isFinite(proposed) ? proposed : undefined });
   });
 
   /** Budget against declared cost, per work order and per unit — where control is possible. */

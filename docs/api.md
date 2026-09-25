@@ -122,7 +122,8 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 
 | Endpoint | Permission | Doc_H rule |
 |---|---|---|
-| `POST /work-orders/:id/cost` | `pricing.declare_cost` | §12 — units declare cost only — the response carries `budget: { status, budget, declared, notified }`; NEAR (≥90%) and OVER notify the account owner and the declarer at once |
+| `POST /work-orders/:id/cost` | `pricing.declare_cost` | §12 — units declare cost only — the response carries `budget: { status, budget, declared, notified }`; NEAR (≥90%) and OVER notify the account owner and the declarer at once. It also carries `estimate` (roadmap #24); a figure below three-quarters of comparable orders, with at least three of them, notifies the unit's managers (`ESTIMATE_BELOW_HISTORY`). The declaration stands either way |
+| `GET /work-orders/:id/estimate?proposedCost=` | `workorder.read` and `pricing.declare_cost` or `pricing.read` | What similar finished orders in the same unit were declared at, what their logged hours at each person's rate say they actually cost, and how many working days they took — comparables ranked by text similarity, same output format and same volume band, each with `whyFa[]`; `summary` ranges (p25/median/p75), `overrunRatio` (actual ÷ declared), a `verdict` on the proposed figure, and a `schedule` check against the deadline. A unit sees its own history only; `pricing.set_price` or `pricing.approve` sees every unit |
 | `POST /proposals/:id/costs` | `pricing.declare_cost` | §12 |
 | `POST /proposals/:id/pricing` | `pricing.set_price` | §12 — sets price; clears any prior approval |
 | `POST /proposals/:id/pricing/approve` | `pricing.approve` | §12 — must be a different person |

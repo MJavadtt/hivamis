@@ -729,3 +729,30 @@ the organisation finds out if a rule is wrong.
 (ADR-003). Blocking on a heuristic score would move the vague brief into an email rather than
 improve it.
 
+## ADR-031 — An estimate is judged against what comparable work actually cost, at the moment it is declared
+
+**Decision.** `estimateFor` ranks a unit's finished work orders (SUBMITTED or COMPLETED) against
+the one being costed — text similarity of title, scope, expected output and format, plus a boost
+for the same output format and for a budget within half-to-double — and keeps up to twelve above
+a similarity floor, falling back to the unit's whole history (and saying so) when fewer than
+three qualify. For each comparable it reports the declared cost, the *actual* cost (hours logged
+on its tasks at each person's hourly rate, plus declared external spend) and the working days
+from acceptance to submission. A proposed figure is judged against the p25–p75 range of actual
+cost, or of declared cost when no comparable has fully-priced hours.
+
+An actual cost with any unpriced hours is reported as unknown rather than as the priced part:
+too small a number would make every estimate look generous.
+
+The check runs in the cost dialog as the figure is typed, and again when the declaration is
+saved; a figure below p25 with at least three comparables notifies the unit's managers.
+
+**Rationale.** A declaration becomes the price. Without the comparison, an optimistic number
+passes through Pricing untested and the loss appears at closure, when nothing can be done. The
+comparison is only useful before the price is locked, so that is where it lives.
+
+**Why a unit sees only its own history.** Cost is the unit's to declare (Doc_H §12), and another
+unit's costs are not theirs to read; roles that set or approve prices see every unit.
+
+**Advisory.** Doc_H makes the unit responsible for its declaration. The assistant makes a
+figure visible; it does not overrule it.
+
