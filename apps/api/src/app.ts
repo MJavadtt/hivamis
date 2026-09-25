@@ -33,6 +33,7 @@ import memoryRoutes from './routes/memory.js';
 import securityRoutes from './routes/security.js';
 import meetingRoutes from './routes/meetings.js';
 import askRoutes from './routes/ask.js';
+import fxRoutes from './routes/fx.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -171,6 +172,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(securityRoutes);
     await api.register(meetingRoutes);
     await api.register(askRoutes);
+    await api.register(fxRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

@@ -128,6 +128,16 @@ the brief, the brand — because that is still the reviewer's job.
   financial condition on the closure checklist.
 - **Project financials** — Project 360 → Financial shows budget vs actual cost vs revenue, margin,
   and cost broken down by unit, all from declared costs.
+- **Other currencies** — **مالی ← نرخ ارز** holds each currency's rate to the rial, by date: record
+  the day's rate, or paste a history (one «date,currency,rate» per line, Jalali or Gregorian). An
+  invoice, receipt, contract or external cost written in dollars, dirhams or euros is converted at
+  the rate in force on its own day, and keeps that rate for good — correcting a rate later does
+  not move anything already recorded, and the correction asks for a reason. If there is no rate for
+  that day, or the last one is more than a week old, the system refuses and says which rate it
+  needs rather than using an old one. A receipt against a dollar invoice can be entered in dollars,
+  or in rials at that day's rate; the invoice is settled when its dollars are. **اثر نرخ ارز**
+  shows what the rate has done: the gain or loss on receipts already collected, what open dollar
+  invoices would be worth at today's rate, and each dollar contract as booked and as it stands.
 
 ---
 

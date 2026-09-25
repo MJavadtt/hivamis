@@ -559,6 +559,12 @@ model CostDeclaration {
   departmentCode String
   internalCost   Decimal    @db.Decimal(20, 2)
   externalCost   Decimal    @default(0) @db.Decimal(20, 2)
+  /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
+  /// organisation's currency, so every report sums like with like; null originals mean "written in base".
+  externalCurrency     String    @default("IRR")
+  fxRate               Decimal   @default(1) @db.Decimal(24, 6)
+  fxRateDate           DateTime?
+  originalExternalCost Decimal?  @db.Decimal(20, 2)
   items          Json       @default("[]")
   assumptions    String?
   declaredById   String
@@ -621,6 +627,9 @@ model Project {
   actualEnd      DateTime?
   plannedBudget  Decimal?     @db.Decimal(20, 2)
   contractValue  Decimal?     @db.Decimal(20, 2)
+  /// Roadmap #28: copied from the registered contract — its currency and value as written.
+  contractCurrency      String   @default("IRR")
+  originalContractValue Decimal? @db.Decimal(20, 2)
   state          String       @default("DRAFT")
   healthStatus   String       @default("GREEN")
   closedAt       DateTime?
@@ -970,6 +979,12 @@ model Contract {
   project        Project?  @relation(fields: [projectId], references: [id])
   title          String
   contractValue  Decimal   @db.Decimal(20, 2)
+  /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
+  /// organisation's currency, so every report sums like with like; null originals mean "written in base".
+  currency       String    @default("IRR")
+  fxRate         Decimal   @default(1) @db.Decimal(24, 6)
+  fxRateDate     DateTime?
+  originalValue  Decimal?  @db.Decimal(20, 2)
   startDate      DateTime
   endDate        DateTime
   scopeSummary   String?
@@ -1003,6 +1018,10 @@ model Amendment {
   effectiveDate     DateTime
   changes           String
   valueDelta        Decimal        @default(0) @db.Decimal(20, 2)
+  /// Roadmap #28: for a contract in another currency, the delta as written and the rate that converted it.
+  originalValueDelta Decimal?      @db.Decimal(20, 2)
+  fxRate             Decimal       @default(1) @db.Decimal(24, 6)
+  fxRateDate         DateTime?
   durationDeltaDays Int            @default(0)
   createdById       String
   createdAt         DateTime       @default(now())
@@ -1033,6 +1052,18 @@ model Invoice {
   taxAmount      Decimal   @default(0) @db.Decimal(20, 2)
   total          Decimal   @db.Decimal(20, 2)
   paidAmount     Decimal   @default(0) @db.Decimal(20, 2)
+  /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
+  /// organisation's currency, so every report sums like with like; null originals mean "written in base".
+  currency           String    @default("IRR")
+  /// Base units per one unit of `currency`, as in force on the issue date — frozen with the invoice.
+  fxRate             Decimal   @default(1) @db.Decimal(24, 6)
+  /// The date of the rate used (the latest on or before the issue date).
+  fxRateDate         DateTime?
+  originalSubtotal   Decimal?  @db.Decimal(20, 2)
+  originalTaxAmount  Decimal?  @db.Decimal(20, 2)
+  originalTotal      Decimal?  @db.Decimal(20, 2)
+  /// Settlement is counted in the invoice's own currency; paidAmount is that, at the invoice's rate.
+  originalPaidAmount Decimal?  @db.Decimal(20, 2)
   state          String    @default("DRAFT")
   notes          String?
   cancelReason   String?
@@ -1058,6 +1089,14 @@ model Payment {
   supplier       Supplier? @relation(fields: [supplierId], references: [id])
   direction      String
   amount         Decimal   @db.Decimal(20, 2)
+  /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
+  /// organisation's currency, so every report sums like with like; null originals mean "written in base".
+  currency        String    @default("IRR")
+  fxRate          Decimal   @default(1) @db.Decimal(24, 6)
+  fxRateDate      DateTime?
+  originalAmount  Decimal?  @db.Decimal(20, 2)
+  /// How much of the linked invoice this settles, in the invoice's currency.
+  settledOriginal Decimal?  @db.Decimal(20, 2)
   occurredAt     DateTime
   method         String    @default("TRANSFER")
   reference      String?
@@ -1799,4 +1838,24 @@ model Counter {
   value  Int    @default(0)
 
   @@map("counters")
+}
+
+/// An exchange rate (roadmap #28): base-currency units for one unit of `currency`, in force from
+/// `effectiveDate` until the next one. Records keep the rate they were converted at, so correcting
+/// a rate here never moves a figure already booked.
+model ExchangeRate {
+  id             String   @id @default(uuid())
+  organizationId String
+  currency       String
+  rate           Decimal  @db.Decimal(24, 6)
+  effectiveDate  DateTime @db.Date
+  /// MANUAL | IMPORT
+  source         String   @default("MANUAL")
+  note           String?
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, currency, effectiveDate])
+  @@map("exchange_rates")
 }

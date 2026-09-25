@@ -145,6 +145,17 @@ export const CONTRACT_STATES = [
 ] as const;
 export type ContractState = (typeof CONTRACT_STATES)[number];
 
+/**
+ * Currencies an amount may be recorded in (roadmap #28). The organisation's own currency is the
+ * base every report sums in; any other is converted at the rate in force on the record's date and
+ * keeps its original figure and that rate beside the converted one.
+ */
+export const CURRENCIES = ['IRR', 'USD', 'EUR', 'AED', 'GBP', 'TRY', 'CNY'] as const;
+export type Currency = (typeof CURRENCIES)[number];
+export const CURRENCY_LABELS: Record<Currency, string> = {
+  IRR: 'ریال', USD: 'دلار آمریکا', EUR: 'یورو', AED: 'درهم امارات', GBP: 'پوند انگلیس', TRY: 'لیر ترکیه', CNY: 'یوان چین',
+};
+
 export const INVOICE_KINDS = ['PROFORMA', 'INVOICE'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 

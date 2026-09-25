@@ -880,3 +880,33 @@ logged (`ai_interactions`, `NL_REPORT`, unsucceeded) as the list of what to add 
 the media unit" means projects in which the unit received a work order, and a margin is the whole
 project's, not the unit's share — the answer says so. The model fallback is an adapter: its
 validation is tested with a stub planner; a live model call is not exercised here.
+
+## ADR-036 — A foreign figure is converted once, at its own day's rate, and keeps it
+
+**Decision.** The organisation's currency stays the base of every amount column, so every report
+sums like with like and none of them changed. A figure written in another currency is converted
+when it is recorded, at the latest rate on or before its own date (issue date, payment date, the
+day a contract or cost is recorded), and stores its currency, the figure as written, the rate and
+the rate's date beside the converted one. Rates are a dated history (`exchange_rates`), recorded by
+holders of the new `finance.rates` permission; correcting a day's rate needs a reason and never
+moves a figure already booked. A figure with no rate for its day, or only one older than
+`FX_MAX_RATE_AGE_DAYS`, is refused with the currency and the day named.
+
+**Rationale.** The roadmap's point for this market: with the rial moving daily, a six-month
+contract's margin means nothing without the rate at the moment each figure was recorded. Storing
+only the foreign figure and converting at "today's rate" on read would make every past report
+change every day; storing only the converted figure would lose the contract's actual terms. Both,
+frozen together, are what an accountant would book.
+
+**Settlement in the invoice's currency.** A dollar invoice is settled when its dollars are, whatever
+the rials came to. Its base `paidAmount` is the settled dollars at the invoice's own rate, so
+"outstanding" and project settlement read zero for a paid invoice instead of flagging the exchange
+difference as a dispute; the difference is reported as a realised exchange gain or loss. Open
+dollar receivables, dollar contracts and dollar costs are revalued at the latest rate in
+`/reports/fx`, beside what they were booked at — the answer to "is this project still profitable in
+rials?". A receipt against a foreign invoice must state its currency: guessed wrong, it is off by
+a factor of a million.
+
+**Limits, stated.** Rates are entered or imported; no live rate feed is wired (the market has
+several competing "rates of the day" and choosing one is the finance team's decision, not the
+software's). Internal cost is always in base. Budgets and opportunity values remain base-only.

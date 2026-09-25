@@ -32,8 +32,10 @@ export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   filter?: (req: FastifyRequest) => Record<string, unknown>;
   /** Generate a human code (LEAD-000001 …) on create. */
   codeScope?: string;
-  /** Map validated input to Prisma create data. */
-  toCreate?: (input: any, actor: ReturnType<typeof actorFrom>) => Record<string, unknown>;
+  /** Map validated input to Prisma create data (may look things up, e.g. an exchange rate). */
+  toCreate?: (input: any, actor: ReturnType<typeof actorFrom>) => Record<string, unknown> | Promise<Record<string, unknown>>;
+  /** Map a validated partial update to Prisma update data, given the record as it stands. */
+  toUpdate?: (input: Record<string, unknown>, before: any, actor: ReturnType<typeof actorFrom>) => Promise<Record<string, unknown>>;
   /** Runs inside the create request, after the row exists — for SLA clocks and derived rows. */
   afterCreate?: (record: any, actor: ReturnType<typeof actorFrom>) => Promise<void>;
   /** Soft-delete instead of hard delete. */
@@ -115,7 +117,7 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
     async (req, reply) => {
       const actor = actorFrom(req);
       const input = parse(opts.createSchema, req.body);
-      const base = opts.toCreate ? opts.toCreate(input, actor) : { ...(input as object) };
+      const base = opts.toCreate ? await opts.toCreate(input, actor) : { ...(input as object) };
       const fields = fieldsOf(opts.model);
 
       const data: Record<string, unknown> = { ...base };
@@ -142,7 +144,8 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       if (!before) throw notFound();
       // `state` is owned exclusively by the workflow engine.
       const { state: _ignored, ...safe } = input as Record<string, unknown>;
-      const record = await model().update({ where: { id }, data: safe });
+      const data = opts.toUpdate ? await opts.toUpdate(safe, before, actor) : safe;
+      const record = await model().update({ where: { id }, data });
       await audit({
         organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
         entityType: opts.model, entityId: id, before, after: record,

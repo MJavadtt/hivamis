@@ -171,7 +171,8 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
     if (record.projectId) {
       await tx.project.update({
         where: { id: record.projectId },
-        data: { contractValue: record.contractValue, plannedEnd: record.endDate },
+        // …with the currency it was written in (roadmap #28), so the project knows it is a dollar job.
+        data: { contractValue: record.contractValue, contractCurrency: record.currency, originalContractValue: record.originalValue, plannedEnd: record.endDate },
       }).catch(() => undefined);
     }
     return {

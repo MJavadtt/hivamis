@@ -117,7 +117,7 @@ export function toLatinDigits(input: string): string {
 }
 
 /** Local calendar parts, not toISOString — that would shift the day across the UTC boundary. */
-function localDateOnly(d: Date): string {
+export function localDateOnly(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

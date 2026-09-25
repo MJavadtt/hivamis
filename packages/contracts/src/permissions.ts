@@ -104,6 +104,7 @@ export const PERMISSIONS = {
   'finance.payment': 'ثبت دریافت/پرداخت',
   'finance.settle': 'تسویه پروژه',
   'finance.budget': 'مدیریت بودجه پروژه',
+  'finance.rates': 'ثبت نرخ ارز',
 
   // Traffic & resources
   'traffic.read': 'مشاهده ترافیک',
@@ -209,7 +210,7 @@ const UNIT_CORE: Permission[] = [
 const FINANCE_CORE: Permission[] = [
   ...READ_ONLY,
   'finance.read', 'finance.proforma', 'finance.invoice', 'finance.payment',
-  'finance.budget', 'pricing.read', 'pricing.set_price',
+  'finance.budget', 'finance.rates', 'pricing.read', 'pricing.set_price',
   'document.write', 'form.submit', 'ai.use',
 ];
 

@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { EstimateCheck } from '../components/EstimateCheck';
+import { CurrencySelect, FxPreview } from '../components/Fx';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -369,7 +370,15 @@ export function WorkOrderDetail() {
 function CostModal({ workOrder, onClose }: { workOrder: any; onClose: () => void }) {
   const [internal, setInternal] = useState('');
   const [external, setExternal] = useState('0');
+  const [externalCurrency, setExternalCurrency] = useState('IRR');
   const [assumptions, setAssumptions] = useState('');
+  // A foreign external cost is compared with history in rials, at today's rate (roadmap #28).
+  const { data: rate } = useQuery<{ rate: number | null; usable: boolean }>({
+    queryKey: ['/fx/rate', externalCurrency, 'today'],
+    queryFn: () => apiGet('/fx/rate', { currency: externalCurrency }),
+    enabled: externalCurrency !== 'IRR',
+  });
+  const externalBase = externalCurrency === 'IRR' ? Number(external || 0) : Number(external || 0) * Number(rate?.rate ?? 0);
 
   const save = useAction(
     (body: unknown) => apiPost(`/work-orders/${workOrder.id}/cost`, body),
@@ -379,7 +388,7 @@ function CostModal({ workOrder, onClose }: { workOrder: any; onClose: () => void
   const submit = async () => {
     await save.mutateAsync({
       departmentCode: workOrder.targetDepartmentCode,
-      internalCost: Number(internal), externalCost: Number(external || 0),
+      internalCost: Number(internal), externalCost: Number(external || 0), externalCurrency,
       assumptions: assumptions || undefined, items: [],
     });
     onClose();
@@ -400,10 +409,14 @@ function CostModal({ workOrder, onClose }: { workOrder: any; onClose: () => void
       </p>
       <div className="space-y-4">
         <Field label="هزینه داخلی (ریال)" required><Input type="number" value={internal} onChange={(e) => setInternal(e.target.value)} className="ltr" /></Field>
-        <Field label="هزینه خارجی (ریال)"><Input type="number" value={external} onChange={(e) => setExternal(e.target.value)} className="ltr" /></Field>
+        <div className="grid grid-cols-[1fr_12rem] gap-3">
+          <Field label="هزینه خارجی" hint="رسانهٔ خارجی، لایسنس یا فریلنسر خارجی را به ارز خودش وارد کنید"><Input type="number" value={external} onChange={(e) => setExternal(e.target.value)} className="ltr" aria-label="هزینه خارجی" /></Field>
+          <Field label="ارز هزینهٔ خارجی"><CurrencySelect value={externalCurrency} onChange={setExternalCurrency} label="ارز هزینهٔ خارجی" /></Field>
+        </div>
+        <FxPreview currency={externalCurrency} amount={Number(external || 0)} on={null} />
         <Field label="مفروضات"><Textarea value={assumptions} onChange={(e) => setAssumptions(e.target.value)} rows={2} /></Field>
         {/* What similar work actually cost, while the figure can still change (roadmap #24). */}
-        <EstimateCheck workOrderId={workOrder.id} proposed={Number(internal || 0) + Number(external || 0)} />
+        <EstimateCheck workOrderId={workOrder.id} proposed={Number(internal || 0) + externalBase} />
       </div>
     </Modal>
   );

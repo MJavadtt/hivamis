@@ -6,9 +6,10 @@ import {
 import { prisma } from '../db.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
-import { badRequest, notFound } from '../lib/errors.js';
+import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
+import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, SETTLED_EPSILON } from '../finance/fx.js';
 
 const commercialRoutes: FastifyPluginAsync = async (app) => {
   /* ── Contracts ───────────────────────────────────────────────────────── */
@@ -33,7 +34,19 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       company: true, project: true, proposal: { select: { id: true, code: true, title: true } },
       amendments: { orderBy: { effectiveDate: 'desc' } }, documents: true,
     },
-    toCreate: (input, actor) => ({ ...input, createdById: actor.id }),
+    // Roadmap #28: a contract written in another currency is booked at today's rate, and keeps it.
+    toCreate: async (input, actor) => {
+      const { currency, ...rest } = input as { currency?: string; contractValue: number } & Record<string, unknown>;
+      const fx = await convert(prisma, actor.organizationId, currency, rest.contractValue, new Date());
+      return { ...rest, contractValue: fx.base, currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate, originalValue: fx.original, createdById: actor.id };
+    },
+    toUpdate: async (input, before, actor) => {
+      const { currency, ...rest } = input as { currency?: string; contractValue?: number } & Record<string, unknown>;
+      if (rest.contractValue === undefined && currency === undefined) return rest;
+      const value = rest.contractValue ?? Number(before.originalValue ?? before.contractValue);
+      const fx = await convert(prisma, actor.organizationId, currency ?? before.currency, value, new Date());
+      return { ...rest, contractValue: fx.base, currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate, originalValue: fx.original };
+    },
   });
 
   app.post('/contracts/:id/amendments', {
@@ -49,20 +62,24 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       throw badRequest('CONTRACT_NOT_ACTIVE', 'الحاقیه فقط برای قرارداد امضاشده/ثبت‌شده قابل صدور است.');
     }
 
+    // A delta on a contract in another currency is written in that currency (roadmap #28) and
+    // booked at today's rate; the contract's base value moves by exactly that booked amount.
+    const fx = await convert(prisma, actor.organizationId, contract.currency, input.valueDelta, new Date());
     const amendment = await prisma.$transaction(async (tx) => {
       const created = await tx.amendment.create({
-        data: { ...input, createdById: actor.id },
+        data: { ...input, valueDelta: fx.base, originalValueDelta: fx.original, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate, createdById: actor.id },
       });
       // An amendment moves the contract value and, when tied to a project, its contract value too.
-      const newValue = Number(contract.contractValue) + Number(input.valueDelta);
+      const newValue = D(contract.contractValue).add(fx.base);
+      const newOriginal = contract.originalValue != null ? D(contract.originalValue).add(input.valueDelta) : null;
       const newEnd = new Date(contract.endDate.getTime() + input.durationDeltaDays * 86_400_000);
       await tx.contract.update({
-        where: { id }, data: { contractValue: newValue, endDate: newEnd },
+        where: { id }, data: { contractValue: newValue, originalValue: newOriginal, endDate: newEnd },
       });
       if (contract.projectId) {
         await tx.project.update({
           where: { id: contract.projectId },
-          data: { contractValue: newValue, plannedEnd: newEnd },
+          data: { contractValue: newValue, originalContractValue: newOriginal, contractCurrency: contract.currency, plannedEnd: newEnd },
         });
       }
       return created;
@@ -120,9 +137,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createInvoiceSchema, req.body);
-    // Totals are computed server-side; a client-supplied total is never trusted.
-    const subtotal = input.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
-    const taxAmount = (subtotal * input.taxPercent) / 100;
+    // Totals are computed server-side; a client-supplied total is never trusted. Lines are in the
+    // invoice's currency; the base totals use the rate in force on the issue date (roadmap #28).
+    const subtotal = input.lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice)), D(0));
+    const taxAmount = subtotal.mul(input.taxPercent).div(100);
+    const fx = await convertMany(prisma, actor.organizationId, input.currency, { subtotal, taxAmount }, input.issueDate);
 
     const invoice = await prisma.invoice.create({
       data: {
@@ -131,8 +150,12 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
         kind: input.kind, number: input.number, companyId: input.companyId,
         projectId: input.projectId ?? null, contractId: input.contractId ?? null,
         issueDate: input.issueDate, dueDate: input.dueDate ?? null,
-        lines: input.lines as object, subtotal, taxPercent: input.taxPercent,
-        taxAmount, total: subtotal + taxAmount, notes: input.notes ?? null,
+        lines: input.lines as object, subtotal: fx.base.subtotal, taxPercent: input.taxPercent,
+        taxAmount: fx.base.taxAmount, total: fx.base.subtotal.add(fx.base.taxAmount), notes: input.notes ?? null,
+        currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate,
+        originalSubtotal: fx.original?.subtotal ?? null, originalTaxAmount: fx.original?.taxAmount ?? null,
+        originalTotal: fx.original ? fx.original.subtotal.add(fx.original.taxAmount) : null,
+        originalPaidAmount: fx.original ? 0 : null,
         createdById: actor.id,
       },
     });
@@ -172,6 +195,34 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createPaymentSchema, req.body);
+    const base = await baseCurrency(prisma, actor.organizationId);
+    const linked = input.invoiceId
+      ? await prisma.invoice.findFirst({ where: { id: input.invoiceId, organizationId: actor.organizationId } })
+      : null;
+    if (input.invoiceId && !linked) throw notFound('سند مالی');
+    const foreignInvoice = linked && linked.currency !== base ? linked : null;
+
+    // Roadmap #28. A receipt against an invoice in another currency must say what it is in: read
+    // as the wrong currency, a figure is off by the exchange rate — a factor of a million.
+    if (foreignInvoice && !input.currency) {
+      throw new AppError(422, 'FX_CURRENCY_REQUIRED', `این فاکتور به ${currencyFa(foreignInvoice.currency)} است؛ ارز مبلغ دریافتی را مشخص کنید (${currencyFa(foreignInvoice.currency)} یا ${currencyFa(base)}).`);
+    }
+    const paidIn = input.currency ?? base;
+    if (foreignInvoice && paidIn !== base && paidIn !== foreignInvoice.currency) {
+      throw new AppError(422, 'FX_CURRENCY_MISMATCH', `دریافتیِ فاکتور ${currencyFa(foreignInvoice.currency)} باید به همان ارز یا به ${currencyFa(base)} ثبت شود، نه ${currencyFa(paidIn)}.`);
+    }
+    const fx = await convert(prisma, actor.organizationId, paidIn, input.amount, input.occurredAt);
+    // How much of the invoice this settles, counted in the invoice's own currency.
+    let settledOriginal: ReturnType<typeof D> | null = null;
+    let fxRate = fx.fxRate, fxRateDate = fx.fxRateDate;
+    if (foreignInvoice) {
+      if (paidIn === foreignInvoice.currency) settledOriginal = D(input.amount);
+      else {
+        const r = await rateFor(prisma, actor.organizationId, foreignInvoice.currency, input.occurredAt);
+        settledOriginal = D(input.amount).div(r.rate).toDecimalPlaces(2);
+        fxRate = r.rate; fxRateDate = r.effectiveDate;           // the invoice currency's rate that day
+      }
+    }
 
     const payment = await prisma.$transaction(async (tx) => {
       const created = await tx.payment.create({
@@ -179,25 +230,39 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
           organizationId: actor.organizationId,
           invoiceId: input.invoiceId ?? null, projectId: input.projectId ?? null,
           supplierId: input.supplierId ?? null, direction: input.direction,
-          amount: input.amount, occurredAt: input.occurredAt, method: input.method,
+          amount: fx.base, occurredAt: input.occurredAt, method: input.method,
           reference: input.reference ?? null, description: input.description ?? null,
+          currency: paidIn, fxRate, fxRateDate, originalAmount: fx.original, settledOriginal,
           createdById: actor.id,
         },
       });
 
-      if (input.invoiceId && input.direction === 'IN') {
-        const agg = await tx.payment.aggregate({
-          where: { invoiceId: input.invoiceId, direction: 'IN' }, _sum: { amount: true },
-        });
-        const paid = Number(agg._sum.amount ?? 0);
-        const invoice = await tx.invoice.findFirst({ where: { id: input.invoiceId, organizationId: actor.organizationId } });
-        if (invoice) {
-          const total = Number(invoice.total);
+      if (linked && input.direction === 'IN') {
+        if (foreignInvoice) {
+          // Settled in the invoice's currency; paidAmount is that share at the invoice's own rate,
+          // so "outstanding" in base never includes an exchange difference — that is reported as one.
+          const agg = await tx.payment.aggregate({ where: { invoiceId: linked.id, direction: 'IN' }, _sum: { settledOriginal: true } });
+          const settled = D(agg._sum.settledOriginal ?? 0);
+          const total = D(linked.originalTotal ?? 0);
+          const capped = settled.gt(total) ? total : settled;
           await tx.invoice.update({
-            where: { id: invoice.id },
+            where: { id: linked.id },
+            data: {
+              originalPaidAmount: settled, paidAmount: capped.mul(linked.fxRate).toDecimalPlaces(2),
+              state: settled.gte(total.sub(SETTLED_EPSILON)) ? 'PAID' : settled.gt(0) ? 'PARTIALLY_PAID' : linked.state,
+            },
+          });
+        } else {
+          const agg = await tx.payment.aggregate({
+            where: { invoiceId: linked.id, direction: 'IN' }, _sum: { amount: true },
+          });
+          const paid = Number(agg._sum.amount ?? 0);
+          const total = Number(linked.total);
+          await tx.invoice.update({
+            where: { id: linked.id },
             data: {
               paidAmount: paid,
-              state: paid >= total ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : invoice.state,
+              state: paid >= total ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : linked.state,
             },
           });
         }

@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, money } from '../components/Fx';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import {
-  Badge, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
-  Table, Td, Th, Tr,
+  Badge, Button, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
+  Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, toPersianDigits } from '../lib/format';
 
@@ -34,7 +37,7 @@ export function ContractsList() {
             { key: 'title', header: 'قرارداد', render: (r) => (<><p className="font-medium text-ink-800">{r.title}</p><Code>{r.code}</Code></>) },
             { key: 'number', header: 'شماره', render: (r) => <span className="ltr text-xs">{r.contractNumber ?? '—'}</span> },
             { key: 'company', header: 'مشتری', render: (r) => <span className="text-xs">{r.company?.legalName}</span> },
-            { key: 'value', header: 'مبلغ', render: (r) => <span className="text-xs" title={exactCurrency(r.contractValue)}>{formatCurrency(r.contractValue)}</span> },
+            { key: 'value', header: 'مبلغ', render: (r) => <span className="text-xs" title={exactCurrency(r.contractValue)}><Amount base={r.contractValue} original={r.originalValue} currency={r.currency} /></span> },
             { key: 'period', header: 'دوره', render: (r) => <span className="text-xs">{formatDate(r.startDate)} — {formatDate(r.endDate)}</span> },
             { key: 'state', header: 'وضعیت', render: (r) => <StateBadge state={r.state} /> },
           ]}
@@ -75,7 +78,11 @@ export function ContractDetail() {
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title="اطلاعات قرارداد" className="lg:col-span-1">
           <dl className="px-4 py-1">
-            <DescRow label="مبلغ">{exactCurrency(data.contractValue)}</DescRow>
+            <DescRow label="مبلغ">
+              {data.currency && data.currency !== 'IRR' && data.originalValue != null
+                ? <>{money(data.originalValue, data.currency)} <span className="text-xs text-ink-500">— ثبت‌شده {exactCurrency(data.contractValue)} به نرخ {formatDate(data.fxRateDate)}</span></>
+                : exactCurrency(data.contractValue)}
+            </DescRow>
             <DescRow label="شروع">{formatDate(data.startDate)}</DescRow>
             <DescRow label="پایان">{formatDate(data.endDate)}</DescRow>
             <DescRow label="تاریخ امضا">{formatDate(data.signedDate)}</DescRow>
@@ -115,7 +122,7 @@ export function ContractDetail() {
                     <Td className="ltr text-xs">{a.amendmentNumber}</Td>
                     <Td className="text-xs">{formatDate(a.effectiveDate)}</Td>
                     <Td className="max-w-md text-xs">{a.changes}</Td>
-                    <Td className="text-xs">{formatCurrency(a.valueDelta)}</Td>
+                    <Td className="text-xs"><Amount base={a.valueDelta} original={a.originalValueDelta} currency={data.currency} /></Td>
                     <Td className="nums text-xs">{toPersianDigits(a.durationDeltaDays)} روز</Td>
                   </Tr>
                 ))}
@@ -129,6 +136,10 @@ export function ContractDetail() {
 }
 
 export function Finance() {
+  const { can } = useAuth();
+  const [tab, setTab] = useState('docs');
+  const [issuing, setIssuing] = useState(false);
+  const [receiving, setReceiving] = useState(false);
   const { data: invoices, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/invoices'], queryFn: () => apiGet('/invoices', { pageSize: 50 }),
   });
@@ -146,9 +157,22 @@ export function Finance() {
 
   return (
     <>
-      <PageHeader title="مالی" subtitle="اسناد مالی، دریافت‌ها و مطالبات" />
+      <PageHeader title="مالی" subtitle="اسناد مالی، دریافت‌ها و مطالبات — مبالغ ارزی با نرخ روز خودشان به ریال شمرده می‌شوند"
+        actions={
+          <div className="flex gap-2">
+            {can('finance.payment') && <Button variant="secondary" onClick={() => setReceiving(true)}>ثبت دریافت/پرداخت</Button>}
+            {can('finance.invoice') && <Button variant="primary" onClick={() => setIssuing(true)}>صدور سند مالی</Button>}
+          </div>
+        } />
+      <div className="border-b border-ink-200 bg-surface px-2">
+        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
+      </div>
+      {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
+      {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
       <PageBody className="space-y-5">
-        {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : (
+        {tab === 'rates' && <FxRates />}
+        {tab === 'fx' && <FxReport />}
+        {tab === 'docs' && (isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <StatTile label="مجموع فاکتورشده" value={formatCurrency(totals.invoiced)} />
@@ -172,8 +196,8 @@ export function Finance() {
                         <Td className="text-xs">{i.project?.name ?? '—'}</Td>
                         <Td className="text-xs">{formatDate(i.issueDate)}</Td>
                         <Td className="text-xs">{formatDate(i.dueDate)}</Td>
-                        <Td className="text-xs" title={exactCurrency(i.total)}>{formatCurrency(i.total)}</Td>
-                        <Td className="text-xs">{formatCurrency(i.paidAmount)}</Td>
+                        <Td className="text-xs" title={exactCurrency(i.total)}><Amount base={i.total} original={i.originalTotal} currency={i.currency} /></Td>
+                        <Td className="text-xs"><Amount base={i.paidAmount} original={i.originalPaidAmount} currency={i.currency} /></Td>
                         <Td><StateBadge state={i.state} /></Td>
                       </Tr>
                     ))}
@@ -190,7 +214,7 @@ export function Finance() {
                     {payments.items.map((p: any) => (
                       <Tr key={p.id}>
                         <Td><Badge tone={p.direction === 'IN' ? 'success' : 'warning'}>{p.direction === 'IN' ? 'دریافت' : 'پرداخت'}</Badge></Td>
-                        <Td className="text-xs" title={exactCurrency(p.amount)}>{formatCurrency(p.amount)}</Td>
+                        <Td className="text-xs" title={exactCurrency(p.amount)}><Amount base={p.amount} original={p.originalAmount} currency={p.currency} /></Td>
                         <Td className="text-xs">{formatDate(p.occurredAt)}</Td>
                         <Td className="text-xs">{p.method}</Td>
                         <Td className="ltr text-xs">{p.reference ?? '—'}</Td>
@@ -201,7 +225,7 @@ export function Finance() {
               )}
             </Card>
           </>
-        )}
+        ))}
       </PageBody>
     </>
   );

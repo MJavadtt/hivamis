@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS,
+  DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES,
 } from './enums.js';
@@ -157,6 +157,8 @@ export const declareCostSchema = z.object({
   departmentCode: z.enum(DEPARTMENT_CODES),
   internalCost: z.coerce.number().min(0),
   externalCost: z.coerce.number().min(0).default(0),
+  /** The external cost's currency (foreign media, tools, freelancers); internal cost is always base. */
+  externalCurrency: z.enum(CURRENCIES).optional(),
   items: z.array(z.object({
     description: z.string().trim().min(1).max(400),
     quantity: z.coerce.number().min(0).default(1),
@@ -314,6 +316,8 @@ export const createContractSchema = z.object({
   projectId: idSchema.optional(),
   title: z.string().trim().min(2).max(200),
   contractValue: z.coerce.number().min(0),
+  /** The currency contractValue is written in; converted to base at today's rate when recorded. */
+  currency: z.enum(CURRENCIES).optional(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   scopeSummary: z.string().trim().max(8000).optional(),
@@ -338,6 +342,8 @@ export const createInvoiceSchema = z.object({
   number: z.string().trim().min(1).max(60),
   issueDate: z.coerce.date(),
   dueDate: z.coerce.date().optional(),
+  /** Line prices are in this currency; the base totals use the rate in force on issueDate. */
+  currency: z.enum(CURRENCIES).optional(),
   taxPercent: z.coerce.number().min(0).max(100).default(0),
   lines: z.array(z.object({
     description: z.string().trim().min(1).max(400),
@@ -353,6 +359,8 @@ export const createPaymentSchema = z.object({
   supplierId: idSchema.optional(),
   direction: z.enum(['IN', 'OUT']),
   amount: z.coerce.number().positive(),
+  /** The currency `amount` is in; a receipt against a foreign invoice may be in its currency or in base. */
+  currency: z.enum(CURRENCIES).optional(),
   occurredAt: z.coerce.date(),
   method: z.enum(['TRANSFER', 'CHEQUE', 'CASH', 'OTHER']).default('TRANSFER'),
   reference: z.string().trim().max(120).optional(),
@@ -360,6 +368,20 @@ export const createPaymentSchema = z.object({
 });
 
 /* ── resources & governance ────────────────────────────────────────────────── */
+
+/** An exchange rate: base-currency units for one unit of `currency`, in force from `effectiveDate`. */
+export const exchangeRateSchema = z.object({
+  currency: z.enum(CURRENCIES),
+  rate: z.coerce.number().positive().max(1e12),
+  effectiveDate: z.coerce.date(),
+  /** Required when it replaces a rate already recorded for that day. */
+  note: z.string().trim().max(500).optional(),
+});
+
+/** Rates in bulk — one «date,currency,rate» per line; Jalali (1405/07/01) or ISO dates. */
+export const importRatesSchema = z.object({
+  csv: z.string().min(5).max(200_000),
+});
 
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),

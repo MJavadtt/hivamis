@@ -45,6 +45,11 @@ const envSchema = z.object({
   TRANSCRIPTION_URL: z.string().default(''),
   TRANSCRIPTION_MODEL: z.string().default('whisper-1'),
   TRANSCRIPTION_API_KEY: z.string().default(''),
+  /**
+   * Roadmap #28: how old an exchange rate may be and still convert a new amount. The rial moves
+   * daily; converting today's invoice at last month's rate would book a figure nobody agreed to.
+   */
+  FX_MAX_RATE_AGE_DAYS: z.coerce.number().int().min(0).max(365).default(7),
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),

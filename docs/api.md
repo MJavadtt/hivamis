@@ -183,6 +183,33 @@ A submitter cannot approve their own form.
 | `GET /traffic` | `traffic.read` | Per-person capacity vs committed hours over a window, on each person's own calendar and leave; `leaveHours` per row, `onLeave` in the summary. Same arithmetic as the assignment suggestion |
 | `GET /tasks/suggest-assignee` | `task.assign` | Who has room for the work. `taskId` reads the unit, estimate and due date off a task; or pass `unit`, `hours`, `by` directly (`limit` ≤ 50). Each candidate carries free capacity, `utilisationAfter`, `earliestFinish` on their own calendar, `missesDueDate`, delivery history, a score and its `reasonsFa`/`warningsFa`. Advisory — nothing here refuses an assignment |
 
+## Currencies and exchange rates
+
+Roadmap #28. Every base amount column (`total`, `paidAmount`, `amount`, `externalCost`,
+`contractValue`, `valueDelta`) stays in the organisation's currency, so every report sums like with
+like. A figure written in another currency (`currency` on `POST /invoices`, `POST /payments`,
+`POST /contracts`, `externalCurrency` on cost declarations; an amendment takes its contract's) is
+converted **once**, at the rate in force on the record's own date — issue date, payment date,
+today for contracts, amendments and cost declarations — and keeps `currency`, the `original…`
+figure, `fxRate` and `fxRateDate` beside the base one. No rate on or before that date is
+`422 FX_RATE_MISSING`; only one older than `FX_MAX_RATE_AGE_DAYS` is `422 FX_RATE_STALE`; both name
+the currency and the day. A zero needs no rate.
+
+A receipt against an invoice in another currency must state its `currency` (`FX_CURRENCY_REQUIRED`
+— read as the wrong one, a figure is off by the rate); it may be the invoice's currency or base
+(`FX_CURRENCY_MISMATCH` otherwise). Settlement is counted in the invoice's currency
+(`settledOriginal`, `originalPaidAmount`); `paidAmount` is the settled share at the invoice's own
+rate, so an invoice paid in full is fully settled in base too, and the difference from the rate it
+was actually paid at is an exchange gain or loss, not a dispute.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /fx/rates` | `finance.read` | Base currency, and per currency the latest rate with its age and `stale` flag, plus up to 30 rates of history |
+| `GET /fx/rate?currency=&on=` | authenticated | The rate a figure dated `on` would convert at: `rate`, `effectiveDate`, `ageDays`, `usable` |
+| `POST /fx/rates` `{ currency, rate, effectiveDate, note? }` | `finance.rates` | Record a day's rate. Replacing one needs `note` (`REASON_REQUIRED`) and returns `replaced.recordsKeepingPrevious` — figures converted at the old rate keep it. Audited with before/after |
+| `POST /fx/rates/import` `{ csv }` | `finance.rates` | «date,currency,rate» per line, Jalali or ISO. Never overwrites: a different rate for a recorded day comes back in `conflicts[]`; bad lines in `errors[]` with their line numbers. Audited as `BULK_IMPORT` |
+| `GET /reports/fx?from=&to=` | `finance.read` | `totals.realised` (receipts at their day's rate against the invoice's booked rate) and `totals.unrealised` (open foreign receivables at the latest rate against booked), `byCurrency[]`, and the rows: `receivables`, `realised`, `contracts` and `costs`, each booked vs today |
+
 ## Asking the reports
 
 Natural-language reporting (roadmap #27). A question is mapped to a metric from a fixed catalogue

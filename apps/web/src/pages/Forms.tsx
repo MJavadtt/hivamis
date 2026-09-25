@@ -564,7 +564,8 @@ const ENTITY_PATHS: Record<string, { path: string; label: (r: any) => string }> 
   task: { path: '/tasks', label: (r) => `${r.title} (${r.code})` },
 };
 
-function EntitySelect({ entity, value, onChange }: { entity: string; value: string; onChange: (v: string) => void }) {
+/** Exported for the finance dialogs (roadmap #28). */
+export function EntitySelect({ entity, value, onChange }: { entity: string; value: string; onChange: (v: string) => void }) {
   const config = ENTITY_PATHS[entity];
   const { data, isError } = useQuery<{ items: any[] }>({
     queryKey: [config?.path, 'picker'],

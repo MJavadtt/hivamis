@@ -23,6 +23,7 @@ import { scheduleProject } from '../reports/schedule.js';
 import { forecastProject } from '../reports/forecast.js';
 import { suggestAssignees } from '../reports/capacity.js';
 import { estimateFor } from '../reports/estimate.js';
+import { convert } from '../finance/fx.js';
 import { notify } from '../mail/notify.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
@@ -130,6 +131,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
 
     const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
+    // A foreign external cost (media abroad, a licence, a freelancer) at today's rate — roadmap #28.
+    const ext = await convert(prisma, actor.organizationId, input.externalCurrency, input.externalCost, new Date());
 
     const declaration = await prisma.$transaction(async (tx) => {
       const created = await tx.costDeclaration.create({
@@ -139,7 +142,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
           workOrderId: input.workOrderId ?? null,
           departmentCode: input.departmentCode,
           internalCost: input.internalCost,
-          externalCost: input.externalCost,
+          externalCost: ext.base, externalCurrency: ext.currency, fxRate: ext.fxRate, fxRateDate: ext.fxRateDate, originalExternalCost: ext.original,
           items: input.items as object,
           assumptions: input.assumptions ?? null,
           declaredById: actor.id,
@@ -512,12 +515,14 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const input = parse(declareCostSchema, req.body);
     const wo = await prisma.workOrder.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!wo) throw notFound('سفارش کار');
+    const ext = await convert(prisma, actor.organizationId, input.externalCurrency, input.externalCost, new Date());
 
     const declaration = await prisma.costDeclaration.create({
       data: {
         organizationId: actor.organizationId, workOrderId: id, proposalId: wo.proposalId,
         departmentCode: input.departmentCode, internalCost: input.internalCost,
-        externalCost: input.externalCost, items: input.items as object,
+        externalCost: ext.base, externalCurrency: ext.currency, fxRate: ext.fxRate, fxRateDate: ext.fxRateDate,
+        originalExternalCost: ext.original, items: input.items as object,
         assumptions: input.assumptions ?? null, declaredById: actor.id,
       },
     });
@@ -538,7 +543,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
      * below history reaches the unit's manager now, while the price can still move — not at
      * closure, when the loss is already booked. Advisory: the declaration stands either way.
      */
-    const proposed = Number(input.internalCost) + Number(input.externalCost ?? 0);
+    // In base: history is in base, and a foreign cost compared as written would be off by the rate.
+    const proposed = Number(input.internalCost) + Number(ext.base);
     const estimate = await estimateFor(prisma, actor.organizationId, id, { proposedCost: proposed });
     if (estimate.verdict?.band === 'LOW' && estimate.summary.count >= 3) {
       const managers = await prisma.user.findMany({
