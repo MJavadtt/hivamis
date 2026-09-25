@@ -789,3 +789,33 @@ TRANSITION_BLOCKED audit event, reasons included. Waivable through the governed 
 before a person spends time is the point; blocking on anything less than certain would teach
 people to route around the check.
 
+## ADR-033 — Audit anomalies compare a person with themselves, and only ever inform
+
+**Decision.** `security:scan` reads the last 24 hours of `audit_events` every fifteen minutes and
+raises six kinds of alert: exports and downloads out of hours, a download surge, exports from
+projects the person has no tie to, a surge of refused permissions, failed logins from one address,
+and a reused revoked session. Each count is compared with **the same person's** median day over
+the previous 30 days: the absolute thresholds are floors, and a person whose ordinary day is heavy
+raises their own bar. Alerts are stored once per kind, subject and window (`fingerprint`), so a
+rescan updates the evidence instead of repeating the alert, and a review survives rescans.
+
+**Rationale.** The trail was always complete and inspectable, and docs/operations.md told an
+operator to watch it by hand, which in practice means reading it after the damage. A global
+threshold alone would be wrong in both directions — a finance lead's month-end is not a designer's
+midnight — so the person's own history is the reference.
+
+**Why nothing acts automatically.** An alert is a suspicion about a colleague. A false positive
+that locked an account would punish someone for the system's mistake, and the right response to a
+true positive usually starts with a conversation. So alerts notify holders of `admin.audit` —
+never the person concerned — and a dismissal requires a written reason, because "this was fine" is
+the decision most worth being able to check later. Nobody reviews an alert about themselves.
+(Session revocation on token reuse is done by the auth layer at the moment of reuse, not here.)
+
+**Why out-of-scope access skips some roles.** Executives, PMO, finance and legal work across the
+whole organisation; "outside their projects" does not describe them and would only generate noise
+that teaches reviewers to dismiss.
+
+**Limits, stated.** The detectors see what the trail records — exports, downloads, denials, logins.
+Record *reads* are not audited, so browsing is invisible to them; and "downloads before a
+resignation" can only be approximated by a surge against the person's own baseline.
+

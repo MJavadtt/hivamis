@@ -183,6 +183,14 @@ A submitter cannot approve their own form.
 | `GET /traffic` | `traffic.read` | Per-person capacity vs committed hours over a window, on each person's own calendar and leave; `leaveHours` per row, `onLeave` in the summary. Same arithmetic as the assignment suggestion |
 | `GET /tasks/suggest-assignee` | `task.assign` | Who has room for the work. `taskId` reads the unit, estimate and due date off a task; or pass `unit`, `hours`, `by` directly (`limit` ≤ 50). Each candidate carries free capacity, `utilisationAfter`, `earliestFinish` on their own calendar, `missesDueDate`, delivery history, a score and its `reasonsFa`/`warningsFa`. Advisory — nothing here refuses an assignment |
 
+## Security alerts
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /security/alerts?status=OPEN\|ACKNOWLEDGED\|DISMISSED\|ALL` | `admin.audit` | Anomalies raised from the audit trail (roadmap #26), newest first, each with `kindFa`, severity, the person or address, the window, `evidence` (counts, the person's own usual day, event ids) and any review; plus counts by status and severity |
+| `POST /security/alerts/:id/review` `{ status, note? }` | `admin.audit` | `ACKNOWLEDGED`, `DISMISSED` (a note of at least five characters is required — `REASON_REQUIRED`) or back to `OPEN`. An alert about the reviewer is refused (`SELF_REVIEW`). Audited as `SECURITY_ALERT_REVIEWED` |
+| `POST /security/scan` | `admin.audit` | Run the detectors now instead of at the next quarter-hour; returns `{ detected, created, updated, notified }` |
+
 ## Organisational memory
 
 | Endpoint | Gate | Purpose |

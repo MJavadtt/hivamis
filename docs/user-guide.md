@@ -216,6 +216,15 @@ hours — a production unit that works Thursdays, a shift unit with different ho
 person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in
 the hours of whoever holds them: a clock owned by someone on leave does not run.
 
+
+**Security alerts (مدیریت → هشدارهای امنیتی).** Every quarter-hour the system reads the audit
+trail and raises what does not look like its usual self: exports at night from someone who never
+works at night, a burst of downloads far beyond a person's own usual day, exports from projects a
+person has no part in, a run of refused permissions, many failed logins from one address, a
+stolen session. Each alert shows its evidence — today's count beside the person's usual day — so
+you judge a case, not a score. Nothing is locked automatically. **بررسی کردم** records that you
+looked; **مشکلی نبود** needs a written reason. You never review an alert about yourself, and the
+person an alert concerns is not notified of it.
 ## Forms
 
 **فرم‌ها** holds all 130 Doc_H forms. Each shows its route (from which unit to which), its

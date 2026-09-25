@@ -1103,6 +1103,176 @@ describe('Organisational memory', () => {
   });
 });
 
+describe('Anomalies on the audit trail', () => {
+  /**
+   * The audit trail was always complete and inspectable, and nobody inspected it until after the
+   * fact. These tests pin down each detector against a fixed moment — a Wednesday night — and,
+   * as carefully, the cases that must NOT alert: a person whose normal day is heavy, and a role
+   * whose work is the whole organisation.
+   */
+  const anomalies = () => import('../src/security/anomalies.js');
+  const NOW = new Date(2026, 8, 2, 23, 30, 0);            // Wednesday 2 Sept 2026, 23:30 — after hours
+  const at = (daysBack: number, hour: number, minute = 0) => {
+    const d = new Date(NOW); d.setDate(d.getDate() - daysBack); d.setHours(hour, minute, 0, 0); return d;
+  };
+  let seq = 0;
+
+  async function person(role: string, deptCode = 'CR') {
+    const org = await prisma.organization.findFirstOrThrow();
+    const r = await prisma.role.findUniqueOrThrow({ where: { code: role } });
+    const dept = await prisma.department.findFirstOrThrow({ where: { code: deptCode } });
+    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    seq++;
+    return prisma.user.create({ data: {
+      organizationId: org.id, departmentId: dept.id, email: `anomaly.${role.toLowerCase()}.${Date.now()}.${seq}@hiva.local`,
+      fullName: `کاربر آزمون ${seq}`, passwordHash: template.passwordHash, roles: { create: { roleId: r.id } },
+    } });
+  }
+  async function events(actorId: string | null, action: string, times: Date[], extra: Record<string, unknown> = {}) {
+    const org = await prisma.organization.findFirstOrThrow();
+    await prisma.auditEvent.createMany({ data: times.map((createdAt) => ({
+      organizationId: org.id, actorId, action, entityType: 'document', createdAt, ipAddress: '10.0.0.7', ...extra,
+    })) });
+  }
+  const org = () => prisma.organization.findFirstOrThrow();
+
+  it('raises exports at night for someone who never works at night, and names both numbers', async () => {
+    const { detectAnomalies } = await anomalies();
+    const u = await person('UNIT_MEMBER');
+    await events(u.id, 'EXPORT', Array.from({ length: 12 }, (_, i) => at(0, 22, i * 4)));
+    const found = (await detectAnomalies(prisma, (await org()).id, { now: NOW })).filter((a) => a.actorId === u.id);
+    const night = found.find((a) => a.kind === 'OFF_HOURS_EXPORT')!;
+    expect(night).toBeTruthy();
+    expect((night.evidence as any).count).toBe(12);
+    expect((night.evidence as any).usualOffHoursPerDay).toBe(0);
+    expect(night.messageFa).toContain('بیرون از ساعت کاری');
+    expect((night.evidence as any).eventIds).toHaveLength(12);   // the case, event by event
+  });
+
+  it('judges a surge against the person’s own usual day, not a single global number', async () => {
+    const { detectAnomalies } = await anomalies();
+    // Someone whose normal working day is ten downloads...
+    const heavy = await person('FINANCE_SPECIALIST', 'FI');
+    for (let d = 1; d <= 30; d++) await events(heavy.id, 'FILE_DOWNLOAD', Array.from({ length: 10 }, (_, i) => at(d, 10, i)));
+    await events(heavy.id, 'FILE_DOWNLOAD', Array.from({ length: 40 }, (_, i) => at(0, 11, i)));
+    // ...and someone whose normal day is none.
+    const quiet = await person('UNIT_MEMBER');
+    await events(quiet.id, 'FILE_DOWNLOAD', Array.from({ length: 30 }, (_, i) => at(0, 11, i)));
+
+    const found = await detectAnomalies(prisma, (await org()).id, { now: NOW });
+    // Forty is four times the heavy user's day: under five times, so not a surge for them.
+    expect(found.some((a) => a.kind === 'DOWNLOAD_SURGE' && a.actorId === heavy.id)).toBe(false);
+    const surge = found.find((a) => a.kind === 'DOWNLOAD_SURGE' && a.actorId === quiet.id)!;
+    expect(surge).toBeTruthy();
+    expect((surge.evidence as any).usualPerDay).toBe(0);
+    expect(surge.messageFa).toContain('روز معمولِ همین فرد');
+  });
+
+  it('tells a role that is missing something from someone trying doors', async () => {
+    const { detectAnomalies } = await anomalies();
+    const stuck = await person('UNIT_MEMBER');
+    await events(stuck.id, 'PERMISSION_DENIED', Array.from({ length: 12 }, (_, i) => at(0, 10, i)), { entityType: 'authorization', reason: 'missing: supplier.write' });
+    const prober = await person('UNIT_MEMBER');
+    const perms = ['finance.read', 'contract.read', 'admin.users', 'pricing.set_price', 'report.executive'];
+    await events(prober.id, 'PERMISSION_DENIED', Array.from({ length: 15 }, (_, i) => at(0, 10, i)), { entityType: 'authorization' });
+    const rows = await prisma.auditEvent.findMany({ where: { actorId: prober.id, action: 'PERMISSION_DENIED' }, select: { id: true } });
+    for (const [i, r] of rows.entries()) await prisma.auditEvent.update({ where: { id: r.id }, data: { reason: `missing: ${perms[i % perms.length]}` } });
+
+    const found = await detectAnomalies(prisma, (await org()).id, { now: NOW });
+    const role = found.find((a) => a.kind === 'DENIAL_SURGE' && a.actorId === stuck.id)!;
+    const doors = found.find((a) => a.kind === 'DENIAL_SURGE' && a.actorId === prober.id)!;
+    expect(role.severity).toBe('MEDIUM');
+    expect(role.messageFa).toContain('supplier.write');
+    expect(role.messageFa).toContain('نقش');
+    expect(doors.severity).toBe('HIGH');
+    expect((doors.evidence as any).distinctPermissions).toBe(5);
+    expect(doors.messageFa).toContain('آزمودن');
+  });
+
+  it('flags one address trying many accounts, and a reused session as critical', async () => {
+    const { detectAnomalies } = await anomalies();
+    const victims = await Promise.all([person('UNIT_MEMBER'), person('UNIT_MEMBER'), person('UNIT_MEMBER'), person('UNIT_MEMBER')]);
+    const o = await org();
+    await prisma.auditEvent.createMany({ data: victims.map((v, i) => ({
+      organizationId: o.id, actorId: v.id, action: 'LOGIN_FAILED', entityType: 'user', entityId: v.id,
+      createdAt: at(0, 23, 5 + i), ipAddress: '203.0.113.9', reason: 'bad password',
+    })) });
+    const stolen = victims[0]!;
+    await prisma.auditEvent.create({ data: {
+      organizationId: o.id, actorId: null, action: 'REFRESH_TOKEN_REUSE', entityType: 'user', entityId: stolen.id,
+      createdAt: at(0, 23, 20), ipAddress: '198.51.100.4',
+    } });
+
+    const found = await detectAnomalies(prisma, o.id, { now: NOW });
+    const stuffing = found.find((a) => a.kind === 'LOGIN_FAILURES' && a.ipAddress === '203.0.113.9')!;
+    expect(stuffing.severity).toBe('HIGH');
+    expect((stuffing.evidence as any).accounts).toBe(4);
+    const reuse = found.find((a) => a.kind === 'TOKEN_REUSE' && a.actorId === stolen.id)!;
+    expect(reuse.severity).toBe('CRITICAL');
+  });
+
+  it('notices reaching into other people’s projects — but not for a role whose work is every project', async () => {
+    const { detectAnomalies } = await anomalies();
+    const o = await org();
+    const company = await prisma.company.findFirstOrThrow();
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const outsider = await person('UNIT_MEMBER', 'ST');
+    const executive = await person('CEO', 'M');
+    const projects = await Promise.all([1, 2, 3].map((i) => prisma.project.create({ data: {
+      organizationId: o.id, code: `PRJ-FOREIGN-${Date.now()}-${i}`, name: `پروژهٔ دیگران ${i}`,
+      companyId: company.id, accountOwnerId: pmo.id, state: 'ACTIVE',
+    } })));
+    for (const who of [outsider, executive]) {
+      await prisma.auditEvent.createMany({ data: projects.map((p, i) => ({
+        organizationId: o.id, actorId: who.id, action: 'EXPORT', entityType: 'project', entityId: p.id,
+        createdAt: at(0, 11, i), ipAddress: '10.0.0.8',
+      })) });
+    }
+    const found = await detectAnomalies(prisma, o.id, { now: NOW });
+    const reach = found.find((a) => a.kind === 'OUT_OF_SCOPE_ACCESS' && a.actorId === outsider.id)!;
+    expect(reach).toBeTruthy();
+    expect((reach.evidence as any).distinct).toBe(3);
+    expect(found.some((a) => a.kind === 'OUT_OF_SCOPE_ACCESS' && a.actorId === executive.id)).toBe(false);
+  });
+
+  it('keeps one alert per case across rescans, tells administrators once, and wants a reason to dismiss', async () => {
+    const { scanOrganization } = await import('../src/security/scan.js');
+    const o = await org();
+    const first = await scanOrganization(o.id, { now: NOW });
+    expect(first.created).toBeGreaterThan(0);
+    expect(first.notified).toBeGreaterThan(0);                  // HIGH and CRITICAL reach administrators
+    const again = await scanOrganization(o.id, { now: NOW });
+    expect(again.created).toBe(0);                             // the same cases, updated not repeated
+    expect(again.updated).toBe(first.created);
+    expect(again.notified).toBe(0);
+
+    const list = expectOk(await get('/security/alerts', T.admin), 'alerts');
+    expect(list.alerts.length).toBeGreaterThan(0);
+    const alert = list.alerts.find((a: any) => a.kind === 'DENIAL_SURGE');
+    expect(alert.kindFa).toBe('جهش دسترسی‌های ردشده');
+    expect(alert.actor.fullName).toBeTruthy();
+
+    expect((await post(`/security/alerts/${alert.id}/review`, T.admin, { status: 'DISMISSED' })).body.error.code).toBe('REASON_REQUIRED');
+    const reviewed = expectOk(await post(`/security/alerts/${alert.id}/review`, T.admin, { status: 'DISMISSED', note: 'نقش این فرد اصلاح شد' }), 'dismiss');
+    expect(reviewed.status).toBe('DISMISSED');
+    // A dismissed alert stays dismissed when the next scan updates its evidence.
+    await scanOrganization(o.id, { now: NOW });
+    expect((await prisma.securityAlert.findUniqueOrThrow({ where: { id: alert.id } })).status).toBe('DISMISSED');
+
+    // Nobody closes the case about themselves.
+    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    const aboutAdmin = await prisma.securityAlert.create({ data: {
+      organizationId: o.id, kind: 'DOWNLOAD_SURGE', severity: 'MEDIUM', actorId: admin.id,
+      windowStart: NOW, windowEnd: NOW, evidence: {}, messageFa: 'آزمون', fingerprint: `SELF:${Date.now()}`,
+    } });
+    expect((await post(`/security/alerts/${aboutAdmin.id}/review`, T.admin, { status: 'DISMISSED', note: 'مشکلی نیست' })).body.error.code).toBe('SELF_REVIEW');
+
+    // The trail's own readers only.
+    expect((await get('/security/alerts', T.designer)).status).toBe(403);
+    expect((await post('/security/scan', T.pmo)).status).toBe(403);
+  });
+});
+
 describe('QC stage zero', () => {
   /**
    * A good share of what the Account desk sends back is not a judgement: the PDF that was asked

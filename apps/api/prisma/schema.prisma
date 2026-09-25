@@ -1677,6 +1677,39 @@ model Notification {
 }
 
 /// Doc_H-derived AI governance: every AI call is recorded with its actor, scope and grounding.
+/// Something in the audit trail that does not look like its usual self (roadmap #26). The trail
+/// was always complete and inspectable; nobody inspects it until after the fact. An alert is
+/// the same data, raised while it can still matter — and it only ever informs a person: it never
+/// locks an account, because a false positive on someone's record has a human cost.
+model SecurityAlert {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// OFF_HOURS_EXPORT | DOWNLOAD_SURGE | OUT_OF_SCOPE_ACCESS | DENIAL_SURGE | LOGIN_FAILURES | TOKEN_REUSE
+  kind           String
+  /// INFO | MEDIUM | HIGH | CRITICAL
+  severity       String
+  actorId        String?
+  ipAddress      String?
+  windowStart    DateTime
+  windowEnd      DateTime
+  /// Counts, the person's own baseline, and the event ids behind them — the case, not a verdict.
+  evidence       Json
+  messageFa      String
+  /// One alert per kind, subject and window: a rescan updates it instead of raising it again.
+  fingerprint    String
+  /// OPEN | ACKNOWLEDGED | DISMISSED
+  status         String    @default("OPEN")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, status, createdAt])
+  @@map("security_alerts")
+}
+
 /// A past lesson, weighed against a new project (roadmap #44). Doc_H makes lessons mandatory
 /// at closure and puts them on the closing checklist, but a lesson nobody reads is a ritual.
 /// Surfacing them at kick-off is half the answer; recording what the team *did* with each one

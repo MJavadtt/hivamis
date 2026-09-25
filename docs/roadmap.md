@@ -44,8 +44,8 @@ Status vocabulary, and it is used strictly:
 | 44 | Lessons-learned surfacing at project start | 21 | Verified | f2d57fe |
 | 25 | Brief quality scoring | — | Verified | 8c853cf |
 | 24 | Estimation assistant | 14 | Verified | 52cab17 |
-| 22 | Automated QC, stage zero | — | Verified | next |
-| 26 | Anomaly detection on the audit trail | — | Pending | |
+| 22 | Automated QC, stage zero | — | Verified | 142ebb5 |
+| 26 | Anomaly detection on the audit trail | — | Verified | next |
 | 23 | Meeting → minutes → tasks | — | Pending | |
 | 27 | Natural-language reporting | 1, 21 | Pending | |
 | 28 | Multi-currency with dated rates | — | Pending | |

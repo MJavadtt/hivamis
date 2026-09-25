@@ -146,8 +146,9 @@ docker compose exec api sh -c '$PDF_BROWSER_PATH --version'
 | Readiness | `GET /health/ready` | Database unreachable |
 | SLA breaches | `GET /reports/sla` | `overall.breached` trending up |
 | Data quality | `GET /reports/data-quality` | Any CRITICAL finding — especially an ACTIVE project with no authorization |
-| Failed logins | `audit_events` where `action='LOGIN_FAILED'` | Spike from one IP |
-| Permission denials | `audit_events` where `action='PERMISSION_DENIED'` | Sustained rise suggests a misassigned role |
+| Security alerts | **مدیریت → هشدارهای امنیتی**, or `GET /security/alerts` | Any OPEN HIGH or CRITICAL alert. The `security:scan` job (every 15 min) now watches what the two rows below used to ask an operator to watch by hand |
+| Failed logins | `audit_events` where `action='LOGIN_FAILED'` — raised automatically as `LOGIN_FAILURES` | Spike from one IP, or one IP trying several accounts |
+| Permission denials | `audit_events` where `action='PERMISSION_DENIED'` — raised automatically as `DENIAL_SURGE` | Sustained rise suggests a misassigned role; many *different* permissions suggest probing |
 | Job health | API logs, `pgboss` schema | `sla:tick` not logging for >15 min |
 | Client reports | `audit_events` where `action='CLIENT_REPORT_SENT'`; API log `client status reports` every Saturday 09:00 | A week with `sent: 0` while projects are active; `unaddressed > 0` means a client company has no contact with an email |
 
@@ -243,4 +244,19 @@ The dimension must match the embedder in use (`local-hash-v1` is 256; a service 
 whatever it returns — `GET /memory/status` reports the models in the index). With the column in
 place, the shortlist query can order by `embedding <=> $1` and the blend stays as it is. Nothing
 else changes, and a deployment without the extension keeps working exactly as before.
+
+## Security alerts
+
+`security:scan` runs every fifteen minutes and compares each person's last 24 hours of exports,
+downloads, refused permissions and failed logins with **their own** previous 30 days. Thresholds
+are floors in `src/security/anomalies.ts` (`THRESHOLDS`); a person's usual day can only raise
+them. Six kinds are raised: `OFF_HOURS_EXPORT`, `DOWNLOAD_SURGE`, `OUT_OF_SCOPE_ACCESS` (skipped
+for org-wide roles — executives, PMO, finance, legal), `DENIAL_SURGE`, `LOGIN_FAILURES` and
+`TOKEN_REUSE` (always CRITICAL).
+
+A new HIGH or CRITICAL alert notifies every holder of `admin.audit` except the person it is about.
+Alerts never lock an account or end a session on their own — `TOKEN_REUSE` is the only exception,
+and that revocation is done by the auth layer when the reuse happens, not by the scanner. Review in
+the admin screen: **بررسی کردم** needs no note; **مشکلی نبود** needs a reason; nobody reviews an
+alert about themselves. Every review is written to the audit trail as `SECURITY_ALERT_REVIEWED`.
 

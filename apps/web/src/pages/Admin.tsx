@@ -14,6 +14,7 @@ import { RuleVersions } from '../components/RuleVersions';
 import { RuleLab } from '../components/RuleLab';
 import { FormRouting } from '../components/FormRouting';
 import { FormDesigner } from '../components/FormDesigner';
+import { SecurityAlerts } from '../components/SecurityAlerts';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
@@ -33,6 +34,7 @@ export default function Admin() {
             { key: 'designer', label: 'طراح فرم' },
             { key: 'routing', label: 'مسیریابی فرم‌ها' },
             { key: 'audit', label: 'رهگیری حسابرسی' },
+            { key: 'security', label: 'هشدارهای امنیتی' },
             { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
           ]}
         />
@@ -47,6 +49,7 @@ export default function Admin() {
         {tab === 'designer' && <FormDesigner />}
         {tab === 'routing' && <FormRouting />}
         {tab === 'audit' && <AuditTrail />}
+        {tab === 'security' && <SecurityAlerts />}
         {tab === 'ai' && <AiLog />}
       </PageBody>
     </>
