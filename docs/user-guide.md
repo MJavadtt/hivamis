@@ -227,6 +227,19 @@ person their own, plus leaves. Blank means "same as the level above". Deadlines 
 the hours of whoever holds them: a clock owned by someone on leave does not run.
 
 
+**Asking the numbers («پرسش از داده‌ها» under Reports).** Type the question as you would ask it —
+«حاشیه سود پروژه‌های واحد رسانه در سه ماه گذشته چقدر بوده؟», «کدام واحد بیشترین اصلاحیه را
+داشته؟», «ساعات ثبت‌شدهٔ من در این ماه». The answer is one of the defined metrics, with the same
+definition and the same number as the report tabs, and shows how it understood you: the metric,
+the unit or client or person, the exact dates of the window. If that is not what you meant,
+correct it with the selectors under the answer instead of rephrasing. Read two things every time:
+the yellow line, if there is one, names the part of your question that was **not** applied; and
+«بر پایهٔ … رکورد» lists the records the number is made of. When a name fits two people or two
+clients it asks which; when a question matches no metric it says so and offers the ones that
+exist, rather than guessing. It cannot show you more than your role can: a margin needs finance
+access, a colleague's personal numbers need management access (your own you can always ask), and
+cost history is your own unit's unless you price.
+
 **Security alerts (مدیریت → هشدارهای امنیتی).** Every quarter-hour the system reads the audit
 trail and raises what does not look like its usual self: exports at night from someone who never
 works at night, a burst of downloads far beyond a person's own usual day, exports from projects a

@@ -525,6 +525,32 @@ export const formDecisionSchema = z.object({
 
 /* ── AI ────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Natural-language reporting (roadmap #27): a question, or a plan — the page's way of correcting
+ * how a question was understood without rephrasing it.
+ */
+export const askReportSchema = z.object({
+  question: z.string().trim().min(3).max(500).optional(),
+  plan: z.object({
+    metric: z.string().max(40),
+    filters: z.object({
+      units: z.array(z.enum(DEPARTMENT_CODES)).max(10).optional(),
+      companyId: idSchema.optional(),
+      projectId: idSchema.optional(),
+      personId: idSchema.optional(),
+      entity: z.string().max(40).optional(),
+    }).default({}),
+    period: z.object({
+      preset: z.string().max(30).nullable().optional(),
+      from: z.string().datetime().nullable().optional(),
+      to: z.string().datetime().nullable().optional(),
+    }).default({}),
+    groupBy: z.enum(['unit', 'client', 'project', 'person', 'month', 'reason', 'policy', 'state']).nullable().optional(),
+    compare: z.boolean().default(false),
+    sort: z.enum(['desc', 'asc']).nullable().optional(),
+  }).optional(),
+}).refine((v) => !!v.question || !!v.plan, { message: 'پرسش یا طرح گزارش لازم است' });
+
 export const aiAskSchema = z.object({
   capability: z.enum([
     'BRIEF_ANALYSIS', 'PROJECT_SUMMARY', 'RISK_DETECTION', 'STATUS_REPORT_DRAFT',

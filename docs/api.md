@@ -183,6 +183,23 @@ A submitter cannot approve their own form.
 | `GET /traffic` | `traffic.read` | Per-person capacity vs committed hours over a window, on each person's own calendar and leave; `leaveHours` per row, `onLeave` in the summary. Same arithmetic as the assignment suggestion |
 | `GET /tasks/suggest-assignee` | `task.assign` | Who has room for the work. `taskId` reads the unit, estimate and due date off a task; or pass `unit`, `hours`, `by` directly (`limit` ≤ 50). Each candidate carries free capacity, `utilisationAfter`, `earliestFinish` on their own calendar, `missesDueDate`, delivery history, a score and its `reasonsFa`/`warningsFa`. Advisory — nothing here refuses an assignment |
 
+## Asking the reports
+
+Natural-language reporting (roadmap #27). A question is mapped to a metric from a fixed catalogue
+(`apps/api/src/ask/catalog.ts`) — never to SQL — and answered under the asker's permissions.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /reports/ask/catalog` | `report.read` | Every metric with its Persian definition, unit, dimensions and filters; `allowed` and, when not, `lockedFa` naming the missing permission; the period presets; whether a model fallback is configured |
+| `POST /reports/ask` `{ question }` or `{ plan }` | `report.read`, 30/min | `status` is `ANSWERED`, `NEEDS_CLARIFICATION` (`clarify.options` — two people, clients or projects fit, or two metrics; the partial `plan` comes back so a choice re-runs it), `NOT_UNDERSTOOD` (`suggestions[]`; no number is invented) or `REFUSED` (`refusal.permissions`; nothing was computed, and the refusal is audited as `PERMISSION_DENIED` on `report.ask`). An answer carries `plan`, `understoodFa[]`, `metric.definitionFa`, `value`/`valueFa`/`countFa`, `rows[]` when split, `previous` when compared, `basis` (the records it is made of, with links), `caveatsFa[]` and `ignoredFa[]` — the words of the question that were not applied. A `plan` is how the page corrects an understanding; its ids are checked against what the asker can see |
+
+Metrics a dashboard also shows use that dashboard's definition, and `tests/008-ask.test.ts` holds
+them together: on-time rate, first-pass yield, revisions, overdue tasks and declared cost per unit
+(units report), on-time rate, CSAT, invoiced and outstanding (control tower), win rate and
+pipeline (sales), SLA compliance (SLA report). The units report's on-time rate now divides by the
+finished tasks that *had* a due date, as the control tower always did — an undated task was
+being counted as late there.
+
 ## Security alerts
 
 | Endpoint | Gate | Purpose |

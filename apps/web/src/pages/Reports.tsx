@@ -17,6 +17,7 @@ import {
 import { formatCurrency, formatPercent, toPersianDigits, formatDate } from '../lib/format';
 import { ProcessMap } from '../components/ProcessMap';
 import { BreachRisk } from '../components/BreachRisk';
+import { AskReports } from '../components/AskReports';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -26,6 +27,7 @@ export default function Reports() {
 
   const tabs = [
     ...(can('report.executive') ? [{ key: 'executive', label: 'برج کنترل مدیریتی' }] : []),
+    { key: 'ask', label: 'پرسش از داده‌ها' },
     { key: 'sales', label: 'قیف فروش' },
     { key: 'units', label: 'عملکرد واحدها' },
     { key: 'sla', label: 'پایبندی به SLA' },
@@ -46,6 +48,7 @@ export default function Reports() {
       </div>
       <PageBody>
         {tab === 'executive' && <Executive />}
+        {tab === 'ask' && <AskReports />}
         {tab === 'sales' && <SalesReport />}
         {tab === 'units' && <UnitsReport />}
         {tab === 'sla' && <SlaReport />}

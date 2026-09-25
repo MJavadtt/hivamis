@@ -844,3 +844,39 @@ audio is not stored; the transcript is kept as the minutes' source.
 **Limits, stated.** The extractor reads Persian notes written a line per item; free-flowing prose
 yields fewer actions and more "unresolved" lines. A deadline phrase it does not know is left in
 the title for the person to see.
+
+## ADR-035 — Questions are answered from a catalogue of defined metrics, not translated into queries
+
+**Decision.** «پرسش از داده‌ها» maps a Persian question to a *plan* over a fixed catalogue of
+sixteen metrics (`src/ask/catalog.ts`): each has a written definition, the date that places a
+record in a window, the dimensions it can be split by, the filters it accepts and the permissions
+its fields need. The plan is built by deterministic rules (`src/ask/parse.ts`, Jalali windows in
+`src/ask/periods.ts`); a language model is consulted only when the rules find no metric, and only
+to fill the same plan from the metric list — it never sees data, and every name it returns is
+resolved again under the asker's reach. The answer states its understanding, its definition, its
+records, and — the rule the whole design turns on — the words of the question it did not apply.
+
+**Rationale.** The roadmap's own warning: a question answerer over raw tables produces answers
+that look valid and are wrong. The two ways that happens are a definition invented on the spot
+("margin" as whatever the query happened to compute) and a condition silently dropped ("for TV
+campaigns" answered as if it were not there). The catalogue removes the first — where a dashboard
+already shows the number, the definition is the dashboard's, and a test compares them; that test
+found the units report counting undated tasks as late, now fixed. Reporting unused words removes
+the second.
+
+**Permissions at field level.** A metric declares every permission its fields need, not the
+report it lives in: margin needs `finance.read` *and* `pricing.read`. Individual performance —
+splitting or filtering by a colleague — needs `report.executive`; anyone may ask about
+themselves. Cost history is per unit unless the asker sets or approves prices (as in #24). A
+refused number is never computed, and the refusal is audited as `PERMISSION_DENIED`, so asking
+for finance in a sentence is seen by the #26 detectors exactly like trying the finance page.
+
+**What depends on #1 and #21.** Cycle time and the date an opportunity was won or lost come from
+the state-transition log that process mining (#1) reads. Persian normalisation for matching
+questions, names and synonyms is the memory index's (#21).
+
+**Limits, stated.** Sixteen metrics, not every question: what cannot be mapped says so, and is
+logged (`ai_interactions`, `NL_REPORT`, unsucceeded) as the list of what to add next. "Projects of
+the media unit" means projects in which the unit received a work order, and a margin is the whole
+project's, not the unit's share — the answer says so. The model fallback is an adapter: its
+validation is tested with a stub planner; a live model call is not exercised here.

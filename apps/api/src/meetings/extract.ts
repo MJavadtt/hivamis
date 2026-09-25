@@ -13,6 +13,9 @@
  * it could not resolve is marked as such rather than guessed.
  */
 import { normalisePersian } from '../memory/embed.js';
+import { JALALI_MONTHS, jalaliOf, jalaliToDate } from '../lib/jalali.js';
+
+export { jalaliToDate };
 
 export interface Person { id: string; fullName: string; departmentCode: string | null }
 
@@ -42,7 +45,6 @@ const DECISION = /(تصمیم|مصوب شد|قرار شد|توافق شد|تأی
 const ACTION = /(اقدام|مسئول|باید|پیگیری|ارسال کن|آماده کن|تهیه کن|بفرست|انجام د|تحویل د|هماهنگ کن|بررسی کن|تا\s|مهلت|ظرف)/;
 const STRIP_MARKERS = /^(\s*[-•*]\s*|\s*\d+[.)]\s*|\s*(اقدام|تصمیم|مصوبه)\s*[:：]\s*)/;
 
-const JALALI_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 /** JS getDay() for each Persian weekday name. */
 const WEEKDAYS: [string, number][] = [
   ['پنجشنبه', 4], ['پنج‌شنبه', 4], ['چهارشنبه', 3], ['سه‌شنبه', 2], ['سه شنبه', 2], ['سهشنبه', 2],
@@ -51,29 +53,6 @@ const WEEKDAYS: [string, number][] = [
 
 const toLatinDigits = (v: string) =>
   v.replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0)).replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660));
-
-const persianParts = new Intl.DateTimeFormat('en-u-ca-persian', { year: 'numeric', month: 'numeric', day: 'numeric' });
-function jalaliOf(d: Date): { y: number; m: number; d: number } {
-  const p = Object.fromEntries(persianParts.formatToParts(d).filter((x) => x.type !== 'literal').map((x) => [x.type, Number.parseInt(x.value, 10)]));
-  return { y: p.year!, m: p.month!, d: p.day! };
-}
-
-/**
- * Jalali → Date through the platform's own Persian calendar: estimate, then step to the day
- * whose Persian reading is the one asked for. The browser renders with the same calendar, so the
- * two cannot disagree about which day «۱۲ مهر» is.
- */
-export function jalaliToDate(jy: number, jm: number, jd: number): Date | null {
-  if (jm < 1 || jm > 12 || jd < 1 || jd > 31) return null;
-  const offset = jm <= 6 ? (jm - 1) * 31 : 186 + (jm - 7) * 30;
-  const approx = new Date(jy + 621, 2, 21 + offset + jd - 1, 12, 0, 0);
-  for (let delta = -4; delta <= 4; delta++) {
-    const d = new Date(approx); d.setDate(d.getDate() + delta);
-    const j = jalaliOf(d);
-    if (j.y === jy && j.m === jm && j.d === jd) return d;
-  }
-  return null;
-}
 
 const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(17, 0, 0, 0); return x; };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };

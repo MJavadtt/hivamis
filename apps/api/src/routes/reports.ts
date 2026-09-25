@@ -391,12 +391,17 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const UNACCEPTED_WO = ['DRAFT', 'ISSUED', 'PENDING_ACCEPTANCE'];
 
     const [
-      taskTotals, taskDone, taskOpen, taskOverdue, taskOnTime,
+      taskTotals, taskDone, taskDoneWithDue, taskOpen, taskOverdue, taskOnTime,
       revTotals, revOpen, qcRows, costTotals, woTotals, woAccepted,
     ] = await Promise.all([
       prisma.task.groupBy({ by: ['departmentCode'], where: { organizationId: org }, _count: { _all: true } }),
       prisma.task.groupBy({
         by: ['departmentCode'], where: { organizationId: org, state: { in: DONE } }, _count: { _all: true },
+      }),
+      // The on-time denominator: a task with no due date can be neither on time nor late. Same
+      // definition as the control tower and the question box (#27), so the three cannot disagree.
+      prisma.task.groupBy({
+        by: ['departmentCode'], where: { organizationId: org, state: { in: DONE }, dueDate: { not: null } }, _count: { _all: true },
       }),
       prisma.task.groupBy({
         by: ['departmentCode'], where: { organizationId: org, state: { notIn: CLOSED_TASK } }, _count: { _all: true },
@@ -448,7 +453,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const byTarget = (rows: { targetDepartmentCode: string; _count: { _all: number } }[]) =>
       new Map(rows.map((r) => [r.targetDepartmentCode, r._count._all]));
 
-    const total = byDept(taskTotals), done = byDept(taskDone);
+    const total = byDept(taskTotals), done = byDept(taskDone), doneWithDue = byDept(taskDoneWithDue);
     const open = byDept(taskOpen), overdue = byDept(taskOverdue);
     const onTime = new Map(taskOnTime.map((r) => [r.departmentCode, Number(r.n)]));
     const rev = byResp(revTotals), revOpenMap = byResp(revOpen);
@@ -467,7 +472,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         openTasks: open.get(unit) ?? 0,
         completedTasks: nDone,
         overdueTasks: overdue.get(unit) ?? 0,
-        onTimeDeliveryRate: nDone ? Math.round(((onTime.get(unit) ?? 0) / nDone) * 100) : null,
+        onTimeDeliveryRate: doneWithDue.get(unit) ? Math.round(((onTime.get(unit) ?? 0) / doneWithDue.get(unit)!) * 100) : null,
         firstPassYield: qcUnit?.total ? Math.round((qcUnit.passed / qcUnit.total) * 100) : null,
         revisionCount: nRev,
         revisionRate: nTasks ? Number(((nRev / nTasks) * 100).toFixed(1)) : 0,
