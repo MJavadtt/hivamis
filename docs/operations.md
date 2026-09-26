@@ -306,6 +306,20 @@ exercised against the authority from this repository:
 Every submission keeps the payload exactly as prepared, so what the authority received can be shown
 even when it disagrees with the invoice as it stands today.
 
+## Live updates
+
+Roadmap #39. Each API process keeps one extra PostgreSQL connection (`application_name = hiva-live`)
+listening on `hiva_events`, opened with the first browser stream and closed with the last; triggers
+on `state_transitions` and `notifications` publish to it on commit. Several API instances each listen,
+so every instance's browsers hear every change. If the connection drops, it reconnects with backoff
+and tells the browsers to re-read what they show.
+
+Behind a proxy the stream must not be buffered: the API sends `X-Accel-Buffering: no`, which nginx
+honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s in
+`infrastructure/docker/nginx.conf`). A browser that cannot hold the stream falls back to polling
+notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
+installed as pg-boss's driver) is now a direct dependency of the API for this listener.
+
 ## Contract e-signature
 
 Roadmap #36. `esign:run` runs every ten minutes: it reads every envelope still out back from its

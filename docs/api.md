@@ -369,6 +369,25 @@ The sandbox's signing page (`ESIGN_MODE=sandbox` only; 30 requests a minute per 
 `{ signerName, confirm: true }` and `POST …/decline` `{ reason }`. Signers sign in order
 (`ESIGN_ORDER`); the completed PDF ends with a page stating that no legal signature was made.
 
+## Live updates
+
+Roadmap #39. `GET /events` (authenticated) is a server-sent event stream. Database triggers announce
+every state transition and every notification on commit (`pg_notify('hiva_events', …)`), whatever
+wrote them — a request, a job, another instance — and a rolled-back change is never announced. Each
+API process holds one listening connection and fans events out to its streams.
+
+| Event | Data | Sent to |
+|---|---|---|
+| `ready` | `{ live }` — the listener is up | this stream |
+| `transition` | `{ entity, id, from, to, action, at, mine }` — that a record moved, never what it holds | the organisation's readers of that entity type (`WORKFLOW_READ_PERMISSION`) |
+| `notification` | `{ kind, severity }` | the notification's recipient |
+| `reset` | `{}` — the listener reconnected; events may have been missed | every stream |
+| `expired` | `{}` — the access token that opened the stream has expired; reconnect | this stream |
+
+A comment line every 25 s keeps proxies from closing the stream. At most five streams per person
+(`429 LIVE_TOO_MANY`). Send the access token as `Authorization: Bearer` — the web app reads the
+stream with `fetch`, so the token never appears in a URL.
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a

@@ -62,6 +62,9 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
       pg-boss:
         specifier: ^10.1.6
         version: 10.4.2

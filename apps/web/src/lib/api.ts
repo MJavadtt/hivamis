@@ -59,6 +59,9 @@ async function attemptRefresh(): Promise<boolean> {
   return refreshing;
 }
 
+/** For callers that hold a connection open themselves — the live stream (roadmap #39). */
+export const refreshSession = () => attemptRefresh();
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;

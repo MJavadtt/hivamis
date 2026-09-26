@@ -9,6 +9,7 @@ import { useLocale, type Locale } from '../lib/locale';
 import { HelpDrawer } from './HelpDrawer';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, toPersianDigits } from '../lib/format';
+import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
 import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
@@ -88,6 +89,8 @@ const NAV: NavGroup[] = [
 export function Shell({ children }: { children: ReactNode }) {
   const { user, signOut, can } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // One live stream for the signed-in tab (roadmap #39).
+  useLiveUpdates(useQueryClient());
 
   /**
    * Whether the sidebar is a permanent column rather than a drawer. Tailwind's lg: breakpoint
@@ -480,10 +483,12 @@ function Notifications() {
   // Escape and focus return, which this panel had neither of.
   const boxRef = useDismissable<HTMLDivElement>({ open, onClose: () => setOpen(false) });
 
+  const live = useLiveStatus();
   const { data } = useQuery<{ items: NotificationRow[]; unread: number }>({
     queryKey: ['/notifications'],
     queryFn: () => apiGet('/notifications'),
-    refetchInterval: 60_000,
+    // Pushed while the live stream is up; polled as before while it is not.
+    refetchInterval: fallbackInterval(live),
   });
 
   const markAll = async () => {
@@ -499,6 +504,11 @@ function Notifications() {
         aria-label={`اعلان‌ها${data?.unread ? ` (${data.unread} خوانده‌نشده)` : ''}`}
       >
         <IconBell className="size-5" />
+        <span
+          className={`absolute -bottom-0.5 -start-0.5 size-2 rounded-full ring-2 ring-surface ${live === 'live' ? 'bg-emerald-500' : live === 'connecting' ? 'bg-amber-400' : 'bg-ink-300'}`}
+          title={live === 'live' ? 'به‌روزرسانی زنده' : live === 'connecting' ? 'در حال اتصال زنده…' : 'اتصال زنده برقرار نیست؛ هر دقیقه به‌روزرسانی می‌شود'}
+          data-testid="live-status" data-status={live}
+        />
         {!!data?.unread && (
           <span className="absolute -end-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-medium text-white nums">
             {toPersianDigits(data.unread > 9 ? '۹+' : data.unread)}

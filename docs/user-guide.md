@@ -19,6 +19,11 @@ issue work orders — clarification requests from the units. Ordered by urgency:
 first, then whatever runs out soonest, then by due date. Each row carries its own actions, so
 you accept, submit or send to QC from the list. Filter by kind with the chips above it.
 
+**Live.** The small dot on the bell is green while the page is live: a record moved by someone
+else — an order accepted, a deliverable through QC, an invoice issued — appears on the screen you
+have open within a couple of seconds, and a new notification at once. Amber means connecting; grey
+means the live connection is not available, and the page refreshes itself every minute as before.
+
 ## Sales
 
 **Your loop: acquire → qualify → brief → present → close.**

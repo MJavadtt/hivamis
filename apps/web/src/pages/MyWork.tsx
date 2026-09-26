@@ -6,6 +6,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Code, WorkflowActions } from '../components/common';
 import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile, cx } from '../components/ui';
 import { formatDate, formatRelative, toPersianDigits } from '../lib/format';
+import { fallbackInterval, useLiveStatus } from '../lib/live';
 
 interface WorkItem {
   kind: string; entityType: string; entityId: string; code: string; title: string; state: string;
@@ -52,8 +53,9 @@ function RiskChip({ risk }: { risk: NonNullable<NonNullable<WorkItem['sla']>['ri
  */
 export default function MyWork() {
   const [kind, setKind] = useState<string | null>(null);
+  const live = useLiveStatus();
   const { data, isLoading, error, refetch } = useQuery<Queue>({
-    queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), refetchInterval: 60_000,
+    queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), refetchInterval: fallbackInterval(live),
   });
 
   const items = (data?.items ?? []).filter((i) => !kind || i.kind === kind);

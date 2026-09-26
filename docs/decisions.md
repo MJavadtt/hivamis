@@ -1137,3 +1137,26 @@ certificate details the provider reports, but does not validate the signature em
 (PAdES) itself. The sandbox's signatures are labelled as such on the page, in the certificate and on
 the signed file's last page. Two signers, in a fixed order, per envelope.
 
+## ADR-045 — Live updates are announced by the database and carry only that something moved
+
+**Decision.** Triggers on `state_transitions` and `notifications` call `pg_notify` from the
+transaction that writes the row; each API process listens on one connection and relays events to
+the signed-in browsers over server-sent events. A transition event says which record moved and
+between which states — not its content — and reaches only people in the organisation who may read
+that kind of record; a notification event reaches its recipient. The page answers an event by
+re-reading the queries on screen, at most every two seconds, through the ordinary endpoints; polling
+remains as a slower fallback.
+
+**Rationale.** The roadmap names the cost: a minute's delay on the QC queue, the traffic board and
+the approval inbox. Every state change already goes through one table in the same transaction, so a
+trigger is a publishing point no code path can miss — including jobs and other instances — and
+PostgreSQL delivers a NOTIFY only on commit, so nothing rolled back is announced. Sending only "this
+moved" keeps the permission model where it is: what the page then shows is fetched through endpoints
+that already check it. SSE over fetch rather than WebSocket: one direction is all that is needed, it
+passes through the existing proxy, and the token stays in a header.
+
+**Limits.** No replay: events missed while disconnected are not resent; on reconnecting the page
+re-reads what it shows instead. Record-level visibility finer than the entity type is not applied to
+the event itself — it only says that a record of a type the reader may read moved. Only transitions
+and notifications are announced; other edits still appear on the next read.
+

@@ -56,8 +56,8 @@ Status vocabulary, and it is used strictly:
 | 33 | Accounting-package export | 46 | Verified | 8b01026 |
 | 35 | Client approval with evidentiary weight | — | Verified | e70f92e |
 | 34 | Client portal | 35 | Verified | 59b1b56 |
-| 36 | Contract e-signature | 46 | Verified (live provider: Adapter) | next |
-| 39 | Live updates (SSE) instead of polling | — | Pending | |
+| 36 | Contract e-signature | 46 | Verified (live provider: Adapter) | fda3fd5 |
+| 39 | Live updates (SSE) instead of polling | — | Verified | next |
 | 40 | Two-way messenger integration | 46 | Pending | |
 | 38 | Annotation on deliverables | — | Pending | |
 | 42 | Digital asset management with versioning | — | Pending | |
