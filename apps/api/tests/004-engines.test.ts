@@ -3144,11 +3144,11 @@ describe('Catalogue sizes the documentation quotes', () => {
    * whatever prose quotes it.
    */
   it('matches the figures in README and docs/', () => {
-    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(105);
+    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(106);
     expect(ROLE_CODES, 'roles').toHaveLength(16);
     expect(ALL_FORMS, 'Doc_H forms').toHaveLength(130);
     expect(SLA_POLICIES, 'SLA policies').toHaveLength(30);
-    expect(Object.keys(WORKFLOWS), 'state machines').toHaveLength(13);
+    expect(Object.keys(WORKFLOWS), 'state machines').toHaveLength(14);
     expect(MODULES, 'ERP modules').toHaveLength(10);
     expect(DEPARTMENT_CODES, 'organisational units').toHaveLength(10);
   });
@@ -3168,7 +3168,7 @@ describe('Catalogue sizes the documentation quotes', () => {
 
   it('declares a transition count the workflow docs can rely on', () => {
     const total = Object.values(WORKFLOWS).reduce((n, d) => n + d.transitions.length, 0);
-    expect(total).toBe(99);
+    expect(total).toBe(103);
     // Every one carries a permission — the claim docs/architecture.md makes about the engine.
     const open = Object.values(WORKFLOWS).flatMap((d) => d.transitions).filter((t) => !t.permission);
     expect(open, 'transitions without a permission').toEqual([]);

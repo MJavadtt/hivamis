@@ -57,6 +57,10 @@ export const STATE_LABELS: Record<string, { fa: string; tone: LabelTone }> = {
   FINAL_QC: { fa: 'QC نهایی', tone: 'warning' },
   FREELANCER: { fa: 'فریلنسر', tone: 'neutral' },
   FULFILLED: { fa: 'تأمین‌شده', tone: 'success' },
+  // Media orders (roadmap #31)
+  BOOKED: { fa: 'رزروشده', tone: 'info' },
+  AIRED: { fa: 'پخش‌شده', tone: 'warning' },
+  RECONCILED: { fa: 'تطبیق‌شده', tone: 'success' },
   GREEN: { fa: 'سالم', tone: 'success' },
   HIGH: { fa: 'زیاد', tone: 'neutral' },
   IMPLEMENTING: { fa: 'در حال اجرا', tone: 'progress' },

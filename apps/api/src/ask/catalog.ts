@@ -602,6 +602,7 @@ export const METRIC_BY_KEY = new Map(METRICS.map((m) => [m.key, m]));
 
 /** State machines the cycle-time metric can be asked about, and the words for them. */
 export const ENTITY_WORDS: [string, string[]][] = [
+  ['mediaOrder', ['سفارش رسانه', 'خرید رسانه']],
   ['proposal', ['پروپوزال', 'پیشنهاد']],
   ['deliverable', ['خروجی', 'دلیوربل', 'تحویلی']],
   ['workOrder', ['سفارش کار', 'دستور کار']],

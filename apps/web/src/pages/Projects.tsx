@@ -15,6 +15,7 @@ import { Gantt } from '../components/Gantt';
 import { ProjectLessons } from '../components/ProjectLessons';
 import { ProjectMeetings } from '../components/MeetingMinutes';
 import { MilestoneDone, ProjectRevenue } from '../components/Revenue';
+import { ProjectMedia } from '../components/Media';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -192,6 +193,7 @@ export function ProjectDetail() {
             { key: 'quality', label: 'کیفیت', count: data.revisions.length },
             { key: 'governance', label: 'حاکمیت', count: data.risks.length + data.issues.length + data.changeRequests.length },
             ...(data.finance ? [{ key: 'finance', label: 'مالی' }] : []),
+            ...(can('pricing.read') ? [{ key: 'media', label: 'رسانه' }] : []),
             { key: 'closure', label: 'بستن پروژه' },
           ]}
         />
@@ -210,6 +212,7 @@ export function ProjectDetail() {
         {tab === 'quality' && <QualityTab data={data} />}
         {tab === 'governance' && <GovernanceTab data={data} />}
         {tab === 'finance' && data.finance && <FinanceTab finance={data.finance} project={p} />}
+        {tab === 'media' && <ProjectMedia projectId={p.id} />}
         {tab === 'closure' && <ClosureTab projectId={p.id} canEdit={can('project.close')} />}
       </PageBody>
     </>

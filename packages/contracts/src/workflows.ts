@@ -283,6 +283,24 @@ export const OUTSOURCE_WORKFLOW: WorkflowDef = {
   ],
 };
 
+/**
+ * Roadmap #31 — media bought on a client's behalf: booked with the vendor, delivered (aired,
+ * printed, run) with proof, and reconciled against the vendor's invoice before it is closed.
+ */
+export const MEDIA_ORDER_WORKFLOW: WorkflowDef = {
+  entity: 'mediaOrder',
+  labelFa: 'سفارش خرید رسانه',
+  initial: 'DRAFT',
+  states: ['DRAFT', 'BOOKED', 'AIRED', 'RECONCILED', 'CANCELLED'],
+  terminal: ['RECONCILED', 'CANCELLED'],
+  transitions: [
+    { from: ['DRAFT'], to: 'BOOKED', action: 'book', labelFa: 'رزرو نزد رسانه', labelEn: 'Book with vendor', permission: 'media.buy', guards: ['mediaOrder.bookedByMediaOrAccount'] },
+    { from: ['BOOKED'], to: 'AIRED', action: 'confirm_delivery', labelFa: 'تأیید پخش و اجرا', labelEn: 'Confirm delivery', permission: 'media.buy', requiresReason: true },
+    { from: ['AIRED'], to: 'RECONCILED', action: 'reconcile', labelFa: 'تطبیق با صورت‌حساب رسانه', labelEn: 'Reconcile vendor invoice', permission: 'finance.payment', guards: ['mediaOrder.vendorInvoiceMatches'] },
+    { from: ['DRAFT', 'BOOKED'], to: 'CANCELLED', action: 'cancel', labelFa: 'لغو سفارش', labelEn: 'Cancel', permission: 'media.buy', requiresReason: true },
+  ],
+};
+
 export const WORKFLOWS: Record<string, WorkflowDef> = {
   lead: LEAD_WORKFLOW,
   opportunity: OPPORTUNITY_WORKFLOW,
@@ -297,6 +315,7 @@ export const WORKFLOWS: Record<string, WorkflowDef> = {
   contract: CONTRACT_WORKFLOW,
   invoice: INVOICE_WORKFLOW,
   outsourceRequest: OUTSOURCE_WORKFLOW,
+  mediaOrder: MEDIA_ORDER_WORKFLOW,
 };
 
 export function findTransition(entity: string, from: string, action: string): TransitionDef | undefined {
@@ -327,6 +346,8 @@ export const WORKFLOW_READ_PERMISSION: Record<string, Permission> = {
   contract: 'contract.read',
   invoice: 'finance.read',
   outsourceRequest: 'supplier.read',
+  // What was paid for media and at what commission is pricing data.
+  mediaOrder: 'pricing.read',
 };
 
 /** True when `entity` names a declared state machine. Guards dynamic lookups. */

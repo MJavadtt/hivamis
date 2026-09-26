@@ -19,6 +19,7 @@ import { ProcessMap } from '../components/ProcessMap';
 import { BreachRisk } from '../components/BreachRisk';
 import { AskReports } from '../components/AskReports';
 import { RevenueReport } from '../components/Revenue';
+import { MediaReport } from '../components/Media';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -36,6 +37,7 @@ export default function Reports() {
     { key: 'mining', label: 'کشف فرآیند' },
     { key: 'cost', label: 'دقت برآورد' },
     ...(can('finance.read') ? [{ key: 'revenue', label: 'درآمد و کار در جریان' }] : []),
+    ...(can('pricing.read') ? [{ key: 'media', label: 'رسانه' }] : []),
   ];
 
   return (
@@ -58,6 +60,7 @@ export default function Reports() {
         {tab === 'mining' && <ProcessMap />}
         {tab === 'cost' && <CostAccuracy />}
         {tab === 'revenue' && <RevenueReport />}
+        {tab === 'media' && <MediaReport />}
       </PageBody>
     </>
   );

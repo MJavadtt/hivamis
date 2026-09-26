@@ -76,7 +76,10 @@ export interface RevenueData {
   rates: Map<string, number | null>;
   paymentsOut: Map<string, { amount: number; occurredAt: Date }[]>;
   declared: Map<string, number>;
-  invoices: Map<string, { total: number; issueDate: Date }[]>;
+  /** Base totals, and the pass-through share of each (media billed for a vendor, #31). */
+  invoices: Map<string, { total: number; passThrough: number; issueDate: Date }[]>;
+  /** Media orders (#31): the agency's revenue on each, earned when the media ran. */
+  media: Map<string, { agencyRevenue: number; airedAt: Date | null }[]>;
 }
 
 const group = <T, K>(rows: T[], key: (r: T) => K) => {
@@ -87,7 +90,7 @@ const group = <T, K>(rows: T[], key: (r: T) => K) => {
 
 export async function loadRevenueData(tx: Tx, organizationId: string, projectIds?: string[]): Promise<RevenueData> {
   const scope = projectIds ? { in: projectIds } : undefined;
-  const [projects, amendments, milestones, tasks, entries, users, payments, declarations, invoices] = await Promise.all([
+  const [projects, amendments, milestones, tasks, entries, users, payments, declarations, invoices, media] = await Promise.all([
     tx.project.findMany({
       where: { organizationId, deletedAt: null, ...(scope ? { id: scope } : {}) },
       select: { id: true, code: true, name: true, state: true, revenueMethod: true, contractValue: true, closedAt: true, createdAt: true, company: { select: { legalName: true } } },
@@ -100,9 +103,11 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     tx.task.findMany({ where: { organizationId, ...(scope ? { projectId: scope } : {}) }, select: { id: true, projectId: true, estimateHours: true, state: true, closedAt: true, submittedAt: true, createdAt: true } }),
     tx.timeEntry.findMany({ where: { organizationId, ...(scope ? { task: { projectId: scope } } : {}) }, select: { taskId: true, hours: true, workedOn: true, userId: true, task: { select: { projectId: true } } } }),
     tx.user.findMany({ where: { organizationId }, select: { id: true, hourlyCost: true, department: { select: { hourlyCost: true } } } }),
-    tx.payment.findMany({ where: { organizationId, direction: 'OUT', projectId: scope ?? { not: null } }, select: { projectId: true, amount: true, occurredAt: true } }),
+    // A payment to a media vendor is a pass-through (#31): it is the client's media, not the project's cost.
+    tx.payment.findMany({ where: { organizationId, direction: 'OUT', mediaOrderId: null, projectId: scope ?? { not: null } }, select: { projectId: true, amount: true, occurredAt: true } }),
     tx.costDeclaration.findMany({ where: { organizationId, workOrder: scope ? { projectId: scope } : { isNot: null } }, select: { internalCost: true, externalCost: true, workOrder: { select: { projectId: true } } } }),
-    tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, total: true, issueDate: true } }),
+    tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, total: true, issueDate: true, lines: true, fxRate: true } }),
+    tx.mediaOrder.findMany({ where: { organizationId, state: { not: 'CANCELLED' }, ...(scope ? { projectId: scope } : {}) }, select: { projectId: true, agencyRevenue: true, airedAt: true } }),
   ]);
   const declared = new Map<string, number>();
   for (const d of declarations) declared.set(d.workOrder!.projectId, (declared.get(d.workOrder!.projectId) ?? 0) + num(d.internalCost) + num(d.externalCost));
@@ -115,8 +120,17 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     rates: new Map(users.map((u) => [u.id, u.hourlyCost != null ? num(u.hourlyCost) : u.department?.hourlyCost != null ? num(u.department.hourlyCost) : null])),
     paymentsOut: group(payments.map((p) => ({ projectId: p.projectId!, amount: num(p.amount), occurredAt: p.occurredAt })), (p) => p.projectId),
     declared,
-    invoices: group(invoices.map((i) => ({ projectId: i.projectId!, total: num(i.total), issueDate: i.issueDate })), (i) => i.projectId),
+    invoices: group(invoices.map((i) => ({ projectId: i.projectId!, total: num(i.total), passThrough: passThroughOf(i.lines, i.fxRate), issueDate: i.issueDate })), (i) => i.projectId),
+    media: group(media.map((m) => ({ projectId: m.projectId, agencyRevenue: num(m.agencyRevenue), airedAt: m.airedAt })), (m) => m.projectId),
   };
+}
+
+/** The base value of an invoice's pass-through lines — media billed on a vendor's behalf (#31). */
+function passThroughOf(lines: unknown, fxRate: unknown): number {
+  if (!Array.isArray(lines)) return 0;
+  const orig = lines.filter((l) => l && (l as { passThrough?: boolean }).passThrough)
+    .reduce((s, l) => s + num((l as { quantity?: number }).quantity ?? 1) * num((l as { unitPrice?: number }).unitPrice), 0);
+  return r2(orig * num(fxRate ?? 1));
 }
 
 /* ── A project's position at an instant ────────────────────────────────── */
@@ -151,18 +165,34 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
   const p = data.projects.find((x) => x.id === projectId)!;
   const method = (REVENUE_METHODS as readonly string[]).includes(p.revenueMethod) ? p.revenueMethod as RevenueMethod : 'EFFORT';
   const notesFa: string[] = [];
-  const invoiced = r2((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).reduce((s, i) => s + i.total, 0));
+  // Billed, less what was billed on a vendor's behalf: pass-through is never the agency's (#31).
+  const invoiced = r2((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).reduce((s, i) => s + i.total - i.passThrough, 0));
+  // Media commission is earned when the media runs (#31) — on top of the service contract.
+  const closedBy = p.state === 'CLOSED' && before(p.closedAt, at);
+  const mediaOrders = data.media.get(projectId) ?? [];
+  const media = r2(mediaOrders.filter((m) => before(m.airedAt, at)).reduce((s, m) => s + m.agencyRevenue, 0));
   const out = (progress: number | null, basis: Record<string, unknown>, reasonFa: string | null = null, contractValue: number | null = null): Position => {
-    const recognised = progress == null || contractValue == null ? null : r2(contractValue * progress);
-    return { projectId, method, at, contractValue, progress: progress == null ? null : Math.round(progress * 1e6) / 1e6, recognised, invoiced, wip: recognised == null ? null : r2(recognised - invoiced), basis, reasonFa, notesFa };
+    const service = progress == null || contractValue == null ? null : r2(contractValue * progress);
+    // Commission on media that ran is earned whatever the service side can be measured as; when
+    // the service side cannot be, the media alone is recognised and the note says so.
+    const recognised = service != null ? r2(service + media) : mediaOrders.length ? media : null;
+    if (service == null && mediaOrders.length && reasonFa) notesFa.push('فقط کمیسیون رسانه شناسایی شد؛ بخش خدمات سنجیده نشد.');
+    return {
+      projectId, method, at, contractValue, progress: progress == null ? null : Math.round(progress * 1e6) / 1e6, recognised, invoiced,
+      wip: recognised == null ? null : r2(recognised - invoiced), basis: mediaOrders.length ? { ...basis, mediaCommission: media } : basis, reasonFa, notesFa,
+    };
   };
 
   // The contract value in force then: today's, less amendments that took effect afterwards.
   const later = (data.amendments.get(projectId) ?? []).filter((a) => a.effectiveDate >= at).reduce((s, a) => s + a.valueDelta, 0);
   const value = p.contractValue == null ? null : r2(num(p.contractValue) - later);
-  if (!value || value <= 0) return out(null, {}, 'ارزش قرارداد ثبت نشده است؛ درآمدی برای شناسایی نیست.');
+  if (!value || value <= 0) {
+    // A media-only project earns its commission and nothing else.
+    if (mediaOrders.length) { notesFa.push('قرارداد خدمات ثبت نشده؛ فقط کمیسیون رسانه شناسایی می‌شود.'); return out(0, {}, null, 0); }
+    return out(null, {}, 'ارزش قرارداد ثبت نشده است؛ درآمدی برای شناسایی نیست.');
+  }
   if (at <= p.createdAt) return out(0, { reason: 'NOT_STARTED' }, null, value);
-  if (p.state === 'CLOSED' && before(p.closedAt, at)) return out(1, { closedAt: p.closedAt }, null, value);
+  if (closedBy) return out(1, { closedAt: p.closedAt }, null, value);
 
   if (method === 'MILESTONE') {
     const ms = data.milestones.get(projectId) ?? [];
@@ -243,7 +273,7 @@ export function monthFlows(data: RevenueData, m: { start: Date; end: Date }) {
   const allEntries = [...data.entries.values()].flat().filter((e) => inMonth(e.workedOn));
   const labour = labourCost(data, allEntries);
   return {
-    invoiced: r2([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).reduce((s, i) => s + i.total, 0)),
+    invoiced: r2([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).reduce((s, i) => s + i.total - i.passThrough, 0)),
     labourCost: labour.cost, unpricedHours: labour.unpricedHours,
     externalCost: r2([...data.paymentsOut.values()].flat().filter((x) => inMonth(x.occurredAt)).reduce((s, x) => s + x.amount, 0)),
   };

@@ -191,4 +191,11 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
     approvedAt: new Date(),
   }),
   'outsourceRequest.reject': async ({ reason }) => ({ rejectReason: reason ?? null }),
+
+  // Roadmap #31. Delivery is confirmed with its proof — the reason field carries it — because
+  // the commission is earned when the media runs, and "it ran" is a claim that needs evidence.
+  'mediaOrder.book': async () => ({ bookedAt: new Date() }),
+  'mediaOrder.confirm_delivery': async ({ reason }) => ({ airedAt: new Date(), proofNote: reason ?? null }),
+  'mediaOrder.reconcile': async () => ({ reconciledAt: new Date() }),
+  'mediaOrder.cancel': async ({ reason }) => ({ cancelReason: reason ?? null }),
 };

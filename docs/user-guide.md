@@ -120,6 +120,18 @@ only warn and never stop you: fewer files than the order counted, a file name th
 draft, something that sounds like the project's out-of-scope list. **بررسی دوباره** runs the check
 before you hand over. Every result also lists what the machine did *not* look at — the content,
 the brief, the brand — because that is still the reviewer's job.
+**Media buying (the project's «رسانه» tab — media unit and Account).** Record each buy as a media
+order: the vendor, the channel and placement, the flight, and the deal — a commission deducted from
+the gross, or a markup on the net. The order shows what the client pays, what passes through to the
+vendor, and the agency's share, before you save. Book it with the vendor; when it has run, confirm
+delivery with its proof (the airing certificate, the installation photo). Finance bills the client
+on a media invoice that lists the vendor's net and the agency's commission on separate lines,
+records the vendor's invoice against the order — a difference has to be explained before the order
+can be reconciled — and marks a payment to the vendor against its order. The vendor's net is never
+the agency's revenue: projects earn the commission when the media runs. **گزارش‌ها ← رسانه** shows
+billings, pass-through and the agency's share by channel and vendor, and four lists to clear: ran
+and not billed, flight over without proof, awaiting the vendor's invoice, and invoices that differ.
+
 ## Finance
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.

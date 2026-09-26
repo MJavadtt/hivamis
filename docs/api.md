@@ -66,7 +66,7 @@ revision · changeRequest · contract · invoice · outsourceRequest`
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /workflow/definitions` | All 13 state machines |
+| `GET /workflow/definitions` | All 14 state machines |
 | `GET /workflow/:entity/definition` | One state machine |
 | `GET /workflow/:entity/:id/available` | Transitions this caller may perform now |
 | `GET /workflow/:entity/:id/preflight` | Every transition out of the current state with every guard's verdict — `checks[]` of `{ guard, labelFa, ok, messageFa?, rule? }`, plus `permitted` and `ready`. Read-only; needs the entity's read permission |
@@ -209,6 +209,31 @@ was actually paid at is an exchange gain or loss, not a dispute.
 | `POST /fx/rates` `{ currency, rate, effectiveDate, note? }` | `finance.rates` | Record a day's rate. Replacing one needs `note` (`REASON_REQUIRED`) and returns `replaced.recordsKeepingPrevious` — figures converted at the old rate keep it. Audited with before/after |
 | `POST /fx/rates/import` `{ csv }` | `finance.rates` | «date,currency,rate» per line, Jalali or ISO. Never overwrites: a different rate for a recorded day comes back in `conflicts[]`; bad lines in `errors[]` with their line numbers. Audited as `BULK_IMPORT` |
 | `GET /reports/fx?from=&to=` | `finance.read` | `totals.realised` (receipts at their day's rate against the invoice's booked rate) and `totals.unrealised` (open foreign receivables at the latest rate against booked), `byCurrency[]`, and the rows: `receivables`, `realised`, `contracts` and `costs`, each booked vs today |
+
+## Media buying
+
+Roadmap #31. A media order (`MO-…`, state machine `mediaOrder`: `DRAFT → BOOKED → AIRED →
+RECONCILED`, or `CANCELLED`) is media bought for a client. `amount` is the vendor's quote: gross
+under `COMMISSION` (the client is billed it; the vendor deducts the agency commission), net under
+`MARKUP` (the client is billed it plus the markup). The server keeps `clientAmount`, `netAmount`
+(the vendor's — a pass-through, never the agency's revenue) and `agencyRevenue`, in base, with the
+originals and rate for another currency (#28). Booking needs the media unit, Account or management
+(guard `mediaOrder.bookedByMediaOrAccount`); delivery needs its proof as the reason; reconciling
+needs the vendor's invoice to match the booked net within half a per cent, or a written
+`discrepancyNote` (guard `mediaOrder.vendorInvoiceMatches`).
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /media-orders?projectId=&state=&supplierId=` / `GET /media-orders/:id` | `pricing.read` | Orders with their split and `availableTransitions` |
+| `POST /media-orders` | `media.buy` (media unit, Account, management, or a pricer) | A draft order; the split is computed, never accepted |
+| `PATCH /media-orders/:id` | `media.buy` | A draft only (`MEDIA_ORDER_NOT_DRAFT` after booking); re-priced at today's rate |
+| `POST /media-orders/:id/vendor-invoice` `{ number, amount, invoiceDate, discrepancyNote? }` | `finance.payment` | The vendor's invoice in the order's currency; returns `expected`, `difference`, `matches` |
+| `POST /projects/:id/media-billing` `{ orderIds[], number, issueDate, dueDate?, taxPercent }` | `finance.invoice` | The intermediary invoice: per order, the vendor's net on a line marked `passThrough: true` and the agency's commission on its own line. Booked or later, unbilled, one currency (`MEDIA_BILLING_INVALID` with `problems[]`) |
+| `GET /reports/media?from=&to=` | `pricing.read` | Billings, pass-through, agency revenue and the effective rate — overall, by channel, vendor and project — and the exceptions: ran and unbilled, flight over without proof, awaiting the vendor's invoice, vendor invoice differs |
+
+`POST /payments` takes `mediaOrderId` for a payment to a media vendor: it is a pass-through, so
+revenue recognition (#29) leaves it out of project cost — as it leaves `passThrough` invoice lines
+out of what was billed, and recognises the agency's revenue on an order when it runs.
 
 ## Revenue recognition and work in progress
 

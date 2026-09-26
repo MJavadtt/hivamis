@@ -939,3 +939,34 @@ the cost when they were worked; hours with no cost are reported as unpriced, not
 contract's value at a past date subtracts later amendments by their effective date. An expected
 loss (declared cost above the contract) is flagged, not provisioned. There is no reopening of a
 closed month in the application.
+
+## ADR-038 — Media is an agency's pass-through: the vendor's net is never revenue
+
+**Decision.** Media bought for a client is a first-class record with its own state machine
+(`mediaOrder`: booked, aired with proof, reconciled against the vendor's invoice). Each order
+computes, from the vendor's quote and the deal, what the client pays, what the vendor is owed and
+the difference — under `COMMISSION` the client pays the gross and the vendor deducts the agency
+commission; under `MARKUP` the vendor is paid net and the client pays net plus the markup. The
+client is billed on an intermediary invoice whose lines separate the pass-through from the
+commission. In revenue recognition (#29) the agency earns the commission when the order runs; the
+pass-through lines of invoices and payments to media vendors are left out of billed revenue and
+project cost alike.
+
+**Rationale.** The roadmap's point, and the market analysis's: media buying has its own financial
+structure — pass-through cost, percentage commission, intermediary billing — and it is the one area
+where the leading agency platform is genuinely ahead. Treated as ordinary revenue and cost, a
+10-billion media buy on a 1-billion service contract makes the agency look eleven times its size
+at a tenth of its margin. The agency acts as an agent for the media: only what it keeps is revenue.
+
+**Why the controls.** Booking is confined to the media unit, Account and management by a guard,
+because roles do not know units and every unit role holds `media.buy`. Delivery needs its proof,
+because the commission is earned when the media runs and "it ran" is a claim. A vendor invoice
+that differs from the booking by more than half a per cent cannot be reconciled without a written
+reason: an unexplained difference is money nobody agreed to pay. The media report lists the four
+places money gets lost — ran and unbilled, flight over without proof, awaiting the vendor, billed
+differently.
+
+**Limits, stated.** One currency per intermediary invoice. A vendor's invoice is compared in the
+order's currency; the exchange difference between booking and paying a foreign vendor is not yet
+in the exchange report (#28). A media order is booked at today's rate. Contract values are taken to
+be the service fee; media is billed through media orders, not inside the contract value.

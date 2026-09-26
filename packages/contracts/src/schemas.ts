@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES,
+  DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES,
 } from './enums.js';
@@ -382,6 +382,8 @@ export const createPaymentSchema = z.object({
   amount: z.coerce.number().positive(),
   /** The currency `amount` is in; a receipt against a foreign invoice may be in its currency or in base. */
   currency: z.enum(CURRENCIES).optional(),
+  /** A payment to a media vendor for this order: pass-through, not the project's cost (roadmap #31). */
+  mediaOrderId: idSchema.optional(),
   occurredAt: z.coerce.date(),
   method: z.enum(['TRANSFER', 'CHEQUE', 'CASH', 'OTHER']).default('TRANSFER'),
   reference: z.string().trim().max(120).optional(),
@@ -402,6 +404,43 @@ export const exchangeRateSchema = z.object({
 /** Rates in bulk — one «date,currency,rate» per line; Jalali (1405/07/01) or ISO dates. */
 export const importRatesSchema = z.object({
   csv: z.string().min(5).max(200_000),
+});
+
+/**
+ * A media order (roadmap #31). `amount` is the vendor-side figure: the media's gross under
+ * COMMISSION (the client is billed it; the vendor deducts the commission), the vendor's net under
+ * MARKUP (the client is billed it plus the markup). The server computes the rest.
+ */
+export const createMediaOrderSchema = z.object({
+  projectId: idSchema,
+  supplierId: idSchema,
+  workOrderId: idSchema.optional(),
+  channel: z.enum(MEDIA_CHANNELS),
+  placement: z.string().trim().min(3).max(1000),
+  flightStart: z.coerce.date(),
+  flightEnd: z.coerce.date(),
+  pricingModel: z.enum(MEDIA_PRICING_MODELS),
+  amount: z.coerce.number().positive(),
+  commissionPercent: z.coerce.number().min(0).max(60),
+  currency: z.enum(CURRENCIES).optional(),
+}).refine((v) => v.flightEnd >= v.flightStart, { message: 'پایان پخش پیش از آغاز آن است', path: ['flightEnd'] });
+
+/** The vendor's invoice for a media order, in the order's currency. */
+export const vendorInvoiceSchema = z.object({
+  number: z.string().trim().min(1).max(60),
+  amount: z.coerce.number().positive(),
+  invoiceDate: z.coerce.date(),
+  /** Required to reconcile when the invoice differs from the booked net. */
+  discrepancyNote: z.string().trim().max(1000).optional(),
+});
+
+/** Billing the client for media orders — the intermediary invoice, pass-through and commission apart. */
+export const billMediaSchema = z.object({
+  orderIds: z.array(idSchema).min(1).max(100),
+  number: z.string().trim().min(1).max(60),
+  issueDate: z.coerce.date(),
+  dueDate: z.coerce.date().optional(),
+  taxPercent: z.coerce.number().min(0).max(100).default(0),
 });
 
 export const createSupplierSchema = z.object({

@@ -68,9 +68,10 @@ feature list; it is that the rules are structural rather than advisory.
 | Capability | Agency platforms | Hiva OS |
 |---|---|---|
 | Projects, tasks, resourcing, invoicing | Mature, often deeper | Present at the depth Doc_H requires |
-| Client portal, time tracking, media commissions | Present in the leaders | Not built |
+| Time tracking, media commissions | Present in the leaders | Built since this analysis — roadmap #14 and #31 |
+| Client portal | Present in the leaders | Not built (roadmap #34) |
 | General ledger accounting | Scoro / Deltek strongest | Out of scope by decision |
-| Gantt and critical path | Standard | Not built (milestones and timeline are) |
+| Gantt and critical path | Standard | Built since this analysis — roadmap #10 |
 | **Enforced execution authorisation** | Not offered | Three legal bases, checked before ACTIVE |
 | **Enforced three-level QC** | Not offered | Per-level permissions; delivery blocked without Account QC |
 | **Revision governance with mandatory cause** | Not offered | Reason is non-null; failed QC auto-raises the revision |
@@ -85,7 +86,8 @@ feature list; it is that the rules are structural rather than advisory.
 ## Honest assessment
 
 Hiva OS would lose a feature-by-feature comparison against Workamajig or Scoro on breadth. It has
-no client portal, no time tracking, no media-buying module, no general ledger, no Gantt.
+no client portal, no time tracking, no media-buying module, no general ledger, no Gantt. (Since
+written: time tracking, the Gantt and media buying have been built — roadmap #14, #10, #31.)
 
 It wins on exactly one axis, and it is the axis Doc_H cares about: an agency running Hiva OS
 **cannot** skip authorisation, cannot deliver unreviewed work, cannot let a unit quote a price,
@@ -102,7 +104,7 @@ alternatives, all of those depend on people remembering.
 | Client portal | Medium | High | Would move client approvals inside the audit trail |
 | SSO + MFA | Medium | Low–Medium | Enterprise procurement requirement |
 | E-signature | Medium | Low | Contract signature is recorded, not executed |
-| Media buying and commissions | Low unless media is a large revenue share | High | Workamajig's genuine moat |
+| Media buying and commissions | Low unless media is a large revenue share | High | Workamajig's genuine moat — built as roadmap #31 |
 
 ## Sources
 

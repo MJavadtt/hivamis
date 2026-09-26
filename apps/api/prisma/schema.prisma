@@ -633,6 +633,7 @@ model Project {
   /// Roadmap #29: how revenue is earned as the work goes — MILESTONE | EFFORT | COST.
   revenueMethod         String   @default("EFFORT")
   revenueEntries        RevenueEntry[]
+  mediaOrders           MediaOrder[]
   state          String       @default("DRAFT")
   healthStatus   String       @default("GREEN")
   closedAt       DateTime?
@@ -1081,6 +1082,7 @@ model Invoice {
   @@index([organizationId, state])
   @@index([companyId])
   @@map("invoices")
+  mediaOrders        MediaOrder[]
 }
 
 model Payment {
@@ -1102,6 +1104,9 @@ model Payment {
   originalAmount  Decimal?  @db.Decimal(20, 2)
   /// How much of the linked invoice this settles, in the invoice's currency.
   settledOriginal Decimal?  @db.Decimal(20, 2)
+  /// Roadmap #31: a payment to a media vendor for this order — pass-through, not the project's cost.
+  mediaOrderId    String?
+  mediaOrder      MediaOrder? @relation(fields: [mediaOrderId], references: [id], onDelete: SetNull)
   occurredAt     DateTime
   method         String    @default("TRANSFER")
   reference      String?
@@ -1154,6 +1159,7 @@ model Supplier {
 
   @@index([organizationId, kind])
   @@map("suppliers")
+  mediaOrders    MediaOrder[]
 }
 
 model SupplierEvaluation {
@@ -1908,4 +1914,62 @@ model RevenuePeriod {
 
   @@unique([organizationId, period])
   @@map("revenue_periods")
+}
+
+/**
+ * Media bought on a client's behalf (roadmap #31). The vendor's net is a pass-through — billed to
+ * the client and paid to the vendor, never the agency's revenue; the agency's revenue is the
+ * commission (COMMISSION) or the markup (MARKUP). All four figures are computed when the order is
+ * written and kept in base; an order in another currency keeps its originals and rate (#28).
+ */
+model MediaOrder {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  code                 String    @unique
+  projectId            String
+  project              Project   @relation(fields: [projectId], references: [id])
+  supplierId           String
+  supplier             Supplier  @relation(fields: [supplierId], references: [id])
+  workOrderId          String?
+  /// TV | RADIO | OUTDOOR | PRINT | DIGITAL | CINEMA | OTHER
+  channel              String
+  placement            String
+  flightStart          DateTime
+  flightEnd            DateTime
+  /// COMMISSION | MARKUP
+  pricingModel         String
+  commissionPercent    Decimal   @db.Decimal(5, 2)
+  /// The vendor's price as quoted: gross (COMMISSION) or net (MARKUP), in `currency`.
+  quotedAmount         Decimal   @db.Decimal(20, 2)
+  /// Base: what the client is billed for the media, what the vendor is owed, and the difference.
+  clientAmount         Decimal   @db.Decimal(20, 2)
+  netAmount            Decimal   @db.Decimal(20, 2)
+  agencyRevenue        Decimal   @db.Decimal(20, 2)
+  currency             String    @default("IRR")
+  fxRate               Decimal   @default(1) @db.Decimal(24, 6)
+  fxRateDate           DateTime?
+  originalClientAmount Decimal?  @db.Decimal(20, 2)
+  originalNetAmount    Decimal?  @db.Decimal(20, 2)
+  /// The vendor's invoice, in `currency` — reconciled against the booked net.
+  vendorInvoiceNumber  String?
+  vendorInvoiceAmount  Decimal?  @db.Decimal(20, 2)
+  vendorInvoiceDate    DateTime?
+  discrepancyNote      String?
+  proofNote            String?
+  /// The intermediary invoice the client was billed on.
+  clientInvoiceId      String?
+  clientInvoice        Invoice?  @relation(fields: [clientInvoiceId], references: [id], onDelete: SetNull)
+  state                String    @default("DRAFT")
+  bookedAt             DateTime?
+  airedAt              DateTime?
+  reconciledAt         DateTime?
+  cancelReason         String?
+  createdById          String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  payments             Payment[]
+  @@index([organizationId, state])
+  @@index([projectId])
+  @@map("media_orders")
 }

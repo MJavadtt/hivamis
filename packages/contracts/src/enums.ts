@@ -156,6 +156,21 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
   IRR: 'ریال', USD: 'دلار آمریکا', EUR: 'یورو', AED: 'درهم امارات', GBP: 'پوند انگلیس', TRY: 'لیر ترکیه', CNY: 'یوان چین',
 };
 
+/** Media bought on a client's behalf (roadmap #31). */
+export const MEDIA_CHANNELS = ['TV', 'RADIO', 'OUTDOOR', 'PRINT', 'DIGITAL', 'CINEMA', 'OTHER'] as const;
+export type MediaChannel = (typeof MEDIA_CHANNELS)[number];
+export const MEDIA_CHANNEL_LABELS: Record<MediaChannel, string> = {
+  TV: 'تلویزیون', RADIO: 'رادیو', OUTDOOR: 'محیطی (بیلبورد)', PRINT: 'چاپی', DIGITAL: 'دیجیتال', CINEMA: 'سینما', OTHER: 'سایر',
+};
+/**
+ * COMMISSION — the client is billed the media's gross; the vendor bills the agency net of the
+ * agency commission, and the commission is the agency's revenue. MARKUP — the vendor bills net;
+ * the client is billed net plus the agency's markup, and the markup is the agency's revenue.
+ * Either way the vendor's net is a pass-through: billed to the client, never the agency's revenue.
+ */
+export const MEDIA_PRICING_MODELS = ['COMMISSION', 'MARKUP'] as const;
+export type MediaPricingModel = (typeof MEDIA_PRICING_MODELS)[number];
+
 export const INVOICE_KINDS = ['PROFORMA', 'INVOICE'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 

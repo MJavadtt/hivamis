@@ -105,6 +105,7 @@ export const PERMISSIONS = {
   'finance.settle': 'تسویه پروژه',
   'finance.budget': 'مدیریت بودجه پروژه',
   'finance.rates': 'ثبت نرخ ارز',
+  'media.buy': 'خرید رسانه',
 
   // Traffic & resources
   'traffic.read': 'مشاهده ترافیک',
@@ -176,7 +177,7 @@ const ACCOUNT_CORE: Permission[] = [
   'brief.read', 'brief.review', 'brief.approve', 'brief.return', 'brief.write',
   'handoff.read', 'handoff.accept',
   'proposal.read', 'proposal.write', 'proposal.integrate', 'proposal.deliver_to_sales',
-  'pricing.read', 'pricing.set_price',
+  'pricing.read', 'pricing.set_price', 'media.buy',
   'project.read', 'project.write', 'project.plan', 'project.execute', 'project.raci', 'project.close',
   'workorder.read', 'workorder.issue',
   'task.read', 'task.write', 'task.assign',
@@ -199,6 +200,7 @@ const UNIT_CORE: Permission[] = [
   'deliverable.read', 'deliverable.write',
   'qc.read', 'qc.unit', 'revision.read', 'revision.execute',
   'pricing.read', 'pricing.declare_cost', // cost only — never the sale price (Doc_H §12)
+  'media.buy', // held by every unit role; the booking guard confines it to the media unit (#31)
   'change.read',
   'supplier.read', 'supplier.request',
   'governance.read', 'governance.write',

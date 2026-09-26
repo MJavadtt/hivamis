@@ -445,7 +445,43 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
           messageFa: 'تغییر خارج از Scope بدون تأیید مشتری قابل اجرا نیست.',
         };
   },
+
+  /**
+   * Roadmap #31 — every unit role holds `media.buy`, because roles do not know units; booking media
+   * with a vendor is the media unit's job, or Account's, or management's.
+   */
+  'mediaOrder.bookedByMediaOrAccount': async ({ tx, actorId }) => {
+    const actor = await tx.user.findUnique({ where: { id: actorId }, select: { department: { select: { code: true } } } });
+    return MEDIA_BUYING_UNITS.includes(actor?.department?.code ?? '')
+      ? pass
+      : { ok: false, rule: 'خرید رسانه', messageFa: 'رزرو رسانه نزد رسانه‌ها با واحد رسانه، اکانت یا مدیریت است.' };
+  },
+
+  /**
+   * A media order is closed only when the vendor's invoice matches what was booked — or the
+   * difference is written down. An unexplained difference is money nobody agreed to pay.
+   */
+  'mediaOrder.vendorInvoiceMatches': async ({ record }) => {
+    if (record.vendorInvoiceAmount == null) {
+      return { ok: false, rule: 'خرید رسانه', messageFa: 'صورت‌حساب رسانه هنوز ثبت نشده است؛ تطبیق بدون آن ممکن نیست.' };
+    }
+    const expected = Number(record.originalNetAmount ?? record.netAmount);
+    const billed = Number(record.vendorInvoiceAmount);
+    if (Math.abs(billed - expected) <= mediaTolerance(expected)) return pass;
+    return (record.discrepancyNote ?? '').trim().length >= 5
+      ? pass
+      : {
+          ok: false, rule: 'خرید رسانه',
+          messageFa: `صورت‌حساب رسانه (${billed.toLocaleString('en-US')}) با خالص رزروشده (${expected.toLocaleString('en-US')}) نمی‌خواند؛ دلیل اختلاف را ثبت کنید.`,
+          details: { expected, billed, difference: billed - expected },
+        };
+  },
 };
+
+/** Units whose people may book media with a vendor (#31). */
+export const MEDIA_BUYING_UNITS = ['ME', 'A', 'M'];
+/** Half a per cent, or one unit of the currency, whichever is larger: rounding, not a difference. */
+export const mediaTolerance = (expected: number) => Math.max(1, Math.abs(expected) * 0.005);
 
 /**
  * What each guard requires, stated positively — the line a checklist shows next to a tick.
@@ -475,6 +511,8 @@ export const GUARD_LABELS: Record<string, string> = {
   'change.isOutOfScope': 'تغییر خارج از Scope ارزیابی شده باشد',
   'change.impactAssessed': 'هر شش بُعد اثر تغییر ارزیابی شده باشد',
   'change.readyForImplementation': 'تأیید مشتری برای تغییر خارج از Scope ثبت شده باشد',
+  'mediaOrder.bookedByMediaOrAccount': 'رزرو را واحد رسانه، اکانت یا مدیریت انجام دهد',
+  'mediaOrder.vendorInvoiceMatches': 'صورت‌حساب رسانه با خالص رزروشده بخواند یا دلیل اختلاف ثبت شده باشد',
 };
 
 /** One guard's verdict, for a checklist: which rule, what it requires, and whether it holds. */

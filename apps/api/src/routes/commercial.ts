@@ -200,6 +200,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       ? await prisma.invoice.findFirst({ where: { id: input.invoiceId, organizationId: actor.organizationId } })
       : null;
     if (input.invoiceId && !linked) throw notFound('سند مالی');
+    if (input.mediaOrderId) {
+      const mo = await prisma.mediaOrder.findFirst({ where: { id: input.mediaOrderId, organizationId: actor.organizationId }, select: { id: true } });
+      if (!mo) throw notFound('سفارش رسانه');
+      if (input.direction !== 'OUT') throw badRequest('MEDIA_PAYMENT_OUT_ONLY', 'پرداخت به رسانه یک پرداخت خروجی است.');
+    }
     const foreignInvoice = linked && linked.currency !== base ? linked : null;
 
     // Roadmap #28. A receipt against an invoice in another currency must say what it is in: read
@@ -233,6 +238,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
           amount: fx.base, occurredAt: input.occurredAt, method: input.method,
           reference: input.reference ?? null, description: input.description ?? null,
           currency: paidIn, fxRate, fxRateDate, originalAmount: fx.original, settledOriginal,
+          mediaOrderId: input.mediaOrderId ?? null,
           createdById: actor.id,
         },
       });
