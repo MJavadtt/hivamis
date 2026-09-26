@@ -15,6 +15,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  /** Where the web app is served — the base of links sent outside (roadmap #35). Defaults to the first CORS origin. */
+  PUBLIC_APP_URL: z.string().default(''),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   ACCESS_TOKEN_TTL: ttl('ACCESS_TOKEN_TTL').default('15m'),
   REFRESH_TOKEN_TTL: ttl('REFRESH_TOKEN_TTL').default('7d'),

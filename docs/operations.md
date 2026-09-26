@@ -48,6 +48,7 @@ on first sign-in), then deactivate the demo users.
 | `NODE_ENV` | no | development | |
 | `LOG_LEVEL` | no | info | `fatal`…`trace`, or `silent` |
 | `CORS_ORIGIN` | no | localhost:5173 | Comma-separated list |
+| `PUBLIC_APP_URL` | no | first `CORS_ORIGIN` | The web app's public address — the base of approval links sent to clients (roadmap #35) |
 | `ACCESS_TOKEN_TTL` | no | 15m | |
 | `REFRESH_TOKEN_TTL` | no | 7d | |
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
@@ -301,6 +302,25 @@ exercised against the authority from this repository:
 
 Every submission keeps the payload exactly as prepared, so what the authority received can be shown
 even when it disagrees with the invoice as it stands today.
+
+## Client approval links
+
+Roadmap #35. Clients open `/approve/<secret>` on the web app, which calls
+`/api/v1/public/approvals/*` — the only API paths that answer without a session. Both must be
+reachable from outside when the rest of the application is not: publish those two prefixes at the
+reverse proxy, set `PUBLIC_APP_URL` to the address clients will use, and keep the rest internal if
+that is the deployment's shape. The API limits them to 30 requests a minute per address (codes 5).
+
+With `MAIL_ENABLED` on, the link goes to the contact's email and the decision takes a one-time
+code sent to the same address; with mail off, the requester is shown the link once and decisions
+are verified by the link alone — the certificate says which.
+
+A sealed approval cannot be updated (trigger `client_approvals_sealed`) and the event log cannot
+be rewritten (`client_approval_events_append_only`). Someone who disables a trigger can still change
+a row, which is why `GET /client-approvals/:id/verify` recomputes everything and the client's
+receipt email carries the decision's hash. Approved files stay in `STORAGE_DIR` even when their
+document is deleted in the application — back the directory up with the database; a restore
+without it leaves approvals that verify as `FILE_MISSING`.
 
 ## Export to the accounting package
 

@@ -25,6 +25,7 @@ import {
   daysFromNow, exactCurrency, formatCurrency, formatDate, formatPercent, formatRelative, toPersianDigits,
 } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
+import { DeliverableApprovalButton } from '../components/ClientApprovals';
 
 const PROJECT_STATES = [
   'DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE',
@@ -402,7 +403,7 @@ function WorkTab({ data }: { data: Project360 }) {
         {!data.deliverables.length ? <EmptyState title="خروجی‌ای تعریف نشده" /> : (
           <Table>
             <thead className="bg-ink-50/60">
-              <tr><Th>خروجی</Th><Th>واحد</Th><Th>نسخه</Th><Th>مهلت</Th><Th>وضعیت</Th></tr>
+              <tr><Th>خروجی</Th><Th>واحد</Th><Th>نسخه</Th><Th>مهلت</Th><Th>وضعیت</Th><Th /></tr>
             </thead>
             <tbody>
               {data.deliverables.map((d) => (
@@ -412,6 +413,7 @@ function WorkTab({ data }: { data: Project360 }) {
                   <Td className="ltr text-xs">{d.version}</Td>
                   <Td className="text-xs">{formatDate(d.dueDate)}</Td>
                   <Td><StateBadge state={d.state} /></Td>
+                  <Td><DeliverableApprovalButton deliverable={d} /></Td>
                 </Tr>
               ))}
             </tbody>

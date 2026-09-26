@@ -262,6 +262,46 @@ batch to batch.
 An API key with `finance.read` (#46) can read the preview and download batch files, so an
 integration can pull them on a schedule.
 
+## Client approval as evidence
+
+Roadmap #35. Staff ask a named contact of the client to approve a **delivered** deliverable or a
+**presented** proposal. What the client will be shown is frozen when the request is made — the
+subject, its client-facing content (a proposal's summary, approach, deliverables, timeline, price
+and payment terms; never cost or margin) and each file with its SHA-256, read from storage — and
+hashed (`manifestHash`). A link with a 256-bit secret goes to the contact's address; only the
+secret's SHA-256 is stored. With mail off the link is returned to the requester once
+(`channel: MANUAL`) and never again.
+
+The decision is sealed: who (the addressee, the name typed as signature, and — when mail is on —
+a six-digit code sent to the same address at decision time), when, the IP and browser, whether
+that address is one the organisation's staff used in the last 30 days, and the log of everything
+done on the page before deciding. `evidenceHash` is the SHA-256 of that record in canonical JSON,
+including the previous decision's hash in the organisation (`sequence`, `prevEvidenceHash`). A
+database trigger refuses any change to a sealed row, and the event log is append-only. The
+decision is then applied through the workflow engine as the requester — `client_accept` /
+`client_reject` on a deliverable, `client_approve` / `client_request_revision` on a proposal —
+with the client's address; if the engine refuses, the evidence stands and `transitionError` says why.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /client-approvals/options?subjectType=&subjectId=` | `deliverable.deliver` · `proposal.record_feedback` | Whether the subject may be sent now, the client's contacts, and the subject's files |
+| `POST /client-approvals` `{ subjectType, subjectId, contactId, documentIds?, message?, expiresInDays }` | as above | Create and send. `CLIENT_APPROVAL_WRONG_STATE`, `CLIENT_APPROVAL_CONTACT` (not this client's), `CLIENT_APPROVAL_CONTACT_EMAIL`, `CLIENT_APPROVAL_NO_FILES` (a deliverable needs one), `CLIENT_APPROVAL_FILES`, `CLIENT_APPROVAL_FILE_ALTERED` (the file no longer matches its upload checksum), `409 CLIENT_APPROVAL_PENDING`. Returns `link` only when `channel` is `MANUAL`. Audited |
+| `GET /client-approvals?subjectType=&subjectId=` · `GET /client-approvals/:id` | `deliverable.read` · `proposal.read` | Requests with their manifest, decision, evidence and event log — never the token or code hashes |
+| `POST /client-approvals/:id/cancel` `{ reason }` | as for creating | Withdraw a pending request |
+| `GET /client-approvals/:id/verify` | as for reading | Recompute every hash — each file from storage, the manifest, the evidence, the record's columns against it, the log, the chain link — and name what does not match (`FILE_ALTERED`, `FILE_MISSING`, `MANIFEST_ALTERED`, `EVIDENCE_ALTERED`, `RECORD_ALTERED`, `LOG_ALTERED`, `CHAIN_BROKEN`) |
+| `GET /client-approvals/:id/certificate` | as for reading | «گواهی تأیید مشتری» as PDF, with a fresh verification. Audited as `EXPORT` |
+
+The client's side, with no session (30 requests a minute per address; codes 5 a minute):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /public/approvals/:token` | The request as the client sees it; a pending request past `expiresAt` becomes `EXPIRED`, and one whose subject has left the state it was sent in becomes `CANCELLED` |
+| `GET /public/approvals/:token/files/:documentId` | A frozen file, re-hashed before it is served; one that no longer matches is refused (`409 CLIENT_APPROVAL_FILE_CHANGED`) and logged. Downloadable until `expiresAt` |
+| `POST /public/approvals/:token/code` | Send a code to the contact's address (10 minutes, 5 attempts, 5 codes per request). `422 CLIENT_APPROVAL_NO_CODE` when mail is off |
+| `POST /public/approvals/:token/decision` `{ decision: APPROVE \| REQUEST_CHANGES, signerName, comment?, code?, confirm: true }` | Seal and apply. Approval needs every file downloaded first (`CLIENT_APPROVAL_UNSEEN`); a change request needs a comment; with mail on, a valid code (`CLIENT_APPROVAL_CODE_REQUIRED`, `CLIENT_APPROVAL_CODE_INVALID`). `409 CLIENT_APPROVAL_CLOSED` once decided, cancelled or expired. The client is emailed a receipt with both hashes |
+
+`POST /documents` accepts `proposalId`, so a presented deck can be frozen with the proposal.
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a

@@ -190,6 +190,20 @@ export const ACCOUNTING_FIELD_LABELS: Record<AccountingField, string> = {
   detailCode: 'کد تفصیلی', lineDescription: 'شرح', debit: 'بدهکار', credit: 'بستانکار', amount: 'مبلغ (بدهکار مثبت، بستانکار منفی)', reference: 'مرجع',
 };
 
+/** A client's approval kept as evidence (roadmap #35). */
+export const CLIENT_APPROVAL_SUBJECTS = ['DELIVERABLE', 'PROPOSAL'] as const;
+export type ClientApprovalSubject = (typeof CLIENT_APPROVAL_SUBJECTS)[number];
+export const CLIENT_APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'CHANGES_REQUESTED', 'CANCELLED', 'EXPIRED'] as const;
+export type ClientApprovalStatus = (typeof CLIENT_APPROVAL_STATUSES)[number];
+export const CLIENT_APPROVAL_STATUS_LABELS: Record<ClientApprovalStatus, string> = {
+  PENDING: 'در انتظار مشتری', APPROVED: 'تأیید شد', CHANGES_REQUESTED: 'درخواست اصلاح', CANCELLED: 'لغو شد', EXPIRED: 'منقضی شد',
+};
+export const CLIENT_APPROVAL_EVENT_LABELS: Record<string, string> = {
+  CREATED: 'درخواست ثبت شد', SENT: 'پیوند فرستاده شد', OPENED: 'صفحه باز شد', FILE_VIEWED: 'فایل دریافت شد',
+  FILE_MISMATCH: 'فایل با نسخهٔ ثبت‌شده نخواند', CODE_SENT: 'کد یک‌بارمصرف فرستاده شد', CODE_REJECTED: 'کد نادرست',
+  DECIDED: 'تصمیم ثبت شد', CANCELLED: 'لغو شد', EXPIRED: 'منقضی شد',
+};
+
 export const INVOICE_KINDS = ['PROFORMA', 'INVOICE'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 

@@ -53,8 +53,8 @@ Status vocabulary, and it is used strictly:
 | 31 | Media commission | 28 | Verified | 703d6c9 |
 | 46 | Public API keys and webhooks | — | Verified | 54105b2 |
 | 32 | Moadian e-invoicing | 46 | Verified (live transport: Adapter) | 369fcb1 |
-| 33 | Accounting-package export | 46 | Verified | next |
-| 35 | Client approval with evidentiary weight | — | Pending | |
+| 33 | Accounting-package export | 46 | Verified | 8b01026 |
+| 35 | Client approval with evidentiary weight | — | Verified | next |
 | 34 | Client portal | 35 | Pending | |
 | 36 | Contract e-signature | 46 | Pending | |
 | 39 | Live updates (SSE) instead of polling | — | Pending | |

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import ApprovePublic from './pages/ApprovePublic';
 import { AuthProvider } from './lib/auth';
 import { ThemeProvider, applyStoredThemeEarly } from './lib/theme';
 import { LocaleProvider, applyStoredLocaleEarly } from './lib/locale';
@@ -39,17 +40,22 @@ const queryClient = new QueryClient({
   },
 });
 
+/** A client's approval link (roadmap #35) is a page of its own: no sign-in, no session, no shell. */
+const approvalToken = /^\/approve\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <LocaleProvider>
           <ThemeProvider>
+          {approvalToken ? <ApprovePublic token={approvalToken} /> : (
           <AuthProvider>
           <BrowserRouter>
             <App />
           </BrowserRouter>
         </AuthProvider>
+          )}
         </ThemeProvider>
           </LocaleProvider>
       </ToastProvider>

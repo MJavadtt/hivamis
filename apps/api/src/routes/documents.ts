@@ -30,12 +30,13 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const { projectId, companyId, contractId, deliverableId } = req.query as Record<string, string | undefined>;
+    const { projectId, companyId, contractId, deliverableId, proposalId } = req.query as Record<string, string | undefined>;
     return prisma.document.findMany({
       where: {
         organizationId: actor.organizationId, deletedAt: null,
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),
         ...(contractId ? { contractId } : {}), ...(deliverableId ? { deliverableId } : {}),
+        ...(proposalId ? { proposalId } : {}),
       },
       include: { uploadedBy: { select: { id: true, fullName: true } } },
       orderBy: { createdAt: 'desc' }, take: 200,
@@ -101,11 +102,11 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
      */
     const links = {
       projectId: val('projectId'), companyId: val('companyId'), contractId: val('contractId'),
-      deliverableId: val('deliverableId'), submissionId: val('submissionId'),
+      deliverableId: val('deliverableId'), submissionId: val('submissionId'), proposalId: val('proposalId'),
     } as const;
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
-      deliverableId: prisma.deliverable, submissionId: prisma.formSubmission,
+      deliverableId: prisma.deliverable, submissionId: prisma.formSubmission, proposalId: prisma.proposal,
     };
     for (const [field, id] of Object.entries(links)) {
       if (!id) continue;
@@ -126,7 +127,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
         checksum: hash.digest('hex'),
         projectId: links.projectId, companyId: links.companyId,
         contractId: links.contractId, deliverableId: links.deliverableId,
-        submissionId: links.submissionId,
+        submissionId: links.submissionId, proposalId: links.proposalId,
         tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? [],
         uploadedById: actor.id,
       },

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
-  SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS,
+  SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
 } from './enums.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
@@ -496,6 +496,27 @@ export const accountingSettingsSchema = z.object({
 });
 /** Everything not yet exported up to `to` (inclusive) — a late record dated earlier is not left behind. */
 export const accountingPeriodSchema = z.object({ to: z.coerce.date() });
+
+/** Ask a client contact to approve a delivered deliverable or a presented proposal (roadmap #35). */
+export const createClientApprovalSchema = z.object({
+  subjectType: z.enum(CLIENT_APPROVAL_SUBJECTS),
+  subjectId: idSchema,
+  contactId: idSchema,
+  /** The files the client is asked about; a deliverable needs at least one. Default: all of the subject's files. */
+  documentIds: z.array(idSchema).max(30).optional(),
+  message: z.string().trim().max(2000).optional(),
+  expiresInDays: z.coerce.number().int().min(1).max(60).default(14),
+});
+/** The client's decision, on the public page. */
+export const clientDecisionSchema = z.object({
+  decision: z.enum(['APPROVE', 'REQUEST_CHANGES']),
+  signerName: z.string().trim().min(3).max(120),
+  comment: z.string().trim().max(4000).optional(),
+  code: z.string().trim().max(12).optional(),
+  /** The declaration beside the button: «فایل‌های بالا را دیده‌ام …». */
+  confirm: z.literal(true),
+});
+export const cancelClientApprovalSchema = z.object({ reason: z.string().trim().min(3).max(1000) });
 
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),

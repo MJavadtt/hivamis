@@ -1060,3 +1060,32 @@ No live connection to any package's API is built; an API key with `finance.read`
 integration pull batch files instead. The export does not post supplier bills as payables (a
 payment out is expensed when paid), period-end work-in-progress adjustments (#29), or the matching
 of an advance with the invoice that follows it — those remain the accountant's.
+
+## ADR-042 — A client's approval is sealed evidence: the addressee, the moment, the address, the hash of what they saw
+
+**Decision.** A client approves a delivered deliverable or a presented proposal on a page reached
+by a link sent to one named contact. What they will be shown — the subject, its client-facing
+content, each file's SHA-256 read from storage — is frozen and hashed when the request is made;
+files are re-hashed each time they are served, and one that no longer matches is not served. Before
+approving, the client must download every file; when the organisation's email is on, they must
+also enter a one-time code sent to the addressee at that moment. The decision is sealed with the
+typed name, time, IP, browser, the page's event log and the previous decision's hash in the
+organisation — a hash chain — and a trigger refuses later changes to the sealed row. The client
+is emailed a receipt carrying the hashes. The decision is then applied through the workflow
+engine as the staff member who asked, with their current permissions.
+
+**Rationale.** Disputes about approvals («این آن چیزی نیست که تأیید کردم») are claims about a
+file and a moment. The document store already kept a SHA-256 per upload; what was missing was the
+link between a decision and exactly those bytes, an identity for someone who has no account, and
+a record the organisation cannot quietly edit. The code to the addressee's mailbox means a
+forwarded link cannot be used to decide; the receipt in the client's hands, and the chain, mean a
+rewritten record disagrees with something outside the organisation's control. Applying the
+decision as the requester keeps the Doc_H rules in charge: a client's approval cannot move a
+record further than the person who asked for it could.
+
+**What this is not.** It is an electronic record with integrity evidence — not a secure electronic
+signature backed by a certification authority's certificate, and not legal advice about how a
+court will weigh it. With mail off, identity rests on the link alone, and the record says so; a
+decision made from an address the organisation's staff also use is flagged, because a link handed
+over by hand could have been used by the person who handed it over. Contract signature is
+roadmap #36.

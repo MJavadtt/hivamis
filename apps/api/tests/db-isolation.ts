@@ -32,7 +32,7 @@ export const SCHEMA_PREFIX = 't_';
  * is only safe while the migrations stay free of dollar-quoted bodies, and these counts are
  * what notices if that stops being true. Update them when a migration adds or drops objects.
  */
-export const TEMPLATE_SHAPE = { tables: 80, checkConstraints: 32, foreignKeys: 129 } as const;
+export const TEMPLATE_SHAPE = { tables: 82, checkConstraints: 35, foreignKeys: 134 } as const;
 
 /** Load .env.test into process.env. env.ts validates at import time, so this must run first. */
 export function loadTestEnv(): void {
@@ -110,13 +110,21 @@ export function migrationStatements(): string[] {
     .map((name) => readFileSync(path.join(dir, name, 'migration.sql'), 'utf8'))
     .join('\n');
 
-  return sql
+  const text = sql
     .split('\n')
     .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-    .split(';')
-    .map((statement) => statement.trim())
-    .filter(Boolean);
+    .join('\n');
+  // A function body (roadmap #35's triggers) is dollar-quoted and has semicolons of its own.
+  const statements: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    if (text.startsWith('$$', i)) { quoted = !quoted; current += '$$'; i++; continue; }
+    if (text[i] === ';' && !quoted) { statements.push(current); current = ''; continue; }
+    current += text[i];
+  }
+  statements.push(current);
+  return statements.map((statement) => statement.trim()).filter(Boolean);
 }
 
 /** DDL and data copies run in one interactive transaction so they share a connection. */

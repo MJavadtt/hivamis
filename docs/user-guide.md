@@ -31,6 +31,9 @@ you accept, submit or send to QC from the list. Filter by kind with the chips ab
 3. **Proposals** — once Account delivers a proposal, present it and record the outcome:
    approved, revision requested, or rejected. A revision request must carry the client's exact
    wording — Account needs it to scope the rework.
+   Better still, let the client answer themselves: the proposal page's **تأیید مشتری** card sends
+   the client a link to the proposal as presented — its text and price, and the deck you attach —
+   and their approval or change request is recorded, and applied, as theirs (see below).
 
 **What you cannot do, by design:** set a sale price, authorise a project, or perform Account QC.
 Doc_H §2 separates these loops, and the permission model enforces it.
@@ -55,6 +58,17 @@ Doc_H §2 separates these loops, and the permission model enforces it.
    must confirm it — you cannot approve your own pricing.
 5. **Execution** — after the contract is authorised, run the project from Project 360: tasks,
    traffic, risks, issues, change requests, status reports, and the closure checklist.
+6. **Client approval that holds up later** — on Project 360, a delivered deliverable has a
+   **تأیید مشتری** button. Choose the client contact and the files (upload them there if they are
+   not attached yet) and send. The client gets a link to a page with the files, downloads each one,
+   types their name, and — when the organisation's email is set up — enters a code sent to their
+   own address; then approves or says what to change. The deliverable moves to accepted, or back
+   to revision with their words as the reason. What is kept: who decided, when, from which
+   address, and the fingerprint (SHA-256) of exactly the files they received. **بررسی دوباره**
+   recomputes every fingerprint and says whether anything has changed since; **گواهی PDF** prints
+   it all for a dispute — «این آن چیزی نیست که تأیید کردم» becomes a question with an answer. A
+   file changed after sending is not served as the approved one. If email is not set up, the link
+   is shown to you once to pass on, and the record says the client was verified by the link alone.
 
 ---
 

@@ -14,6 +14,7 @@ import {
   Modal, ProgressBar, StateBadge, StatTile, Table, Td, Textarea, Th, Tr,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatPercent, toPersianDigits } from '../lib/format';
+import { ProposalApprovalCard } from '../components/ClientApprovals';
 
 /* ── Briefs ────────────────────────────────────────────────────────────── */
 
@@ -258,6 +259,8 @@ export function ProposalDetail() {
             قیمت فروش تعیین شده اما هنوز توسط مقام مجاز تأیید نشده است. تا تأیید، پروپوزال قابل تصویب نیست.
           </div>
         )}
+
+        <ProposalApprovalCard proposal={data} />
 
         <div className="grid gap-5 lg:grid-cols-3">
           <Card title="سفارش‌های واحدها" className="lg:col-span-2">

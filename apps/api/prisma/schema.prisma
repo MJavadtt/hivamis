@@ -277,6 +277,7 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  clientApprovals      ClientApproval[]
   apiKeys              ApiKey[]
   webhookSubscriptions WebhookSubscription[]
 
@@ -336,6 +337,7 @@ model Company {
   deletedAt      DateTime?
 
   contacts      Contact[]
+  clientApprovals ClientApproval[]
   leads         Lead[]
   opportunities Opportunity[]
   projects      Project[]
@@ -362,6 +364,7 @@ model Contact {
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  clientApprovals ClientApproval[]
   deletedAt DateTime?
 
   @@index([companyId])
@@ -534,6 +537,7 @@ model Proposal {
   projects    Project[]
   versions    ProposalVersion[]
   deliverables Deliverable[]
+  documents   Document[]
 
   @@index([organizationId, state])
   @@map("proposals")
@@ -1644,6 +1648,9 @@ model Document {
   deliverable    Deliverable?    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
   submissionId   String?
   submission     FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  /// Roadmap #35: a file presented with a proposal — the deck the client is asked to approve.
+  proposalId     String?
+  proposal       Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   tags           String[]        @default([])
   uploadedById   String
   uploadedBy     User            @relation(fields: [uploadedById], references: [id])
@@ -2174,4 +2181,91 @@ model AccountingExport {
 
   @@unique([organizationId, number])
   @@map("accounting_exports")
+}
+
+/// Roadmap #35 — a client's approval, kept as evidence: who (the contact the link was sent to,
+/// and the code their mailbox received), when, from where, and the SHA-256 of exactly what they
+/// were shown. The decision is sealed into a per-organisation hash chain; a sealed row is not
+/// changed afterwards (a trigger refuses it).
+model ClientApproval {
+  id             String   @id @default(uuid())
+  organizationId String
+  code           String   @unique
+  /// DELIVERABLE | PROPOSAL
+  subjectType    String
+  subjectId      String
+  /// The state the subject must still be in for the decision to apply.
+  subjectState   String
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId      String?
+  contact        Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contactName    String
+  contactEmail   String
+  message        String?
+  /// What the client is shown, frozen when the request is made: the subject, its client-facing
+  /// content, and each file with its size and SHA-256.
+  manifest       Json
+  manifestHash   String
+  /// SHA-256 of the link's secret; the secret itself is never stored.
+  tokenHash      String   @unique
+  /// EMAIL — the link went to the contact's address; MANUAL — it was handed to staff to pass on.
+  channel        String
+  /// PENDING | APPROVED | CHANGES_REQUESTED | CANCELLED | EXPIRED
+  status         String   @default("PENDING")
+  expiresAt      DateTime
+  requestedById  String
+  requestedBy    User     @relation(fields: [requestedById], references: [id])
+  createdAt      DateTime @default(now())
+
+  codeHash       String?
+  codeExpiresAt  DateTime?
+  codeAttempts   Int      @default(0)
+  codesSent      Int      @default(0)
+
+  /// APPROVE | REQUEST_CHANGES
+  decision         String?
+  comment          String?
+  signerName       String?
+  /// EMAIL_CODE — a one-time code sent to the contact's address at decision time; LINK — the link alone.
+  verification     String?
+  decidedAt        DateTime?
+  decidedIp        String?
+  decidedUserAgent String?
+  sequence         Int?
+  prevEvidenceHash String?
+  /// Exactly what was hashed, so the hash can be recomputed.
+  evidence         Json?
+  evidenceHash     String?  @unique
+  /// Set when the decision could not be applied to the subject — the evidence stands regardless.
+  transitionError  String?
+  cancelledAt      DateTime?
+  cancelledById    String?
+  cancelReason     String?
+
+  events ClientApprovalEvent[]
+
+  @@unique([organizationId, sequence])
+  @@index([subjectType, subjectId])
+  @@index([organizationId, status])
+  @@map("client_approvals")
+}
+
+/// Everything that happened to a request, as the client's side saw it — opened, each file
+/// downloaded, a code sent, the decision — with address and browser.
+model ClientApprovalEvent {
+  id         String         @id @default(uuid())
+  /// Order of writing — two events in one millisecond still have one order.
+  seq        Int            @default(autoincrement())
+  approvalId String
+  approval   ClientApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  /// CREATED | SENT | OPENED | FILE_VIEWED | FILE_MISMATCH | CODE_SENT | CODE_REJECTED | DECIDED | CANCELLED | EXPIRED
+  kind       String
+  documentId String?
+  ip         String?
+  userAgent  String?
+  at         DateTime       @default(now())
+
+  @@index([approvalId, at])
+  @@map("client_approval_events")
 }
