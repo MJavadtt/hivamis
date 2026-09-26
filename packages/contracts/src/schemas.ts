@@ -518,6 +518,18 @@ export const clientDecisionSchema = z.object({
 });
 export const cancelClientApprovalSchema = z.object({ reason: z.string().trim().min(3).max(1000) });
 
+/* ── client portal (roadmap #34) ───────────────────────────────────────────── */
+
+export const invitePortalUserSchema = z.object({ contactId: idSchema });
+/** The client sets their own password from the invitation — the same rules as staff passwords. */
+export const acceptPortalInviteSchema = z.object({
+  token: z.string().trim().min(20).max(100),
+  password: changePasswordSchema.shape.newPassword,
+});
+export const portalLoginSchema = loginSchema;
+export const portalMessageSchema = z.object({ body: z.string().trim().min(1).max(4000) });
+export const documentVisibilitySchema = z.object({ clientVisible: z.boolean() });
+
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),
   kind: z.enum(SUPPLIER_KINDS),

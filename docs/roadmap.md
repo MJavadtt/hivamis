@@ -54,8 +54,8 @@ Status vocabulary, and it is used strictly:
 | 46 | Public API keys and webhooks | — | Verified | 54105b2 |
 | 32 | Moadian e-invoicing | 46 | Verified (live transport: Adapter) | 369fcb1 |
 | 33 | Accounting-package export | 46 | Verified | 8b01026 |
-| 35 | Client approval with evidentiary weight | — | Verified | next |
-| 34 | Client portal | 35 | Pending | |
+| 35 | Client approval with evidentiary weight | — | Verified | e70f92e |
+| 34 | Client portal | 35 | Verified | next |
 | 36 | Contract e-signature | 46 | Pending | |
 | 39 | Live updates (SSE) instead of polling | — | Pending | |
 | 40 | Two-way messenger integration | 46 | Pending | |

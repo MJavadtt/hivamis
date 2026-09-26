@@ -69,6 +69,16 @@ Doc_H §2 separates these loops, and the permission model enforces it.
    it all for a dispute — «این آن چیزی نیست که تأیید کردم» becomes a question with an answer. A
    file changed after sending is not served as the approved one. If email is not set up, the link
    is shown to you once to pass on, and the record says the client was verified by the link alone.
+7. **The client portal** — on the client's page, **پورتال مشتری** invites a contact (they need an
+   email; it becomes their sign-in). They set their own password from the invitation and then see
+   their projects: progress against milestones, deliverables («در حال تهیه» until delivered, then
+   waiting for their opinion, then approved), the approvals waiting for them — which they decide
+   right there, the record saying it was their own account — the weekly reports, their invoices,
+   and the files you choose to share. On Project 360 the **مشتری** tab lists every file of the
+   project with a **نمایش در پورتال** box (nothing is shown until you tick it) and the conversation
+   with the client; when they write, the account owner is notified. **دعوت دوباره** is also how a
+   forgotten password is reset; **غیرفعال** closes their access at once. The client never sees
+   cost, margin, budgets or who on your side is doing what.
 
 ---
 

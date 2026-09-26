@@ -1089,3 +1089,27 @@ court will weigh it. With mail off, identity rests on the link alone, and the re
 decision made from an address the organisation's staff also use is flagged, because a link handed
 over by hand could have been used by the person who handed it over. Contract signature is
 roadmap #36.
+
+## ADR-043 — The client portal is a second identity, not a narrowed staff account
+
+**Decision.** A client contact gets a portal account of their own: invited by Account, the
+contact's email as the sign-in name, a password they set themselves from the invitation, and a
+token signed with a key derived for the portal alone under its own issuer. The account carries no
+roles and no permissions; every portal read is scoped to its company and filtered field by field
+into what a client may see. Account decides who is in (`portal.manage`, kept off API keys because
+it creates identities), which files are shown (off by default, one box per file), and answers the
+conversation. The approvals of #35 are decided in the portal by their addressee, recorded as a
+portal decision.
+
+**Rationale.** Doc_H §7 makes the system the single source of truth, and today everything with the
+client goes through email and messengers. The server-side rules the portal needs already existed —
+delivery only after Account QC, the client's approve and revision transitions, the client version
+of the weekly report — so what was missing was an identity for someone outside and a view built
+for them. A staff account with a "client" role would have put the client one misconfigured
+permission away from internal data; a separate identity with its own token cannot reach a staff
+route at all, and a view assembled field by field cannot leak a field nobody chose to include.
+
+**Limits.** No single sign-on or second factor for clients; sign-in is email and password with a
+lockout. A client sees every authorised project of their company, not a chosen subset; the
+conversation is per project, not per deliverable; files are shared one by one. Annotation on
+deliverables is roadmap #38; e-signature of contracts is #36.

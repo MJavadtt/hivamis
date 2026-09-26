@@ -277,6 +277,8 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  portalInvites        PortalUser[]
+  portalReplies        PortalMessage[]
   clientApprovals      ClientApproval[]
   apiKeys              ApiKey[]
   webhookSubscriptions WebhookSubscription[]
@@ -337,6 +339,7 @@ model Company {
   deletedAt      DateTime?
 
   contacts      Contact[]
+  portalUsers     PortalUser[]
   clientApprovals ClientApproval[]
   leads         Lead[]
   opportunities Opportunity[]
@@ -364,6 +367,7 @@ model Contact {
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  portalUser      PortalUser?
   clientApprovals ClientApproval[]
   deletedAt DateTime?
 
@@ -669,6 +673,7 @@ model Project {
   payments         Payment[]
   allocations      Allocation[]
   outsourceRequests OutsourceRequest[]
+  portalMessages   PortalMessage[]
   documents        Document[]
   feedbacks        Feedback[]
   lessonsLearned   LessonLearned[]
@@ -1651,6 +1656,8 @@ model Document {
   /// Roadmap #35: a file presented with a proposal — the deck the client is asked to approve.
   proposalId     String?
   proposal       Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
+  clientVisible  Boolean         @default(false)
   tags           String[]        @default([])
   uploadedById   String
   uploadedBy     User            @relation(fields: [uploadedById], references: [id])
@@ -2268,4 +2275,52 @@ model ClientApprovalEvent {
 
   @@index([approvalId, at])
   @@map("client_approval_events")
+}
+
+/// Roadmap #34 — a client contact's own sign-in to the portal. Not a staff user: no roles, no
+/// permissions, its own tokens; it sees its company's projects and nothing else.
+model PortalUser {
+  id              String    @id @default(uuid())
+  organizationId  String
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId       String    @unique
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  email           String    @unique
+  /// INVITED | ACTIVE | DISABLED
+  status          String    @default("INVITED")
+  passwordHash    String?
+  inviteTokenHash String?   @unique
+  inviteExpiresAt DateTime?
+  invitedById     String
+  invitedBy       User      @relation(fields: [invitedById], references: [id])
+  failedLogins    Int       @default(0)
+  lockedUntil     DateTime?
+  /// Raised to end every session at once — on disabling, or a new password.
+  tokenVersion    Int       @default(0)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  messages PortalMessage[]
+
+  @@index([companyId])
+  @@map("portal_users")
+}
+
+/// A message on a project between the client (in the portal) and Account (in the app).
+model PortalMessage {
+  id             String      @id @default(uuid())
+  organizationId String
+  projectId      String
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  portalUserId   String?
+  portalUser     PortalUser? @relation(fields: [portalUserId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?       @relation(fields: [userId], references: [id])
+  body           String
+  createdAt      DateTime    @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("portal_messages")
 }

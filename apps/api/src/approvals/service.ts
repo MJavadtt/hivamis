@@ -14,8 +14,8 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
-import { env, mailEnabled } from '../env.js';
-import { enqueueMail, type MailJob } from '../jobs/runner.js';
+import { env } from '../env.js';
+import { clientMail } from '../mail/client.js';
 import { AppError, conflict, forbidden, notFound } from '../lib/errors.js';
 import { nextCode, nextNumber } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
@@ -28,11 +28,8 @@ import {
   type Evidence, type EvidenceEvent, type Manifest, type ManifestFile, type Problem,
 } from './evidence.js';
 
-/** Swapped by tests, as the tax tests swap MOADIAN_MODE: where mail goes, and whether it is on. */
-export const approvalMail = {
-  deliver: (job: MailJob) => enqueueMail(job),
-  enabled: () => mailEnabled,
-};
+/** Where mail to the client goes, and whether it is on — shared with the portal (#34). */
+export const approvalMail = clientMail;
 
 const DAY = 86_400_000;
 const CODE_TTL_MS = 10 * 60_000;
@@ -187,8 +184,22 @@ async function event(tx: Tx, approvalId: string, kind: string, ctx: ClientContex
  */
 export async function byToken(token: string, ctx: ClientContext) {
   if (!/^[\w-]{20,100}$/.test(token)) throw notFound('درخواست تأیید');
-  let a = await prisma.clientApproval.findUnique({ where: { tokenHash: sha256(token) } });
+  const a = await prisma.clientApproval.findUnique({ where: { tokenHash: sha256(token) } });
   if (!a) throw notFound('درخواست تأیید');
+  return current(a, ctx);
+}
+
+/** The same, for a request reached from a portal session (#34). */
+export async function byIdForCompany(id: string, companyId: string, ctx: ClientContext) {
+  const a = await prisma.clientApproval.findFirst({ where: { id, companyId } });
+  if (!a) throw notFound('درخواست تأیید');
+  return current(a, ctx);
+}
+
+type ApprovalRow = NonNullable<Awaited<ReturnType<typeof prisma.clientApproval.findUnique>>>;
+
+async function current(row: ApprovalRow, ctx: ClientContext) {
+  let a = row;
   if (a.status === 'PENDING') {
     if (a.expiresAt <= new Date()) {
       a = await prisma.clientApproval.update({ where: { id: a.id }, data: { status: 'EXPIRED' } });
@@ -204,7 +215,7 @@ export async function byToken(token: string, ctx: ClientContext) {
   return a;
 }
 
-type Approval = Awaited<ReturnType<typeof byToken>>;
+type Approval = Awaited<ReturnType<typeof current>>;
 
 export async function publicView(a: Approval, ctx: ClientContext, record = true) {
   if (record) await event(prisma, a.id, 'OPENED', ctx);
@@ -259,7 +270,14 @@ export async function sendCode(a: Approval, ctx: ClientContext) {
   return { sentTo: maskEmail(a.contactEmail), expiresInMinutes: CODE_TTL_MS / 60_000 };
 }
 
-export async function decide(a: Approval, input: { decision: 'APPROVE' | 'REQUEST_CHANGES'; signerName: string; comment?: string; code?: string }, ctx: ClientContext) {
+/**
+ * `via` is a signed-in portal user (#34): the addressee's own session is the identity, so no code
+ * is asked for, and the record names the portal account.
+ */
+export async function decide(
+  a: Approval, input: { decision: 'APPROVE' | 'REQUEST_CHANGES'; signerName: string; comment?: string; code?: string }, ctx: ClientContext,
+  via?: { portalUserId: string },
+) {
   assertPending(a);
   const comment = input.comment?.trim() || null;
   if (input.decision === 'REQUEST_CHANGES' && (!comment || comment.length < 5)) throw new AppError(422, 'CLIENT_APPROVAL_COMMENT', 'بنویسید چه چیزی باید اصلاح شود.');
@@ -269,7 +287,7 @@ export async function decide(a: Approval, input: { decision: 'APPROVE' | 'REQUES
     const unseen = m.files.filter((f) => !viewed.has(f.documentId));
     if (unseen.length) throw new AppError(422, 'CLIENT_APPROVAL_UNSEEN', `پیش از تأیید، این فایل‌ها را باز کنید: ${unseen.map((f) => f.fileName).join('، ')}`);
   }
-  const verification = approvalMail.enabled() ? 'EMAIL_CODE' as const : 'LINK' as const;
+  const verification = via ? 'PORTAL' as const : approvalMail.enabled() ? 'EMAIL_CODE' as const : 'LINK' as const;
   if (verification === 'EMAIL_CODE') {
     const fresh = a.codeHash && a.codeExpiresAt && a.codeExpiresAt > new Date() && a.codeAttempts < MAX_CODE_ATTEMPTS;
     if (!fresh) throw new AppError(422, 'CLIENT_APPROVAL_CODE_REQUIRED', 'نخست کد یک‌بارمصرف را دریافت کنید؛ کد پیشین منقضی شده یا دفعات آن تمام شده است.');
@@ -301,6 +319,7 @@ export async function decide(a: Approval, input: { decision: 'APPROVE' | 'REQUES
       v: 1, approval: a.code, organizationId: a.organizationId, manifestHash: a.manifestHash, decision: input.decision, comment,
       signerName: input.signerName.trim(), contact: { name: a.contactName, email: a.contactEmail }, verification,
       decidedAt: now.toISOString(), ip: ctx.ip, userAgent: ctx.userAgent, staffAddress, events, sequence, prevEvidenceHash: prev,
+      ...(via ? { portalUserId: via.portalUserId } : {}),
     };
     const updated = await tx.clientApproval.update({
       where: { id: a.id },

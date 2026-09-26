@@ -303,6 +303,18 @@ exercised against the authority from this repository:
 Every submission keeps the payload exactly as prepared, so what the authority received can be shown
 even when it disagrees with the invoice as it stands today.
 
+## Client portal
+
+Roadmap #34. Clients use `/portal/*` on the web app, which calls `/api/v1/portal/*`; like the
+approval links, these must be reachable from outside if the rest of the application is not. Invitations
+link to `PUBLIC_APP_URL/portal/invite/<secret>` (7 days). With mail off, the invitation link is shown
+once to the person who created it.
+
+A portal session is a 12-hour token held in the browser tab (`sessionStorage`), signed with a key
+derived from `JWT_SECRET` for the portal alone — rotating `JWT_SECRET` signs every client out, as it
+does staff. Five failed sign-ins lock a portal account for 15 minutes. **غیرفعال** on the client's
+page, or a new invitation, ends every session of that account at once.
+
 ## Client approval links
 
 Roadmap #35. Clients open `/approve/<secret>` on the web app, which calls

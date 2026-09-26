@@ -69,7 +69,9 @@ export interface Evidence {
   comment: string | null;
   signerName: string;
   contact: { name: string; email: string };
-  verification: 'EMAIL_CODE' | 'LINK';
+  /** PORTAL — decided from the addressee's own portal session (#34). */
+  verification: 'EMAIL_CODE' | 'LINK' | 'PORTAL';
+  portalUserId?: string;
   decidedAt: string;
   ip: string | null;
   userAgent: string | null;

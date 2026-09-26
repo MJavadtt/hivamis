@@ -39,7 +39,9 @@ export function certificateHtml(a: {
       field('تصمیم', e.decision === 'APPROVE' ? '✓ تأیید' : '✗ درخواست اصلاح'),
       e.comment ? field('توضیح مشتری', text(e.comment)) : '',
       field('نام واردشده به‌عنوان امضا', esc(e.signerName)),
-      field('احراز هویت', e.verification === 'EMAIL_CODE'
+      field('احراز هویت', e.verification === 'PORTAL'
+        ? 'ورود خود مخاطب به حساب شخصی‌اش در پورتال مشتری، با رمز عبوری که خود او تعیین کرده است'
+        : e.verification === 'EMAIL_CODE'
         ? 'پیوند اختصاصی به ایمیل مخاطب، و کد یک‌بارمصرفی که هنگام تصمیم به همان ایمیل فرستاده شد'
         : a.channel === 'EMAIL' ? 'پیوند اختصاصی که به ایمیل مخاطب فرستاده شد (بدون کد)' : 'پیوند اختصاصی که کارکنان سازمان به مشتری رساندند (بدون کد)'),
       field('زمان', dateTime(e.decidedAt)),

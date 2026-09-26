@@ -145,6 +145,8 @@ export const PERMISSIONS = {
   'admin.settings': 'تنظیمات سیستم',
   'admin.audit': 'مشاهده گزارش حسابرسی',
   'admin.keys': 'کلیدهای API و Webhook',
+  // Client portal (roadmap #34)
+  'portal.manage': 'مدیریت پورتال مشتری',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -191,6 +193,8 @@ const ACCOUNT_CORE: Permission[] = [
   'governance.read', 'governance.write', 'meeting.read', 'meeting.write',
   'document.read', 'document.write', 'form.read', 'form.submit', 'form.approve',
   'report.read', 'customer_success.write', 'ai.use',
+  // The client's side of the relationship is Account's (Doc_H §2): who may use the portal, what it shows, the replies.
+  'portal.manage',
 ];
 
 const UNIT_CORE: Permission[] = [
@@ -236,7 +240,7 @@ const PMO_CORE: Permission[] = [
  * keys, more users, other roles, or exceptions to the rules — a leaked key must not be a way in
  * that outlives its discovery.
  */
-export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive'];
+export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,

@@ -198,6 +198,11 @@ export type ClientApprovalStatus = (typeof CLIENT_APPROVAL_STATUSES)[number];
 export const CLIENT_APPROVAL_STATUS_LABELS: Record<ClientApprovalStatus, string> = {
   PENDING: 'در انتظار مشتری', APPROVED: 'تأیید شد', CHANGES_REQUESTED: 'درخواست اصلاح', CANCELLED: 'لغو شد', EXPIRED: 'منقضی شد',
 };
+/** How the deliverable reads from the client's side (roadmap #34): the internal steps are one step to them. */
+export const PORTAL_DELIVERABLE_STATUS: Record<string, string> = {
+  DELIVERED: 'تحویل شده — منتظر نظر شما', ACCEPTED: 'تأیید شده', REVISION_REQUIRED: 'در حال اصلاح',
+};
+export const PORTAL_USER_STATUS_LABELS: Record<string, string> = { INVITED: 'دعوت شده', ACTIVE: 'فعال', DISABLED: 'غیرفعال' };
 export const CLIENT_APPROVAL_EVENT_LABELS: Record<string, string> = {
   CREATED: 'درخواست ثبت شد', SENT: 'پیوند فرستاده شد', OPENED: 'صفحه باز شد', FILE_VIEWED: 'فایل دریافت شد',
   FILE_MISMATCH: 'فایل با نسخهٔ ثبت‌شده نخواند', CODE_SENT: 'کد یک‌بارمصرف فرستاده شد', CODE_REJECTED: 'کد نادرست',

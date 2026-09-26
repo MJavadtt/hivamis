@@ -13,6 +13,7 @@ import {
   Modal, Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatRelative, toPersianDigits } from '../lib/format';
+import { PortalUsersCard } from '../components/PortalAdmin';
 
 const SOURCES = [
   { value: 'REFERRAL', label: 'معرفی' }, { value: 'INBOUND', label: 'ورودی' },
@@ -383,6 +384,8 @@ export function CompanyDetail() {
                 )}
               </Card>
             </div>
+
+            <PortalUsersCard companyId={c.id} contacts={c.contacts ?? []} />
 
             {!!data.feedbacks.length && (
               <Card title="بازخوردهای مشتری">

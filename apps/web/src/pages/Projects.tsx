@@ -26,6 +26,7 @@ import {
 } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { DeliverableApprovalButton } from '../components/ClientApprovals';
+import { ClientFilesCard, PortalMessagesCard } from '../components/PortalAdmin';
 
 const PROJECT_STATES = [
   'DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE',
@@ -195,6 +196,7 @@ export function ProjectDetail() {
             { key: 'governance', label: 'حاکمیت', count: data.risks.length + data.issues.length + data.changeRequests.length },
             ...(data.finance ? [{ key: 'finance', label: 'مالی' }] : []),
             ...(can('pricing.read') ? [{ key: 'media', label: 'رسانه' }] : []),
+            { key: 'client', label: 'مشتری' },
             { key: 'closure', label: 'بستن پروژه' },
           ]}
         />
@@ -215,6 +217,12 @@ export function ProjectDetail() {
         {tab === 'finance' && data.finance && <FinanceTab finance={data.finance} project={p} />}
         {tab === 'media' && <ProjectMedia projectId={p.id} />}
         {tab === 'closure' && <ClosureTab projectId={p.id} canEdit={can('project.close')} />}
+        {tab === 'client' && (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <PortalMessagesCard projectId={p.id} />
+            <ClientFilesCard projectId={p.id} />
+          </div>
+        )}
       </PageBody>
     </>
   );

@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import ApprovePublic from './pages/ApprovePublic';
+import PortalApp from './pages/Portal';
 import { AuthProvider } from './lib/auth';
 import { ThemeProvider, applyStoredThemeEarly } from './lib/theme';
 import { LocaleProvider, applyStoredLocaleEarly } from './lib/locale';
@@ -42,6 +43,8 @@ const queryClient = new QueryClient({
 
 /** A client's approval link (roadmap #35) is a page of its own: no sign-in, no session, no shell. */
 const approvalToken = /^\/approve\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
+/** The client portal (roadmap #34): its own sign-in, never the staff session. */
+const isPortal = /^\/portal(\/|$)/.test(window.location.pathname);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -49,7 +52,7 @@ createRoot(document.getElementById('root')!).render(
       <ToastProvider>
         <LocaleProvider>
           <ThemeProvider>
-          {approvalToken ? <ApprovePublic token={approvalToken} /> : (
+          {approvalToken ? <ApprovePublic token={approvalToken} /> : isPortal ? <BrowserRouter><PortalApp /></BrowserRouter> : (
           <AuthProvider>
           <BrowserRouter>
             <App />

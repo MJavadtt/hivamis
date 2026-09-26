@@ -69,7 +69,7 @@ feature list; it is that the rules are structural rather than advisory.
 |---|---|---|
 | Projects, tasks, resourcing, invoicing | Mature, often deeper | Present at the depth Doc_H requires |
 | Time tracking, media commissions | Present in the leaders | Built since this analysis — roadmap #14 and #31 |
-| Client portal | Present in the leaders | Not built (roadmap #34); approval links that keep evidence — who, when, from where, the hash of what was seen — since #35 |
+| Client portal | Present in the leaders | Built since this analysis — roadmap #34: progress, deliverables, approvals kept as evidence (#35), client-version reports, shared files, invoices, a conversation with Account |
 | General ledger accounting | Scoro / Deltek strongest | Out of scope by decision — vouchers exported to the organisation's own package since roadmap #33 |
 | Gantt and critical path | Standard | Built since this analysis — roadmap #10 |
 | **Enforced execution authorisation** | Not offered | Three legal bases, checked before ACTIVE |

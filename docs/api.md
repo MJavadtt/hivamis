@@ -302,6 +302,47 @@ The client's side, with no session (30 requests a minute per address; codes 5 a 
 
 `POST /documents` accepts `proposalId`, so a presented deck can be frozen with the proposal.
 
+## Client portal
+
+Roadmap #34. A client contact signs in with their own account and sees their company's projects.
+A portal account is not a staff user: it has no roles or permissions, and its token is signed with
+a key derived for the portal alone under its own issuer — a portal token is refused everywhere in
+the app, and a staff token everywhere in the portal. The token lasts 12 hours and dies with the
+account's `tokenVersion` (disabling it, or a new invitation, ends every session at once). Every
+portal read is scoped to the account's company; nothing takes a company or organisation from the
+request.
+
+**What the client sees:** projects from `AUTHORIZED` onward (never a draft or a cancelled one) —
+name, objective, state, planned dates, milestones (not their revenue share), deliverables with the
+states before delivery folded into «در حال تهیه», approval requests (#35), weekly reports in their
+client version (#37), the files Account shared, their issued invoices, and a conversation with
+Account per project. Never cost, price build-up, margin, budgets, unit codes or staff workload.
+
+Account (`portal.manage`, held by the account roles; not grantable to an API key):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /portal-users?companyId=` | The company's portal accounts — never a password or invitation hash |
+| `POST /portal-users` `{ contactId }` | Invite a contact (the contact's email is the sign-in name). Returns `link` once when mail is off; mails it when on. `PORTAL_CONTACT_EMAIL`, `409 PORTAL_EMAIL_TAKEN`. Audited |
+| `POST /portal-users/:id/reinvite` | A new invitation — also the password reset: the old password stops working |
+| `POST /portal-users/:id/disable` | Close the account and end its sessions |
+| `GET /projects/:id/client-files` | The project's and its deliverables' files, with `clientVisible` (`project.read` + `document.read`) |
+| `PATCH /documents/:id/client-visibility` `{ clientVisible }` | Share a project file with the client, or stop. A file not attached to a project or deliverable is refused (`PORTAL_NOT_PROJECT_FILE`). Audited |
+| `GET /projects/:id/portal-messages` · `POST` `{ body }` | The conversation (`project.read`); replying needs `portal.manage`, and mails the company's active portal accounts when mail is on |
+
+The client (portal token; 120 requests a minute per address, sign-in at the login limit):
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /portal/auth/accept` `{ token, password }` | Set a password from an invitation (staff password rules) and sign in. `410 PORTAL_INVITE_INVALID` once used or expired (7 days) |
+| `POST /portal/auth/login` `{ email, password }` | One answer for every failure; five failures lock the account for 15 minutes |
+| `GET /portal/home` | The account, its projects with milestone progress, approvals waiting (`forMe` for the addressee), invoices |
+| `GET /portal/projects/:id` | One project as above; another company's, or a draft, is `404` |
+| `POST /portal/projects/:id/messages` `{ body }` | Write to Account; the account owner is notified (`PORTAL_MESSAGE`) |
+| `GET /portal/documents/:id` | A shared file. Audited as `FILE_DOWNLOAD` with the portal account |
+| `GET /portal/status-reports/:id` | The weekly report as PDF, built for the client (#37). Audited as `EXPORT` |
+| `GET /portal/approvals/:id` · `…/files/:documentId` · `POST …/decision` | An approval request (#35) of the company. Only its addressee downloads its files and decides; the decision is sealed with `verification: PORTAL` and the portal account's id |
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a
@@ -310,8 +351,8 @@ management paths.
 
 **Keys.** Send `Authorization: Bearer hiva_<prefix>_<secret>` in place of an access token. A key
 acts as its creator, narrowed to the permissions it was given and recomputed on every request from
-the creator's own roles — never a delegation, never `admin.users`, `admin.roles`, `admin.keys` or
-`governance.waive`, and nothing once the creator is inactive. Each key has its own per-minute
+the creator's own roles — never a delegation, never `admin.users`, `admin.roles`, `admin.keys`,
+`governance.waive` or `portal.manage` (#34 — it creates identities), and nothing once the creator is inactive. Each key has its own per-minute
 budget (`429 API_KEY_RATE_LIMITED`); revoked or expired keys get `401`. Every audit row written
 through a key carries its `apiKeyId`.
 
