@@ -171,6 +171,25 @@ export const MEDIA_CHANNEL_LABELS: Record<MediaChannel, string> = {
 export const MEDIA_PRICING_MODELS = ['COMMISSION', 'MARKUP'] as const;
 export type MediaPricingModel = (typeof MEDIA_PRICING_MODELS)[number];
 
+/**
+ * The accounts an accounting export posts to (roadmap #33); each organisation maps them to the
+ * codes of its own chart of accounts.
+ */
+export const ACCOUNT_KEYS = ['receivable', 'revenue', 'vat', 'mediaClearing', 'bank', 'cash', 'clientAdvance', 'projectCost', 'fxGain', 'fxLoss'] as const;
+export type AccountKey = (typeof ACCOUNT_KEYS)[number];
+export const ACCOUNT_LABELS: Record<AccountKey, string> = {
+  receivable: 'حساب‌های دریافتنی (مشتریان)', revenue: 'درآمد خدمات', vat: 'مالیات بر ارزش افزودهٔ فروش',
+  mediaClearing: 'حساب واسط رسانه (عبوری)', bank: 'بانک', cash: 'صندوق', clientAdvance: 'پیش‌دریافت از مشتریان',
+  projectCost: 'هزینه‌های مستقیم پروژه', fxGain: 'سود تسعیر ارز', fxLoss: 'زیان تسعیر ارز',
+};
+/** What a column of the export file can hold; `amount` is signed — debit positive, credit negative. */
+export const ACCOUNTING_FIELDS = ['voucherNo', 'date', 'voucherDescription', 'row', 'accountCode', 'detailCode', 'lineDescription', 'debit', 'credit', 'amount', 'reference'] as const;
+export type AccountingField = (typeof ACCOUNTING_FIELDS)[number];
+export const ACCOUNTING_FIELD_LABELS: Record<AccountingField, string> = {
+  voucherNo: 'شماره سند', date: 'تاریخ', voucherDescription: 'شرح سند', row: 'ردیف', accountCode: 'کد حساب',
+  detailCode: 'کد تفصیلی', lineDescription: 'شرح', debit: 'بدهکار', credit: 'بستانکار', amount: 'مبلغ (بدهکار مثبت، بستانکار منفی)', reference: 'مرجع',
+};
+
 export const INVOICE_KINDS = ['PROFORMA', 'INVOICE'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 

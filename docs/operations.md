@@ -302,3 +302,25 @@ exercised against the authority from this repository:
 Every submission keeps the payload exactly as prepared, so what the authority received can be shown
 even when it disagrees with the invoice as it stands today.
 
+## Export to the accounting package
+
+Roadmap #33. No job and no configuration outside the application: the finance manager sets the
+account codes and the file layout under **مالی ← خروجی حسابداری**, and posts batches from there.
+
+Setting up an organisation's package:
+
+1. Export a voucher template from the package's own import screen and copy its column order and
+   headings into the layout; choose the date format it expects.
+2. Post a first batch up to an early date, import it into a **test company** in the package, and
+   compare the trial balance with the batch's totals before importing into the live company.
+3. If a batch was imported wrongly, delete it in the package and import the same file again —
+   `GET /accounting/exports/:id/file` returns it byte for byte. A batch is never re-posted from
+   Hiva: its records are marked, and posting them again would count them twice.
+
+What the export leaves to the accountant: matching an advance with the invoice that follows it;
+period-end revenue adjustments for work in progress (the figures are in the revenue report, #29);
+supplier bills as payables — a payment out is posted to project cost when it is paid.
+
+The file is kept in `accounting_exports.content`; the table's check constraint refuses a batch
+whose debits and credits differ.
+

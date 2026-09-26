@@ -232,6 +232,36 @@ accepted there (guard `invoice.taxCancellationFiled`).
 
 `GET /invoices` rows carry their latest submission (`taxSubmissions[0]`).
 
+## Export to the accounting package
+
+Roadmap #33. The general ledger stays in the organisation's accounting package; Hiva writes the
+vouchers for it. Everything not yet posted up to a date becomes a balanced double-entry voucher in
+whole rials, posted to the account codes of the organisation's own chart:
+
+| Record | Voucher |
+|---|---|
+| Invoice (`kind: INVOICE`, issued, not cancelled before posting) | Dr receivable (client's detail code) / Cr revenue, Cr media clearing for pass-through lines (#31), Cr VAT |
+| Invoice cancelled after it was posted | The same voucher reversed, dated the day it was cancelled |
+| Receipt against an invoice | Dr bank (cash for `CASH`) / Cr receivable — for a foreign invoice at its booked rate (#28), the difference to FX gain or loss |
+| Receipt against a proforma, or with no invoice | Dr bank or cash / Cr client advance |
+| Payment out | Dr project cost — media clearing for a media-vendor payment (#31) / Cr bank or cash |
+
+Drafts and proformas are never posted. A batch marks every record it carried (`accountingExportId`,
+and `accountingReversalExportId` for a reversal), so nothing is posted twice; two batches at the
+same moment cannot both take a record (`409 ACCOUNTING_EXPORT_RACE`). Voucher numbers continue from
+batch to batch.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /accounting/settings` · `PUT /accounting/settings` `{ accounts, clientCodes, layout }` | `finance.read` · `finance.settle` | The account code for each of `receivable, revenue, vat, mediaClearing, bank, cash, clientAdvance, projectCost, fxGain, fxLoss`; client detail codes (`companyId → code`); the file layout — `columns[]` of `{ field, header }` in order (`voucherNo, date, voucherDescription, row, accountCode, detailCode, lineDescription, debit, credit, amount, reference`; `amount` is signed) and `dateFormat` `JALALI` or `GREGORIAN`. `ACCOUNTING_SETTINGS_INVALID` with `problems[]`: a repeated column, no account code column, no amount (debit and credit, or signed), no voucher number, a client from another organisation. `GET` also returns the default layout and the clients money has moved with. Audited |
+| `GET /accounting/preview?to=` | `finance.read` | What a batch up to `to` would carry: `counts`, `lines`, `debitTotal`, `creditTotal`, the first 50 vouchers (`more` for the rest), `problems[]` that block it (`ACCOUNT_CODE_MISSING` naming the accounts, an unusable layout) and `warnings[]` that do not (`CLIENT_CODE_MISSING` naming the clients). Marks nothing |
+| `POST /accounting/exports` `{ to }` | `finance.settle` | Post the batch: numbered per organisation, its CSV kept, every record marked. `ACCOUNTING_EXPORT_BLOCKED` with `problems[]`, `ACCOUNTING_NOTHING_TO_EXPORT`. Audited |
+| `GET /accounting/exports` | `finance.read` | Batches, newest first, with who posted them |
+| `GET /accounting/exports/:id/file` | `finance.read` | The CSV exactly as the batch wrote it — UTF-8 with a BOM, Latin digits, the organisation's columns; text a spreadsheet would run as a formula is prefixed with `'`. Audited as `EXPORT` on every download |
+
+An API key with `finance.read` (#46) can read the preview and download batch files, so an
+integration can pull them on a schedule.
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a

@@ -52,8 +52,8 @@ Status vocabulary, and it is used strictly:
 | 29 | Revenue recognition and WIP | — | Verified | 5fcbf00 |
 | 31 | Media commission | 28 | Verified | 703d6c9 |
 | 46 | Public API keys and webhooks | — | Verified | 54105b2 |
-| 32 | Moadian e-invoicing | 46 | Verified (live transport: Adapter) | next |
-| 33 | Accounting-package export | 46 | Pending | |
+| 32 | Moadian e-invoicing | 46 | Verified (live transport: Adapter) | 369fcb1 |
+| 33 | Accounting-package export | 46 | Verified | next |
 | 35 | Client approval with evidentiary weight | — | Pending | |
 | 34 | Client portal | 35 | Pending | |
 | 36 | Contract e-signature | 46 | Pending | |

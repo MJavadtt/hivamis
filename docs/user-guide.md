@@ -158,6 +158,18 @@ and not billed, flight over without proof, awaiting the vendor's invoice, and in
   one; and an accepted invoice is cancelled at the authority first, then here — the system will not
   let the books say a sale never happened while the tax authority still holds it. Each invoice row
   in the financial documents list shows where it stands.
+- **Export to the accounting package (خروجی حسابداری)** — the ledger stays in your accounting
+  software; this tab writes its vouchers so nothing is typed in twice. Under **سرفصل‌ها و قالب فایل**
+  the finance manager enters the code of each account in your own chart (receivables, revenue, VAT,
+  bank, cash, …), a detail code for each client, and the file's columns — in the order and with the
+  headings your software's import screen expects, dates in Jalali or Gregorian. Pick a date and the
+  tab shows every invoice, receipt and payment not yet exported up to it, voucher by voucher; it
+  will not export while an account used has no code, and it tells you which clients have no detail
+  code. **ثبت خروجی و دریافت فایل** numbers the batch and downloads the file; what it carried is
+  never exported again, and the file of any past batch can be downloaded again, unchanged. An
+  invoice cancelled after it was exported comes back in the next batch as its reversal. Money
+  received against a proforma is exported as an advance from the client; a payment to a media
+  vendor goes to the media clearing account, not to project cost.
 - **Revenue as it is earned** — a project's **مالی** tab shows **شناسایی درآمد**: how much of the
   work is done, how much of the contract that has earned, how much has been billed, and the gap —
   «کار انجام‌شدهٔ صورت‌حساب‌نشده» when the work is ahead of the invoices, «پیش‌صورت‌حساب» when the

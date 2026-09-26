@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
   DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
-  SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES,
+  SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS,
 } from './enums.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
@@ -482,6 +482,20 @@ export const companyTaxIdentifiersSchema = z.object({
   postalCode: z.string().trim().max(20).optional().nullable(),
 });
 export const submitTaxSchema = z.object({ subject: z.enum(['ORIGINAL', 'CORRECTION', 'CANCELLATION']) });
+
+/** The export to the accounting package (roadmap #33): the codes of the organisation's own chart, and its file layout. */
+const accountCode = z.string().trim().max(40);
+export const accountingSettingsSchema = z.object({
+  accounts: z.object(Object.fromEntries(ACCOUNT_KEYS.map((k) => [k, accountCode.optional()])) as Record<(typeof ACCOUNT_KEYS)[number], z.ZodOptional<typeof accountCode>>),
+  /** companyId → the client's detail (تفصیلی) code. */
+  clientCodes: z.record(idSchema, z.string().trim().min(1).max(40)).default({}),
+  layout: z.object({
+    columns: z.array(z.object({ field: z.enum(ACCOUNTING_FIELDS), header: z.string().trim().min(1).max(60) })).min(1).max(20),
+    dateFormat: z.enum(['JALALI', 'GREGORIAN']),
+  }),
+});
+/** Everything not yet exported up to `to` (inclusive) — a late record dated earlier is not left behind. */
+export const accountingPeriodSchema = z.object({ to: z.coerce.date() });
 
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),

@@ -5,6 +5,7 @@ import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, money } from '../components/Fx';
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
+import { AccountingTab } from '../components/AccountingExport';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
@@ -167,13 +168,14 @@ export function Finance() {
           </div>
         } />
       <div className="border-b border-ink-200 bg-surface px-2">
-        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'moadian', label: 'سامانهٔ مؤدیان' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
+        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'moadian', label: 'سامانهٔ مؤدیان' }, { key: 'accounting', label: 'خروجی حسابداری' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
       {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
       {taxFor && <InvoiceTax invoiceId={taxFor} onClose={() => setTaxFor(null)} />}
       <PageBody className="space-y-5">
         {tab === 'moadian' && <MoadianTab />}
+        {tab === 'accounting' && <AccountingTab />}
         {tab === 'rates' && <FxRates />}
         {tab === 'fx' && <FxReport />}
         {tab === 'docs' && (isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : (

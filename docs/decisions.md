@@ -1035,3 +1035,28 @@ its booked rate (#28). Every line uses the profile's default service and unit co
 carries its own. Settlement is reported as credit. Doc_H form A03 is unchanged; the buyer's postal
 code is kept on the client record.
 
+
+## ADR-041 — The ledger stays in the accounting package; Hiva writes its vouchers, in its own columns
+
+**Decision.** Each invoice, cancellation after posting, receipt and payment becomes a balanced
+double-entry voucher in whole rials, posted to the account codes of the organisation's own chart
+and written as a CSV in the column order, headings and date format the organisation sets. A batch
+takes everything not yet posted up to a date, is numbered, keeps its file byte for byte, and marks
+every record it carried; a record is never posted twice, and an invoice cancelled after it was
+posted is reversed in a later batch, dated the day it was cancelled. Nothing is posted while an
+account it uses has no code; a client without a detail code is a warning, not a stop.
+
+**Rationale.** General-ledger accounting is out of scope by decision (market-analysis.md): Iranian
+agencies already keep their books in a local package, and the gap the roadmap names is re-typing.
+The part that decides whether the books agree — which accounts, which side, pass-through apart from
+revenue (#31), a foreign receivable cleared at its booked rate with the difference as exchange gain
+or loss (#28), no double posting, reversals — is ours and is tested here. The part that differs by
+package is the file's shape, so the shape is configuration, not code.
+
+**Not verified, and not built.** No package's import format has been checked from this repository:
+the layout is general enough for a voucher import (voucher number, date, account, detail, debit and
+credit or a signed amount), and operations.md says to import the first batch into a test company.
+No live connection to any package's API is built; an API key with `finance.read` (#46) lets an
+integration pull batch files instead. The export does not post supplier bills as payables (a
+payment out is expensed when paid), period-end work-in-progress adjustments (#29), or the matching
+of an advance with the invoice that follows it — those remain the accountant's.

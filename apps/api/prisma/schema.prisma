@@ -1088,6 +1088,11 @@ model Invoice {
   @@map("invoices")
   mediaOrders        MediaOrder[]
   taxSubmissions     TaxSubmission[]
+  /// Roadmap #33: the accounting export that posted it, and the one that reversed it after cancellation.
+  accountingExportId         String?
+  accountingExport           AccountingExport? @relation("InvoicePosted", fields: [accountingExportId], references: [id])
+  accountingReversalExportId String?
+  accountingReversalExport   AccountingExport? @relation("InvoiceReversed", fields: [accountingReversalExportId], references: [id])
 }
 
 model Payment {
@@ -1112,6 +1117,9 @@ model Payment {
   /// Roadmap #31: a payment to a media vendor for this order — pass-through, not the project's cost.
   mediaOrderId    String?
   mediaOrder      MediaOrder? @relation(fields: [mediaOrderId], references: [id], onDelete: SetNull)
+  /// Roadmap #33: the accounting export that posted it.
+  accountingExportId String?
+  accountingExport   AccountingExport? @relation(fields: [accountingExportId], references: [id])
   occurredAt     DateTime
   method         String    @default("TRANSFER")
   reference      String?
@@ -2122,4 +2130,48 @@ model TaxSubmission {
   @@index([organizationId, status])
   @@index([invoiceId])
   @@map("tax_submissions")
+}
+
+/**
+ * How this organisation's books name things (roadmap #33): the ledger account for each kind of
+ * posting, the detail (تفصیلی) code of each client, and the columns its accounting package imports.
+ */
+model AccountingSettings {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  /// { receivable, revenue, vat, mediaClearing, bank, cash, clientAdvance, projectCost, fxGain, fxLoss } → account code
+  accounts       Json
+  /// companyId → detail code
+  clientCodes    Json     @default("{}")
+  /// { columns: [{ field, header }], dateFormat: JALALI | GREGORIAN }
+  layout         Json
+  updatedById    String
+  updatedAt      DateTime @updatedAt
+
+  @@map("accounting_settings")
+}
+
+/**
+ * One batch of vouchers handed to the accounting package (roadmap #33). The file is kept exactly as
+ * produced, so it can be downloaded again; what it posted is marked, so it is never posted twice.
+ */
+model AccountingExport {
+  id               String    @id @default(uuid())
+  organizationId   String
+  number           Int
+  periodTo         DateTime
+  vouchers         Int
+  lines            Int
+  debitTotal       Decimal   @db.Decimal(20, 2)
+  creditTotal      Decimal   @db.Decimal(20, 2)
+  fileName         String
+  content          String
+  createdById      String
+  createdAt        DateTime  @default(now())
+  postedInvoices   Invoice[] @relation("InvoicePosted")
+  reversedInvoices Invoice[] @relation("InvoiceReversed")
+  postedPayments   Payment[]
+
+  @@unique([organizationId, number])
+  @@map("accounting_exports")
 }

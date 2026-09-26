@@ -33,3 +33,13 @@ export async function nextNumber(tx: Tx, scope: string): Promise<number> {
   `;
   return Number(rows[0]?.value ?? 1);
 }
+
+/** A block of `count` consecutive numbers for a scope, returned as its first — one round trip for a batch. */
+export async function nextNumbers(tx: Tx, scope: string, count: number): Promise<number> {
+  const rows = await tx.$queryRaw<{ value: number }[]>`
+    INSERT INTO counters (id, scope, value) VALUES (gen_random_uuid(), ${scope}, ${count})
+    ON CONFLICT (scope) DO UPDATE SET value = counters.value + ${count}
+    RETURNING value
+  `;
+  return Number(rows[0]?.value ?? count) - count + 1;
+}
