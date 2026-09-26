@@ -329,8 +329,11 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
   app.post('/projects/:id/milestones', {
     preHandler: [app.authenticate, app.requirePermissions('project.plan')],
   }, async (req, reply) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(createMilestoneSchema, { ...(req.body as object), projectId: id });
+    // The project must be this organisation's: a milestone is where revenue gets earned (#29).
+    if (!await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } })) throw notFound('پروژه');
     const m = await prisma.milestone.create({ data: input });
     return reply.code(201).send(m);
   });

@@ -48,8 +48,8 @@ Status vocabulary, and it is used strictly:
 | 26 | Anomaly detection on the audit trail | — | Verified | e4cfea0 |
 | 23 | Meeting → minutes → tasks | — | Verified (audio transcription: Adapter) | b62cc74 |
 | 27 | Natural-language reporting | 1, 21 | Verified (model fallback: Adapter) | 0a330e6 |
-| 28 | Multi-currency with dated rates | — | Verified | next |
-| 29 | Revenue recognition and WIP | — | Pending | |
+| 28 | Multi-currency with dated rates | — | Verified | a70990c |
+| 29 | Revenue recognition and WIP | — | Verified | next |
 | 31 | Media commission | 28 | Pending | |
 | 46 | Public API keys and webhooks | — | Pending | |
 | 32 | Moadian e-invoicing | 46 | Pending | |

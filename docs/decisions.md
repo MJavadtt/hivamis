@@ -910,3 +910,32 @@ a factor of a million.
 **Limits, stated.** Rates are entered or imported; no live rate feed is wired (the market has
 several competing "rates of the day" and choosing one is the finance team's decision, not the
 software's). Internal cost is always in base. Budgets and opportunity values remain base-only.
+
+## ADR-037 — Revenue is recognised from the work, measured three ways, and closed months stay closed
+
+**Decision.** A project earns its contract value in proportion to the work done, by the method it
+chooses: milestone shares, effort (hours logged ÷ hours logged + estimate still to go), or cost
+(labour at hourly cost plus payments out ÷ the larger of declared and incurred cost). A single
+function computes a project's position at any instant from records already kept, so any month can
+be read as it stood at its end. Recognised minus billed is work in progress (unbilled or deferred).
+A finished month can be closed, in order and once: each project's figure is frozen in
+`revenue_entries`, and anything recorded later with a date inside it lands in the next open month
+as a catch-up.
+
+**Rationale.** The roadmap's point: without recognition, the month a contract is signed or an
+invoice goes out looks profitable and the months the work is done look like losses, so a monthly
+profit report means nothing. The milestones, estimates, timesheets (#14) and cost declarations
+needed to measure progress were already in the system. "Done ÷ (done + still to do)" rather than
+"done ÷ planned" keeps an overrun from recognising more than the contract before the work ends —
+the overrun lowers progress, which is the truthful reading.
+
+**Why closed months do not move.** A reported month that changes after the fact is worse than a
+late correction: people have acted on it. Freezing it and carrying the difference forward is how
+every set of books treats a closed period, and the frozen row keeps the numbers it was computed
+from, so the month can still be explained.
+
+**Limits, stated.** Hours are costed at today's hourly cost (the person's, or their unit's), not
+the cost when they were worked; hours with no cost are reported as unpriced, not guessed. A
+contract's value at a past date subtracts later amendments by their effective date. An expected
+loss (declared cost above the contract) is flagged, not provisioned. There is no reopening of a
+closed month in the application.

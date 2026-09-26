@@ -138,6 +138,16 @@ the brief, the brand — because that is still the reviewer's job.
   or in rials at that day's rate; the invoice is settled when its dollars are. **اثر نرخ ارز**
   shows what the rate has done: the gain or loss on receipts already collected, what open dollar
   invoices would be worth at today's rate, and each dollar contract as booked and as it stands.
+- **Revenue as it is earned** — a project's **مالی** tab shows **شناسایی درآمد**: how much of the
+  work is done, how much of the contract that has earned, how much has been billed, and the gap —
+  «کار انجام‌شدهٔ صورت‌حساب‌نشده» when the work is ahead of the invoices, «پیش‌صورت‌حساب» when the
+  invoices are ahead of the work. Choose how progress is measured: by milestones (give each a
+  share of the contract and mark it «انجام شد» on the overview when it is), by hours logged against
+  the tasks' estimates, or by cost incurred against cost declared. **گزارش‌ها ← درآمد و کار در
+  جریان** sets each month's earned margin beside its billing margin — the month an invoice went out
+  no longer looks like the month the work was done. At month end, **بستن** freezes the month; a
+  late timesheet or a milestone dated back into it then shows in the next open month instead of
+  changing a month already reported.
 
 ---
 

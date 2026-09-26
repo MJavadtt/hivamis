@@ -252,6 +252,27 @@ export const createMilestoneSchema = z.object({
   description: z.string().trim().max(2000).optional(),
 });
 
+/** A milestone done (or undone) — the event milestone-based revenue is earned on (roadmap #29). */
+export const milestoneUpdateSchema = z.object({
+  completedAt: z.coerce.date().nullable().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  dueDate: z.coerce.date().optional(),
+});
+
+/** How a project earns its revenue, and each milestone's share of it (roadmap #29). */
+export const revenueSettingsSchema = z.object({
+  method: z.enum(['MILESTONE', 'EFFORT', 'COST']).optional(),
+  shares: z.array(z.object({
+    milestoneId: idSchema,
+    revenueShare: z.coerce.number().min(0).max(100).nullable(),
+  })).max(100).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+export const closeRevenuePeriodSchema = z.object({
+  period: z.string().regex(/^1[34]\d\d-(0[1-9]|1[0-2])$/),
+});
+
 /* ── QC / revision / change control ────────────────────────────────────────── */
 
 export const createQcReviewSchema = z.object({

@@ -14,6 +14,7 @@ import { BudgetByOrder } from '../components/BudgetByOrder';
 import { Gantt } from '../components/Gantt';
 import { ProjectLessons } from '../components/ProjectLessons';
 import { ProjectMeetings } from '../components/MeetingMinutes';
+import { MilestoneDone, ProjectRevenue } from '../components/Revenue';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, Checkbox, DescRow, EmptyState, ErrorBlock, LoadingBlock,
@@ -217,6 +218,7 @@ export function ProjectDetail() {
 
 function Overview({ data }: { data: Project360 }) {
   const p = data.project;
+  const canPlan = useAuth().can('project.plan');
   return (
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -308,9 +310,12 @@ function Overview({ data }: { data: Project360 }) {
                       <p className="truncate text-sm text-ink-800">{m.name}</p>
                       <p className="text-xs text-ink-500">{formatDate(m.dueDate)} — {formatRelative(m.dueDate)}</p>
                     </div>
-                    {m.completedAt ? <Badge tone="success">انجام‌شده</Badge>
-                      : d !== null && d < 0 ? <Badge tone="danger">گذشته</Badge>
-                      : <Badge tone="neutral">پیش رو</Badge>}
+                    <div className="flex items-center gap-2">
+                      {!m.completedAt && canPlan && <MilestoneDone projectId={p.id} milestoneId={m.id} />}
+                      {m.completedAt ? <Badge tone="success">انجام‌شده</Badge>
+                        : d !== null && d < 0 ? <Badge tone="danger">گذشته</Badge>
+                        : <Badge tone="neutral">پیش رو</Badge>}
+                    </div>
                   </li>
                 );
               })}
@@ -548,6 +553,8 @@ function FinanceTab({ finance, project }: { finance: NonNullable<Project360['fin
       </Card>
 
       <BudgetByOrder projectId={project.id} />
+
+      <ProjectRevenue projectId={project.id} />
 
       <Card title="اسناد مالی">
         {!finance.invoices.length ? <EmptyState title="سند مالی صادر نشده" /> : (

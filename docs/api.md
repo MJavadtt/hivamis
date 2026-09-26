@@ -210,6 +210,26 @@ was actually paid at is an exchange gain or loss, not a dispute.
 | `POST /fx/rates/import` `{ csv }` | `finance.rates` | «date,currency,rate» per line, Jalali or ISO. Never overwrites: a different rate for a recorded day comes back in `conflicts[]`; bad lines in `errors[]` with their line numbers. Audited as `BULK_IMPORT` |
 | `GET /reports/fx?from=&to=` | `finance.read` | `totals.realised` (receipts at their day's rate against the invoice's booked rate) and `totals.unrealised` (open foreign receivables at the latest rate against booked), `byCurrency[]`, and the rows: `receivables`, `realised`, `contracts` and `costs`, each booked vs today |
 
+## Revenue recognition and work in progress
+
+Roadmap #29. A project earns its contract value as the work is done, measured by its
+`revenueMethod`: `MILESTONE` (the revenue shares of completed milestones), `EFFORT` (hours logged ÷
+hours logged + estimate still to go on open tasks) or `COST` (labour at hourly cost plus payments
+out ÷ the larger of declared cost and cost incurred). Recognised − invoiced (`kind: INVOICE`) is
+work in progress: positive, earned and not billed; negative, billed ahead (deferred). A closed
+project has earned all of it.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /projects/:id/revenue` | `finance.read` | The method, today's `position` (`progress`, `recognised`, `invoiced`, `wip`, `basis`, `reasonFa` when it cannot be measured, `notesFa`), `expectedLoss` when declared cost exceeds the contract, the milestones with their shares, and the last twelve months |
+| `PATCH /projects/:id/revenue` `{ method?, shares?[], note? }` | `finance.budget` | Choose the method; set milestone shares (a total over 100 % is `REVENUE_SHARES_OVER_100`). Audited. Closed months do not change; the effect lands in the next open month |
+| `PATCH /projects/:id/milestones/:mid` `{ completedAt?, name?, dueDate? }` | `project.plan` | Mark a milestone done (not in the future — `COMPLETED_IN_FUTURE`) or undone. Audited |
+| `GET /reports/revenue?months=` | `finance.read` | Per Jalali month: `recognised`, `invoiced`, `labourCost`, `externalCost`, `margin` (earned − cost) and `billingMargin` (billed − cost), closed months as they were closed; `wip.unbilled` / `wip.deferred`; each project's position; `nextToClose` |
+| `GET /revenue/periods` | `finance.read` | Closed months, newest first |
+| `POST /revenue/periods/close` `{ period: "1405-06" }` | `finance.settle` | Freeze a finished month: one `revenue_entries` row per measured project with its progress, contract value, recognised to date and the month's amount. In order only (`PERIOD_OUT_OF_ORDER` with `expected`), never twice (`PERIOD_ALREADY_CLOSED`), never the current month (`PERIOD_NOT_ENDED`), never reopened. Audited as `REVENUE_PERIOD_CLOSED` |
+
+`POST /projects/:id/milestones` now checks the project belongs to the caller's organisation.
+
 ## Asking the reports
 
 Natural-language reporting (roadmap #27). A question is mapped to a metric from a fixed catalogue

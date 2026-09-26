@@ -630,6 +630,9 @@ model Project {
   /// Roadmap #28: copied from the registered contract — its currency and value as written.
   contractCurrency      String   @default("IRR")
   originalContractValue Decimal? @db.Decimal(20, 2)
+  /// Roadmap #29: how revenue is earned as the work goes — MILESTONE | EFFORT | COST.
+  revenueMethod         String   @default("EFFORT")
+  revenueEntries        RevenueEntry[]
   state          String       @default("DRAFT")
   healthStatus   String       @default("GREEN")
   closedAt       DateTime?
@@ -698,6 +701,8 @@ model Milestone {
   description String?
   dueDate     DateTime
   completedAt DateTime?
+  /// Roadmap #29: the share of the contract value earned when this milestone is done (percent).
+  revenueShare Decimal? @db.Decimal(5, 2)
   sortOrder   Int       @default(0)
 
   @@index([projectId])
@@ -1858,4 +1863,49 @@ model ExchangeRate {
 
   @@unique([organizationId, currency, effectiveDate])
   @@map("exchange_rates")
+}
+
+/// A project's recognised revenue as frozen when its period was closed (roadmap #29). The open
+/// period is computed live; a closed one never changes — a late correction lands in the next
+/// open period as a catch-up, the way a closed month is treated in any set of books.
+model RevenueEntry {
+  id               String   @id @default(uuid())
+  organizationId   String
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Jalali month, «1405-07».
+  period           String
+  periodEnd        DateTime
+  method           String
+  /// Share of the work done by the period's end, 0..1.
+  progress         Decimal  @db.Decimal(7, 6)
+  /// Contract value in force at the period's end (base currency).
+  contractValue    Decimal  @db.Decimal(20, 2)
+  recognisedToDate Decimal  @db.Decimal(20, 2)
+  /// Recognised in this period: to date, less what earlier periods froze.
+  amount           Decimal  @db.Decimal(20, 2)
+  invoicedToDate   Decimal  @db.Decimal(20, 2)
+  /// The figures the progress was computed from, so a closed month can be explained later.
+  basis            Json
+  createdAt        DateTime @default(now())
+
+  @@unique([projectId, period])
+  @@index([organizationId, period])
+  @@map("revenue_entries")
+}
+
+/// A closed accounting month (roadmap #29). Closed in order; never reopened.
+model RevenuePeriod {
+  id             String   @id @default(uuid())
+  organizationId String
+  period         String
+  periodStart    DateTime
+  periodEnd      DateTime
+  closedAt       DateTime @default(now())
+  closedById     String
+  /// Recognised, invoiced, labour and external cost for the month, as they stood at closing.
+  totals         Json
+
+  @@unique([organizationId, period])
+  @@map("revenue_periods")
 }

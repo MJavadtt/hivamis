@@ -18,6 +18,7 @@ import { formatCurrency, formatPercent, toPersianDigits, formatDate } from '../l
 import { ProcessMap } from '../components/ProcessMap';
 import { BreachRisk } from '../components/BreachRisk';
 import { AskReports } from '../components/AskReports';
+import { RevenueReport } from '../components/Revenue';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -34,6 +35,7 @@ export default function Reports() {
     { key: 'quality', label: 'کیفیت داده' },
     { key: 'mining', label: 'کشف فرآیند' },
     { key: 'cost', label: 'دقت برآورد' },
+    ...(can('finance.read') ? [{ key: 'revenue', label: 'درآمد و کار در جریان' }] : []),
   ];
 
   return (
@@ -55,6 +57,7 @@ export default function Reports() {
         {tab === 'quality' && <DataQuality />}
         {tab === 'mining' && <ProcessMap />}
         {tab === 'cost' && <CostAccuracy />}
+        {tab === 'revenue' && <RevenueReport />}
       </PageBody>
     </>
   );
