@@ -8,6 +8,7 @@ import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
 import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { runMoadian } from '../tax/submit.js';
+import { runESign } from '../esign/service.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 
@@ -31,7 +32,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -123,6 +124,12 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.sent || result.failed || result.accepted || result.rejected) logger.info({ ...result }, 'moadian');
   });
 
+  await boss.work('esign:run', async () => {
+    // Contracts out for e-signature followed until signed, declined or lapsed (roadmap #36).
+    const result = await runESign();
+    if (result.synced || result.expired) logger.info({ ...result }, 'esign');
+  });
+
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
@@ -131,7 +138,8 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('security:scan', '*/15 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('webhooks:dispatch', '* * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('moadian:run', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m)');
+  await boss.schedule('esign:run', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m)');
   return boss;
 }
 

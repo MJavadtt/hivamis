@@ -530,6 +530,20 @@ export const portalLoginSchema = loginSchema;
 export const portalMessageSchema = z.object({ body: z.string().trim().min(1).max(4000) });
 export const documentVisibilitySchema = z.object({ clientVisible: z.boolean() });
 
+/* ── contract e-signature (roadmap #36) ────────────────────────────────────── */
+
+export const createEnvelopeSchema = z.object({
+  /** The contract PDF to be signed, as it is now. */
+  documentId: idSchema,
+  clientContactId: idSchema,
+  /** The organisation's signatory — someone who holds contract.sign. */
+  agencyUserId: idSchema,
+  expiresInDays: z.coerce.number().int().min(1).max(60).default(14),
+});
+export const voidEnvelopeSchema = z.object({ reason: z.string().trim().min(3).max(1000) });
+export const sandboxSignSchema = z.object({ signerName: z.string().trim().min(3).max(120), confirm: z.literal(true) });
+export const sandboxDeclineSchema = z.object({ reason: z.string().trim().min(5).max(2000) });
+
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),
   kind: z.enum(SUPPLIER_KINDS),

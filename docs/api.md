@@ -343,6 +343,32 @@ The client (portal token; 120 requests a minute per address, sign-in at the logi
 | `GET /portal/status-reports/:id` | The weekly report as PDF, built for the client (#37). Audited as `EXPORT` |
 | `GET /portal/approvals/:id` · `…/files/:documentId` · `POST …/decision` | An approval request (#35) of the company. Only its addressee downloads its files and decides; the decision is sealed with `verification: PORTAL` and the portal account's id |
 
+## Contract e-signature
+
+Roadmap #36. A contract awaiting signature (`PENDING_SIGNATURE`) is sent as one of its own PDFs
+— its SHA-256 frozen in `originalSha256` — to two signers in order: a client contact, then an
+organisation signatory (an active user holding `contract.sign`). When the provider reports every
+signer signed, its signed PDF is stored on the contract (tag `e-signed`, with its own SHA-256) and
+the contract is signed through the workflow engine as the sender, with `signedDate` the completion
+time. While an envelope is out, recording the signature by hand is refused by the guard
+`contract.signatureNotInFlight`. `ESIGN_MODE` decides the provider: `sandbox` (an in-process
+stand-in whose signatures carry no legal weight and say so), `http` (a provider behind the
+contract in operations.md), `off`.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /contracts/:id/signature-options` | `contract.read` | Mode, whether the contract may be sent now, the envelope in flight, its PDFs, the client's contacts with an email, the signatories |
+| `POST /contracts/:id/signatures` `{ documentId, clientContactId, agencyUserId, expiresInDays }` | `contract.sign` | Send. `ESIGN_OFF`, `ESIGN_WRONG_STATE`, `409 ESIGN_IN_FLIGHT`, `ESIGN_DOCUMENT`, `ESIGN_NOT_PDF`, `ESIGN_DOCUMENT_ALTERED`, `ESIGN_CLIENT_SIGNER`, `ESIGN_AGENCY_SIGNER`, `502 ESIGN_PROVIDER_FAILED` (nothing is kept). Returns the signing `links` once when mail is off; mails them when on. Audited `ESIGN_SENT` |
+| `GET /contracts/:id/signatures` | `contract.read` | Envelopes with signers (status, time, IP, the certificate the provider reported), the event log, the original and signed files |
+| `POST /esign/envelopes/:id/sync` | `contract.sign` | Read the envelope back from the provider now |
+| `POST /esign/envelopes/:id/void` `{ reason }` | `contract.sign` | Withdraw an envelope still out. Audited `ESIGN_VOIDED` |
+| `POST /esign/callback` | HMAC | The provider's "look again": `X-Hiva-Signature: sha256=<HMAC(body, ESIGN_WEBHOOK_SECRET)>` over the exact bytes; the status is then read back from the provider, never taken from the callback |
+
+The sandbox's signing page (`ESIGN_MODE=sandbox` only; 30 requests a minute per address):
+`GET /esign/sandbox/:token`, `GET …/document` (re-hashed before it is served), `POST …/sign`
+`{ signerName, confirm: true }` and `POST …/decline` `{ reason }`. Signers sign in order
+(`ESIGN_ORDER`); the completed PDF ends with a page stating that no legal signature was made.
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a

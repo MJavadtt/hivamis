@@ -101,9 +101,9 @@ alternatives, all of those depend on people remembering.
 | Time tracking | High — feeds real cost and utilisation | Medium | Would make traffic and margin figures actuals rather than estimates |
 | Email/calendar integration | High — Doc_H §7 leaks through inboxes | Medium | Meeting minutes and client threads pulled into the record |
 | Gantt + critical path | Medium | Medium | Schema already carries `task_dependencies` |
-| Client portal | Medium | High | Would move client approvals inside the audit trail |
+| Client portal | Medium | High | Built as roadmap #34, with approvals kept as evidence (#35) |
 | SSO + MFA | Medium | Low–Medium | Enterprise procurement requirement |
-| E-signature | Medium | Low | Contract signature is recorded, not executed |
+| E-signature | Medium | Low | Built as an adapter (roadmap #36): sent, followed and applied in the system; a certified provider plugs in behind a REST bridge |
 | Media buying and commissions | Low unless media is a large revenue share | High | Workamajig's genuine moat — built as roadmap #31 |
 
 ## Sources

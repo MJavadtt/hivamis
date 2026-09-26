@@ -64,6 +64,15 @@ const envSchema = z.object({
    * the taxpayer's registered private key (and certificate) — see docs/operations.md.
    */
   MOADIAN_MODE: z.enum(['off', 'sandbox', 'live']).default('off'),
+  /**
+   * Contract e-signature (roadmap #36). `sandbox` is an in-process stand-in whose signatures are
+   * labelled as such and carry no legal weight; `http` is a provider behind the documented REST
+   * contract. Unset: sandbox outside production, off in production.
+   */
+  ESIGN_MODE: z.enum(['off', 'sandbox', 'http']).optional(),
+  ESIGN_URL: z.string().default(''),
+  ESIGN_API_KEY: z.string().default(''),
+  ESIGN_WEBHOOK_SECRET: z.string().default(''),
   MOADIAN_URL: z.string().default('https://tp.tax.gov.ir/requestsmanager/api/v2/'),
   MOADIAN_PRIVATE_KEY_PATH: z.string().default(''),
   MOADIAN_CERTIFICATE_PATH: z.string().default(''),

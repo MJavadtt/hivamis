@@ -277,6 +277,7 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  signatureEnvelopes   SignatureEnvelope[]
   portalInvites        PortalUser[]
   portalReplies        PortalMessage[]
   clientApprovals      ClientApproval[]
@@ -1021,6 +1022,7 @@ model Contract {
   amendments Amendment[]
   invoices   Invoice[]
   documents  Document[]
+  signatureEnvelopes SignatureEnvelope[]
 
   @@index([organizationId, state])
   @@index([companyId])
@@ -1663,6 +1665,9 @@ model Document {
   uploadedBy     User            @relation(fields: [uploadedById], references: [id])
   createdAt      DateTime        @default(now())
   deletedAt      DateTime?
+
+  envelopesSent     SignatureEnvelope[] @relation("EnvelopeOriginal")
+  envelopesSigned   SignatureEnvelope[] @relation("EnvelopeSigned")
 
   @@index([organizationId])
   @@index([projectId])
@@ -2323,4 +2328,81 @@ model PortalMessage {
 
   @@index([projectId, createdAt])
   @@map("portal_messages")
+}
+
+/// Roadmap #36 — a contract sent for electronic signature through a provider: the exact PDF sent
+/// (its SHA-256), who signs and in what order, what the provider reported, and the signed PDF it
+/// returned. When every signer has signed, the contract is signed through the workflow engine.
+model SignatureEnvelope {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  code               String    @unique
+  contractId         String
+  contract           Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  /// sandbox | http
+  provider           String
+  providerRef        String?
+  /// SENT | COMPLETED | DECLINED | VOIDED | EXPIRED
+  status             String    @default("SENT")
+  documentId         String
+  document           Document  @relation("EnvelopeOriginal", fields: [documentId], references: [id])
+  originalSha256     String
+  signedDocumentId   String?
+  signedDocument     Document? @relation("EnvelopeSigned", fields: [signedDocumentId], references: [id])
+  signedSha256       String?
+  expiresAt          DateTime
+  createdById        String
+  createdBy          User      @relation(fields: [createdById], references: [id])
+  createdAt          DateTime  @default(now())
+  completedAt        DateTime?
+  voidedAt           DateTime?
+  voidReason         String?
+  /// Set when the completed signature could not be applied to the contract.
+  transitionError    String?
+
+  signers SignatureSigner[]
+  events  SignatureEvent[]
+
+  @@index([contractId])
+  @@index([status])
+  @@map("signature_envelopes")
+}
+
+model SignatureSigner {
+  id            String            @id @default(uuid())
+  envelopeId    String
+  envelope      SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  order         Int
+  /// CLIENT | AGENCY
+  party         String
+  name          String
+  email         String
+  contactId     String?
+  userId        String?
+  /// PENDING | SIGNED | DECLINED
+  status        String            @default("PENDING")
+  signedAt      DateTime?
+  declineReason String?
+  /// What the provider reports of the signing certificate: subject, serial, issuer, validity.
+  certificate   Json?
+  ip            String?
+  /// The sandbox provider's signing link secret, hashed; a real provider keeps its own.
+  tokenHash     String?           @unique
+
+  @@unique([envelopeId, order])
+  @@map("signature_signers")
+}
+
+model SignatureEvent {
+  id         String            @id @default(uuid())
+  seq        Int               @default(autoincrement())
+  envelopeId String
+  envelope   SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  /// SENT | SIGNED | DECLINED | COMPLETED | VOIDED | EXPIRED | SYNC_FAILED | APPLIED
+  kind       String
+  detail     Json?
+  at         DateTime          @default(now())
+
+  @@index([envelopeId, seq])
+  @@map("signature_events")
 }

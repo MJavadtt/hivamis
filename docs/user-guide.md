@@ -213,6 +213,16 @@ Drive the contract through drafting → legal review → approval → signature 
 Registering a contract sets the project's revenue baseline. Amendments update the contract value
 and the project end date together.
 
+**Electronic signature.** When a contract is «در انتظار امضا», the **امضای الکترونیکی** card on
+the contract sends one of its PDFs to be signed — first by the client contact you choose, then by
+the organisation's signatory. Each gets a signing link; you see who has signed, when, from which
+address and with which certificate. When both have signed, the signed PDF is attached to the
+contract and the contract becomes «امضاشده» by itself. While it is out, the signature cannot also
+be recorded by hand — **ابطال** it first (for example, if the wrong file went). If the client
+declines, their reason is shown and the contract stays where it was. On an installation not yet
+connected to a signature provider, the card says «محیط آزمایشی»: everything works the same, but
+nothing signed there is a legal signature, and the signed file says so on its last page.
+
 ---
 
 ## PMO / Operations

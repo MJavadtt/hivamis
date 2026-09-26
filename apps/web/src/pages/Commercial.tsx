@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, money } from '../components/Fx';
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
 import { AccountingTab } from '../components/AccountingExport';
+import { ESignCard } from '../components/ESign';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
@@ -113,6 +114,8 @@ export function ContractDetail() {
             )}
           </dl>
         </Card>
+
+        <ESignCard contractId={data.id} />
 
         {!!data.amendments?.length && (
           <Card title="الحاقیه‌ها" className="lg:col-span-3">

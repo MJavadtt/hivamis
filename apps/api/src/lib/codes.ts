@@ -10,7 +10,7 @@ const PREFIXES: Record<string, string> = {
   workOrder: 'WO', task: 'TSK', deliverable: 'DLV', qcReview: 'QC', revision: 'REV',
   changeRequest: 'CR', contract: 'CNT', invoice: 'INV', risk: 'RSK', issue: 'ISS',
   decision: 'DEC', meeting: 'MTG', statusReport: 'RPT', outsourceRequest: 'OSR',
-  formSubmission: 'FRM', handoff: 'HND', mediaOrder: 'MO', clientApproval: 'CA',
+  formSubmission: 'FRM', handoff: 'HND', mediaOrder: 'MO', clientApproval: 'CA', signatureEnvelope: 'ESG',
 };
 
 export async function nextCode(tx: Tx, scope: keyof typeof PREFIXES | string): Promise<string> {

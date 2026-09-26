@@ -1113,3 +1113,27 @@ route at all, and a view assembled field by field cannot leak a field nobody cho
 lockout. A client sees every authorised project of their company, not a chosen subset; the
 conversation is per project, not per deliverable; files are shared one by one. Annotation on
 deliverables is roadmap #38; e-signature of contracts is #36.
+
+## ADR-044 — E-signature through a provider adapter; the contract is signed by the envelope completing
+
+**Decision.** A contract awaiting signature is sent, as one of its own PDFs with its SHA-256 fixed,
+to a provider: the client's contact signs first, the organisation's signatory second. Hiva follows
+the envelope — a signed callback only prompts it to read the status back — and when every signer
+has signed it keeps the signed PDF and signs the contract through the workflow engine as the
+sender. While an envelope is out, the guard `contract.signatureNotInFlight` refuses a signature
+recorded by hand, so there is one path to «signed» at a time. The provider is an adapter: an
+in-process sandbox, and an HTTP provider behind a REST contract of ours.
+
+**Rationale.** operations.md said plainly that signature was recorded, not executed: the moment of
+signing happened outside, and SLA_CONTRACT_DRAFT stopped at internal approval with nothing
+measured after. Keeping the sending, the order, the declines and the signed file inside the record
+closes that. The part that makes a signature legally binding — a certificate from a licensed
+certification authority, used on the signer's side — belongs to the provider; our REST contract
+lets any provider be connected by a thin bridge without Hiva knowing its API.
+
+**Not verified, and not built.** No real provider has been connected from this repository; the
+roadmap marks the live half **Adapter**. Hiva stores the signed PDF and its hash and shows the
+certificate details the provider reports, but does not validate the signature embedded in the PDF
+(PAdES) itself. The sandbox's signatures are labelled as such on the page, in the certificate and on
+the signed file's last page. Two signers, in a fixed order, per envelope.
+

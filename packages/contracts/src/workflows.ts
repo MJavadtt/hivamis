@@ -245,7 +245,7 @@ export const CONTRACT_WORKFLOW: WorkflowDef = {
     { from: ['LEGAL_REVIEW'], to: 'REVISION_REQUESTED', action: 'request_revision', labelFa: 'درخواست اصلاح قرارداد', labelEn: 'Request revision', permission: 'contract.legal_review', requiresReason: true },
     { from: ['LEGAL_REVIEW'], to: 'INTERNAL_APPROVED', action: 'approve', labelFa: 'تأیید داخلی قرارداد', labelEn: 'Internal approval', permission: 'contract.approve', stopsSla: ['SLA_CONTRACT_DRAFT'] },
     { from: ['INTERNAL_APPROVED'], to: 'PENDING_SIGNATURE', action: 'send_for_signature', labelFa: 'ارسال برای امضا', labelEn: 'Send for signature', permission: 'contract.approve' },
-    { from: ['PENDING_SIGNATURE'], to: 'SIGNED', action: 'sign', labelFa: 'ثبت امضای قرارداد', labelEn: 'Record signature', permission: 'contract.sign' },
+    { from: ['PENDING_SIGNATURE'], to: 'SIGNED', action: 'sign', labelFa: 'ثبت امضای قرارداد', labelEn: 'Record signature', permission: 'contract.sign', guards: ['contract.signatureNotInFlight'] },
     { from: ['SIGNED'], to: 'REGISTERED', action: 'register', labelFa: 'ثبت قرارداد', labelEn: 'Register contract', permission: 'contract.sign' },
     { from: ['REGISTERED'], to: 'EXPIRED', action: 'expire', labelFa: 'اتمام اعتبار', labelEn: 'Expire', permission: 'contract.amend' },
     { from: ['REGISTERED', 'SIGNED'], to: 'TERMINATED', action: 'terminate', labelFa: 'فسخ قرارداد', labelEn: 'Terminate', permission: 'contract.approve', requiresReason: true },

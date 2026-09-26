@@ -477,6 +477,17 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
       : { ok: false, rule: 'سامانهٔ مؤدیان', messageFa: 'این فاکتور در سامانهٔ مؤدیان پذیرفته شده است؛ نخست صورت‌حساب ابطالی را در سامانه ثبت کنید، سپس اینجا ابطال کنید.' };
   },
 
+  /**
+   * Roadmap #36 — while a contract is out for electronic signature, it is signed by that envelope
+   * completing, not by someone recording a signature by hand: two paths to «signed» would let the
+   * record say signed while the provider still waits, or the other way round.
+   */
+  'contract.signatureNotInFlight': async ({ tx, id, payload }) => {
+    const live = await tx.signatureEnvelope.findFirst({ where: { contractId: id, status: 'SENT' }, select: { id: true, code: true } });
+    if (!live || payload.envelopeId === live.id) return pass;
+    return { ok: false, rule: 'امضای الکترونیکی', messageFa: `این قرارداد برای امضای الکترونیکی فرستاده شده است (${live.code})؛ یا امضای آن کامل می‌شود، یا نخست باطلش کنید.` };
+  },
+
   'mediaOrder.vendorInvoiceMatches': async ({ record }) => {
     if (record.vendorInvoiceAmount == null) {
       return { ok: false, rule: 'خرید رسانه', messageFa: 'صورت‌حساب رسانه هنوز ثبت نشده است؛ تطبیق بدون آن ممکن نیست.' };
@@ -530,6 +541,7 @@ export const GUARD_LABELS: Record<string, string> = {
   'mediaOrder.bookedByMediaOrAccount': 'رزرو را واحد رسانه، اکانت یا مدیریت انجام دهد',
   'mediaOrder.vendorInvoiceMatches': 'صورت‌حساب رسانه با خالص رزروشده بخواند یا دلیل اختلاف ثبت شده باشد',
   'invoice.taxCancellationFiled': 'اگر فاکتور در سامانهٔ مؤدیان پذیرفته شده، ابطالی آن در سامانه پذیرفته شده باشد',
+  'contract.signatureNotInFlight': 'قرارداد در میانهٔ امضای الکترونیکی نباشد — یا امضا از همان مسیر ثبت شود',
 };
 
 /** One guard's verdict, for a checklist: which rule, what it requires, and whether it holds. */

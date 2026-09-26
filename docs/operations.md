@@ -70,6 +70,9 @@ on first sign-in), then deactivate the demo users.
 | `FX_MAX_RATE_AGE_DAYS` | no | 7 | How old an exchange rate may be and still convert a new figure (roadmap #28). A figure dated after the last rate by more than this is refused with `FX_RATE_STALE` until that day's rate is recorded — the rial moves daily, and last month's rate is a figure nobody agreed to. `0` demands a rate for the exact day |
 | `WEBHOOK_ALLOW_PRIVATE` | no | false | Let webhooks call internal addresses (and plain http) — roadmap #46. Off, a webhook URL that is or resolves to loopback, a private range or link-local (cloud metadata) is refused, on save and at connection time. Turn on only for an on-premise installation whose receivers share its network: it re-opens server-side request forgery to anyone holding `admin.keys` |
 | `MOADIAN_MODE` | no | off | سامانهٔ مؤدیان (roadmap #32): `off` prepares and queues e-invoices without sending; `sandbox` sends to an in-process stand-in that accepts what passes validation — for training, **not** the tax authority; `live` uses the direct API |
+| `ESIGN_MODE` | no | `sandbox` outside production, `off` in production | Contract e-signature (roadmap #36): `off` — signatures are recorded by hand; `sandbox` — an in-process stand-in, **not** a legal signature; `http` — a provider behind the contract below |
+| `ESIGN_URL` · `ESIGN_API_KEY` | for `http` | — | The provider bridge's base URL and bearer key |
+| `ESIGN_WEBHOOK_SECRET` | for `http` | — | HMAC key for the provider's callbacks; without it every callback is refused |
 | `MOADIAN_URL` | no | `https://tp.tax.gov.ir/requestsmanager/api/v2/` | The authority's API base. Point it at the authority's test environment for the first live submissions |
 | `MOADIAN_PRIVATE_KEY_PATH` / `MOADIAN_CERTIFICATE_PATH` | for `live` | — | The taxpayer's private key (PEM) registered in the authority's portal, and its certificate (PEM, sent as `x5c`). Keep them out of the repository and readable only by the API process |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
@@ -207,7 +210,7 @@ Stated plainly rather than buried.
 | Calendar | No calendar integration — meetings are recorded in the platform but not written to anyone's calendar. Email notifications ARE supported; see `MAIL_ENABLED` above. |
 | Gantt and dependency scheduling | Built (roadmap #10): `/projects/:id/schedule` computes earliest/latest dates and float per task on the assignee's calendar; the project's «زمان‌بندی» tab draws it. Finish-to-start only; the `kind` column is there for the other dependency types when they are needed. |
 | Document versioning | Documents carry a `version` column and full audit, but there is no diff or rollback UI |
-| E-signature | Contract signature is *recorded*, not executed. No e-signature integration |
+| E-signature | Built as an adapter (roadmap #36): the flow, the sandbox and the REST contract are in the repository; a legally binding signature needs a provider bridge and its certificates — see «Contract e-signature» above |
 | Full accounting | Project-level financial control per Doc_H — cost, revenue, margin, invoices, payments, settlement. Not a general ledger, and deliberately so |
 | Search | PostgreSQL `ILIKE` with indexes. Fine for thousands of records; semantic search would need a vector store |
 | Offline / mobile app | Responsive web only |
@@ -302,6 +305,33 @@ exercised against the authority from this repository:
 
 Every submission keeps the payload exactly as prepared, so what the authority received can be shown
 even when it disagrees with the invoice as it stands today.
+
+## Contract e-signature
+
+Roadmap #36. `esign:run` runs every ten minutes: it reads every envelope still out back from its
+provider and lets lapsed ones expire. The provider's callback (`POST /api/v1/esign/callback`) makes
+that happen at once; it must reach the API from the provider's network.
+
+A signature with legal weight is made with a certificate from a licensed certification authority,
+on the provider's side. Hiva speaks one REST contract; connecting a provider means a small bridge
+that translates it:
+
+| Call | Request | Response |
+|---|---|---|
+| `POST {ESIGN_URL}/envelopes` | `{ externalId, title, document: { fileName, contentBase64, sha256 }, signers: [{ externalId, name, email, order }], callbackUrl, expiresAt }` | `{ id, signers: [{ externalId, url }] }` |
+| `GET {ESIGN_URL}/envelopes/{id}` | — | `{ status: SENT\|COMPLETED\|DECLINED\|EXPIRED, signers: [{ externalId, status, signedAt?, declineReason?, ip?, certificate?: { subject, serial, issuer, notAfter } }] }` |
+| `GET {ESIGN_URL}/envelopes/{id}/document` | — | the signed PDF |
+| `POST {ESIGN_URL}/envelopes/{id}/void` | `{ reason }` | — |
+| callback to `callbackUrl` | `{ id }` with `X-Hiva-Signature: sha256=<HMAC-SHA256(body, ESIGN_WEBHOOK_SECRET)>` | — |
+
+Every call carries `Authorization: Bearer ESIGN_API_KEY`. Going live: build the bridge against the
+provider's test environment, set `ESIGN_MODE=http` with its URL, key and secret, sign one contract
+end to end, and check the signed PDF's signature in a PDF reader before production. Hiva keeps the
+signed PDF and its hash and shows the certificate the provider reports; it does not itself validate
+the signature embedded in the PDF.
+
+The sandbox's page is `/esign-sandbox/<secret>` on the web app. Leaving `ESIGN_MODE` unset in
+production means `off`.
 
 ## Client portal
 

@@ -202,6 +202,10 @@ export const CLIENT_APPROVAL_STATUS_LABELS: Record<ClientApprovalStatus, string>
 export const PORTAL_DELIVERABLE_STATUS: Record<string, string> = {
   DELIVERED: 'تحویل شده — منتظر نظر شما', ACCEPTED: 'تأیید شده', REVISION_REQUIRED: 'در حال اصلاح',
 };
+export const ENVELOPE_STATUS_LABELS: Record<string, string> = {
+  SENT: 'در انتظار امضا', COMPLETED: 'امضا شد', DECLINED: 'رد شد', VOIDED: 'باطل شد', EXPIRED: 'منقضی شد',
+};
+export const SIGNER_STATUS_LABELS: Record<string, string> = { PENDING: 'در انتظار', SIGNED: 'امضا کرد', DECLINED: 'رد کرد' };
 export const PORTAL_USER_STATUS_LABELS: Record<string, string> = { INVITED: 'دعوت شده', ACTIVE: 'فعال', DISABLED: 'غیرفعال' };
 export const CLIENT_APPROVAL_EVENT_LABELS: Record<string, string> = {
   CREATED: 'درخواست ثبت شد', SENT: 'پیوند فرستاده شد', OPENED: 'صفحه باز شد', FILE_VIEWED: 'فایل دریافت شد',

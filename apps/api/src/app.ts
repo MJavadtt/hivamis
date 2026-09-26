@@ -42,6 +42,7 @@ import taxRoutes from './routes/tax.js';
 import accountingRoutes from './routes/accounting.js';
 import clientApprovalRoutes from './routes/client-approvals.js';
 import portalRoutes from './routes/portal.js';
+import esignRoutes from './routes/esign.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -191,6 +192,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(accountingRoutes);
     await api.register(clientApprovalRoutes);
     await api.register(portalRoutes);
+    await api.register(esignRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */
