@@ -970,3 +970,33 @@ differently.
 order's currency; the exchange difference between booking and paying a foreign vendor is not yet
 in the exchange report (#28). A media order is booked at today's rate. Contract values are taken to
 be the service fee; media is billed through media orders, not inside the contract value.
+
+## ADR-039 — Keys act as their creator, narrowed; webhooks are thin events from the transition log
+
+**Decision.** An API key is not a new kind of user. It acts with its creator's authority, narrowed
+to the permissions it was given, recomputed on every request from the creator's own roles — so a
+key can never exceed its creator, never carries a delegation, never holds the permissions that
+would let it make more keys, users, roles or exceptions, and dies with its creator's account. Only
+a SHA-256 of the key is stored. Every audit row written through a key names it, through a
+request-scoped context rather than a change to every caller. Webhooks read `state_transitions`
+forward from a per-subscription cursor — the transition log is already a transactional outbox —
+and deliver thin, HMAC-signed events: which record, which move, when and why, never the record
+itself, and only for entities the creator may read, re-checked at each event.
+
+**Rationale.** The roadmap's point: the API was already clean, versioned and permission-checked;
+what it lacked was a non-human identity, and without one every integration (#32, #33, #40) becomes
+a special case. A separate service-account user would have to be excluded from every list of
+people — assignee pickers, capacity, the people the question box resolves — and would hold
+authority nobody answers for. Acting as its creator keeps accountability with a person and needs
+no new kind of principal. Thin events cannot leak what a subscriber may not read: anything more is
+fetched with a key, under that key's permissions.
+
+**Why the address checks.** A webhook URL is an admin's input that the server will call. Refusing
+loopback, private and link-local addresses — on save, and again inside DNS resolution at connection
+time, so a name that later resolves inward is still refused — and following no redirects closes
+the path to cloud metadata and internal services. On-premise installations can lift it knowingly.
+
+**Limits, stated.** Delivery is at most about a minute behind (a minute-scheduled job). A key's rate
+budget is per API process. Webhooks cover state transitions only — not creations or field edits.
+The audit detectors attribute key activity to the creator (with the key named).
+

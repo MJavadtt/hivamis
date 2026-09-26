@@ -10,6 +10,7 @@ import { env, trustProxy } from './env.js';
 import { prisma } from './db.js';
 import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
+import { requestContext } from './lib/request-context.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
 import authRoutes from './routes/auth.js';
@@ -36,6 +37,7 @@ import askRoutes from './routes/ask.js';
 import fxRoutes from './routes/fx.js';
 import revenueRoutes from './routes/revenue.js';
 import mediaRoutes from './routes/media.js';
+import integrationRoutes from './routes/integrations.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -60,6 +62,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     // and rotate itself through rate-limit buckets. See TRUST_PROXY in env.ts.
     trustProxy,
   });
+
+  // A request-scoped store (roadmap #46): opened here, so everything the request runs sees its own.
+  app.addHook('onRequest', (_req, _reply, done) => requestContext.run({}, done));
 
   await app.register(helmet, {
     contentSecurityPolicy: false, // the API serves JSON + downloads only; the SPA sets its own CSP
@@ -177,6 +182,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(fxRoutes);
     await api.register(revenueRoutes);
     await api.register(mediaRoutes);
+    await api.register(integrationRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

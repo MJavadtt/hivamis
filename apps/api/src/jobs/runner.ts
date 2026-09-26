@@ -6,6 +6,7 @@ import { tickSlaClocks } from '../sla/engine.js';
 import { notifyPredictedBreaches } from '../sla/predict.js';
 import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
+import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 
@@ -29,7 +30,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -109,13 +110,20 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.created) logger.warn({ ...result }, 'security alerts raised');
   });
 
+  await boss.work('webhooks:dispatch', async () => {
+    // The transition log read forward and sent on (roadmap #46): at most a minute behind.
+    const result = await dispatchWebhooks();
+    if (result.enqueued || result.delivered || result.failed) logger.info({ ...result }, 'webhooks dispatched');
+  });
+
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
 
   await boss.schedule('memory:index', '17 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('security:scan', '*/15 * * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m)');
+  await boss.schedule('webhooks:dispatch', '* * * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute)');
   return boss;
 }
 

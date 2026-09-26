@@ -144,6 +144,7 @@ export const PERMISSIONS = {
   'admin.roles': 'مدیریت نقش‌ها و دسترسی‌ها',
   'admin.settings': 'تنظیمات سیستم',
   'admin.audit': 'مشاهده گزارش حسابرسی',
+  'admin.keys': 'کلیدهای API و Webhook',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -229,6 +230,13 @@ const PMO_CORE: Permission[] = [
   'governance.write', 'meeting.write',
   'document.write', 'form.submit', 'customer_success.write', 'ai.use',
 ];
+
+/**
+ * Permissions an API key may never carry (roadmap #46): the ones that would let a key make more
+ * keys, more users, other roles, or exceptions to the rules — a leaked key must not be a way in
+ * that outlives its discovery.
+ */
+export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,

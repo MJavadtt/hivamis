@@ -277,6 +277,8 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  apiKeys              ApiKey[]
+  webhookSubscriptions WebhookSubscription[]
 
   @@index([organizationId, departmentId])
   @@index([email])
@@ -1673,6 +1675,8 @@ model AuditEvent {
   actor          User?    @relation(fields: [actorId], references: [id])
   /// Set when the actor held the permission only through a delegation: "A, as B's delegate".
   onBehalfOfId   String?
+  /// Roadmap #46: the API key the request came through — the actor is the key's creator.
+  apiKeyId       String?
   before         Json?
   after          Json?
   reason         String?
@@ -1972,4 +1976,87 @@ model MediaOrder {
   @@index([organizationId, state])
   @@index([projectId])
   @@map("media_orders")
+}
+
+/**
+ * A key for a system rather than a person (roadmap #46). It acts with its creator's authority,
+ * narrowed to `permissions` and never wider than the creator's own at the time of each request;
+ * only a hash of the secret is kept. Revoked, expired, or whose creator is gone: it stops.
+ */
+model ApiKey {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  name               String
+  /// The public part printed on the key («hiva_<prefix>_…»); how a request finds its key.
+  prefix             String    @unique
+  /// SHA-256 of the whole key. The secret is shown once, at creation, and never again.
+  secretHash         String
+  permissions        String[]
+  rateLimitPerMinute Int       @default(60)
+  expiresAt          DateTime?
+  lastUsedAt         DateTime?
+  lastUsedIp         String?
+  revokedAt          DateTime?
+  revokedById        String?
+  revokeReason       String?
+  createdById        String
+  createdBy          User      @relation(fields: [createdById], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+/**
+ * A webhook (roadmap #46): state transitions the creator may read, sent to `url`, signed with
+ * `secret`. The transition log is the outbox; `cursorAt`/`cursorId` is how far it has been read.
+ */
+model WebhookSubscription {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  name                String
+  url                 String
+  /// Signs every delivery (HMAC-SHA256). Shown once, at creation.
+  secret              String
+  /// «entity.action», «entity.*» or «*».
+  events              String[]
+  active              Boolean   @default(true)
+  cursorAt            DateTime  @default(now())
+  cursorId            String?
+  consecutiveFailures Int       @default(0)
+  disabledAt          DateTime?
+  disabledReason      String?
+  createdById         String
+  createdBy           User      @relation(fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deliveries          WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhook_subscriptions")
+}
+
+/** One event to one subscriber, retried with backoff until it lands or is given up on. */
+model WebhookDelivery {
+  id             String              @id @default(uuid())
+  organizationId String
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  /// The state transition it reports; null for a test ping.
+  transitionId   String?
+  event          String
+  payload        Json
+  /// PENDING | DELIVERED | DEAD
+  status         String              @default("PENDING")
+  attempts       Int                 @default(0)
+  nextAttemptAt  DateTime            @default(now())
+  lastStatusCode Int?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@unique([subscriptionId, transitionId])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
 }

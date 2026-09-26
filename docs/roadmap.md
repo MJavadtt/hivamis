@@ -50,8 +50,8 @@ Status vocabulary, and it is used strictly:
 | 27 | Natural-language reporting | 1, 21 | Verified (model fallback: Adapter) | 0a330e6 |
 | 28 | Multi-currency with dated rates | — | Verified | a70990c |
 | 29 | Revenue recognition and WIP | — | Verified | 5fcbf00 |
-| 31 | Media commission | 28 | Verified | next |
-| 46 | Public API keys and webhooks | — | Pending | |
+| 31 | Media commission | 28 | Verified | 703d6c9 |
+| 46 | Public API keys and webhooks | — | Verified | next |
 | 32 | Moadian e-invoicing | 46 | Pending | |
 | 33 | Accounting-package export | 46 | Pending | |
 | 35 | Client approval with evidentiary weight | — | Pending | |

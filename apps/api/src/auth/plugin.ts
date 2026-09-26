@@ -4,6 +4,8 @@ import type { Permission } from '@hiva/contracts';
 import { verifyAccessToken, type AccessTokenClaims } from './tokens.js';
 import { forbidden, unauthorized } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { requestContext } from '../lib/request-context.js';
+import { authenticateKey, HUMAN_ONLY_PREFIXES } from '../integrations/keys.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -32,8 +34,26 @@ const authPlugin: FastifyPluginAsync = async (app) => {
   app.decorate('authenticate', async (req: FastifyRequest) => {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw unauthorized();
+    const token = header.slice(7);
+    // An API key (roadmap #46): a system acting with its creator's narrowed authority.
+    if (token.startsWith('hiva_')) {
+      const user = await authenticateKey(token, req.ip);
+      const ctx = requestContext.getStore();
+      if (ctx) ctx.apiKeyId = user.apiKeyId;
+      if (HUMAN_ONLY_PREFIXES.some((p) => req.url.startsWith(p))) {
+        // A key trying the creator's account, delegations or key management is a refusal worth
+        // counting — the audit-trail detectors (#26) read exactly these rows.
+        await audit({
+          organizationId: user.organizationId, actorId: user.sub, action: 'PERMISSION_DENIED', entityType: 'authorization',
+          reason: `human-only: ${req.url.split('?')[0]}`, ipAddress: req.ip, userAgent: req.headers['user-agent'] ?? null, requestId: req.id,
+        }).catch(() => undefined);
+        throw forbidden('این بخش فقط با ورود یک شخص در دسترس است، نه با کلید API.');
+      }
+      req.user = user;
+      return;
+    }
     try {
-      req.user = await verifyAccessToken(header.slice(7));
+      req.user = await verifyAccessToken(token);
     } catch {
       throw unauthorized('توکن نامعتبر یا منقضی شده است');
     }

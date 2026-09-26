@@ -15,9 +15,11 @@ import { RuleLab } from '../components/RuleLab';
 import { FormRouting } from '../components/FormRouting';
 import { FormDesigner } from '../components/FormDesigner';
 import { SecurityAlerts } from '../components/SecurityAlerts';
+import { ApiKeys, Webhooks } from '../components/Integrations';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
+  const { can } = useAuth();
   return (
     <>
       <PageHeader title="مدیریت سیستم" subtitle="کاربران، نقش‌ها، سیاست‌های SLA و رهگیری حسابرسی" />
@@ -35,6 +37,7 @@ export default function Admin() {
             { key: 'routing', label: 'مسیریابی فرم‌ها' },
             { key: 'audit', label: 'رهگیری حسابرسی' },
             { key: 'security', label: 'هشدارهای امنیتی' },
+            ...(can('admin.keys') ? [{ key: 'integrations', label: 'یکپارچه‌سازی' }] : []),
             { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
           ]}
         />
@@ -50,6 +53,7 @@ export default function Admin() {
         {tab === 'routing' && <FormRouting />}
         {tab === 'audit' && <AuditTrail />}
         {tab === 'security' && <SecurityAlerts />}
+        {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /></div>}
         {tab === 'ai' && <AiLog />}
       </PageBody>
     </>

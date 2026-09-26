@@ -67,6 +67,7 @@ on first sign-in), then deactivate the demo users.
 | `TRANSCRIPTION_URL` | no | — | Speech-to-text endpoint for meeting audio (roadmap #23), OpenAI-compatible: `POST` multipart `file`, `model`, `language=fa`, returning `{ text }` — a self-hosted Whisper server works. Unset, the audio button is hidden and minutes are drafted from typed notes |
 | `TRANSCRIPTION_MODEL` / `TRANSCRIPTION_API_KEY` | no | whisper-1 / — | Sent as the `model` field and as a Bearer token. Audio leaves the building when the URL is not your own; point it at an internal service if that matters |
 | `FX_MAX_RATE_AGE_DAYS` | no | 7 | How old an exchange rate may be and still convert a new figure (roadmap #28). A figure dated after the last rate by more than this is refused with `FX_RATE_STALE` until that day's rate is recorded — the rial moves daily, and last month's rate is a figure nobody agreed to. `0` demands a rate for the exact day |
+| `WEBHOOK_ALLOW_PRIVATE` | no | false | Let webhooks call internal addresses (and plain http) — roadmap #46. Off, a webhook URL that is or resolves to loopback, a private range or link-local (cloud metadata) is refused, on save and at connection time. Turn on only for an on-premise installation whose receivers share its network: it re-opens server-side request forgery to anyone holding `admin.keys` |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required. Also enables the model fallback of «پرسش از داده‌ها» (roadmap #27): a question the rules cannot map is sent — the question text and the metric list only, never data — to the model, which may only fill the same plan |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
@@ -262,4 +263,21 @@ Alerts never lock an account or end a session on their own — `TOKEN_REUSE` is 
 and that revocation is done by the auth layer when the reuse happens, not by the scanner. Review in
 the admin screen: **بررسی کردم** needs no note; **مشکلی نبود** needs a reason; nobody reviews an
 alert about themselves. Every review is written to the audit trail as `SECURITY_ALERT_REVIEWED`.
+
+## API keys and webhooks
+
+Roadmap #46. `webhooks:dispatch` runs every minute: it reads each active subscription forward
+through `state_transitions` from its cursor and sends what is due, so an event reaches a receiver
+within about a minute. Deliveries, their attempts and last errors are under **مدیریت ←
+یکپارچه‌سازی**.
+
+- A key's per-minute budget is counted in the API process; with several API instances behind a load
+  balancer each has its own count. The global per-IP limit still applies to every request.
+- Revoking a key or deactivating its creator takes effect on the next request. Rotating a key is
+  creating the new one, switching the receiving system, then revoking the old.
+- A leaked webhook secret: replace it by creating a new subscription (a new secret) and stopping
+  the old one; the receiver should accept both only during the switch.
+- Key activity is audited as the creator's, with the key named (`apiKeyId`). The audit-trail
+  detectors (#26) read it as the creator's too: a key that exports at night raises the alert on its
+  creator, and the audit rows the alert cites carry the key's id.
 

@@ -272,6 +272,18 @@ exist, rather than guessing. It cannot show you more than your role can: a margi
 access, a colleague's personal numbers need management access (your own you can always ask), and
 cost history is your own unit's unless you price.
 
+**Connecting other systems (مدیریت ← یکپارچه‌سازی).** An **API key** lets another system — the
+accounting package, a reporting tool, a messenger bot — use Hiva as you, limited to the
+permissions you tick, with its own requests-per-minute budget. The key is shown once; copy it into
+the other system then, because only a fingerprint of it is kept. A key can never do more than you
+can, never manage users, roles, keys or exceptions, and stops working the moment you revoke it or
+your account is deactivated. A **webhook** tells another system, within about a minute, when
+something moves — an invoice issued, a project activated — for the kinds of records you may see.
+It sends which record and which move, never the record's contents, signed so the receiver can
+prove the message is Hiva's. «آزمایش» sends a test; «تحویل‌ها» shows what was delivered, what is
+waiting and what failed, and can send any of it again. A receiver that keeps failing is switched
+off and you are told.
+
 **Security alerts (مدیریت → هشدارهای امنیتی).** Every quarter-hour the system reads the audit
 trail and raises what does not look like its usual self: exports at night from someone who never
 works at night, a burst of downloads far beyond a person's own usual day, exports from projects a

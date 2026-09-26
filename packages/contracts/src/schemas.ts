@@ -443,6 +443,26 @@ export const billMediaSchema = z.object({
   taxPercent: z.coerce.number().min(0).max(100).default(0),
 });
 
+/** An API key (roadmap #46): a name, the permissions it may use, its own rate and an optional expiry. */
+export const createApiKeySchema = z.object({
+  name: z.string().trim().min(3).max(100),
+  permissions: z.array(z.string().max(60)).min(1).max(200),
+  rateLimitPerMinute: z.coerce.number().int().min(1).max(10_000).default(60),
+  expiresAt: z.coerce.date().optional(),
+});
+
+/** A webhook: where to send, and which transitions — «project.activate», «invoice.*» or «*». */
+export const createWebhookSchema = z.object({
+  name: z.string().trim().min(3).max(100),
+  url: z.string().trim().url().max(2000),
+  events: z.array(z.string().regex(/^(\*|[a-zA-Z]+\.(\*|[a-z_]+))$/)).min(1).max(100),
+});
+export const updateWebhookSchema = z.object({
+  active: z.boolean().optional(),
+  events: createWebhookSchema.shape.events.optional(),
+  url: createWebhookSchema.shape.url.optional(),
+});
+
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),
   kind: z.enum(SUPPLIER_KINDS),

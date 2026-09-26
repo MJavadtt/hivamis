@@ -210,6 +210,56 @@ was actually paid at is an exchange gain or loss, not a dispute.
 | `POST /fx/rates/import` `{ csv }` | `finance.rates` | «date,currency,rate» per line, Jalali or ISO. Never overwrites: a different rate for a recorded day comes back in `conflicts[]`; bad lines in `errors[]` with their line numbers. Audited as `BULK_IMPORT` |
 | `GET /reports/fx?from=&to=` | `finance.read` | `totals.realised` (receipts at their day's rate against the invoice's booked rate) and `totals.unrealised` (open foreign receivables at the latest rate against booked), `byCurrency[]`, and the rows: `receivables`, `realised`, `contracts` and `costs`, each booked vs today |
 
+## API keys and webhooks
+
+Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a
+person's session (`admin.keys`); a key is refused on `/auth/*`, `/delegations` and these
+management paths.
+
+**Keys.** Send `Authorization: Bearer hiva_<prefix>_<secret>` in place of an access token. A key
+acts as its creator, narrowed to the permissions it was given and recomputed on every request from
+the creator's own roles — never a delegation, never `admin.users`, `admin.roles`, `admin.keys` or
+`governance.waive`, and nothing once the creator is inactive. Each key has its own per-minute
+budget (`429 API_KEY_RATE_LIMITED`); revoked or expired keys get `401`. Every audit row written
+through a key carries its `apiKeyId`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /admin/api-keys` | Keys with status (`ACTIVE`, `REVOKED`, `EXPIRED`, `OWNER_INACTIVE`), last use and address — never the secret |
+| `GET /admin/api-keys/grantable` | What the caller may put on a key |
+| `POST /admin/api-keys` `{ name, permissions[], rateLimitPerMinute, expiresAt? }` | Returns the key **once**; only its SHA-256 is kept. `KEY_PERMISSION_NOT_GRANTABLE` lists what the caller cannot give |
+| `POST /admin/api-keys/:id/revoke` `{ reason }` | Stops the key at once. Audited |
+
+**Webhooks.** A subscription names `events` — `entity.action` (`invoice.issue`), `entity.*` or
+`*` — from `GET /admin/webhooks/events`, and only for entities its creator may read, re-checked on
+every event. Deliveries are thin and signed:
+
+```http
+POST <url>
+X-Hiva-Event: lead.contact
+X-Hiva-Delivery: <delivery id>
+X-Hiva-Timestamp: 1790000000
+X-Hiva-Signature: sha256=<hex HMAC-SHA256 of "<timestamp>.<raw body>" with the webhook secret>
+
+{"id":"…","event":"lead.contact","eventId":"<transition id>","occurredAt":"…",
+ "data":{"entity":"lead","entityId":"…","code":"LEAD-000031","action":"contact","actionFa":"برقراری ارتباط",
+         "from":"NEW","to":"CONTACTED","reason":null,"cascade":false}}
+```
+
+A receiver verifies the signature over the raw body, refuses stale timestamps, and treats
+`eventId` as the idempotency key; for the record itself it calls the API with a key. Non-2xx
+responses are retried after 1, 5, 30, 120 and 720 minutes, then the delivery is `DEAD`; twenty
+consecutive failures disable the subscription and notify its creator. URLs must be `https` and
+must not resolve to an internal address — checked on save and again at connection time.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /admin/webhooks/events` | Subscribable events, with the read permission each needs and whether the caller holds it |
+| `GET /admin/webhooks` · `POST /admin/webhooks` `{ name, url, events[] }` | List (secret masked, delivery counts) · create (secret returned **once**). `WEBHOOK_URL_REFUSED`, `WEBHOOK_EVENTS_INVALID` |
+| `PATCH /admin/webhooks/:id` `{ active?, events?, url? }` | Re-enabling resets the failure count and starts from now, not from a backlog |
+| `POST /admin/webhooks/:id/test` | A `ping`, sent now; returns the receiver's status |
+| `GET /admin/webhooks/:id/deliveries` · `POST /admin/webhooks/deliveries/:id/redeliver` | The last 50 deliveries; send one again now |
+
 ## Media buying
 
 Roadmap #31. A media order (`MO-…`, state machine `mediaOrder`: `DRAFT → BOOKED → AIRED →

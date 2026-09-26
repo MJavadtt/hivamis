@@ -50,6 +50,12 @@ const envSchema = z.object({
    * daily; converting today's invoice at last month's rate would book a figure nobody agreed to.
    */
   FX_MAX_RATE_AGE_DAYS: z.coerce.number().int().min(0).max(365).default(7),
+  /**
+   * Roadmap #46: let webhooks call addresses on the internal network. Off by default — a webhook
+   * URL is an admin's input that the server will call, and internal addresses are where SSRF lands.
+   * Turn on only for on-premise installations whose receivers live on the same network.
+   */
+  WEBHOOK_ALLOW_PRIVATE: z.string().transform((v) => v === 'true').default('false'),
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),

@@ -17,6 +17,8 @@ export interface AccessTokenClaims {
   delegated?: Record<string, string>;
   /** role → the user who delegated it. */
   delegatedRoles?: Record<string, string>;
+  /** Set when the request came through an API key (roadmap #46); `sub` is then the key's creator. */
+  apiKeyId?: string;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {

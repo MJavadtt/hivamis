@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { requestContext } from './request-context.js';
 import { prisma } from '../db.js';
 
 export interface AuditContext {
@@ -60,6 +61,8 @@ export async function audit(input: AuditInput, tx: Tx = prisma): Promise<void> {
       entityType: input.entityType,
       entityId: input.entityId ?? null,
       onBehalfOfId: input.onBehalfOfId ?? null,
+      // Which API key, when the request came through one (#46) — without every caller passing it.
+      apiKeyId: requestContext.getStore()?.apiKeyId ?? null,
       actorId: input.actorId ?? null,
       before: (scrub(input.before) as object) ?? undefined,
       after: (scrub(input.after) as object) ?? undefined,
