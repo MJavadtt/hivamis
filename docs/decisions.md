@@ -1000,3 +1000,38 @@ the path to cloud metadata and internal services. On-premise installations can l
 budget is per API process. Webhooks cover state transitions only — not creations or field edits.
 The audit detectors attribute key activity to the creator (with the key named).
 
+## ADR-040 — E-invoices are prepared and validated here; the live transport is an adapter
+
+**Decision.** Reporting an invoice to سامانهٔ مؤدیان is a submission record: its subject (original,
+correction, cancellation), a 22-character tax number, the tax number it replaces, and the payload —
+header, lines, totals in whole rials, in the authority's field names — fixed when prepared. Every
+reason the authority would refuse it that can be known in advance (the taxpayer profile, the
+buyer's national ID and postal code, the kind and state of the invoice, line arithmetic against the
+total, the date) is checked first and named in Persian. After acceptance only a correction or a
+cancellation may follow, and the invoice's own cancellation is refused by a guard until the
+authority has accepted its cancellation. Sending is a mode: off (queued), sandbox (an in-process
+stand-in), live (the direct API).
+
+**Rationale.** For an Iranian company this is a legal duty, not a feature, and the roadmap asks
+for it directly. The part that decides whether an invoice is accepted — the numbers, the
+identifiers, the arithmetic, the sequence of original, correction and cancellation — is ours to get
+right and is tested here. The transport — a nonce, a token signed with the taxpayer's key, the
+invoice signed (JWS, RS256, `sigT` critical, certificate attached) and encrypted for the authority's
+key (JWE, RSA-OAEP-256 + A256GCM), then an inquiry by reference — needs keys only a registered
+taxpayer has.
+
+**Sources, and what is verified.** The tax number's layout and check digit follow the public SDKs
+of the authority's API — `InvoiceHeader::setTaxID` in Jooyeshgar/moadian: memory id, days since
+1970 in hex (5), serial in hex (10), and a Verhoeff digit over the memory id with letters as ASCII
+codes, the day padded to 6 digits and the serial to 12. The Verhoeff implementation is checked
+against the textbook vector; the envelopes are checked by round trip with generated keys; the
+transport is checked against a stand-in authority. None of it has been exercised against the
+authority itself: the roadmap marks the live half **Adapter**, and operations.md says to go live
+through the authority's test environment first.
+
+**Limits, stated.** Invoice type 1 (identified buyer) and the sales pattern only; the export pattern
+with currency fields is not implemented — an invoice in another currency is reported in rials at
+its booked rate (#28). Every line uses the profile's default service and unit codes unless it
+carries its own. Settlement is reported as credit. Doc_H form A03 is unchanged; the buyer's postal
+code is kept on the client record.
+

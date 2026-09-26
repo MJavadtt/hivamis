@@ -150,6 +150,14 @@ and not billed, flight over without proof, awaiting the vendor's invoice, and in
   or in rials at that day's rate; the invoice is settled when its dollars are. **اثر نرخ ارز**
   shows what the rate has done: the gain or loss on receipts already collected, what open dollar
   invoices would be worth at today's rate, and each dollar contract as booked and as it stands.
+- **E-invoicing (سامانهٔ مؤدیان)** — the **سامانهٔ مؤدیان** tab holds the organisation's fiscal
+  memory id and identifiers, and lists every issued invoice the tax authority has not yet accepted.
+  Open one to see what would stop it being accepted — a client without a postal code or national
+  ID (fill them in right there), lines that do not add up to the total — and report it. Once
+  accepted, an invoice can only be corrected or cancelled with a new report that names the accepted
+  one; and an accepted invoice is cancelled at the authority first, then here — the system will not
+  let the books say a sale never happened while the tax authority still holds it. Each invoice row
+  in the financial documents list shows where it stands.
 - **Revenue as it is earned** — a project's **مالی** tab shows **شناسایی درآمد**: how much of the
   work is done, how much of the contract that has earned, how much has been billed, and the gap —
   «کار انجام‌شدهٔ صورت‌حساب‌نشده» when the work is ahead of the invoices, «پیش‌صورت‌حساب» when the

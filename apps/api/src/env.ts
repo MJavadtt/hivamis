@@ -56,6 +56,15 @@ const envSchema = z.object({
    * Turn on only for on-premise installations whose receivers live on the same network.
    */
   WEBHOOK_ALLOW_PRIVATE: z.string().transform((v) => v === 'true').default('false'),
+  /**
+   * Roadmap #32 — سامانهٔ مؤدیان. `off`: e-invoices are prepared and queued, nothing is sent.
+   * `sandbox`: an in-process stand-in (not the tax authority). `live`: the direct API, which needs
+   * the taxpayer's registered private key (and certificate) — see docs/operations.md.
+   */
+  MOADIAN_MODE: z.enum(['off', 'sandbox', 'live']).default('off'),
+  MOADIAN_URL: z.string().default('https://tp.tax.gov.ir/requestsmanager/api/v2/'),
+  MOADIAN_PRIVATE_KEY_PATH: z.string().default(''),
+  MOADIAN_CERTIFICATE_PATH: z.string().default(''),
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),

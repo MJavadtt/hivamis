@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, money } from '../components/Fx';
+import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
@@ -140,6 +141,7 @@ export function Finance() {
   const [tab, setTab] = useState('docs');
   const [issuing, setIssuing] = useState(false);
   const [receiving, setReceiving] = useState(false);
+  const [taxFor, setTaxFor] = useState<string | null>(null);
   const { data: invoices, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/invoices'], queryFn: () => apiGet('/invoices', { pageSize: 50 }),
   });
@@ -165,11 +167,13 @@ export function Finance() {
           </div>
         } />
       <div className="border-b border-ink-200 bg-surface px-2">
-        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
+        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'moadian', label: 'سامانهٔ مؤدیان' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
       {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
+      {taxFor && <InvoiceTax invoiceId={taxFor} onClose={() => setTaxFor(null)} />}
       <PageBody className="space-y-5">
+        {tab === 'moadian' && <MoadianTab />}
         {tab === 'rates' && <FxRates />}
         {tab === 'fx' && <FxReport />}
         {tab === 'docs' && (isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : (
@@ -185,7 +189,7 @@ export function Finance() {
               {!invoices?.items.length ? <EmptyState title="سندی صادر نشده" /> : (
                 <Table>
                   <thead className="bg-ink-50/60">
-                    <tr><Th>شماره</Th><Th>نوع</Th><Th>مشتری</Th><Th>پروژه</Th><Th>صدور</Th><Th>سررسید</Th><Th>مبلغ</Th><Th>دریافتی</Th><Th>وضعیت</Th></tr>
+                    <tr><Th>شماره</Th><Th>نوع</Th><Th>مشتری</Th><Th>پروژه</Th><Th>صدور</Th><Th>سررسید</Th><Th>مبلغ</Th><Th>دریافتی</Th><Th>وضعیت</Th><Th>مؤدیان</Th></tr>
                   </thead>
                   <tbody>
                     {invoices.items.map((i: any) => (
@@ -199,6 +203,9 @@ export function Finance() {
                         <Td className="text-xs" title={exactCurrency(i.total)}><Amount base={i.total} original={i.originalTotal} currency={i.currency} /></Td>
                         <Td className="text-xs"><Amount base={i.paidAmount} original={i.originalPaidAmount} currency={i.currency} /></Td>
                         <Td><StateBadge state={i.state} /></Td>
+                        <Td>{i.kind === 'INVOICE' && i.state !== 'DRAFT' && (
+                          <button type="button" onClick={() => setTaxFor(i.id)} aria-label={`مؤدیان ${i.number}`}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
+                        )}</Td>
                       </Tr>
                     ))}
                   </tbody>

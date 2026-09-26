@@ -461,6 +461,22 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
    * A media order is closed only when the vendor's invoice matches what was booked — or the
    * difference is written down. An unexplained difference is money nobody agreed to pay.
    */
+  /**
+   * Roadmap #32 — an invoice the tax authority has accepted is cancelled there first: cancelling it
+   * here alone would leave the authority holding a sale the books say never happened.
+   */
+  'invoice.taxCancellationFiled': async ({ tx, id }) => {
+    const subs = await tx.taxSubmission.findMany({ where: { invoiceId: id }, select: { subject: true, status: true } });
+    if (subs.some((s) => ['QUEUED', 'SENT'].includes(s.status))) {
+      return { ok: false, rule: 'سامانهٔ مؤدیان', messageFa: 'گزارشی از این فاکتور در صف یا در انتظار پاسخ سامانهٔ مؤدیان است؛ پس از پاسخ آن ابطال کنید.' };
+    }
+    const reported = subs.some((s) => s.status === 'ACCEPTED' && s.subject !== 'CANCELLATION');
+    const cancelled = subs.some((s) => s.status === 'ACCEPTED' && s.subject === 'CANCELLATION');
+    return !reported || cancelled
+      ? pass
+      : { ok: false, rule: 'سامانهٔ مؤدیان', messageFa: 'این فاکتور در سامانهٔ مؤدیان پذیرفته شده است؛ نخست صورت‌حساب ابطالی را در سامانه ثبت کنید، سپس اینجا ابطال کنید.' };
+  },
+
   'mediaOrder.vendorInvoiceMatches': async ({ record }) => {
     if (record.vendorInvoiceAmount == null) {
       return { ok: false, rule: 'خرید رسانه', messageFa: 'صورت‌حساب رسانه هنوز ثبت نشده است؛ تطبیق بدون آن ممکن نیست.' };
@@ -513,6 +529,7 @@ export const GUARD_LABELS: Record<string, string> = {
   'change.readyForImplementation': 'تأیید مشتری برای تغییر خارج از Scope ثبت شده باشد',
   'mediaOrder.bookedByMediaOrAccount': 'رزرو را واحد رسانه، اکانت یا مدیریت انجام دهد',
   'mediaOrder.vendorInvoiceMatches': 'صورت‌حساب رسانه با خالص رزروشده بخواند یا دلیل اختلاف ثبت شده باشد',
+  'invoice.taxCancellationFiled': 'اگر فاکتور در سامانهٔ مؤدیان پذیرفته شده، ابطالی آن در سامانه پذیرفته شده باشد',
 };
 
 /** One guard's verdict, for a checklist: which rule, what it requires, and whether it holds. */

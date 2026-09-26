@@ -38,6 +38,7 @@ import fxRoutes from './routes/fx.js';
 import revenueRoutes from './routes/revenue.js';
 import mediaRoutes from './routes/media.js';
 import integrationRoutes from './routes/integrations.js';
+import taxRoutes from './routes/tax.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -183,6 +184,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(revenueRoutes);
     await api.register(mediaRoutes);
     await api.register(integrationRoutes);
+    await api.register(taxRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

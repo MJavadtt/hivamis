@@ -59,6 +59,7 @@ export const createCompanySchema = z.object({
   industry: z.string().trim().max(120).optional(),
   nationalId: z.string().trim().max(40).optional(),
   economicCode: z.string().trim().max(40).optional(),
+  postalCode: z.string().trim().max(20).optional(),
   website: z.string().trim().max(200).optional(),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(500).optional(),
@@ -462,6 +463,25 @@ export const updateWebhookSchema = z.object({
   events: createWebhookSchema.shape.events.optional(),
   url: createWebhookSchema.shape.url.optional(),
 });
+
+/** The organisation as a taxpayer in سامانهٔ مؤدیان (roadmap #32). */
+export const taxProfileSchema = z.object({
+  // Shapes are checked by the API's own validator, which names each problem in Persian; this only bounds sizes.
+  memoryId: z.string().trim().max(20),
+  sellerTaxId: z.string().trim().max(30),
+  economicCode: z.string().trim().max(20).optional().nullable(),
+  postalCode: z.string().trim().max(20).optional().nullable(),
+  branchCode: z.string().trim().max(10).optional().nullable(),
+  defaultServiceCode: z.string().trim().max(30),
+  defaultUnitCode: z.string().trim().max(20),
+});
+/** A client's tax identifiers, which finance may complete for e-invoicing. */
+export const companyTaxIdentifiersSchema = z.object({
+  nationalId: z.string().trim().max(20).optional().nullable(),
+  economicCode: z.string().trim().max(20).optional().nullable(),
+  postalCode: z.string().trim().max(20).optional().nullable(),
+});
+export const submitTaxSchema = z.object({ subject: z.enum(['ORIGINAL', 'CORRECTION', 'CANCELLATION']) });
 
 export const createSupplierSchema = z.object({
   name: z.string().trim().min(2).max(200),

@@ -263,7 +263,7 @@ export const INVOICE_WORKFLOW: WorkflowDef = {
     { from: ['ISSUED'], to: 'SENT', action: 'send', labelFa: 'ارسال به مشتری', labelEn: 'Send to client', permission: 'finance.invoice' },
     { from: ['SENT', 'PARTIALLY_PAID'], to: 'PARTIALLY_PAID', action: 'partial_payment', labelFa: 'دریافت جزئی', labelEn: 'Partial payment', permission: 'finance.payment' },
     { from: ['SENT', 'PARTIALLY_PAID'], to: 'PAID', action: 'settle', labelFa: 'تسویه کامل', labelEn: 'Fully settled', permission: 'finance.payment' },
-    { from: ['DRAFT', 'ISSUED', 'SENT'], to: 'CANCELLED', action: 'cancel', labelFa: 'ابطال', labelEn: 'Cancel', permission: 'finance.invoice', requiresReason: true },
+    { from: ['DRAFT', 'ISSUED', 'SENT'], to: 'CANCELLED', action: 'cancel', labelFa: 'ابطال', labelEn: 'Cancel', permission: 'finance.invoice', requiresReason: true, guards: ['invoice.taxCancellationFiled'] },
   ],
 };
 

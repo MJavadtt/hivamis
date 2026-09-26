@@ -68,6 +68,9 @@ on first sign-in), then deactivate the demo users.
 | `TRANSCRIPTION_MODEL` / `TRANSCRIPTION_API_KEY` | no | whisper-1 / — | Sent as the `model` field and as a Bearer token. Audio leaves the building when the URL is not your own; point it at an internal service if that matters |
 | `FX_MAX_RATE_AGE_DAYS` | no | 7 | How old an exchange rate may be and still convert a new figure (roadmap #28). A figure dated after the last rate by more than this is refused with `FX_RATE_STALE` until that day's rate is recorded — the rial moves daily, and last month's rate is a figure nobody agreed to. `0` demands a rate for the exact day |
 | `WEBHOOK_ALLOW_PRIVATE` | no | false | Let webhooks call internal addresses (and plain http) — roadmap #46. Off, a webhook URL that is or resolves to loopback, a private range or link-local (cloud metadata) is refused, on save and at connection time. Turn on only for an on-premise installation whose receivers share its network: it re-opens server-side request forgery to anyone holding `admin.keys` |
+| `MOADIAN_MODE` | no | off | سامانهٔ مؤدیان (roadmap #32): `off` prepares and queues e-invoices without sending; `sandbox` sends to an in-process stand-in that accepts what passes validation — for training, **not** the tax authority; `live` uses the direct API |
+| `MOADIAN_URL` | no | `https://tp.tax.gov.ir/requestsmanager/api/v2/` | The authority's API base. Point it at the authority's test environment for the first live submissions |
+| `MOADIAN_PRIVATE_KEY_PATH` / `MOADIAN_CERTIFICATE_PATH` | for `live` | — | The taxpayer's private key (PEM) registered in the authority's portal, and its certificate (PEM, sent as `x5c`). Keep them out of the repository and readable only by the API process |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required. Also enables the model fallback of «پرسش از داده‌ها» (roadmap #27): a question the rules cannot map is sent — the question text and the metric list only, never data — to the model, which may only fill the same plan |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
@@ -280,4 +283,22 @@ within about a minute. Deliveries, their attempts and last errors are under **م
 - Key activity is audited as the creator's, with the key named (`apiKeyId`). The audit-trail
   detectors (#26) read it as the creator's too: a key that exports at night raises the alert on its
   creator, and the audit rows the alert cites carry the key's id.
+
+## سامانهٔ مؤدیان
+
+Roadmap #32. `moadian:run` runs every ten minutes: it sends queued submissions and asks after sent
+ones. A transport failure leaves a submission queued and is retried; the fifth attempt marks it
+`FAILED`. A refusal from the authority is kept with its reasons (`errors`).
+
+Going live — the transport follows the public SDKs of the authority's API and has not been
+exercised against the authority from this repository:
+
+1. Register the organisation's key in the authority's portal and obtain the fiscal memory id.
+2. Enter the memory id and identifiers under **مالی ← سامانهٔ مؤدیان** (finance manager).
+3. Set `MOADIAN_MODE=live`, `MOADIAN_URL` to the authority's **test** environment, and the key and
+   certificate paths. Report one invoice and check it in the authority's portal.
+4. Only then point `MOADIAN_URL` at production.
+
+Every submission keeps the payload exactly as prepared, so what the authority received can be shown
+even when it disagrees with the invoice as it stands today.
 

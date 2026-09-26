@@ -7,6 +7,7 @@ import { notifyPredictedBreaches } from '../sla/predict.js';
 import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
 import { dispatchWebhooks } from '../integrations/webhooks.js';
+import { runMoadian } from '../tax/submit.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 
@@ -30,7 +31,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -116,6 +117,12 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.enqueued || result.delivered || result.failed) logger.info({ ...result }, 'webhooks dispatched');
   });
 
+  await boss.work('moadian:run', async () => {
+    // E-invoices sent and followed until the authority answers (roadmap #32); nothing when sending is off.
+    const result = await runMoadian();
+    if (result.sent || result.failed || result.accepted || result.rejected) logger.info({ ...result }, 'moadian');
+  });
+
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
@@ -123,7 +130,8 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('memory:index', '17 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('security:scan', '*/15 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('webhooks:dispatch', '* * * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute)');
+  await boss.schedule('moadian:run', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m)');
   return boss;
 }
 

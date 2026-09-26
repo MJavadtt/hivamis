@@ -321,6 +321,8 @@ model Company {
   industry       String?
   nationalId     String?
   economicCode   String?
+  /// Roadmap #32: the buyer's postal code — required on an identified-buyer e-invoice.
+  postalCode     String?
   website        String?
   phone          String?
   address        String?
@@ -1085,6 +1087,7 @@ model Invoice {
   @@index([companyId])
   @@map("invoices")
   mediaOrders        MediaOrder[]
+  taxSubmissions     TaxSubmission[]
 }
 
 model Payment {
@@ -2059,4 +2062,64 @@ model WebhookDelivery {
   @@unique([subscriptionId, transitionId])
   @@index([status, nextAttemptAt])
   @@map("webhook_deliveries")
+}
+
+/**
+ * The organisation as a taxpayer in سامانهٔ مؤدیان (roadmap #32): its fiscal memory, its own
+ * identifiers, and the default service and unit codes its invoice lines are reported under.
+ */
+model TaxProfile {
+  id                 String   @id @default(uuid())
+  organizationId     String   @unique
+  /// «شناسهٔ یکتای حافظهٔ مالیاتی» — six characters; the first part of every tax number.
+  memoryId           String
+  /// The seller's taxpayer number (tins): the national ID of a legal entity.
+  sellerTaxId        String
+  economicCode       String?
+  postalCode         String?
+  /// Branch code (sbc), when invoices are issued by a registered branch.
+  branchCode         String?
+  /// The 13-digit service/goods code (sstid) lines are reported under unless they carry their own.
+  defaultServiceCode String
+  /// The measurement-unit code (mu) for a line of service.
+  defaultUnitCode    String
+  updatedById        String
+  updatedAt          DateTime @updatedAt
+
+  @@map("tax_profiles")
+}
+
+/**
+ * One report of an invoice to سامانهٔ مؤدیان (roadmap #32): the original, a correction, or a
+ * cancellation — each with its own 22-character tax number, the payload exactly as sent, and what
+ * the tax authority said. A correction or cancellation names the tax number it replaces.
+ */
+model TaxSubmission {
+  id               String    @id @default(uuid())
+  organizationId   String
+  invoiceId        String
+  invoice          Invoice   @relation(fields: [invoiceId], references: [id])
+  /// ORIGINAL | CORRECTION | CANCELLATION  (ins 1 | 2 | 3)
+  subject          String
+  serial           Int
+  taxId            String    @unique
+  /// The accepted tax number a correction or cancellation refers to (irtaxid).
+  referenceTaxId   String?
+  payload          Json
+  /// QUEUED | SENT | ACCEPTED | REJECTED | FAILED
+  status           String    @default("QUEUED")
+  referenceNumber  String?
+  /// What the authority (or the transport) said, in its own words.
+  errors           Json?
+  attempts         Int       @default(0)
+  /// sandbox | live — where it was sent; null while queued.
+  channel          String?
+  submittedAt      DateTime?
+  respondedAt      DateTime?
+  createdById      String
+  createdAt        DateTime  @default(now())
+
+  @@index([organizationId, status])
+  @@index([invoiceId])
+  @@map("tax_submissions")
 }

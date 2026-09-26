@@ -111,6 +111,8 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
         include: {
           company: { select: { id: true, legalName: true } },
           project: { select: { id: true, code: true, name: true } },
+          // Where it stands with سامانهٔ مؤدیان (#32): the latest report only.
+          taxSubmissions: { select: { subject: true, status: true, taxId: true }, orderBy: { createdAt: 'desc' }, take: 1 },
         },
         orderBy: { issueDate: 'desc' },
         skip: (q.page - 1) * q.pageSize, take: q.pageSize,

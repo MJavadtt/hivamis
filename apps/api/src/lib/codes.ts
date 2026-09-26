@@ -23,3 +23,13 @@ export async function nextCode(tx: Tx, scope: keyof typeof PREFIXES | string): P
   const n = rows[0]?.value ?? 1;
   return `${prefix}-${String(n).padStart(6, '0')}`;
 }
+
+/** A bare sequence number for a scope — the e-invoice serial (#32) is a number, not a code. */
+export async function nextNumber(tx: Tx, scope: string): Promise<number> {
+  const rows = await tx.$queryRaw<{ value: number }[]>`
+    INSERT INTO counters (id, scope, value) VALUES (gen_random_uuid(), ${scope}, 1)
+    ON CONFLICT (scope) DO UPDATE SET value = counters.value + 1
+    RETURNING value
+  `;
+  return Number(rows[0]?.value ?? 1);
+}

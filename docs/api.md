@@ -210,6 +210,28 @@ was actually paid at is an exchange gain or loss, not a dispute.
 | `POST /fx/rates/import` `{ csv }` | `finance.rates` | «date,currency,rate» per line, Jalali or ISO. Never overwrites: a different rate for a recorded day comes back in `conflicts[]`; bad lines in `errors[]` with their line numbers. Audited as `BULK_IMPORT` |
 | `GET /reports/fx?from=&to=` | `finance.read` | `totals.realised` (receipts at their day's rate against the invoice's booked rate) and `totals.unrealised` (open foreign receivables at the latest rate against booked), `byCurrency[]`, and the rows: `receivables`, `realised`, `contracts` and `costs`, each booked vs today |
 
+## سامانهٔ مؤدیان (e-invoicing)
+
+Roadmap #32. An invoice (`kind: INVOICE`, issued) is reported to the tax authority as a
+submission: `ORIGINAL`, and after acceptance only `CORRECTION` or `CANCELLATION`, each with its own
+22-character tax number (fiscal memory id + issue day and serial in hex + Verhoeff digit) and, for
+the latter two, the accepted tax number it replaces (`irtaxid`). The payload is fixed when the
+submission is prepared, in the authority's field names and whole rials. `MOADIAN_MODE` decides where
+it goes: `off` (queued only), `sandbox` (an in-process stand-in — not the authority), `live` (the
+direct API). An invoice the authority accepted cannot be cancelled here until its cancellation is
+accepted there (guard `invoice.taxCancellationFiled`).
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /tax/profile` · `PUT /tax/profile` | `finance.read` · `finance.settle` | The taxpayer profile (memory id, seller number, default service and unit codes), the sending mode, and what is missing. `TAX_PROFILE_INVALID` with `problems[]` |
+| `PUT /companies/:id/tax-identifiers` `{ nationalId?, economicCode?, postalCode? }` | `finance.invoice` | Complete a buyer's identifiers without full client-editing rights. Audited |
+| `GET /invoices/:id/tax` | `finance.read` | What may be reported next (`subjects`, `referenceTaxId`), every problem that would get it refused (`problems[]`: profile, buyer id and postal code, kind, state, line arithmetic against the total, a future date), a preview of the payload, and the submissions so far |
+| `POST /invoices/:id/tax` `{ subject }` | `finance.invoice` | Prepare (validate, number, fix the payload) and — when sending is on — send and inquire at once. `TAX_INVOICE_INVALID`, `TAX_SUBJECT_NOT_ALLOWED`, `TAX_IN_FLIGHT`, `TAX_ALREADY_CANCELLED`. Audited as `TAX_SUBMISSION_PREPARED` |
+| `POST /tax/submissions/:id/inquire` | `finance.invoice` | Send if still queued, then ask the authority |
+| `GET /reports/tax` | `finance.read` | Issued invoices not yet accepted — not reported, queued, awaiting an answer, refused (with the authority's reasons) — oldest first, with counts |
+
+`GET /invoices` rows carry their latest submission (`taxSubmissions[0]`).
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a
