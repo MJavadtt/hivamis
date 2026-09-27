@@ -277,6 +277,7 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  annotations          Annotation[]      @relation("AnnotationAuthor")
   messengerLink        MessengerLink?
   messengerActions     MessengerAction[]
   signatureEnvelopes   SignatureEnvelope[]
@@ -873,6 +874,7 @@ model Deliverable {
   revisions Revision[]
   tasks     Task[]
   documents Document[]
+  annotations Annotation[]
 
   @@index([organizationId, state])
   @@index([projectId, state])
@@ -902,6 +904,7 @@ model QcReview {
   reviewedAt     DateTime     @default(now())
 
   revisions Revision[]
+  annotations Annotation[]
 
   @@index([organizationId, level, verdict])
   @@index([deliverableId])
@@ -934,6 +937,8 @@ model Revision {
   requestedById            String
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
+
+  annotations Annotation[]
 
   @@index([organizationId, state])
   @@index([responsibleDepartmentCode, state])
@@ -1668,6 +1673,7 @@ model Document {
   createdAt      DateTime        @default(now())
   deletedAt      DateTime?
 
+  annotations       Annotation[]
   envelopesSent     SignatureEnvelope[] @relation("EnvelopeOriginal")
   envelopesSigned   SignatureEnvelope[] @relation("EnvelopeSigned")
 
@@ -2476,4 +2482,44 @@ model MessengerMessage {
   @@index([status, createdAt])
   @@index([provider, chatId, createdAt])
   @@map("messenger_messages")
+}
+
+/// Roadmap #38 — feedback placed on the file itself: a pin on an image, a moment in a video, a
+/// region of a PDF page. Positions are fractions of the rendered size, so they hold at any zoom.
+/// A QC review that fails carries its open annotations into the revision's required correction.
+model Annotation {
+  id             String     @id @default(uuid())
+  organizationId String
+  deliverableId  String
+  deliverable    Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  documentId     String
+  document       Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// The SHA-256 of the file as it was annotated — a newer upload is a new version, not this one.
+  documentSha256 String
+  /// PIN (image) | TIMECODE (video) | HIGHLIGHT (PDF)
+  kind           String
+  /// Ordinal on its file: the number drawn on the pin.
+  number         Int
+  page           Int?
+  x              Float?
+  y              Float?
+  w              Float?
+  h              Float?
+  timeSec        Float?
+  note           String
+  /// OPEN | RESOLVED
+  status         String     @default("OPEN")
+  authorId       String
+  author         User       @relation("AnnotationAuthor", fields: [authorId], references: [id])
+  createdAt      DateTime   @default(now())
+  qcReviewId     String?
+  qcReview       QcReview?  @relation(fields: [qcReviewId], references: [id], onDelete: SetNull)
+  revisionId     String?
+  revision       Revision?  @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  resolvedAt     DateTime?
+  resolvedById   String?
+
+  @@unique([documentId, number])
+  @@index([deliverableId, status])
+  @@map("annotations")
 }

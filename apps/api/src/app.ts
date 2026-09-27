@@ -45,6 +45,7 @@ import portalRoutes from './routes/portal.js';
 import esignRoutes from './routes/esign.js';
 import liveRoutes from './routes/live.js';
 import messengerRoutes from './routes/messenger.js';
+import annotationRoutes from './routes/annotations.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -197,6 +198,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(esignRoutes);
     await api.register(liveRoutes);
     await api.register(messengerRoutes);
+    await api.register(annotationRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

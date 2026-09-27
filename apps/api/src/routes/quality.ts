@@ -12,6 +12,7 @@ import { nextCode } from '../lib/codes.js';
 import { allowedFor } from '../workflow/engine.js';
 import { transitionWithin } from '../workflow/engine.js';
 import { stageZero } from '../quality/stage-zero.js';
+import { composeCorrection } from '../annotations/service.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
 const LEVEL_PERMISSION = { UNIT: 'qc.unit', ACCOUNT: 'qc.account', FINAL: 'qc.final' } as const;
@@ -65,6 +66,17 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
       throw badRequest('QC_TARGET_REQUIRED', 'موضوع کنترل کیفیت مشخص نشده است.');
     }
 
+    // Roadmap #38: the annotations this review carries — open, on this deliverable, not yet carried by another review.
+    const carried = input.annotationIds.length ? await prisma.annotation.findMany({
+      where: { id: { in: input.annotationIds }, organizationId: actor.organizationId },
+      include: { document: { select: { fileName: true } } }, orderBy: [{ createdAt: 'asc' }],
+    }) : [];
+    if (carried.length !== input.annotationIds.length || carried.some((a) => a.deliverableId !== input.deliverableId || a.status !== 'OPEN' || a.qcReviewId)) {
+      throw badRequest('QC_ANNOTATIONS', 'یادداشت‌ها باید باز، از همین خروجی و ثبت‌نشده در بررسی دیگری باشند.');
+    }
+    const placed = carried.map((a) => ({ ...a, fileName: a.document.fileName }));
+    const findings = input.verdict === 'FAILED' && placed.length ? composeCorrection(input.findings, placed) : input.findings ?? null;
+
     const result = await prisma.$transaction(async (tx) => {
       const review = await tx.qcReview.create({
         data: {
@@ -77,10 +89,11 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
           taskId: input.taskId ?? null,
           checklist: input.checklist as object,
           verdict: input.verdict,
-          findings: input.findings ?? null,
+          findings,
           reviewerId: actor.id,
         },
       });
+      if (carried.length) await tx.annotation.updateMany({ where: { id: { in: carried.map((a) => a.id) } }, data: { qcReviewId: review.id } });
 
       // Doc_H §10: a failed QC must produce a revision carrying its reason.
       let revision = null;
@@ -96,12 +109,14 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
               deliverableId: deliverable.id,
               qcReviewId: review.id,
               reason: input.level === 'UNIT' ? 'QUALITY_BELOW_STANDARD' : 'BRIEF_MISMATCH',
-              requiredCorrection: input.findings ?? 'اصلاح مطابق یافته‌های QC',
+              requiredCorrection: findings ?? 'اصلاح مطابق یافته‌های QC',
               responsibleDepartmentCode: deliverable.departmentCode,
               dueDate: new Date(Date.now() + 2 * 86_400_000),
               requestedById: actor.id,
             },
           });
+          // Each annotation is a line of the correction, and stays linked to it to be resolved.
+          if (carried.length) await tx.annotation.updateMany({ where: { id: { in: carried.map((a) => a.id) } }, data: { revisionId: revision.id } });
           /**
            * The deliverable's move goes through the engine, not an inline UPDATE. Previously
            * this wrote REVISION_REQUIRED from any state and left no StateTransition row, so the
@@ -118,7 +133,7 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
               entity: 'deliverable',
               id: deliverable.id,
               action: 'qc_reject',
-              reason: input.findings ?? `عدم تأیید در QC — ${review.code}`,
+              reason: findings ?? `عدم تأیید در QC — ${review.code}`,
               actor: {
                 id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions,
                 ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,

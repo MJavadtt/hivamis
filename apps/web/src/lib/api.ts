@@ -179,6 +179,16 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
 }
 
 /** GET any file the API serves with a content-disposition — CSV templates and exports. */
+/** A file's bytes behind the session — for an <img>, a <video> or pdf.js to show (roadmap #38). */
+export async function apiBlob(path: string): Promise<Blob> {
+  const url = new URL(`/api/v1${path}`, window.location.origin);
+  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  let res = await send();
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+  if (!res.ok) throw new ApiError(res.status, { code: 'UNKNOWN', message: `خطای ${res.status}` });
+  return res.blob();
+}
+
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });

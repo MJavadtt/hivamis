@@ -124,6 +124,12 @@ are too few won deals to compare against, the card says so instead of averaging 
    price: that belongs to the pricing process (Doc_H §12).
 5. **Revisions** — when Account rejects an output, the revision arrives with the reason and the
    expected correction. Work it, resubmit, and it returns to QC.
+6. **Marks on the file itself** — **یادداشت روی فایل** (on the project's deliverables, in the QC
+   dialog, and beside each revision) opens the deliverable's images, videos and PDFs. Click an
+   image to pin a note; pause a video and note the moment; drag across a PDF page to mark a region.
+   A reviewer who fails a QC ticks the notes it carries: the revision's «اصلاح مورد انتظار» then
+   lists each one — which file, which page or second or pin — instead of a paragraph to decode.
+   When a note is fixed, mark it **رفع شد**.
 
 ---
 

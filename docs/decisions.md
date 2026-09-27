@@ -1183,3 +1183,23 @@ The live bots are written to the Telegram Bot API and exercised against a stand-
 themselves. Eitaa, Slack and Teams are not connected. Whoever holds the linked chat holds the
 approver's approvals for 72 hours — the same exposure as their email — and unlinking ends it.
 
+## ADR-047 — Feedback is placed on the file, and a failed QC turns it into the revision's lines
+
+**Decision.** Reviewers annotate a deliverable's own files — a pin on an image, a moment in a video,
+a region of a PDF page — in positions stored as fractions of the file, numbered per file, with the
+file's hash as annotated. A QC review that fails carries the annotations the reviewer ticks: the
+revision's required correction becomes the written findings plus one numbered line per annotation
+saying which file and where, and each annotation stays linked to that revision, to be marked
+resolved. PDF pages are drawn in the browser with pdf.js, the one dependency this adds, loaded only
+when a PDF is opened.
+
+**Rationale.** The roadmap names the gap: agencies point at the exact spot all day, through screenshots
+in messengers, and the revision (Doc_H §10) receives a paragraph that has to be decoded. The data
+model already had QC reviews and revisions; putting the place into the record, and into the text of
+the correction that the unit works from, closes the loop without changing the revision rules — a
+revision still has its mandatory reason and correction; the correction is just precise now.
+
+**Limits.** Images, videos and PDFs only; a ZIP or a PSD is not opened. A new upload is a new file:
+its annotations start again (the old file's stay with it). No drawing tools beyond a pin and a
+rectangle, and no threaded replies on an annotation.
+

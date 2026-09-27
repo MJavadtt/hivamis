@@ -26,6 +26,7 @@ import {
 } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { DeliverableApprovalButton } from '../components/ClientApprovals';
+import { AnnotateButton } from '../components/Annotations';
 import { ClientFilesCard, PortalMessagesCard } from '../components/PortalAdmin';
 
 const PROJECT_STATES = [
@@ -421,7 +422,7 @@ function WorkTab({ data }: { data: Project360 }) {
                   <Td className="ltr text-xs">{d.version}</Td>
                   <Td className="text-xs">{formatDate(d.dueDate)}</Td>
                   <Td><StateBadge state={d.state} /></Td>
-                  <Td><DeliverableApprovalButton deliverable={d} /></Td>
+                  <Td><div className="flex gap-1"><AnnotateButton deliverable={d} /><DeliverableApprovalButton deliverable={d} /></div></Td>
                 </Tr>
               ))}
             </tbody>

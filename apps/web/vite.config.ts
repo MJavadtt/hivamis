@@ -14,6 +14,11 @@ export default defineConfig({
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
+  optimizeDeps: {
+    // pdf.js (roadmap #38) is shipped as ready ES modules and loaded only when a PDF is annotated;
+    // pre-bundling it on first use stalls the dev server, so it is served as it is.
+    exclude: ['pdfjs-dist'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,

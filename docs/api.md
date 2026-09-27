@@ -388,6 +388,27 @@ A comment line every 25 s keeps proxies from closing the stream. At most five st
 (`429 LIVE_TOO_MANY`). Send the access token as `Authorization: Bearer` — the web app reads the
 stream with `fetch`, so the token never appears in a URL.
 
+## Annotation on deliverables
+
+Roadmap #38. Feedback placed on a deliverable's file: a pin on an image (`PIN`, `x`, `y`), a moment in
+a video (`TIMECODE`, `timeSec`, optionally a point), a region of a PDF page (`HIGHLIGHT`, `page`, `x`,
+`y`, `w`, `h`). Positions are fractions of the shown size (0–1), so they hold at any zoom; the
+database refuses a place outside the file. Each annotation is numbered on its file and keeps the
+SHA-256 of the file as annotated.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /deliverables/:id/annotations` | `deliverable.read` | The deliverable's files — with which can be annotated (`image`, `video`, `pdf`) — and every annotation with its author, review and revision |
+| `POST /deliverables/:id/annotations` | `qc.read` | Add one. `ANNOTATION_FILE` (not this deliverable's), `ANNOTATION_UNSUPPORTED` (not an image, video or PDF), `ANNOTATION_KIND` (a pin on a PDF, say). Audited |
+| `PATCH /annotations/:id` `{ status: OPEN \| RESOLVED }` | `deliverable.write` | Mark it fixed, or open it again |
+| `DELETE /annotations/:id` | the author | Only while no QC review has carried it (`409 ANNOTATION_CARRIED`) |
+
+`POST /qc-reviews` takes `annotationIds`: open annotations on the reviewed deliverable, not carried
+by another review (`QC_ANNOTATIONS`). A failed review may give them instead of, or with, written
+findings; the revision's `requiredCorrection` is then the findings followed by one numbered line per
+annotation — `[file — صفحهٔ ۲]`, `[file — ۰۰:۱۲]`, `[file — نشانهٔ ۳]` — and each annotation is linked
+to the review and the revision.
+
 ## Messenger
 
 Roadmap #40. A person links their messenger chat, and the notifications that matter

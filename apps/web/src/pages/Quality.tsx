@@ -14,6 +14,7 @@ import {
 import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { HelpDrawer } from '../components/HelpDrawer';
+import { AnnotateButton, AnnotationsModal, timecodeFa, type AnnotationRow } from '../components/Annotations';
 
 interface QcQueue {
   unit: any[]; account: any[]; final: any[]; revisions: any[];
@@ -193,7 +194,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
                 <Code>{r.code}</Code>
               </Td>
               <Td><Badge tone="warning">{REVISION_REASON_LABELS[r.reason] ?? r.reason}</Badge></Td>
-              <Td className="max-w-xs text-xs">{r.requiredCorrection}</Td>
+              <Td className="max-w-xs whitespace-pre-line text-xs">{r.requiredCorrection}</Td>
               <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
               <Td className="text-xs">
                 <span className={overdue ? 'font-medium text-rose-600' : ''}>{formatDate(r.dueDate)}</span>
@@ -202,6 +203,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
               <Td><StateBadge state={r.state} /></Td>
               <Td className="flex items-center gap-1">
                 <PdfButton kind="revision" id={r.id} label="PDF" variant="ghost" />
+                {r.deliverable && <AnnotateButton deliverable={r.deliverable} />}
                 <WorkflowActions entity="revision" id={r.id} transitions={r.availableTransitions} />
               </Td>
             </Tr>
@@ -222,6 +224,14 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
 
   const items = CHECKLISTS[level] ?? [];
   const isProposal = level === 'FINAL';
+  // Roadmap #38: annotations on the deliverable's files, open and not yet carried by a review.
+  const [annotating, setAnnotating] = useState(false);
+  const [unchecked, setUnchecked] = useState<Set<string>>(new Set());
+  const { data: marks } = useQuery<{ annotations: AnnotationRow[] }>({
+    queryKey: [`/deliverables/${target.id}/annotations`], queryFn: () => apiGet(`/deliverables/${target.id}/annotations`), enabled: !isProposal,
+  });
+  const open = (marks?.annotations ?? []).filter((a) => a.status === 'OPEN' && !a.qcReviewId);
+  const carried = open.filter((a) => !unchecked.has(a.id)).map((a) => a.id);
 
   const submit = async () => {
     setBusy(true);
@@ -232,6 +242,7 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         checklist,
         verdict,
         findings: findings.trim() || undefined,
+        ...(isProposal ? {} : { annotationIds: carried }),
       });
       toast(
         verdict === 'PASSED'
@@ -261,7 +272,7 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
           <Button
             variant={verdict === 'PASSED' ? 'primary' : 'danger'}
             loading={busy}
-            disabled={verdict === 'FAILED' && findings.trim().length < 3}
+            disabled={verdict === 'FAILED' && findings.trim().length < 3 && carried.length === 0}
             onClick={() => void submit()}
           >
             ثبت نتیجه
@@ -306,6 +317,28 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
           <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} rows={3} />
         </Field>
       </div>
+
+      {!isProposal && (
+        <div className="mt-3 rounded-lg border border-ink-200 p-3" data-testid="qc-annotations">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-ink-700">یادداشت‌های روی فایل‌ها</p>
+            <Button size="sm" variant="secondary" onClick={() => setAnnotating(true)}>یادداشت روی فایل‌ها</Button>
+          </div>
+          {!open.length ? <p className="mt-1 text-[11px] text-ink-500">یادداشت بازی نیست؛ برای نشان دادن جای دقیق اصلاح، روی خود فایل یادداشت بگذارید.</p> : (
+            <>
+              <p className="mt-1 text-[11px] text-ink-500">در صورت عدم تأیید، یادداشت‌های انتخاب‌شده سطر به سطر در «اصلاح مورد انتظار» اصلاحیه می‌آیند.</p>
+              <div className="mt-2 space-y-1">
+                {open.map((a) => (
+                  <Checkbox key={a.id} checked={!unchecked.has(a.id)}
+                    onChange={(e) => setUnchecked((u) => { const n = new Set(u); if (e.target.checked) n.delete(a.id); else n.add(a.id); return n; })}
+                    label={`${toPersianDigits(a.number)}. ${a.kind === 'TIMECODE' ? `[${timecodeFa(a.timeSec ?? 0)}] ` : a.kind === 'HIGHLIGHT' ? `[صفحهٔ ${toPersianDigits(a.page ?? 1)}] ` : ''}${a.note}`} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {annotating && <AnnotationsModal deliverableId={target.id} onClose={() => setAnnotating(false)} />}
     </Modal>
   );
 }

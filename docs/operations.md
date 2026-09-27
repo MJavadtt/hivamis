@@ -325,6 +325,13 @@ honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s i
 notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
 installed as pg-boss's driver) is now a direct dependency of the API for this listener.
 
+## Annotation on deliverables
+
+Roadmap #38. The web app shows PDF pages with pdf.js (`pdfjs-dist`), loaded only when a PDF is
+opened for annotation — its worker is served from the app itself. The annotator reads files as
+same-origin object URLs, so the page's CSP (`infrastructure/docker/security-headers.conf`) allows
+`blob:` for `img-src` and `media-src`; a proxy that sets its own CSP must allow the same.
+
 ## Messenger
 
 Roadmap #40. To connect a bot:

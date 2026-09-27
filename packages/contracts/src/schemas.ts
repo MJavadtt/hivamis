@@ -285,9 +285,11 @@ export const createQcReviewSchema = z.object({
   checklist: z.record(z.boolean()).default({}),
   verdict: z.enum(QC_RESULTS),
   findings: z.string().trim().max(4000).optional(),
+  /** Roadmap #38: annotations on the deliverable's files that this review carries into its revision. */
+  annotationIds: z.array(idSchema).max(200).default([]),
 }).refine(
-  (v) => v.verdict !== 'FAILED' || (v.findings != null && v.findings.trim().length > 0),
-  { message: 'در صورت عدم تأیید، ثبت یافته‌ها الزامی است', path: ['findings'] },
+  (v) => v.verdict !== 'FAILED' || (v.findings != null && v.findings.trim().length > 0) || v.annotationIds.length > 0,
+  { message: 'در صورت عدم تأیید، ثبت یافته‌ها یا یادداشت روی فایل الزامی است', path: ['findings'] },
 );
 
 /** Doc_H §10 — a revision without a recorded reason is rejected. */
@@ -529,6 +531,22 @@ export const acceptPortalInviteSchema = z.object({
 export const portalLoginSchema = loginSchema;
 export const portalMessageSchema = z.object({ body: z.string().trim().min(1).max(4000) });
 export const documentVisibilitySchema = z.object({ clientVisible: z.boolean() });
+
+/* ── annotation on deliverables (roadmap #38) ─────────────────────────────── */
+
+const fraction = z.coerce.number().min(0).max(1);
+/** A pin on an image, a moment in a video (optionally a point on the frame), or a region of a PDF page. */
+export const createAnnotationSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('PIN'), documentId: idSchema, x: fraction, y: fraction, note: z.string().trim().min(1).max(2000) }),
+  z.object({ kind: z.literal('TIMECODE'), documentId: idSchema, timeSec: z.coerce.number().min(0).max(86_400), x: fraction.optional(), y: fraction.optional(), note: z.string().trim().min(1).max(2000) }),
+  z.object({
+    kind: z.literal('HIGHLIGHT'), documentId: idSchema, page: z.coerce.number().int().min(1).max(10_000),
+    x: fraction, y: fraction, w: z.coerce.number().gt(0).max(1), h: z.coerce.number().gt(0).max(1), note: z.string().trim().min(1).max(2000),
+  }),
+]).superRefine((v, ctx) => {
+  if (v.kind === 'HIGHLIGHT' && (v.x + v.w > 1.0001 || v.y + v.h > 1.0001)) ctx.addIssue({ code: 'custom', message: 'ناحیه از صفحه بیرون زده است', path: ['w'] });
+});
+export const annotationStatusSchema = z.object({ status: z.enum(['OPEN', 'RESOLVED']) });
 
 /* ── contract e-signature (roadmap #36) ────────────────────────────────────── */
 
