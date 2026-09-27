@@ -57,6 +57,12 @@ export async function notify(input: NotifyInput): Promise<void> {
     },
   }).catch(() => undefined);
 
+  // The messenger (roadmap #40) for what matters away from the app. Imported late: the messenger
+  // decides forms through the forms engine, which itself notifies.
+  await import('../messenger/service.js')
+    .then((m) => m.pushNotification({ ...input, userId: input.userId! }))
+    .catch(() => undefined);
+
   if (!mailEnabled || !EMAILED_KINDS.has(input.kind) || !input.mail) return;
 
   const user = await prisma.user

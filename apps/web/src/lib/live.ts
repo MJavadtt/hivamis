@@ -96,7 +96,12 @@ export function useLiveUpdates(qc: QueryClient) {
     };
     const stop = connectLive({
       onTransition: refreshScreen,
-      onNotification: () => { void qc.invalidateQueries({ queryKey: ['/notifications'] }); void qc.invalidateQueries({ queryKey: ['/me/work'] }); },
+      onNotification: () => {
+        void qc.invalidateQueries({ queryKey: ['/notifications'] });
+        void qc.invalidateQueries({ queryKey: ['/me/work'] });
+        // A notification may also have gone to the messenger's practice chat (roadmap #40).
+        void qc.invalidateQueries({ queryKey: ['/messenger/sandbox/chat'] });
+      },
       onCatchUp: refreshScreen,
     });
     return () => { stop(); if (pending) clearTimeout(pending); };

@@ -73,6 +73,16 @@ const envSchema = z.object({
   ESIGN_URL: z.string().default(''),
   ESIGN_API_KEY: z.string().default(''),
   ESIGN_WEBHOOK_SECRET: z.string().default(''),
+  /**
+   * Messenger (roadmap #40). `sandbox` — an in-app stand-in chat; `bale` / `telegram` — a bot on a
+   * Telegram-compatible Bot API. Unset: sandbox outside production, off in production.
+   */
+  MESSENGER_MODE: z.enum(['off', 'sandbox', 'bale', 'telegram']).optional(),
+  MESSENGER_BOT_TOKEN: z.string().default(''),
+  /** The Bot API base; defaults to the provider's own (https://tapi.bale.ai, https://api.telegram.org). */
+  MESSENGER_API_URL: z.string().default(''),
+  MESSENGER_BOT_USERNAME: z.string().default(''),
+  MESSENGER_WEBHOOK_SECRET: z.string().default(''),
   MOADIAN_URL: z.string().default('https://tp.tax.gov.ir/requestsmanager/api/v2/'),
   MOADIAN_PRIVATE_KEY_PATH: z.string().default(''),
   MOADIAN_CERTIFICATE_PATH: z.string().default(''),

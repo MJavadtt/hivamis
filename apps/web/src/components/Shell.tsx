@@ -10,6 +10,7 @@ import { HelpDrawer } from './HelpDrawer';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, toPersianDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
+import { MessengerMenuItem } from './Messenger';
 import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
@@ -194,6 +195,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <Link to="/delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">
             تفویض اختیار{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">به نمایندگی</Badge>}
           </Link>
+          <MessengerMenuItem />
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => void signOut()}>
             <IconLogout className="size-4" /> خروج
           </Button>

@@ -277,6 +277,8 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
+  messengerLink        MessengerLink?
+  messengerActions     MessengerAction[]
   signatureEnvelopes   SignatureEnvelope[]
   portalInvites        PortalUser[]
   portalReplies        PortalMessage[]
@@ -2405,4 +2407,73 @@ model SignatureEvent {
 
   @@index([envelopeId, seq])
   @@map("signature_events")
+}
+
+/// Roadmap #40 — a staff member's messenger chat, linked by a one-time code they sent the bot
+/// themselves. Notifications that matter reach them there, and approvals can be decided there.
+model MessengerLink {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// sandbox | bale | telegram
+  provider       String
+  chatId         String
+  username       String?
+  linkedAt       DateTime @default(now())
+
+  @@unique([provider, chatId])
+  @@map("messenger_links")
+}
+
+/// One thing a person may do from the messenger, behind an unguessable token: link their chat,
+/// or decide one form approval. Single use, and it expires.
+model MessengerAction {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// LINK | FORM_DECISION
+  kind           String
+  token          String    @unique
+  /// For FORM_DECISION: { submissionId, decision, pairToken }
+  payload        Json      @default("{}")
+  /// OPEN | AWAITING_REASON | DONE | EXPIRED
+  state          String    @default("OPEN")
+  expiresAt      DateTime
+  usedAt         DateTime?
+  result         Json?
+  /// The chat message the buttons are on, to update it with the outcome.
+  chatId         String?
+  messageId      String?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, state])
+  @@map("messenger_actions")
+}
+
+/// Every message to and from the bot: the outbox that retries, and the record of what was said.
+model MessengerMessage {
+  id                String    @id @default(uuid())
+  organizationId    String
+  userId            String?
+  provider          String
+  chatId            String
+  /// OUT | IN
+  direction         String
+  text              String
+  /// [[{ text, action? , url? }]] — rows of buttons
+  buttons           Json?
+  /// QUEUED | SENT | FAILED | RECEIVED
+  status            String
+  providerMessageId String?
+  attempts          Int       @default(0)
+  error             String?
+  notificationKind  String?
+  createdAt         DateTime  @default(now())
+  sentAt            DateTime?
+
+  @@index([status, createdAt])
+  @@index([provider, chatId, createdAt])
+  @@map("messenger_messages")
 }

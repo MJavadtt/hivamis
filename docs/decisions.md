@@ -1160,3 +1160,26 @@ re-reads what it shows instead. Record-level visibility finer than the entity ty
 the event itself — it only says that a record of a type the reader may read moved. Only transitions
 and notifications are announced; other edits still appear on the next read.
 
+## ADR-046 — Approving from the messenger is approving in the app
+
+**Decision.** A person links their messenger chat with a one-time code they requested in the app
+and sent to the organisation's bot themselves. Notifications that need them are sent there too; a
+form approval carries «تأیید / رد / باز کردن در سیستم». A button is an unguessable, single-use token
+that expires and works only from the chat linked to the person it was sent to. Pressing it calls
+`decideForm` — unchanged — as that person, with their roles, permissions and delegations as of that
+moment and behind the same `form.approve` gate as the app's endpoint; a rejection asks for its
+reason as the app does. Linking is refused to API keys. The provider is an adapter: an in-app
+sandbox, and bots on the Telegram-compatible Bot API (Bale, Telegram).
+
+**Rationale.** The roadmap's condition is the whole point: a decision taken in the messenger must be
+indistinguishable, in its checks and its record, from one taken in the app, or the messenger becomes
+the way around the rules. Calling the same function with the same actor keeps every rule in one
+place — approver roles, stages and quorum (#18), delegation (#6), separation of duties — and the
+audit row differs only in saying where it came from. Removing the "open the system" step from the
+approver's loop is what the SLA figures need.
+
+**Limits.** Only form approvals are decided from the messenger; other notifications carry a link.
+The live bots are written to the Telegram Bot API and exercised against a stand-in, not the services
+themselves. Eitaa, Slack and Teams are not connected. Whoever holds the linked chat holds the
+approver's approvals for 72 hours — the same exposure as their email — and unlinking ends it.
+

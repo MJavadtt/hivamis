@@ -73,6 +73,11 @@ on first sign-in), then deactivate the demo users.
 | `ESIGN_MODE` | no | `sandbox` outside production, `off` in production | Contract e-signature (roadmap #36): `off` — signatures are recorded by hand; `sandbox` — an in-process stand-in, **not** a legal signature; `http` — a provider behind the contract below |
 | `ESIGN_URL` · `ESIGN_API_KEY` | for `http` | — | The provider bridge's base URL and bearer key |
 | `ESIGN_WEBHOOK_SECRET` | for `http` | — | HMAC key for the provider's callbacks; without it every callback is refused |
+| `MESSENGER_MODE` | no | `sandbox` outside production, `off` in production | Messenger (roadmap #40): `sandbox` — an in-app chat; `bale` / `telegram` — a bot on the Bot API; `off` |
+| `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
+| `MESSENGER_API_URL` | no | the provider's | Bot API base, e.g. a proxy in front of it |
+| `MESSENGER_BOT_USERNAME` | no | — | Shown to people linking, and used for Telegram deep links |
+| `MESSENGER_WEBHOOK_SECRET` | for `bale`/`telegram` | — | Path segment of the webhook and the Bot API secret token; without it no update is accepted |
 | `MOADIAN_URL` | no | `https://tp.tax.gov.ir/requestsmanager/api/v2/` | The authority's API base. Point it at the authority's test environment for the first live submissions |
 | `MOADIAN_PRIVATE_KEY_PATH` / `MOADIAN_CERTIFICATE_PATH` | for `live` | — | The taxpayer's private key (PEM) registered in the authority's portal, and its certificate (PEM, sent as `x5c`). Keep them out of the repository and readable only by the API process |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
@@ -319,6 +324,22 @@ honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s i
 `infrastructure/docker/nginx.conf`). A browser that cannot hold the stream falls back to polling
 notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
 installed as pg-boss's driver) is now a direct dependency of the API for this listener.
+
+## Messenger
+
+Roadmap #40. To connect a bot:
+
+1. Create the bot in the messenger (Bale or Telegram) and take its token and username.
+2. Set `MESSENGER_MODE`, `MESSENGER_BOT_TOKEN`, `MESSENGER_BOT_USERNAME` and a long random
+   `MESSENGER_WEBHOOK_SECRET`; `PUBLIC_APP_URL` must be reachable from the messenger's servers.
+3. In **مدیریت ← یکپارچه‌سازی ← پیام‌رسان**, **ثبت وب‌هوک ربات** registers
+   `PUBLIC_APP_URL/api/v1/messenger/webhook/<secret>` with the bot.
+4. Each person links from the sidebar's **پیام‌رسان**: a one-time code they send to the bot.
+
+`messenger:send` runs every minute and retries what did not go out (five attempts). The live
+transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a
+stand-in, not against either service — link one person and approve one form end to end before
+announcing it. Eitaa, Slack and Teams are not connected.
 
 ## Contract e-signature
 

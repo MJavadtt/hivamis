@@ -16,6 +16,7 @@ import { FormRouting } from '../components/FormRouting';
 import { FormDesigner } from '../components/FormDesigner';
 import { SecurityAlerts } from '../components/SecurityAlerts';
 import { ApiKeys, Webhooks } from '../components/Integrations';
+import { MessengerAdmin } from '../components/Messenger';
 
 export default function Admin() {
   const [tab, setTab] = useState('users');
@@ -53,7 +54,7 @@ export default function Admin() {
         {tab === 'routing' && <FormRouting />}
         {tab === 'audit' && <AuditTrail />}
         {tab === 'security' && <SecurityAlerts />}
-        {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /></div>}
+        {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /><MessengerAdmin /></div>}
         {tab === 'ai' && <AiLog />}
       </PageBody>
     </>

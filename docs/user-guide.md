@@ -24,6 +24,14 @@ else — an order accepted, a deliverable through QC, an invoice issued — appe
 have open within a couple of seconds, and a new notification at once. Amber means connecting; grey
 means the live connection is not available, and the page refreshes itself every minute as before.
 
+**In your messenger.** **پیام‌رسان** at the foot of the sidebar links your messenger chat: press
+**اتصال پیام‌رسان**, and send the code it shows to the organisation's bot. From then on the
+notifications that need you — an approval waiting, an SLA about to be missed or missed, a client's
+message, a contract signed — reach you there too. An approval request comes with «تأیید» and «رد»:
+approving from the chat is exactly approving in the app — the same rules decide whether you may,
+and the record says you did it, from the messenger. «رد» asks for the reason first. **جدا کردن**
+disconnects the chat. On an installation without a bot, the same window shows a practice chat.
+
 ## Sales
 
 **Your loop: acquire → qualify → brief → present → close.**

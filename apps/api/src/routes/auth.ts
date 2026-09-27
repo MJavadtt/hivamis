@@ -13,7 +13,8 @@ import { env } from '../env.js';
 const MAX_FAILED = 5;
 const LOCK_MS = 15 * 60_000;
 
-async function claimsFor(userId: string) {
+/** The claims a user signs in with — roles, permissions, delegations as of now. Also used by the messenger (#40). */
+export async function claimsFor(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { department: true, roles: { include: { role: true } } },

@@ -388,11 +388,37 @@ A comment line every 25 s keeps proxies from closing the stream. At most five st
 (`429 LIVE_TOO_MANY`). Send the access token as `Authorization: Bearer` — the web app reads the
 stream with `fetch`, so the token never appears in a URL.
 
+## Messenger
+
+Roadmap #40. A person links their messenger chat, and the notifications that matter
+(`FORM_APPROVAL_REQUIRED`, `SLA_BREACH`, `SLA_WARNING`, `SLA_PREDICTED_BREACH`,
+`CLIENT_APPROVAL_DECIDED`, `PORTAL_MESSAGE`, `ESIGN_COMPLETED`, `ESIGN_DECLINED`) are sent there
+too. A form approval arrives with «تأیید / رد / باز کردن در سیستم»; pressing one decides the form
+through `decideForm` — the same approver roles, stages, quorum and separation of duties, the same
+audit row (its `userAgent` is `messenger:<provider>`) — as that person with their permissions and
+delegations of now, after the same `form.approve` gate as the app. «رد» asks for the reason, and the
+next message from that chat is taken as it (or «انصراف»). A button is a single-use token that
+expires in 72 h and works only from the chat linked to the person it was sent to; the message is
+then edited to say what happened. `MESSENGER_MODE`: `sandbox` (an in-app chat per person), `bale`,
+`telegram` (a bot on the Telegram-compatible Bot API), `off`.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /messenger/me` | signed in (not an API key) | Mode, whether this person is linked |
+| `POST /messenger/link` | same | A one-time code `HV-XXXXXX` (15 minutes) to send the bot — `/start HV-…`, `/link HV-…` or the code alone; a Telegram deep link when the bot's name is set. A chat already linked to someone else is refused |
+| `DELETE /messenger/link` | same | Unlink; open buttons stop working. Audited |
+| `GET /messenger/sandbox/chat` · `POST …/send` `{ text }` · `POST …/press` `{ action }` | same, sandbox only | Your own stand-in chat: what the bot said, what you say back, the buttons you press |
+| `POST /messenger/webhook/:secret` | the path secret, and the Bot API's `X-Telegram-Bot-Api-Secret-Token` when sent | The bot's updates: `message` (codes, reasons) and `callback_query` (buttons). Anything else is `404`; a processing failure is logged and still answered `200`, as the Bot API retries otherwise |
+| `GET /admin/messenger` · `POST /admin/messenger/webhook` | `admin.settings` | Mode, linked people, messages in the last 24 h; register the webhook with the bot |
+
+Outgoing messages are kept (`messenger_messages`): sent at once, retried every minute up to five
+times.
+
 ## API keys and webhooks
 
 Roadmap #46 — identities for systems, and events sent to them. Both are managed only from a
-person's session (`admin.keys`); a key is refused on `/auth/*`, `/delegations` and these
-management paths.
+person's session (`admin.keys`); a key is refused on `/auth/*`, `/delegations`, `/messenger/*`
+(#40 — a linked chat decides with the person's whole authority) and these management paths.
 
 **Keys.** Send `Authorization: Bearer hiva_<prefix>_<secret>` in place of an access token. A key
 acts as its creator, narrowed to the permissions it was given and recomputed on every request from
