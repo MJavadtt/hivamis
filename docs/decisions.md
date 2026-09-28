@@ -1242,3 +1242,33 @@ branching: a version replaces the current one, not an older one. Colour profiles
 not read; a WebP, GIF or font file gives only what its header holds; WOFF/WOFF2 fonts are accepted
 but their family name is not read (the data is compressed). Old versions are kept on disk for good —
 there is no retention policy. Nothing checks designs against the brand library yet; that is #43.
+
+## ADR-049 — The brand check reads colours from the file itself, and only advises
+
+**Decision.** Each PNG, JPEG and PDF is read at upload for what it is made of: an image's main
+colours with their share of the area, a PDF's colours as its content sets them and the fonts its
+text selects. The reading is kept with the file's metadata — a version's bytes never change — and
+compared, when asked, with the client's brand library as it is then: in CIEDE2000 for RGB, ink by
+ink for CMYK against CMYK values the brand library now accepts. Results are warnings in QC stage
+zero and a panel in the annotator; never a failure, never a blocked handover. No dependency was
+added: a PNG is inflated with zlib and un-filtered; a JPEG is read only for each block's DC
+coefficient — its average colour — which skips the inverse DCT and is exactly the resolution a
+palette needs; a PDF's content streams are tokenised through pdf-lib, which was already here.
+
+**Rationale.** «مغایرت با هویت بصری» is already one of the revision reasons, which says the error
+recurs. Most of it is mechanical — the wrong navy, a font that isn't the brand's — and a machine
+can name it before a person spends a review on it. It cannot judge the rest: a photograph has
+colours no palette lists and a chart needs more than four, so the check names the colours and their
+shares and leaves the verdict to the reviewer, in keeping with stage zero's rule (ADR-032) that
+only certainties block. Tolerances differ by source: an image is measured through compression and
+8×8 averaging, while a PDF's colours are exact numbers, so "almost the brand's navy" in a PDF is
+itself a finding. CMYK is not converted to RGB, because without the file's colour profile the
+conversion is a guess; it is compared with the brand's own CMYK, and left unjudged where the brand
+gives none.
+
+**Limits.** Fonts are read only from PDFs, not from text in images; images placed in a PDF are not
+read; video, GIF, WebP and archive contents are not checked; logo use, clear space and composition
+remain the reviewer's. Spot inks match only by name. Arithmetic-coded JPEGs and images over 60
+megapixels are reported as unread. The reading costs up to about half a second of CPU per large
+image, in the upload request.
+

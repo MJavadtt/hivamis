@@ -344,6 +344,12 @@ through `GET /documents/:id/preview`, audited as `FILE_VIEW` once per person, fi
 as a download; the anomaly scan counts each distinct file viewed. The browser may keep a preview
 for five minutes (`Cache-Control: private`), which is safe because a version's bytes never change.
 
+The brand check (#43) reads each PNG, JPEG and PDF at upload, in the request: a PNG is inflated
+and un-filtered, a JPEG is read for its DC coefficients only, a PDF for its content streams. On a
+24-megapixel image that is 0.1–0.5 s of CPU; images over 60 megapixels are not read (reported as too
+large). The same hourly `documents:metadata` job reads files uploaded before, 50 at a time; raising
+`BRAND_SCAN_VERSION` in `src/brand/scan.ts` makes it read every file again.
+
 Brand typefaces are previewed in the browser from the file's bytes (`FontFace` with an
 `ArrayBuffer`), so the page's CSP needs nothing beyond what #38 added; thumbnails of PDF first
 pages reuse the pdf.js already loaded for annotation.

@@ -95,7 +95,9 @@ Doc_H §2 separates these loops, and the permission model enforces it.
 8. **The client's brand library** — on the client's page, **کتابخانهٔ برند** holds their colours
    (click one to copy its code), typefaces, notes such as logo clear space, and their brand files
    by role: logos, font files, the identity guide. A font file is shown set in itself, and a
-   typeface listed without a file is flagged. Unit and account managers (**brand.manage**) edit it;
+   typeface listed without a file is flagged. For print work, give each colour its CMYK too —
+   without it, the brand check cannot judge a CMYK file's colours. Unit and account managers
+   (**brand.manage**) edit it;
    everyone who reads files sees it. A new version of a file you shared in the portal reaches the
    client only when you share it; until then they keep the one they had.
 
@@ -144,6 +146,12 @@ are too few won deals to compare against, the card says so instead of averaging 
    laid over each other with a slider — marking what changed. In the annotator an older version
    keeps its notes, shown read-only, so you can check each one against the new version; new notes
    go on the current version only.
+8. **The brand check** — before a person looks, the machine compares each image's main colours and
+   each PDF's colours and fonts with the client's brand library. Stage zero warns when a tenth of
+   an image is in colours the brand doesn't have, when a PDF uses a typeface outside the brand, and
+   notes a PDF colour that is *nearly* the brand's (usually picked by eye). In the annotator,
+   **بررسی برند** shows the file's colours as swatches, each named against the brand. It advises:
+   a photo or a chart has colours no palette lists, and you judge.
 
 ---
 

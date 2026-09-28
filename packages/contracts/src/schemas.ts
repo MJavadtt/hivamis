@@ -556,6 +556,8 @@ export const brandKitSchema = z.object({
     name: z.string().trim().min(1).max(60),
     hex: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'رنگ باید به شکل #RRGGBB باشد').transform((v) => v.toUpperCase()),
     role: z.enum(BRAND_COLOR_ROLES),
+    // Print guides give a colour in ink too; the brand check compares CMYK files against it (#43).
+    cmyk: z.array(z.number().min(0).max(100).transform((v) => Math.round(v))).length(4).nullish(),
   })).max(40),
   fonts: z.array(z.object({ family: z.string().trim().min(1).max(100), usage: z.string().trim().max(200).optional() })).max(20),
   notes: z.string().trim().max(4000).optional().nullable(),

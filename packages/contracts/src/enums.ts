@@ -212,6 +212,10 @@ export type BrandRole = (typeof BRAND_ROLES)[number];
 export const BRAND_ROLE_LABELS: Record<BrandRole, string> = { LOGO: 'لوگو', FONT: 'فونت', GUIDELINE: 'راهنمای هویت بصری', IMAGE: 'تصویر', OTHER: 'سایر' };
 export const BRAND_COLOR_ROLES = ['PRIMARY', 'SECONDARY', 'ACCENT', 'NEUTRAL'] as const;
 export const BRAND_COLOR_ROLE_LABELS: Record<(typeof BRAND_COLOR_ROLES)[number], string> = { PRIMARY: 'اصلی', SECONDARY: 'دوم', ACCENT: 'تأکیدی', NEUTRAL: 'خنثی' };
+/** How a file's colour or typeface stands against the brand library (roadmap #43). */
+export const BRAND_CHECK_STATUS_LABELS: Record<string, string> = {
+  BRAND: 'رنگ برند', NEAR: 'نزدیک به رنگ برند', NEUTRAL: 'خنثی', OFF: 'بیرون از پالت', UNCHECKED: 'سنجیده نشد',
+};
 export const COLOR_SPACE_LABELS: Record<string, string> = {
   RGB: 'RGB', RGBA: 'RGB با شفافیت', GRAYSCALE: 'سیاه‌وسفید', GRAYSCALE_ALPHA: 'سیاه‌وسفید با شفافیت', INDEXED: 'پالت محدود', CMYK: 'CMYK (چاپی)', YCCK: 'YCCK (چاپی)',
 };

@@ -11,11 +11,14 @@
  */
 import { open, readFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
+import { imageBrandScan, pdfBrandScan, type BrandScan } from '../brand/scan.js';
 
 export type ColorSpace = 'RGB' | 'RGBA' | 'GRAYSCALE' | 'GRAYSCALE_ALPHA' | 'INDEXED' | 'CMYK' | 'YCCK';
 export interface FileMetadata {
   width?: number; height?: number; colorSpace?: ColorSpace; bitDepth?: number;
   durationSec?: number; pageCount?: number; pageSizeMm?: { w: number; h: number }; fontFamily?: string;
+  /** Colours, and a PDF's typefaces, for the brand check (roadmap #43). */
+  brand?: BrandScan;
 }
 
 async function head(path: string, bytes: number) {
@@ -130,12 +133,15 @@ async function readMoov(path: string): Promise<Buffer | null> {
   } finally { await h.close(); }
 }
 
-export async function pdfMetadata(bytes: Buffer): Promise<FileMetadata | null> {
+export async function pdfMetadata(bytes: Buffer, withBrand = false): Promise<FileMetadata | null> {
   try {
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
     const first = doc.getPages()[0];
     const mm = (pt: number) => Math.round((pt * 25.4) / 72);
-    return { pageCount: doc.getPageCount(), ...(first ? { pageSizeMm: { w: mm(first.getWidth()), h: mm(first.getHeight()) } } : {}) };
+    return {
+      pageCount: doc.getPageCount(), ...(first ? { pageSizeMm: { w: mm(first.getWidth()), h: mm(first.getHeight()) } } : {}),
+      ...(withBrand ? { brand: pdfBrandScan(doc) } : {}),
+    };
   } catch {
     return null;
   }
@@ -176,9 +182,14 @@ export const FONT_TYPES = new Set(['font/ttf', 'font/otf', 'font/woff', 'font/wo
 
 export async function extractMetadata(path: string, mimeType: string): Promise<FileMetadata | null> {
   try {
+    if (mimeType === 'image/png' || mimeType === 'image/jpeg') {
+      const bytes = await readFile(path);
+      const header = imageMetadata(bytes.subarray(0, 256 * 1024));
+      return header ? { ...header, brand: imageBrandScan(bytes, mimeType) } : null;
+    }
     if (mimeType.startsWith('image/')) return imageMetadata(await head(path, 256 * 1024));
     if (mimeType === 'video/mp4') { const moov = await readMoov(path); return moov ? mp4Metadata(moov) : null; }
-    if (mimeType === 'application/pdf') return pdfMetadata(await readFile(path));
+    if (mimeType === 'application/pdf') return pdfMetadata(await readFile(path), true);
     if (mimeType === 'font/ttf' || mimeType === 'font/otf') {
       const family = fontFamily(await head(path, 2 * 1024 * 1024));
       return family ? { fontFamily: family } : null;

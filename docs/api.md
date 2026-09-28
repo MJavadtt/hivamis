@@ -443,6 +443,36 @@ the current version makes the version it replaced current again.
 | `GET /companies/:id/brand` | `document.read` | The client's palette, typefaces and notes, and its current brand files with their roles, versions and metadata |
 | `PUT /companies/:id/brand` `{ colors: [{ name, hex, role }], fonts: [{ family, usage? }], notes }` | `brand.manage` | Replace them. `hex` is `#RRGGBB`, stored upper-case; `role` is `PRIMARY`, `SECONDARY`, `ACCENT` or `NEUTRAL`. Audited |
 
+## Brand compliance check
+
+Roadmap #43. Each PNG, JPEG and PDF is read at upload for what it is made of, kept as
+`metadata.brand` (`v`, `kind`, `colours [{ hex, share }]`, `inks [{ cmyk, share }]`, and for a PDF
+`spots` and `fonts`; `skipped: TOO_LARGE | UNREADABLE` when it could not be read). An image's main
+colours carry their share of the area; a PDF's colours are those its content sets (`rg`, `k`, `scn`
+in ICC, grey and Separation spaces, inside form XObjects too), with their share of the settings,
+and its fonts are those its text selects (`Tf`), without the subset prefix. The metadata job reads
+older files and re-reads any whose scan is from an older version.
+
+The comparison is made when asked, against the brand library as it is then:
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /documents/:id/brand-check` | `document.read` | `{ company, supported, kit, check, noteFa }`. `check.colours[]` names each colour `BRAND`, `NEAR`, `NEUTRAL`, `OFF` or `UNCHECKED`, with the nearest brand colour and the distance; `check.fonts[]` and `check.spots[]` likewise; `offShare`; `verdict` `OK`, `WARN` or `NOT_CHECKED`; `notesFa` — what was not judged, and why. The file's client is its own, its project's, its deliverable's project's or its contract's |
+
+RGB is compared in CIEDE2000 — within 8 of a brand colour is the brand's in an image (read through
+compression), within 1 in a PDF (exact numbers); up to 15 and 10 is `NEAR`. White, grey and black
+(chroma under 8) are `NEUTRAL`. CMYK is compared ink by ink against the brand colours' `cmyk`
+(within 6 and 2 points), and left `UNCHECKED` where the brand gave none. An image warns when a
+tenth of its area is outside the palette (colours under 3% of it are detail, not design), a PDF at
+a twentieth of its colour settings or any typeface outside the brand's.
+
+`PUT /companies/:id/brand` accepts `cmyk: [c, m, y, k]` (0–100, stored whole) on each colour.
+
+QC stage zero (`POST /deliverables/:id/stage-zero`, and the `deliverable.submit` handover) runs the
+same check on the deliverable's current files: `check: 'brand'` findings are `WARN` (off-palette
+colours, typefaces outside the brand) or `INFO` (a PDF colour nearly the brand's) — never `FAIL`.
+What was not judged goes to `notCheckedFa`.
+
 ## Messenger
 
 Roadmap #40. A person links their messenger chat, and the notifications that matter

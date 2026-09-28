@@ -22,6 +22,9 @@ import path from 'node:path';
 import type { Tx } from '../db.js';
 import { env } from '../env.js';
 import { normalisePersian } from '../memory/embed.js';
+import { brandFindingsFa, checkScan } from '../brand/check.js';
+import { kitOf, scanOf } from '../brand/kit.js';
+import { BRAND_SCANNABLE } from '../brand/scan.js';
 
 export type Severity = 'FAIL' | 'WARN' | 'INFO';
 
@@ -187,9 +190,9 @@ export async function stageZero(tx: Tx, organizationId: string, deliverableId: s
   const d = await tx.deliverable.findFirstOrThrow({
     where: { id: deliverableId, organizationId },
     include: {
-      documents: { where: { deletedAt: null, supersededAt: null }, select: { fileName: true, storedName: true, mimeType: true, sizeBytes: true } },
+      documents: { where: { deletedAt: null, supersededAt: null }, select: { fileName: true, storedName: true, mimeType: true, sizeBytes: true, metadata: true } },
       workOrder: { select: { outputFormat: true, expectedOutput: true, deadline: true, code: true } },
-      project: { select: { outOfScope: true } },
+      project: { select: { outOfScope: true, companyId: true } },
     },
   });
 
@@ -326,7 +329,29 @@ export async function stageZero(tx: Tx, organizationId: string, deliverableId: s
     findings.push({ check: 'late', severity: 'INFO', messageFa: 'مهلت سفارش کار پیش از این تحویل گذشته بود' });
   }
 
-  notCheckedFa.push('محتوای فایل‌ها، هماهنگی با بریف و هویت بصری — کار بازبین انسانی است');
+  // 9. The client's brand (roadmap #43): each image's main colours and each PDF's colours and
+  // typefaces against the brand library. Warnings at most — a photograph or a chart has colours no
+  // palette lists, and a person judges; what could not be judged is said.
+  const scannable = d.documents.filter((doc) => BRAND_SCANNABLE.includes(doc.mimeType));
+  const kit = scannable.length ? await kitOf(tx, d.project?.companyId) : null;
+  if (scannable.length && !kit) notCheckedFa.push('هویت بصری — کتابخانهٔ برند این مشتری رنگ و فونتی ندارد');
+  if (kit) {
+    checkedFa.push('رنگ‌ها و فونت‌ها در برابر کتابخانهٔ برند مشتری');
+    const notes = new Set<string>();
+    for (const doc of scannable) {
+      const scan = await scanOf(doc);
+      if (!scan) { notes.add(`«${doc.fileName}» خوانده نشد`); continue; }
+      const result = checkScan(scan, kit);
+      for (const f of brandFindingsFa(doc.fileName, result)) findings.push({ check: 'brand', severity: f.severity, fileName: doc.fileName, messageFa: f.messageFa });
+      result.notesFa.forEach((n) => notes.add(n));
+    }
+    for (const n of notes) notCheckedFa.push(`هویت بصری: ${n}`);
+  }
+  if (kit && d.documents.some((doc) => doc.mimeType.startsWith('video/') || ['image/gif', 'image/webp'].includes(doc.mimeType))) {
+    notCheckedFa.push('هویت بصری ویدئو و تصاویر GIF/WebP سنجیده نمی‌شود');
+  }
+
+  notCheckedFa.push('محتوای فایل‌ها، هماهنگی با بریف، و کاربرد درست لوگو و ترکیب‌بندی — کار بازبین انسانی است');
 
   const verdict = findings.some((f) => f.severity === 'FAIL') ? 'FAIL' : findings.some((f) => f.severity === 'WARN') ? 'WARN' : 'PASS';
   return {

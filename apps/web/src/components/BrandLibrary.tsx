@@ -5,12 +5,12 @@ import { apiGet, apiPut, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Input, Modal, Select, Textarea, useToast } from './ui';
 import { FilePreview, NewVersionButton, VersionsButton, metadataFa } from './Assets';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, toLatinDigits, toPersianDigits } from '../lib/format';
 
 /* Roadmap #42 — a client's brand in one place: palette, typefaces, and the files that carry it. */
 
 type ColorRole = (typeof BRAND_COLOR_ROLES)[number];
-interface Kit { colors: { name: string; hex: string; role: ColorRole }[]; fonts: { family: string; usage?: string }[]; notes: string | null; updatedAt: string | null }
+interface Kit { colors: { name: string; hex: string; role: ColorRole; cmyk?: number[] | null }[]; fonts: { family: string; usage?: string }[]; notes: string | null; updatedAt: string | null }
 interface BrandFile { id: string; lineageId: string | null; fileName: string; mimeType: string; sizeBytes: number; brandRole: BrandRole; version: number; metadata: any; createdAt: string; uploadedBy: { fullName: string } | null }
 interface Data { company: { id: string; legalName: string }; kit: Kit; files: BrandFile[] }
 
@@ -58,6 +58,7 @@ export function BrandLibraryCard({ companyId }: { companyId: string }) {
                     className="flex h-20 w-28 flex-col justify-end rounded-lg p-2 text-start shadow-sm ring-1 ring-ink-200" style={{ background: c.hex, color: inkOn(c.hex) }}>
                     <span className="text-xs font-medium">{c.name}</span>
                     <span className="ltr text-[11px] opacity-90">{c.hex}</span>
+                    {c.cmyk && <span className="ltr text-[10px] opacity-80">C{c.cmyk[0]} M{c.cmyk[1]} Y{c.cmyk[2]} K{c.cmyk[3]}</span>}
                     <span className="text-[10px] opacity-80">{BRAND_COLOR_ROLE_LABELS[c.role]}</span>
                   </button>
                 </li>
@@ -120,21 +121,31 @@ export function BrandLibraryCard({ companyId }: { companyId: string }) {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
+/** "89 67 37 51", "۸۹،۶۷،۳۷،۵۱" → four ink percentages; empty is none; anything else is invalid. */
+export function parseInk(text: string): number[] | null | 'invalid' {
+  const parts = toLatinDigits(text).trim().split(/[\s,،/]+/).filter(Boolean);
+  if (!parts.length) return null;
+  const inks = parts.map(Number);
+  return inks.length === 4 && inks.every((v) => Number.isFinite(v) && v >= 0 && v <= 100) ? inks.map(Math.round) : 'invalid';
+}
+
 function KitEditor({ companyId, kit, onClose, onSaved }: { companyId: string; kit: Kit; onClose: () => void; onSaved: () => Promise<unknown> }) {
   const toast = useToast();
-  const [colors, setColors] = useState(kit.colors.length ? kit.colors : [{ name: '', hex: '#000000', role: 'PRIMARY' as ColorRole }]);
+  // Each colour's ink is edited as text and read when saved (roadmap #43).
+  const [colors, setColors] = useState((kit.colors.length ? kit.colors : [{ name: '', hex: '#000000', role: 'PRIMARY' as ColorRole }]).map((c) => ({ ...c, ink: c.cmyk?.join(' ') ?? '' })));
   const [fonts, setFonts] = useState(kit.fonts);
   const [notes, setNotes] = useState(kit.notes ?? '');
   const [busy, setBusy] = useState(false);
-  const setColor = (i: number, patch: Partial<Kit['colors'][number]>) => setColors(colors.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const setColor = (i: number, patch: Partial<(typeof colors)[number]>) => setColors(colors.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const setFont = (i: number, patch: Partial<Kit['fonts'][number]>) => setFonts(fonts.map((f, j) => (j === i ? { ...f, ...patch } : f)));
   const keptColors = colors.filter((c) => c.name.trim());
   const bad = keptColors.find((c) => !HEX.test(c.hex));
+  const badInk = keptColors.find((c) => parseInk(c.ink) === 'invalid');
   const save = async () => {
     setBusy(true);
     try {
       await apiPut(`/companies/${companyId}/brand`, {
-        colors: keptColors.map((c) => ({ ...c, name: c.name.trim() })),
+        colors: keptColors.map(({ ink, cmyk: _old, ...c }) => ({ ...c, name: c.name.trim(), cmyk: parseInk(ink) })),
         fonts: fonts.filter((f) => f.family.trim()).map((f) => ({ family: f.family.trim(), ...(f.usage?.trim() ? { usage: f.usage.trim() } : {}) })),
         notes: notes.trim() || null,
       });
@@ -145,7 +156,7 @@ function KitEditor({ companyId, kit, onClose, onSaved }: { companyId: string; ki
   };
   return (
     <Modal open wide title="رنگ‌ها و فونت‌های برند" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} disabled={!!bad} onClick={() => void save()}>ذخیره</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} disabled={!!bad || !!badInk} onClick={() => void save()}>ذخیره</Button></>}>
       <div className="space-y-4" data-testid="kit-editor">
         <section className="space-y-2">
           <h4 className="text-xs font-medium text-ink-600">رنگ‌ها</h4>
@@ -157,11 +168,14 @@ function KitEditor({ companyId, kit, onClose, onSaved }: { companyId: string; ki
               <Select value={c.role} onChange={(e) => setColor(i, { role: e.target.value as ColorRole })} aria-label={`کاربرد رنگ ${toPersianDigits(i + 1)}`} className="w-auto">
                 {BRAND_COLOR_ROLES.map((r) => <option key={r} value={r}>{BRAND_COLOR_ROLE_LABELS[r]}</option>)}
               </Select>
+              <Input value={c.ink} onChange={(e) => setColor(i, { ink: e.target.value })} aria-label={`CMYK رنگ ${toPersianDigits(i + 1)}`} placeholder="CMYK، مثلاً 89 67 37 51" className="ltr w-40" />
               <Button size="sm" variant="ghost" onClick={() => setColors(colors.filter((_, j) => j !== i))}>حذف</Button>
             </div>
           ))}
           {bad && <p className="text-xs text-rose-700">کد رنگ «{bad.hex}» باید به شکل #RRGGBB باشد.</p>}
-          <Button size="sm" variant="secondary" onClick={() => setColors([...colors, { name: '', hex: '#000000', role: 'SECONDARY' }])}>افزودن رنگ</Button>
+          {badInk && <p className="text-xs text-rose-700">مقدار CMYK «{badInk.ink}» باید چهار عدد بین ۰ تا ۱۰۰ باشد.</p>}
+          <p className="text-[11px] text-ink-400">CMYK برای سنجش فایل‌های چاپی است؛ بدون آن، رنگ‌های CMYK یک فایل با برند سنجیده نمی‌شود.</p>
+          <Button size="sm" variant="secondary" onClick={() => setColors([...colors, { name: '', hex: '#000000', role: 'SECONDARY', ink: '' }])}>افزودن رنگ</Button>
         </section>
         <section className="space-y-2">
           <h4 className="text-xs font-medium text-ink-600">فونت‌ها</h4>

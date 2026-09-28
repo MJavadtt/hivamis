@@ -159,7 +159,7 @@ describe('A client’s brand library', () => {
     fireEvent.click(screen.getByText('ذخیره'));
     await waitFor(() => expect(sent[0]).toMatchObject({ url: expect.stringContaining('/companies/c1/brand'), method: 'PUT' }));
     expect(sent[0]!.body).toEqual({
-      colors: [{ name: 'سرمه‌ای', hex: '#0f766e', role: 'PRIMARY' }, { name: 'طلایی', hex: '#D4AF37', role: 'ACCENT' }],
+      colors: [{ name: 'سرمه‌ای', hex: '#0f766e', role: 'PRIMARY', cmyk: null }, { name: 'طلایی', hex: '#D4AF37', role: 'ACCENT', cmyk: null }],
       fonts: [{ family: 'Vazirmatn', usage: 'متن' }, { family: 'Lalezar' }],
       notes: 'لوگو روی زمینهٔ تیره سفید است.',
     });

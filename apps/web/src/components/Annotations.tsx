@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { Badge, Button, Modal, Textarea, useToast } from './ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
 import { NewVersionButton, VersionsButton, metadataFa, openPdf, useFileUrl, type FileMeta } from './Assets';
+import { BrandCheckPanel } from './BrandCheck';
 
 /*
  * Roadmap #38 — feedback placed on the file itself: a pin on an image, a moment in a video, a region
@@ -47,6 +48,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
   const [pending, setPending] = useState<Pending | null>(null);
   const [note, setNote] = useState('');
   const [focus, setFocus] = useState<string | null>(null);
+  const [brand, setBrand] = useState(false);
   if (!data) return null;
   const files = data.files.filter((f) => f.kind);
   // One tab per file, at its current version; older versions are reached from the file (roadmap #42).
@@ -93,6 +95,8 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
               ))}
               {metadataFa(file.metadata) && <span>{metadataFa(file.metadata)}</span>}
               <VersionsButton documentId={file.id} version={versions.length} onChanged={refresh} />
+              {/* The file against the client's brand library (roadmap #43). */}
+              {file.kind !== 'video' && <Button size="sm" variant={brand ? 'secondary' : 'ghost'} onClick={() => setBrand(!brand)}>بررسی برند</Button>}
               {file.current && <NewVersionButton documentId={file.id} onDone={async () => { setFileId(null); await refresh(); }} />}
             </div>
           )}
@@ -109,6 +113,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
               {file?.kind === 'image' && <ImageStage documentId={file.id} marks={marks} focus={focus} pending={pending} onPick={mayMark ? setPending : undefined} />}
               {file?.kind === 'video' && <VideoStage documentId={file.id} marks={marks} onPick={mayMark ? setPending : undefined} seekTo={marks.find((m) => m.id === focus)?.timeSec ?? null} />}
               {file?.kind === 'pdf' && <PdfStage documentId={file.id} marks={marks} focus={focus} pending={pending} onPick={mayMark ? setPending : undefined} />}
+              {brand && file && file.kind !== 'video' && <div className="mt-2"><BrandCheckPanel documentId={file.id} /></div>}
               {pending && (
                 <div className="mt-2 space-y-2 rounded-lg bg-amber-50 p-2" data-testid="annotation-draft">
                   <p className="text-xs text-amber-900">

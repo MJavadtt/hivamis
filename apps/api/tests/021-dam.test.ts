@@ -132,10 +132,11 @@ describe('Versions of a file, and a client’s brand library', () => {
       f[key] = d.id;
       return d.metadata;
     };
-    expect(await up('poster', 'poster.png', 'image/png', png(1080, 1350))).toEqual({ width: 1080, height: 1350, bitDepth: 8, colorSpace: 'RGBA' });
+    // Headers only, these crafted files carry no pixels: their brand scan (#43) says so.
+    expect(await up('poster', 'poster.png', 'image/png', png(1080, 1350))).toEqual({ width: 1080, height: 1350, bitDepth: 8, colorSpace: 'RGBA', brand: expect.objectContaining({ skipped: 'UNREADABLE' }) });
     expect(await up('print', 'print.jpg', 'image/jpeg', jpeg(2480, 3508, 4, 0))).toMatchObject({ colorSpace: 'CMYK', width: 2480 });
     expect(await up('teaser', 'teaser.mp4', 'video/mp4', mp4(30, 1080, 1920))).toEqual({ durationSec: 30, width: 1080, height: 1920 });
-    expect(await up('deck', 'deck.pdf', 'application/pdf', await a4Pdf(2))).toEqual({ pageCount: 2, pageSizeMm: { w: 210, h: 297 } });
+    expect(await up('deck', 'deck.pdf', 'application/pdf', await a4Pdf(2))).toMatchObject({ pageCount: 2, pageSizeMm: { w: 210, h: 297 }, brand: { kind: 'pdf', colours: [] } });
     expect(await up('notes', 'notes.txt', 'text/plain', Buffer.from('متن'))).toBeNull();
   });
 
@@ -273,7 +274,7 @@ describe('Versions of a file, and a client’s brand library', () => {
     expect(read).toBeGreaterThanOrEqual(2);
     expect((await prisma.document.findUniqueOrThrow({ where: { id: f.teaser } })).metadata).toEqual({ durationSec: 30, width: 1080, height: 1920 });
     // A file that says nothing readable is marked read, not read again.
-    expect((await prisma.document.findUniqueOrThrow({ where: { id: f.deck } })).metadata).toEqual({});
+    expect((await prisma.document.findUniqueOrThrow({ where: { id: f.deck } })).metadata).toEqual({ brand: expect.objectContaining({ skipped: 'UNREADABLE' }) });
     expect((await backfillMetadata()).read).toBe(0);
   });
 });
