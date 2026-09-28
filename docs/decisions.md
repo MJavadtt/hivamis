@@ -1203,3 +1203,42 @@ revision still has its mandatory reason and correction; the correction is just p
 its annotations start again (the old file's stay with it). No drawing tools beyond a pin and a
 rectangle, and no threaded replies on an annotation.
 
+
+## ADR-048 — A new version takes the file's place, and the old one is kept
+
+**Decision.** A file's new version is uploaded against the file it replaces. It takes that file's
+links, tags and brand role, joins its lineage with the next version number, and the replaced file is
+kept, marked superseded — only the current version can be replaced, checked inside the upload's
+transaction so two racing uploads cannot both win. Everything that lists or uses files takes the
+current version: the record's files, e-signature, client approvals, QC stage zero, PDF attachments;
+the annotator shows older versions with their notes, read-only. What each file says about itself —
+pixel size, colour space, duration, pages and paper, a font's family — is read from its headers at
+upload, with no new dependency. A client's brand library is a palette, typefaces and notes on the
+client, plus the client's files that carry a brand role, kept under a new `brand.manage` permission
+(unit and account managers). Previews are drawn in the browser from the file itself: images and
+video as they are, a PDF's first page with the pdf.js already loaded for annotation, a font set in
+itself through `FontFace`.
+
+**Rationale.** The roadmap's gap is the «فایل نهایی واقعاً نهایی» problem: a reworked file uploaded
+as a new file sits beside the old one, and whoever picks one — the client's approval link, the
+contract sent for signature, the PDF bundle — may pick the wrong one. Making the new version *take
+the place* of the old one, rather than sit beside it, answers that in every place at once, and
+keeping the old one keeps the evidence: an approval or a signature records the SHA-256 of the file it
+covered (ADR-042, ADR-044), and that file still exists. ADR-047's limit — «a new upload is a new
+file; its annotations start again» — still holds, but the old version's notes are now one click away
+from the new one, which is how a revision is checked. Colour space is read because agencies lose
+days to RGB artwork sent to print; the brand library is on the client because the client, not the
+project, owns its identity.
+
+Showing a file is recorded as a view, not a download. Thumbnails, the annotator and the compare
+read `GET /documents/:id/preview`, audited as `FILE_VIEW` once per person, file and hour; the
+anomaly scan (ADR-033's detectors) counts each distinct file viewed. Verification found why: with
+every thumbnail audited as `FILE_DOWNLOAD`, browsing one version history raised a `DOWNLOAD_SURGE`.
+Leaving views out of the scan would have made previews a quiet way around it; counting distinct
+files keeps the signal and drops the noise.
+
+**Limits.** The client sees a new version only when it is shared (visibility is not inherited). No
+branching: a version replaces the current one, not an older one. Colour profiles (ICC) and EXIF are
+not read; a WebP, GIF or font file gives only what its header holds; WOFF/WOFF2 fonts are accepted
+but their family name is not read (the data is compressed). Old versions are kept on disk for good —
+there is no retention policy. Nothing checks designs against the brand library yet; that is #43.

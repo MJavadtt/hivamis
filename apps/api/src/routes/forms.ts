@@ -382,7 +382,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
         assignedTo: { select: { id: true, fullName: true } },
         approvals: { include: { approver: { select: { id: true, fullName: true } } } },
         project: { select: { id: true, code: true, name: true } },
-        documents: true,
+        documents: { where: { supersededAt: null } },
       },
     });
     if (!submission) throw notFound('فرم');

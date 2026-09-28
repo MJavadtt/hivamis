@@ -59,8 +59,8 @@ Status vocabulary, and it is used strictly:
 | 36 | Contract e-signature | 46 | Verified (live provider: Adapter) | fda3fd5 |
 | 39 | Live updates (SSE) instead of polling | — | Verified | 8bb5b2a |
 | 40 | Two-way messenger integration | 46 | Verified (live bot: Adapter) | 067bb51 |
-| 38 | Annotation on deliverables | — | Verified | next |
-| 42 | Digital asset management with versioning | — | Pending | |
+| 38 | Annotation on deliverables | — | Verified | b3f4271 |
+| 42 | Digital asset management with versioning | — | Verified | next |
 | 43 | Brand-identity compliance check | 42 | Pending | |
 | 47 | Extension points on guards and effects | — | Pending | |
 | 48 | Migration and onboarding toolkit | 20 | Pending | |

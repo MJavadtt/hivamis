@@ -22,7 +22,7 @@ interface Snapshot {
 
 const ACTION_FA: Record<string, string> = {
   CREATE: 'ایجاد', UPDATE: 'ویرایش', DELETE: 'حذف', STATE_TRANSITION: 'تغییر وضعیت', APPROVE: 'تأیید',
-  EXPORT: 'خروجی PDF', FILE_UPLOAD: 'بارگذاری فایل', FILE_DOWNLOAD: 'دانلود فایل',
+  EXPORT: 'خروجی PDF', FILE_UPLOAD: 'بارگذاری فایل', FILE_DOWNLOAD: 'دانلود فایل', FILE_VIEW: 'مشاهدهٔ فایل',
   SLA_PAUSE: 'توقف مهلت', SLA_RESUME: 'از سرگیری مهلت',
   LESSON_REVIEWED: 'بررسی درس آموخته',
 };

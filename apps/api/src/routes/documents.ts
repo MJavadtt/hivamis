@@ -7,7 +7,9 @@ import path from 'node:path';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { actorFrom } from '../lib/http.js';
-import { badRequest, notFound } from '../lib/errors.js';
+import { AppError, badRequest, notFound } from '../lib/errors.js';
+import { BRAND_ROLES, type BrandRole } from '@hiva/contracts';
+import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
 import { audit } from '../lib/audit.js';
 
@@ -20,7 +22,19 @@ const ALLOWED_MIME = new Set([
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'text/plain', 'text/csv', 'application/zip', 'video/mp4',
+  // A client's typefaces, for the brand library (roadmap #42).
+  'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
 ]);
+
+/** What the app can show in place: images, video, PDF pages, typefaces. */
+const PREVIEWABLE = (mime: string) => mime.startsWith('image/') || mime === 'video/mp4' || mime === 'application/pdf' || mime.startsWith('font/');
+
+/** Browsers name font files inconsistently; the extension settles it, and the signature is still checked. */
+const FONT_BY_EXT: Record<string, string> = { '.ttf': 'font/ttf', '.otf': 'font/otf', '.woff': 'font/woff', '.woff2': 'font/woff2' };
+const declaredType = (mime: string, fileName: string) => {
+  const ext = path.extname(fileName).toLowerCase();
+  return FONT_BY_EXT[ext] && (mime.startsWith('font/') || mime.includes('font') || mime === 'application/octet-stream' || mime === 'application/vnd.ms-opentype') ? FONT_BY_EXT[ext]! : mime;
+};
 
 const documentRoutes: FastifyPluginAsync = async (app) => {
   const storageRoot = path.resolve(env.STORAGE_DIR);
@@ -30,10 +44,12 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const { projectId, companyId, contractId, deliverableId, proposalId } = req.query as Record<string, string | undefined>;
+    const { projectId, companyId, contractId, deliverableId, proposalId, versions } = req.query as Record<string, string | undefined>;
     return prisma.document.findMany({
       where: {
         organizationId: actor.organizationId, deletedAt: null,
+        // The current version of each file, unless every version is asked for (roadmap #42).
+        ...(versions === 'all' ? {} : { supersededAt: null }),
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),
         ...(contractId ? { contractId } : {}), ...(deliverableId ? { deliverableId } : {}),
         ...(proposalId ? { proposalId } : {}),
@@ -50,7 +66,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const file = await (req as any).file();
     if (!file) throw badRequest('NO_FILE', 'فایلی ارسال نشده است.');
 
-    if (!ALLOWED_MIME.has(file.mimetype)) {
+    const mimeType = declaredType(file.mimetype, file.filename);
+    if (!ALLOWED_MIME.has(mimeType)) {
       throw badRequest('UNSUPPORTED_TYPE', `نوع فایل «${file.mimetype}» مجاز نیست.`);
     }
 
@@ -84,7 +101,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // The declared Content-Type is client-controlled; confirm the bytes agree with it.
-    if (!signatureMatches(file.mimetype, Buffer.concat(headChunks))) {
+    if (!signatureMatches(mimeType, Buffer.concat(headChunks))) {
       await unlink(target).catch(() => undefined);
       throw badRequest(
         'UNSUPPORTED_TYPE',
@@ -100,15 +117,41 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
      * Verify each exists inside the caller's organisation, so an upload cannot be filed against
      * another tenant's project or a record that does not exist.
      */
-    const links = {
-      projectId: val('projectId'), companyId: val('companyId'), contractId: val('contractId'),
-      deliverableId: val('deliverableId'), submissionId: val('submissionId'), proposalId: val('proposalId'),
-    } as const;
+    const fail = async (code: string, message: string, status = 400) => {
+      await unlink(target).catch(() => undefined);
+      throw new AppError(status, code, message);
+    };
+
+    /**
+     * A new version of a file already here (roadmap #42): it takes the file's place — its links,
+     * its lineage, the next version number — and the old version is kept, marked superseded.
+     */
+    const replacesId = val('replacesId');
+    const replaced = replacesId
+      ? await prisma.document.findFirst({ where: { id: replacesId, organizationId: actor.organizationId, deletedAt: null } })
+      : null;
+    if (replacesId && !replaced) return fail('UNKNOWN_REFERENCE', 'فایلی که نسخهٔ تازه‌اش را می‌فرستید پیدا نشد.');
+    if (replaced?.supersededAt) return fail('DOCUMENT_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل پیش‌تر بارگذاری شده است؛ روی آخرین نسخه کار کنید.', 409);
+
+    const links = replaced
+      ? { projectId: replaced.projectId, companyId: replaced.companyId, contractId: replaced.contractId, deliverableId: replaced.deliverableId, submissionId: replaced.submissionId, proposalId: replaced.proposalId }
+      : {
+          projectId: val('projectId'), companyId: val('companyId'), contractId: val('contractId'),
+          deliverableId: val('deliverableId'), submissionId: val('submissionId'), proposalId: val('proposalId'),
+        };
+
+    // A brand-library file: on a client, by someone who keeps brands.
+    const brandRole = replaced?.brandRole ?? val('brandRole');
+    if (brandRole) {
+      if (!BRAND_ROLES.includes(brandRole as BrandRole)) return fail('BAD_BRAND_ROLE', 'نقش فایل در کتابخانهٔ برند نامعتبر است.');
+      if (!links.companyId) return fail('BRAND_NEEDS_CLIENT', 'فایل کتابخانهٔ برند باید به یک مشتری وصل باشد.');
+      if (!actor.permissions.includes('brand.manage')) return fail('FORBIDDEN', 'برای افزودن به کتابخانهٔ برند به دسترسی «brand.manage» نیاز دارید.', 403);
+    }
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
       deliverableId: prisma.deliverable, submissionId: prisma.formSubmission, proposalId: prisma.proposal,
     };
-    for (const [field, id] of Object.entries(links)) {
+    for (const [field, id] of replaced ? [] : Object.entries(links)) {
       if (!id) continue;
       const found = await owners[field as keyof typeof links].count({
         where: { id, organizationId: actor.organizationId },
@@ -119,24 +162,39 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const document = await prisma.document.create({
-      data: {
-        organizationId: actor.organizationId,
-        fileName: path.basename(file.filename).slice(0, 200),
-        storedName, mimeType: file.mimetype, sizeBytes: size,
-        checksum: hash.digest('hex'),
-        projectId: links.projectId, companyId: links.companyId,
-        contractId: links.contractId, deliverableId: links.deliverableId,
-        submissionId: links.submissionId, proposalId: links.proposalId,
-        tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? [],
-        uploadedById: actor.id,
-      },
-    });
+    const id = randomUUID();
+    const metadata = await extractMetadata(target, mimeType);
+    const document = await prisma.$transaction(async (tx) => {
+      const created = await tx.document.create({
+        data: {
+          id,
+          organizationId: actor.organizationId,
+          fileName: path.basename(file.filename).slice(0, 200),
+          storedName, mimeType, sizeBytes: size,
+          checksum: hash.digest('hex'),
+          projectId: links.projectId, companyId: links.companyId,
+          contractId: links.contractId, deliverableId: links.deliverableId,
+          submissionId: links.submissionId, proposalId: links.proposalId,
+          tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? replaced?.tags ?? [],
+          uploadedById: actor.id,
+          lineageId: replaced ? replaced.lineageId ?? replaced.id : id,
+          version: replaced ? replaced.version + 1 : 1,
+          metadata: (metadata ?? undefined) as object | undefined,
+          brandRole: brandRole ?? null,
+        },
+      });
+      if (replaced) {
+        // Only the current version may be replaced; two uploads racing on it cannot both win.
+        const r = await tx.document.updateMany({ where: { id: replaced.id, supersededAt: null }, data: { supersededAt: new Date(), supersededById: id } });
+        if (r.count !== 1) throw new AppError(409, 'DOCUMENT_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل هم‌زمان بارگذاری شد.');
+      }
+      return created;
+    }).catch(async (e) => { await unlink(target).catch(() => undefined); throw e; });
 
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_UPLOAD',
       entityType: 'document', entityId: document.id,
-      after: { fileName: document.fileName, sizeBytes: size },
+      after: { fileName: document.fileName, sizeBytes: size, ...(replaced ? { replaces: replaced.id, version: document.version } : {}), ...(brandRole ? { brandRole } : {}) },
       ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     return reply.code(201).send(document);
@@ -171,6 +229,60 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       .sendFile(doc.storedName, storageRoot);
   });
 
+  /**
+   * A file shown in the app — a thumbnail, the annotator, a version compared (roadmap #42). The
+   * bytes are the same as a download; what differs is the record: one FILE_VIEW row per person,
+   * file and hour, so a page of thumbnails is not a pile of downloads. The anomaly scan still
+   * counts every distinct file a person viewed. Only what the app can show is served here.
+   */
+  app.get('/documents/:id/preview', {
+    preHandler: [app.authenticate, app.requirePermissions('document.read')],
+    onSend: async (_req, reply, payload) => {
+      reply.header('Content-Type', 'application/octet-stream');
+      // A version's bytes never change (a new version is a new id), so the browser may keep them a
+      // while; set here because the static handler writes its own.
+      if (reply.statusCode === 200) reply.header('Cache-Control', 'private, max-age=300');
+      return payload;
+    },
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId) throw notFound('سند');
+    if (!PREVIEWABLE(doc.mimeType)) throw new AppError(422, 'PREVIEW_UNSUPPORTED', 'این نوع فایل پیش‌نمایش ندارد؛ آن را دریافت کنید.');
+    const seen = await prisma.auditEvent.findFirst({
+      where: { actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, createdAt: { gte: new Date(Date.now() - 3_600_000) } },
+      select: { id: true },
+    });
+    if (!seen) {
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, ipAddress: actor.ipAddress, requestId: actor.requestId });
+    }
+    return reply
+      .header('Content-Disposition', `attachment; filename="${encodeURIComponent(doc.fileName)}"`)
+      .header('X-Content-Type-Options', 'nosniff')
+      .sendFile(doc.storedName, storageRoot);
+  });
+
+  /** Every version of a file, oldest first, with what each one says about itself (roadmap #42). */
+  app.get('/documents/:id/versions', {
+    preHandler: [app.authenticate, app.requirePermissions('document.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null }, select: { id: true, lineageId: true } });
+    if (!doc) throw notFound('سند');
+    const lineage = doc.lineageId ?? doc.id;
+    const rows = await prisma.document.findMany({
+      where: { organizationId: actor.organizationId, deletedAt: null, OR: [{ lineageId: lineage }, { id: lineage }] },
+      orderBy: { version: 'asc' },
+      select: {
+        id: true, fileName: true, mimeType: true, sizeBytes: true, checksum: true, version: true, metadata: true, createdAt: true,
+        supersededAt: true, clientVisible: true, uploadedBy: { select: { fullName: true } }, _count: { select: { annotations: true } },
+      },
+    });
+    return rows.map(({ _count, ...r }) => ({ ...r, current: !r.supersededAt, annotations: _count.annotations }));
+  });
+
   app.delete('/documents/:id', {
     preHandler: [app.authenticate, app.requirePermissions('document.delete')],
   }, async (req, reply) => {
@@ -178,8 +290,12 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc || doc.organizationId !== actor.organizationId) throw notFound('سند');
-    // Soft delete: the audit trail must keep pointing at a real row.
-    await prisma.document.update({ where: { id }, data: { deletedAt: new Date() } });
+    // Soft delete: the audit trail must keep pointing at a real row. Taking back the current
+    // version makes the one it replaced current again (roadmap #42).
+    await prisma.$transaction([
+      prisma.document.update({ where: { id }, data: { deletedAt: new Date() } }),
+      ...(doc.supersededAt ? [] : [prisma.document.updateMany({ where: { supersededById: id, deletedAt: null }, data: { supersededAt: null, supersededById: null } })]),
+    ]);
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE',
       entityType: 'document', entityId: id, before: doc, ipAddress: actor.ipAddress,

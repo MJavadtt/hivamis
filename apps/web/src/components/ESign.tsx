@@ -68,7 +68,7 @@ export function ESignCard({ contractId }: { contractId: string }) {
               <div className="flex gap-2">
                 <Select value={pick.documentId ?? ''} onChange={(e) => setForm({ ...form, documentId: e.target.value })} aria-label="فایل قرارداد">
                   {!o.documents.length && <option value="">— فایلی نیست —</option>}
-                  {o.documents.map((d: any) => <option key={d.id} value={d.id}>{d.fileName}</option>)}
+                  {o.documents.map((d: any) => <option key={d.id} value={d.id}>{d.fileName}{d.version > 1 ? ` (نسخهٔ ${toPersianDigits(d.version)})` : ''}</option>)}
                 </Select>
                 <input ref={upload} type="file" accept="application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void addFile(f); e.target.value = ''; }} />
                 <Button size="sm" variant="secondary" onClick={() => upload.current?.click()}>بارگذاری</Button>

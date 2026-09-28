@@ -9,9 +9,9 @@ const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { sta
 const data = {
   deliverable: { id: 'd1', code: 'DLV-1', name: 'پوستر پاییز' },
   files: [
-    { id: 'img', fileName: 'poster.png', mimeType: 'image/png', kind: 'image', annotations: 1 },
-    { id: 'vid', fileName: 'teaser.mp4', mimeType: 'video/mp4', kind: 'video', annotations: 0 },
-    { id: 'txt', fileName: 'notes.txt', mimeType: 'text/plain', kind: null, annotations: 0 },
+    { id: 'img', fileName: 'poster.png', mimeType: 'image/png', kind: 'image', annotations: 1, version: 1, current: true, lineageId: 'img', metadata: null },
+    { id: 'vid', fileName: 'teaser.mp4', mimeType: 'video/mp4', kind: 'video', annotations: 0, version: 1, current: true, lineageId: 'vid', metadata: null },
+    { id: 'txt', fileName: 'notes.txt', mimeType: 'text/plain', kind: null, annotations: 0, version: 1, current: true, lineageId: 'txt', metadata: null },
   ],
   annotations: [{
     id: 'a1', documentId: 'img', kind: 'PIN', number: 1, page: null, x: 0.8, y: 0.1, w: null, h: null, timeSec: null, note: 'لوگو کوچک است',
@@ -25,7 +25,7 @@ describe('Annotating a deliverable', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (init?.method && init.method !== 'GET') { posts.push({ url, method: init.method, body: init.body ? JSON.parse(String(init.body)) : null }); return json({}, 201); }
-      if (url.includes('/download')) return new Response(new Blob(['png']));
+      if (url.includes('/preview')) return new Response('png');
       return json(data);
     }));
     URL.createObjectURL = vi.fn(() => 'blob:img');

@@ -5,6 +5,7 @@ import { apiGet, apiPatch, apiPost, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, EmptyState, Select, Textarea, useToast } from './ui';
 import { formatDate, formatDateTime, toPersianDigits } from '../lib/format';
+import { NewVersionButton, VersionBadge, VersionsButton, metadataFa } from './Assets';
 
 /* Roadmap #34 — Account's side of the client portal. */
 
@@ -80,6 +81,7 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
   const key = [`/projects/${projectId}/client-files`];
   const { data: files } = useQuery<any[]>({ queryKey: key, queryFn: () => apiGet(`/projects/${projectId}/client-files`) });
   if (!files) return null;
+  const refresh = () => qc.invalidateQueries({ queryKey: key });
   const toggle = async (id: string, clientVisible: boolean) => {
     try { await apiPatch(`/documents/${id}/client-visibility`, { clientVisible }); await qc.invalidateQueries({ queryKey: key }); }
     catch (e: any) { toast(e?.message ?? 'انجام نشد.', 'danger'); }
@@ -92,7 +94,7 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
     catch (e: any) { toast(e?.message ?? 'بارگذاری ناموفق بود.', 'danger'); }
   };
   return (
-    <Card title="فایل‌های پروژه" subtitle="هر فایل تا وقتی کسی از اکانت آن را «نمایش در پورتال» نکند، از دید مشتری پنهان است."
+    <Card title="فایل‌های پروژه" subtitle="هر فایل تا وقتی کسی از اکانت آن را «نمایش در پورتال» نکند، از دید مشتری پنهان است؛ نسخهٔ تازهٔ یک فایل هم تا نمایش داده نشود، مشتری همان نسخهٔ پیشین را می‌بیند."
       action={can('document.write') ? <>
         <input ref={input} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void add(f); e.target.value = ''; }} />
         <Button size="sm" variant="secondary" onClick={() => input.current?.click()}>بارگذاری</Button>
@@ -100,10 +102,16 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
       {!files.length ? <EmptyState title="فایلی برای این پروژه نیست" /> : (
         <ul className="divide-y divide-ink-100 px-4 text-sm" data-testid="client-files">
           {files.map((f) => (
-            <li key={f.id} className="flex flex-wrap items-center gap-2 py-2">
-              <span className="min-w-0 flex-1 truncate">{f.fileName}{f.deliverable && <span className="text-xs text-ink-400"> — {f.deliverable.name}</span>}</span>
+            // Keyed by the file, not the version, so a history opened on it survives a new version.
+            <li key={f.lineageId ?? f.id} className="flex flex-wrap items-center gap-2 py-2">
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5"><span className="truncate">{f.fileName}</span><VersionBadge version={f.version} />{f.deliverable && <span className="text-xs text-ink-400"> — {f.deliverable.name}</span>}</span>
+                {metadataFa(f.metadata) && <span className="block text-[11px] text-ink-500">{metadataFa(f.metadata)}</span>}
+              </span>
               <span className="text-[11px] text-ink-400">{toPersianDigits(Math.ceil(f.sizeBytes / 1024))} KB · {formatDate(f.createdAt)}</span>
               <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${f.id}/download`, f.fileName)}>دریافت</Button>
+              {f.version > 1 && <VersionsButton documentId={f.id} version={f.version} onChanged={refresh} />}
+              <NewVersionButton documentId={f.id} onDone={refresh} />
               {can('portal.manage') ? (
                 <label className="flex items-center gap-1 text-xs text-ink-600">
                   <input type="checkbox" checked={f.clientVisible} onChange={(e) => void toggle(f.id, e.target.checked)} aria-label={`نمایش ${f.fileName} در پورتال`} /> نمایش در پورتال

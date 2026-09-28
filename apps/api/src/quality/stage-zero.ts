@@ -187,7 +187,7 @@ export async function stageZero(tx: Tx, organizationId: string, deliverableId: s
   const d = await tx.deliverable.findFirstOrThrow({
     where: { id: deliverableId, organizationId },
     include: {
-      documents: { where: { deletedAt: null }, select: { fileName: true, storedName: true, mimeType: true, sizeBytes: true } },
+      documents: { where: { deletedAt: null, supersededAt: null }, select: { fileName: true, storedName: true, mimeType: true, sizeBytes: true } },
       workOrder: { select: { outputFormat: true, expectedOutput: true, deadline: true, code: true } },
       project: { select: { outOfScope: true } },
     },

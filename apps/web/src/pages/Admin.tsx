@@ -180,7 +180,7 @@ const ACTION_LABELS: Record<string, string> = {
   CREATE: 'ایجاد', UPDATE: 'ویرایش', DELETE: 'حذف', STATE_TRANSITION: 'تغییر وضعیت',
   APPROVE: 'تأیید', REJECT: 'رد', LOGIN: 'ورود', LOGIN_FAILED: 'ورود ناموفق',
   LOGOUT: 'خروج', PERMISSION_DENIED: 'دسترسی رد شد', AI_ACTION: 'عملیات هوش مصنوعی',
-  FILE_UPLOAD: 'بارگذاری فایل', FILE_DOWNLOAD: 'دریافت فایل', EXPORT: 'خروجی‌گیری',
+  FILE_UPLOAD: 'بارگذاری فایل', FILE_DOWNLOAD: 'دریافت فایل', FILE_VIEW: 'مشاهدهٔ فایل', EXPORT: 'خروجی‌گیری',
 };
 
 function AuditTrail() {

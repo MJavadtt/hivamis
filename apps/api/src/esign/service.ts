@@ -59,7 +59,7 @@ export async function options(actor: Actor, contractId: string) {
   const c = await prisma.contract.findFirst({ where: { id: contractId, organizationId: actor.organizationId } });
   if (!c) throw notFound('قرارداد');
   const [documents, contacts, people, live] = await Promise.all([
-    prisma.document.findMany({ where: { contractId, deletedAt: null, mimeType: 'application/pdf' }, orderBy: { createdAt: 'desc' }, select: { id: true, fileName: true, sizeBytes: true, createdAt: true } }),
+    prisma.document.findMany({ where: { contractId, deletedAt: null, supersededAt: null, mimeType: 'application/pdf' }, orderBy: { createdAt: 'desc' }, select: { id: true, fileName: true, sizeBytes: true, createdAt: true, version: true } }),
     prisma.contact.findMany({ where: { companyId: c.companyId, deletedAt: null, email: { not: null } }, select: { id: true, fullName: true, email: true, jobTitle: true }, orderBy: [{ isPrimary: 'desc' }, { fullName: 'asc' }] }),
     signatories(actor.organizationId),
     prisma.signatureEnvelope.findFirst({ where: { contractId, status: 'SENT' }, select: { code: true } }),
@@ -78,6 +78,7 @@ export async function send(actor: Actor, contractId: string, input: { documentId
   if (live) throw conflict('ESIGN_IN_FLIGHT', `پاکت ${live.code} هنوز در انتظار امضاست؛ نخست باطلش کنید.`);
   const doc = await prisma.document.findFirst({ where: { id: input.documentId, contractId, deletedAt: null } });
   if (!doc) throw new AppError(422, 'ESIGN_DOCUMENT', 'فایل باید از فایل‌های همین قرارداد باشد.');
+  if (doc.supersededAt) throw new AppError(422, 'ESIGN_DOCUMENT_SUPERSEDED', `نسخهٔ تازه‌تری از «${doc.fileName}» بارگذاری شده است؛ آخرین نسخه را بفرستید.`);
   if (doc.mimeType !== 'application/pdf') throw new AppError(422, 'ESIGN_NOT_PDF', 'فقط فایل PDF قرارداد برای امضای الکترونیکی فرستاده می‌شود.');
   const content = await readFile(path.join(storageRoot(), doc.storedName)).catch(() => null);
   if (!content) throw new AppError(422, 'ESIGN_DOCUMENT_MISSING', `فایل «${doc.fileName}» در بایگانی نیست.`);

@@ -264,7 +264,9 @@ else changes, and a deployment without the extension keeps working exactly as be
 ## Security alerts
 
 `security:scan` runs every fifteen minutes and compares each person's last 24 hours of exports,
-downloads, refused permissions and failed logins with **their own** previous 30 days. Thresholds
+downloads, files viewed in the app, refused permissions and failed logins with **their own**
+previous 30 days. A view (`FILE_VIEW`, #42) counts once per person and file, so a page of
+thumbnails is not a surge while many different files still are. Thresholds
 are floors in `src/security/anomalies.ts` (`THRESHOLDS`); a person's usual day can only raise
 them. Six kinds are raised: `OFF_HOURS_EXPORT`, `DOWNLOAD_SURGE`, `OUT_OF_SCOPE_ACCESS` (skipped
 for org-wide roles — executives, PMO, finance, legal), `DENIAL_SURGE`, `LOGIN_FAILURES` and
@@ -324,6 +326,27 @@ honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s i
 `infrastructure/docker/nginx.conf`). A browser that cannot hold the stream falls back to polling
 notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
 installed as pg-boss's driver) is now a direct dependency of the API for this listener.
+
+## Files and versions
+
+Roadmap #42. A new version never deletes the old one: every version stays in `STORAGE_DIR`, so
+storage grows with each revision of a heavy file — plan disk for it, and back up the directory as
+before. Deleting the current version (with `document.delete`) makes the previous one current again;
+the file itself stays on disk, like every soft-deleted file.
+
+What a file says about itself — pixel size and colour space, a video's length, a PDF's pages and
+paper, a font's family — is read at upload from its headers, with no new dependency. The
+`documents:metadata` job (hourly, at minute 37) reads files uploaded before this was in place, 50 at
+a time; a file with nothing readable is marked `{}` and not read again.
+
+Everything the app shows in place — thumbnails, the annotator, a compared version — is read
+through `GET /documents/:id/preview`, audited as `FILE_VIEW` once per person, file and hour, not
+as a download; the anomaly scan counts each distinct file viewed. The browser may keep a preview
+for five minutes (`Cache-Control: private`), which is safe because a version's bytes never change.
+
+Brand typefaces are previewed in the browser from the file's bytes (`FontFace` with an
+`ArrayBuffer`), so the page's CSP needs nothing beyond what #38 added; thumbnails of PDF first
+pages reuse the pdf.js already loaded for annotation.
 
 ## Annotation on deliverables
 

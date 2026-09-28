@@ -3144,7 +3144,7 @@ describe('Catalogue sizes the documentation quotes', () => {
    * whatever prose quotes it.
    */
   it('matches the figures in README and docs/', () => {
-    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(108);
+    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(109);
     expect(ROLE_CODES, 'roles').toHaveLength(16);
     expect(ALL_FORMS, 'Doc_H forms').toHaveLength(130);
     expect(SLA_POLICIES, 'SLA policies').toHaveLength(30);

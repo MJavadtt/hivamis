@@ -3,6 +3,7 @@ import {
   DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
+  BRAND_COLOR_ROLES,
 } from './enums.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
@@ -547,6 +548,18 @@ export const createAnnotationSchema = z.discriminatedUnion('kind', [
   if (v.kind === 'HIGHLIGHT' && (v.x + v.w > 1.0001 || v.y + v.h > 1.0001)) ctx.addIssue({ code: 'custom', message: 'ناحیه از صفحه بیرون زده است', path: ['w'] });
 });
 export const annotationStatusSchema = z.object({ status: z.enum(['OPEN', 'RESOLVED']) });
+
+/* ── brand library (roadmap #42) ───────────────────────────────────────────── */
+
+export const brandKitSchema = z.object({
+  colors: z.array(z.object({
+    name: z.string().trim().min(1).max(60),
+    hex: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'رنگ باید به شکل #RRGGBB باشد').transform((v) => v.toUpperCase()),
+    role: z.enum(BRAND_COLOR_ROLES),
+  })).max(40),
+  fonts: z.array(z.object({ family: z.string().trim().min(1).max(100), usage: z.string().trim().max(200).optional() })).max(20),
+  notes: z.string().trim().max(4000).optional().nullable(),
+});
 
 /* ── contract e-signature (roadmap #36) ────────────────────────────────────── */
 

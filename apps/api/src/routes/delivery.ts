@@ -431,7 +431,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
         prisma.allocation.findMany({
           where: { projectId: id }, include: { user: { select: { id: true, fullName: true } } },
         }),
-        prisma.document.findMany({ where: { projectId: id, deletedAt: null }, orderBy: { createdAt: 'desc' } }),
+        prisma.document.findMany({ where: { projectId: id, deletedAt: null, supersededAt: null }, orderBy: { createdAt: 'desc' } }),
         prisma.slaClock.findMany({
           where: { entityType: { in: ['project', 'task', 'deliverable', 'workOrder'] }, state: { in: ['RUNNING', 'AT_RISK', 'BREACHED'] } },
           include: { policy: true }, take: 100,
@@ -827,7 +827,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
       project: { select: { id: true, code: true, name: true } },
       qcReviews: { orderBy: { reviewedAt: 'desc' } },
       revisions: { orderBy: { createdAt: 'desc' } },
-      documents: true,
+      documents: { where: { supersededAt: null } },
     },
   });
 };

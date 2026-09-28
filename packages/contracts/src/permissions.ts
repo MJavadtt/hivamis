@@ -147,6 +147,8 @@ export const PERMISSIONS = {
   'admin.keys': 'کلیدهای API و Webhook',
   // Client portal (roadmap #34)
   'portal.manage': 'مدیریت پورتال مشتری',
+  // Brand library (roadmap #42)
+  'brand.manage': 'مدیریت کتابخانهٔ برند مشتری',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -195,6 +197,8 @@ const ACCOUNT_CORE: Permission[] = [
   'report.read', 'customer_success.write', 'ai.use',
   // The client's side of the relationship is Account's (Doc_H §2): who may use the portal, what it shows, the replies.
   'portal.manage',
+  // The client's brand is kept by Account and by the units that design to it.
+  'brand.manage',
 ];
 
 const UNIT_CORE: Permission[] = [
@@ -264,7 +268,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   // approver «Account/Customer»). It does not alter the contract — that needs contract.amend.
   ACCOUNT_MANAGER: [...ACCOUNT_CORE, 'qc.final', 'change.approve', 'report.executive', 'traffic.manage'],
   ACCOUNT_EXEC: ACCOUNT_CORE.filter((p) => p !== 'project.close'),
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign'],
+  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage'],
   UNIT_MEMBER: UNIT_CORE,
   PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close'],
   PMO_SPECIALIST: PMO_CORE,

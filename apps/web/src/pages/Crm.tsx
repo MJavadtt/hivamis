@@ -14,6 +14,7 @@ import {
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatRelative, toPersianDigits } from '../lib/format';
 import { PortalUsersCard } from '../components/PortalAdmin';
+import { BrandLibraryCard } from '../components/BrandLibrary';
 
 const SOURCES = [
   { value: 'REFERRAL', label: 'معرفی' }, { value: 'INBOUND', label: 'ورودی' },
@@ -386,6 +387,8 @@ export function CompanyDetail() {
             </div>
 
             <PortalUsersCard companyId={c.id} contacts={c.contacts ?? []} />
+
+            <BrandLibraryCard companyId={c.id} />
 
             {!!data.feedbacks.length && (
               <Card title="بازخوردهای مشتری">

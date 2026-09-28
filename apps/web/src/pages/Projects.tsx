@@ -27,6 +27,7 @@ import {
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { DeliverableApprovalButton } from '../components/ClientApprovals';
 import { AnnotateButton } from '../components/Annotations';
+import { BrandLibraryCard } from '../components/BrandLibrary';
 import { ClientFilesCard, PortalMessagesCard } from '../components/PortalAdmin';
 
 const PROJECT_STATES = [
@@ -219,10 +220,14 @@ export function ProjectDetail() {
         {tab === 'media' && <ProjectMedia projectId={p.id} />}
         {tab === 'closure' && <ClosureTab projectId={p.id} canEdit={can('project.close')} />}
         {tab === 'client' && (
-          <div className="grid gap-5 lg:grid-cols-2">
-            <PortalMessagesCard projectId={p.id} />
-            <ClientFilesCard projectId={p.id} />
-          </div>
+          <>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <PortalMessagesCard projectId={p.id} />
+              <ClientFilesCard projectId={p.id} />
+            </div>
+            {/* The client's brand, where the people designing for them work (roadmap #42). */}
+            <BrandLibraryCard companyId={p.company.id} />
+          </>
         )}
       </PageBody>
     </>

@@ -169,9 +169,9 @@ const portalRoutes: FastifyPluginAsync = async (app) => {
     const pr = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true } });
     if (!pr) throw notFound('پروژه');
     return prisma.document.findMany({
-      where: { organizationId: actor.organizationId, deletedAt: null, OR: [{ projectId: id }, { deliverable: { projectId: id } }] },
+      where: { organizationId: actor.organizationId, deletedAt: null, supersededAt: null, OR: [{ projectId: id }, { deliverable: { projectId: id } }] },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true, clientVisible: true, deliverable: { select: { code: true, name: true } }, uploadedBy: { select: { fullName: true } } },
+      select: { id: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true, clientVisible: true, version: true, lineageId: true, metadata: true, deliverable: { select: { code: true, name: true } }, uploadedBy: { select: { fullName: true } } },
     });
   });
 

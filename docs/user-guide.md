@@ -92,6 +92,12 @@ Doc_H §2 separates these loops, and the permission model enforces it.
    with the client; when they write, the account owner is notified. **دعوت دوباره** is also how a
    forgotten password is reset; **غیرفعال** closes their access at once. The client never sees
    cost, margin, budgets or who on your side is doing what.
+8. **The client's brand library** — on the client's page, **کتابخانهٔ برند** holds their colours
+   (click one to copy its code), typefaces, notes such as logo clear space, and their brand files
+   by role: logos, font files, the identity guide. A font file is shown set in itself, and a
+   typeface listed without a file is flagged. Unit and account managers (**brand.manage**) edit it;
+   everyone who reads files sees it. A new version of a file you shared in the portal reaches the
+   client only when you share it; until then they keep the one they had.
 
 ---
 
@@ -130,6 +136,14 @@ are too few won deals to compare against, the card says so instead of averaging 
    A reviewer who fails a QC ticks the notes it carries: the revision's «اصلاح مورد انتظار» then
    lists each one — which file, which page or second or pin — instead of a paragraph to decode.
    When a note is fixed, mark it **رفع شد**.
+7. **New versions, not new files** — when you rework a file, use **نسخهٔ جدید** beside it (on the
+   project's files, in the annotator, in a version history) instead of uploading it again. The new
+   version takes its place everywhere — the deliverable, the contract, the approvals — and the old
+   one is kept. **نسخه‌ها** lists every version with who uploaded it, its size in pixels or pages,
+   its colour space (a CMYK file is print artwork), and puts any two side by side — images can be
+   laid over each other with a slider — marking what changed. In the annotator an older version
+   keeps its notes, shown read-only, so you can check each one against the new version; new notes
+   go on the current version only.
 
 ---
 

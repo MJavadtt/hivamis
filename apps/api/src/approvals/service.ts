@@ -61,7 +61,7 @@ async function loadSubject(tx: Tx, organizationId: string, type: SubjectType, id
   if (type === 'DELIVERABLE') {
     const d = await tx.deliverable.findFirst({
       where: { id, organizationId },
-      include: { project: { select: { code: true, name: true, companyId: true } }, documents: { where: { deletedAt: null } } },
+      include: { project: { select: { code: true, name: true, companyId: true } }, documents: { where: { deletedAt: null, supersededAt: null } } },
     });
     if (!d) throw notFound('خروجی');
     return {
@@ -72,7 +72,7 @@ async function loadSubject(tx: Tx, organizationId: string, type: SubjectType, id
   }
   const p = await tx.proposal.findFirst({
     where: { id, organizationId, deletedAt: null },
-    include: { brief: { select: { title: true, opportunity: { select: { companyId: true } } } }, documents: { where: { deletedAt: null } } },
+    include: { brief: { select: { title: true, opportunity: { select: { companyId: true } } } }, documents: { where: { deletedAt: null, supersededAt: null } } },
   });
   if (!p) throw notFound('پروپوزال');
   return {

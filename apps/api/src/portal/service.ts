@@ -178,7 +178,7 @@ export async function project(p: PortalAccount, id: string) {
   const [documents, approvals] = await Promise.all([
     prisma.document.findMany({
       where: { organizationId: p.organizationId, deletedAt: null, clientVisible: true, OR: [{ projectId: id }, { deliverableId: { in: deliverableIds } }] },
-      orderBy: { createdAt: 'desc' }, select: { id: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true, deliverableId: true },
+      orderBy: { createdAt: 'desc' }, select: { id: true, fileName: true, mimeType: true, sizeBytes: true, createdAt: true, deliverableId: true, version: true, lineageId: true },
     }),
     prisma.clientApproval.findMany({
       where: { companyId: p.companyId, subjectType: 'DELIVERABLE', subjectId: { in: deliverableIds } }, orderBy: { createdAt: 'desc' },
@@ -190,10 +190,23 @@ export async function project(p: PortalAccount, id: string) {
     milestones,
     // Everything before delivery is one step to the client: «در حال تهیه».
     deliverables: deliverables.map((d) => ({ ...d, clientState: ['DELIVERED', 'ACCEPTED'].includes(d.state) || (d.state === 'REVISION_REQUIRED' && d.deliveredAt) ? d.state : 'IN_PROGRESS' })),
-    reports, documents,
+    reports, documents: newestShared(documents),
     approvals: approvals.map((a) => ({ ...a, status: a.status === 'PENDING' && a.expiresAt <= new Date() ? 'EXPIRED' : a.status, forMe: a.contactId === p.contactId })),
     messages: messages.map((m) => ({ id: m.id, body: m.body, createdAt: m.createdAt, fromClient: !!m.portalUser, author: m.portalUser?.contact.fullName ?? m.user?.fullName ?? '' })),
   };
+}
+
+/**
+ * Of each file's versions, the newest the client was shown (roadmap #42): a new version reaches
+ * them only when it is shared, and until then they keep the one they have.
+ */
+export function newestShared<T extends { id: string; lineageId: string | null; version: number }>(docs: T[]) {
+  const newest = new Map<string, T>();
+  for (const d of docs) {
+    const key = d.lineageId ?? d.id, seen = newest.get(key);
+    if (!seen || d.version > seen.version) newest.set(key, d);
+  }
+  return docs.filter((d) => newest.get(d.lineageId ?? d.id) === d).map(({ lineageId: _l, ...d }) => d);
 }
 
 /** A shared file of one of the company's visible projects. */

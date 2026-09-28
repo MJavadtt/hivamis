@@ -117,7 +117,7 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Status reports | `/status-reports` | `report.read` |
 | Client status report | `GET /status-reports/:id/client-preview` — the client's copy (no financial status, no internal decisions, financial figures redacted) with `omitted[]` and the primary contact it would go to; `POST /status-reports/:id/send-to-client { to? }` — renders the PDF, sends it, audits `CLIENT_REPORT_SENT` | `report.read` to preview, `project.execute` to send |
 | Feedback / Lessons | `/feedbacks`, `/lessons-learned` | `report.read` |
-| Documents | `/documents` (+ `/:id/download`) | `document.read` |
+| Documents | `/documents` (+ `/:id/download`, `/:id/versions`) — the current version of each file unless `?versions=all`; see [Files, versions and the brand library](#files-versions-and-the-brand-library) | `document.read` |
 
 ### Gated commercial endpoints
 
@@ -398,8 +398,8 @@ SHA-256 of the file as annotated.
 
 | Endpoint | Gate | Purpose |
 |---|---|---|
-| `GET /deliverables/:id/annotations` | `deliverable.read` | The deliverable's files — with which can be annotated (`image`, `video`, `pdf`) — and every annotation with its author, review and revision |
-| `POST /deliverables/:id/annotations` | `qc.read` | Add one. `ANNOTATION_FILE` (not this deliverable's), `ANNOTATION_UNSUPPORTED` (not an image, video or PDF), `ANNOTATION_KIND` (a pin on a PDF, say). Audited |
+| `GET /deliverables/:id/annotations` | `deliverable.read` | The deliverable's files — with which can be annotated (`image`, `video`, `pdf`), older versions too, marked `current: false` with their `version` and `lineageId` — and every annotation with its author, review and revision |
+| `POST /deliverables/:id/annotations` | `qc.read` | Add one. `ANNOTATION_FILE` (not this deliverable's), `ANNOTATION_UNSUPPORTED` (not an image, video or PDF), `ANNOTATION_KIND` (a pin on a PDF, say), `ANNOTATION_SUPERSEDED` (an older version — marks go on the current one). Audited |
 | `PATCH /annotations/:id` `{ status: OPEN \| RESOLVED }` | `deliverable.write` | Mark it fixed, or open it again |
 | `DELETE /annotations/:id` | the author | Only while no QC review has carried it (`409 ANNOTATION_CARRIED`) |
 
@@ -408,6 +408,40 @@ by another review (`QC_ANNOTATIONS`). A failed review may give them instead of, 
 findings; the revision's `requiredCorrection` is then the findings followed by one numbered line per
 annotation — `[file — صفحهٔ ۲]`, `[file — ۰۰:۱۲]`, `[file — نشانهٔ ۳]` — and each annotation is linked
 to the review and the revision.
+
+## Files, versions and the brand library
+
+Roadmap #42. `POST /documents` (multipart) takes two more fields:
+
+- **`replacesId`** — the upload becomes the next version of that file. It takes the replaced file's
+  links (project, client, contract, deliverable, form, proposal), tags and brand role; it joins the
+  file's lineage (`lineageId`, `version` = previous + 1); the replaced file is kept, marked
+  `supersededAt` / `supersededById`. Only the current version can be replaced
+  (`409 DOCUMENT_SUPERSEDED`), so two uploads racing on it cannot both win. Visibility to the client
+  is not inherited: a new version is shared when someone shares it.
+- **`brandRole`** — `LOGO`, `FONT`, `GUIDELINE`, `IMAGE` or `OTHER`: a file of the client's brand
+  library. It needs a `companyId` (`BRAND_NEEDS_CLIENT`) and `brand.manage` (403), and so does a new
+  version of one; an unknown role is `BAD_BRAND_ROLE`.
+
+Fonts (`.ttf`, `.otf`, `.woff`, `.woff2`) are accepted and checked by signature like everything else;
+the vague types browsers give them are settled by the extension. Every upload carries `metadata`,
+read from the file's own headers: an image's `width`, `height`, `colorSpace` (`RGB`, `RGBA`,
+`GRAYSCALE`, `GRAYSCALE_ALPHA`, `INDEXED`, `CMYK`, `YCCK`) and `bitDepth`; an MP4's `durationSec`,
+`width` and `height`; a PDF's `pageCount` and first `pageSizeMm`; a TrueType/OpenType font's
+`fontFamily`. What cannot be read is `null` — never a guess.
+
+Every list shows the current version only — `GET /documents` (unless `?versions=all`), the client's
+page, a project's and a record's files, a contract's signable PDFs, approval files, QC stage zero,
+PDF attachments. E-signature refuses an older version (`422 ESIGN_DOCUMENT_SUPERSEDED`). The client
+portal shows, of each file, the newest version shared with the client. `DELETE /documents/:id` on
+the current version makes the version it replaced current again.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /documents/:id/preview` | `document.read` | The bytes of an image, MP4, PDF or font for showing in the app (`422 PREVIEW_UNSUPPORTED` otherwise). Audited as `FILE_VIEW` once per person, file and hour — not as a download; cacheable privately for five minutes |
+| `GET /documents/:id/versions` | `document.read` | Every version of the file, oldest first — name, type, size, SHA-256, `version`, `metadata`, uploader, `current`, `clientVisible` and its annotation count. The same history from any of its versions |
+| `GET /companies/:id/brand` | `document.read` | The client's palette, typefaces and notes, and its current brand files with their roles, versions and metadata |
+| `PUT /companies/:id/brand` `{ colors: [{ name, hex, role }], fonts: [{ family, usage? }], notes }` | `brand.manage` | Replace them. `hex` is `#RRGGBB`, stored upper-case; `role` is `PRIMARY`, `SECONDARY`, `ACCENT` or `NEUTRAL`. Audited |
 
 ## Messenger
 

@@ -224,7 +224,7 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
           where: { project: { companyId: id } }, orderBy: { createdAt: 'desc' }, take: 20,
         }),
         prisma.document.findMany({
-          where: { companyId: id, deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 50,
+          where: { companyId: id, deletedAt: null, supersededAt: null }, orderBy: { createdAt: 'desc' }, take: 50,
         }),
       ]);
 

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiBlob, apiDelete, apiGet, apiPatch, apiPost } from '../lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Modal, Textarea, useToast } from './ui';
 import { formatDateTime, toPersianDigits } from '../lib/format';
+import { NewVersionButton, VersionsButton, metadataFa, openPdf, useFileUrl, type FileMeta } from './Assets';
 
 /*
  * Roadmap #38 — feedback placed on the file itself: a pin on an image, a moment in a video, a region
@@ -17,7 +18,10 @@ export interface AnnotationRow {
   status: 'OPEN' | 'RESOLVED'; createdAt: string; author: { id: string; fullName: string };
   qcReviewId: string | null; revision: { code: string } | null;
 }
-interface FileRow { id: string; fileName: string; mimeType: string; kind: 'image' | 'video' | 'pdf' | null; annotations: number }
+interface FileRow {
+  id: string; fileName: string; mimeType: string; kind: 'image' | 'video' | 'pdf' | null; annotations: number;
+  version: number; current: boolean; lineageId: string | null; metadata: FileMeta | null;
+}
 interface Data { deliverable: { id: string; code: string; name: string }; files: FileRow[]; annotations: AnnotationRow[] }
 type Pending = { x?: number; y?: number; w?: number; h?: number; page?: number; timeSec?: number };
 
@@ -34,18 +38,6 @@ const fractionOf = (e: { clientX: number; clientY: number }, el: HTMLElement) =>
 export const useAnnotations = (deliverableId: string) =>
   useQuery<Data>({ queryKey: [`/deliverables/${deliverableId}/annotations`], queryFn: () => apiGet(`/deliverables/${deliverableId}/annotations`) });
 
-/** A file's bytes behind the session, as an object URL that is released when no longer shown. */
-function useFileUrl(documentId: string | null) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!documentId) return;
-    let alive = true, made: string | null = null;
-    void apiBlob(`/documents/${documentId}/download`).then((b) => { if (alive) { made = URL.createObjectURL(b); setUrl(made); } }).catch(() => setUrl(null));
-    return () => { alive = false; if (made) URL.revokeObjectURL(made); setUrl(null); };
-  }, [documentId]);
-  return url;
-}
-
 export function AnnotationsModal({ deliverableId, title, onClose }: { deliverableId: string; title?: string; onClose: () => void }) {
   const { can, user } = useAuth();
   const qc = useQueryClient();
@@ -57,7 +49,11 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
   const [focus, setFocus] = useState<string | null>(null);
   if (!data) return null;
   const files = data.files.filter((f) => f.kind);
-  const file = files.find((f) => f.id === fileId) ?? files[0] ?? null;
+  // One tab per file, at its current version; older versions are reached from the file (roadmap #42).
+  const tabs = files.filter((f) => f.current);
+  const file = files.find((f) => f.id === fileId) ?? tabs[0] ?? null;
+  const lineageOf = (f: FileRow) => f.lineageId ?? f.id;
+  const versions = file ? files.filter((f) => lineageOf(f) === lineageOf(file)).sort((a, b) => a.version - b.version) : [];
   const marks = data.annotations.filter((a) => a.documentId === file?.id);
   const refresh = () => qc.invalidateQueries({ queryKey: [`/deliverables/${deliverableId}/annotations`] });
   const kind = file?.kind === 'image' ? 'PIN' : file?.kind === 'video' ? 'TIMECODE' : 'HIGHLIGHT';
@@ -74,19 +70,37 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
   const remove = async (a: AnnotationRow) => {
     try { await apiDelete(`/annotations/${a.id}`); await refresh(); } catch (e: any) { toast(e?.message ?? 'انجام نشد.', 'danger'); }
   };
-  const mayMark = can('qc.read');
+  const mayMark = can('qc.read') && !!file?.current;
   return (
     <Modal open wide title={title ?? `یادداشت روی فایل‌ها — ${data.deliverable.name}`} onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>بستن</Button>}>
       {!files.length ? <p className="text-sm text-ink-500">این خروجی فایل تصویر، ویدیو یا PDF ندارد.</p> : (
         <div className="space-y-3" data-testid="annotator">
           <div className="flex flex-wrap gap-1.5">
-            {files.map((f) => (
+            {tabs.map((f) => (
               <button key={f.id} onClick={() => { setFileId(f.id); setPending(null); }}
-                className={`rounded-md px-2 py-1 text-xs ${f.id === file?.id ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}>
+                className={`rounded-md px-2 py-1 text-xs ${file && lineageOf(f) === lineageOf(file) ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}>
                 {f.fileName} {f.annotations > 0 && <span>({toPersianDigits(f.annotations)})</span>}
               </button>
             ))}
           </div>
+          {file && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-500" data-testid="file-versions">
+              {versions.length > 1 && versions.map((v) => (
+                <button key={v.id} onClick={() => { setFileId(v.id); setPending(null); }}
+                  className={`rounded-full px-2 py-0.5 ${v.id === file.id ? 'bg-ink-800 text-white' : 'bg-ink-100 text-ink-700'}`}>
+                  نسخهٔ {toPersianDigits(v.version)}{v.current ? ' (فعلی)' : ''}{v.annotations > 0 ? ` · ${toPersianDigits(v.annotations)} یادداشت` : ''}
+                </button>
+              ))}
+              {metadataFa(file.metadata) && <span>{metadataFa(file.metadata)}</span>}
+              <VersionsButton documentId={file.id} version={versions.length} onChanged={refresh} />
+              {file.current && <NewVersionButton documentId={file.id} onDone={async () => { setFileId(null); await refresh(); }} />}
+            </div>
+          )}
+          {file && !file.current && (
+            <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs text-ink-700" data-testid="old-version">
+              این نسخهٔ قدیمی است — یادداشت‌هایش برای سنجیدن نسخهٔ تازه نشان داده می‌شوند و یادداشت تازه فقط روی نسخهٔ فعلی گذاشته می‌شود.
+            </p>
+          )}
           {mayMark && <p className="text-[11px] text-ink-500">
             {file?.kind === 'image' ? 'روی تصویر کلیک کنید تا نشانه بگذارید.' : file?.kind === 'video' ? 'ویدیو را در لحظهٔ مورد نظر نگه دارید و «یادداشت در این لحظه» را بزنید.' : 'روی صفحه بکشید تا ناحیه‌ای را مشخص کنید.'}
           </p>}
@@ -189,10 +203,7 @@ function PdfStage({ documentId, marks, focus, pending, onPick }: { documentId: s
     let alive = true;
     void (async () => {
       try {
-        const pdfjs = await import('pdfjs-dist');
-        const worker = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
-        pdfjs.GlobalWorkerOptions.workerSrc = worker;
-        const d = await pdfjs.getDocument({ data: new Uint8Array(await (await fetch(url)).arrayBuffer()) }).promise;
+        const d = await openPdf(url);
         if (alive) { setDoc(d); setPage(1); }
       } catch { if (alive) setFailed(true); }
     })();

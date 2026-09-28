@@ -32,7 +32,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     },
     detailInclude: {
       company: true, project: true, proposal: { select: { id: true, code: true, title: true } },
-      amendments: { orderBy: { effectiveDate: 'desc' } }, documents: true,
+      amendments: { orderBy: { effectiveDate: 'desc' } }, documents: { where: { supersededAt: null } },
     },
     // Roadmap #28: a contract written in another currency is booked at today's rate, and keeps it.
     toCreate: async (input, actor) => {

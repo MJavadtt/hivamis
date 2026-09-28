@@ -56,7 +56,7 @@ async function filesFor(
   if (clauses.length === 0) return [];
 
   const docs = await prisma.document.findMany({
-    where: { organizationId: orgId, deletedAt: null, OR: clauses },
+    where: { organizationId: orgId, deletedAt: null, supersededAt: null, OR: clauses },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });

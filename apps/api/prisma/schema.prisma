@@ -343,6 +343,7 @@ model Company {
   deletedAt      DateTime?
 
   contacts      Contact[]
+  brandKit        BrandKit?
   portalUsers     PortalUser[]
   clientApprovals ClientApproval[]
   leads         Lead[]
@@ -1667,6 +1668,15 @@ model Document {
   proposal       Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
   clientVisible  Boolean         @default(false)
+  /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
+  /// a newer version is uploaded, when and by which file it was superseded. `version` counts within it.
+  lineageId      String?
+  supersededAt   DateTime?
+  supersededById String?
+  /// What the file itself says: dimensions, colour space, duration, pages, font family.
+  metadata       Json?
+  /// On a client's brand library: LOGO | FONT | GUIDELINE | IMAGE | OTHER.
+  brandRole      String?
   tags           String[]        @default([])
   uploadedById   String
   uploadedBy     User            @relation(fields: [uploadedById], references: [id])
@@ -1679,6 +1689,7 @@ model Document {
 
   @@index([organizationId])
   @@index([projectId])
+  @@index([lineageId])
   @@map("documents")
 }
 
@@ -2522,4 +2533,22 @@ model Annotation {
   @@unique([documentId, number])
   @@index([deliverableId, status])
   @@map("annotations")
+}
+
+/// Roadmap #42 — a client's brand, as the organisation holds it: the palette and the typefaces
+/// (the logo files and identity guide are Documents on the company with a brandRole).
+model BrandKit {
+  id             String   @id @default(uuid())
+  organizationId String
+  companyId      String   @unique
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// [{ name, hex, role: PRIMARY | SECONDARY | ACCENT | NEUTRAL }]
+  colors         Json     @default("[]")
+  /// [{ family, usage }]
+  fonts          Json     @default("[]")
+  notes          String?
+  updatedById    String
+  updatedAt      DateTime @updatedAt
+
+  @@map("brand_kits")
 }

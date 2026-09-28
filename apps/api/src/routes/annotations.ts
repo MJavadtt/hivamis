@@ -16,12 +16,13 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
     const d = await prisma.deliverable.findFirst({ where: { id, organizationId: actor.organizationId }, select: { id: true, code: true, name: true, state: true } });
     if (!d) throw notFound('خروجی');
     const [documents, annotations] = await Promise.all([
-      prisma.document.findMany({ where: { deliverableId: id, deletedAt: null }, orderBy: { createdAt: 'desc' }, select: { id: true, fileName: true, mimeType: true, sizeBytes: true, checksum: true, createdAt: true } }),
+      // Older versions stay listed, marked as such: their marks are how the new version is checked.
+      prisma.document.findMany({ where: { deliverableId: id, deletedAt: null }, orderBy: [{ supersededAt: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }], select: { id: true, fileName: true, mimeType: true, sizeBytes: true, checksum: true, createdAt: true, version: true, lineageId: true, supersededAt: true, metadata: true } }),
       prisma.annotation.findMany({ where: { deliverableId: id }, orderBy: [{ documentId: 'asc' }, { number: 'asc' }], include: withPlace }),
     ]);
     return {
       deliverable: d,
-      files: documents.map((f) => ({ ...f, kind: kindOfFile(f.mimeType), annotations: annotations.filter((a) => a.documentId === f.id).length })),
+      files: documents.map((f) => ({ ...f, current: !f.supersededAt, kind: kindOfFile(f.mimeType), annotations: annotations.filter((a) => a.documentId === f.id).length })),
       annotations,
     };
   });
@@ -32,6 +33,7 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
     const input = parse(createAnnotationSchema, req.body);
     const doc = await prisma.document.findFirst({ where: { id: input.documentId, deliverableId: id, organizationId: actor.organizationId, deletedAt: null } });
     if (!doc) throw new AppError(422, 'ANNOTATION_FILE', 'فایل باید از فایل‌های همین خروجی باشد.');
+    if (doc.supersededAt) throw new AppError(422, 'ANNOTATION_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل هست؛ یادداشت را روی آخرین نسخه بگذارید.');
     const kind = kindOfFile(doc.mimeType);
     if (!kind) throw new AppError(422, 'ANNOTATION_UNSUPPORTED', 'روی این نوع فایل نمی‌توان یادداشت گذاشت؛ فقط تصویر، ویدیو و PDF.');
     if (ANNOTATION_FOR[kind] !== input.kind) throw new AppError(422, 'ANNOTATION_KIND', 'نوع یادداشت با نوع فایل نمی‌خواند.');

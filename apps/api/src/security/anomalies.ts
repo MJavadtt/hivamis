@@ -47,7 +47,7 @@ export const THRESHOLDS = {
 } as const;
 
 const DAY = 86_400_000;
-const EXFIL = ['EXPORT', 'FILE_DOWNLOAD'];
+const EXFIL = ['EXPORT', 'FILE_DOWNLOAD', 'FILE_VIEW'];
 /** Roles whose work is the whole organisation: "outside their projects" does not apply to them. */
 const ORG_WIDE_ROLES = new Set(['SUPER_ADMIN', 'CEO', 'DEPUTY', 'PMO_MANAGER', 'PMO_SPECIALIST', 'FINANCE_MANAGER', 'FINANCE_SPECIALIST', 'LEGAL_MANAGER', 'LEGAL_SPECIALIST']);
 
@@ -109,8 +109,18 @@ export async function detectAnomalies(tx: Tx, organizationId: string, opts: Scan
   };
 
   // ── 1 & 2. Exports and downloads: out of hours, and out of proportion ──────────────────────
-  const recentExfil = byActor(recent.filter((e) => EXFIL.includes(e.action)));
-  const pastExfil = byActor(past.filter((e) => EXFIL.includes(e.action)));
+  // A file shown in the app counts once per person and file (per day in the baseline): the
+  // thumbnails of one page are not a surge, but many different files still are (roadmap #42).
+  const onceEach = <T extends { action: string; actorId: string | null; entityId: string | null; createdAt: Date }>(xs: T[], perDay: boolean) => {
+    const seen = new Set<string>();
+    return xs.filter((e) => {
+      if (e.action !== 'FILE_VIEW') return true;
+      const k = `${e.actorId}:${e.entityId}${perDay ? `:${dayKey(e.createdAt)}` : ''}`;
+      return seen.has(k) ? false : (seen.add(k), true);
+    });
+  };
+  const recentExfil = byActor(onceEach(recent.filter((e) => EXFIL.includes(e.action)), false));
+  const pastExfil = byActor(onceEach(past.filter((e) => EXFIL.includes(e.action)), true));
   for (const [actorId, mine] of recentExfil) {
     const cal = await loadCalendar(organizationId, { userId: actorId });
     const late = mine.filter((e) => offHours(e.createdAt, cal));

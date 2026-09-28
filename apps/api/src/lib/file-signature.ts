@@ -27,6 +27,11 @@ const SIGNATURES: Record<string, readonly Signature[]> = {
   // RIFF container with a WEBP fourcc; the four bytes between are the file length.
   'image/webp': [{ offset: 0, bytes: ascii('RIFF') }],
   'video/mp4': [{ offset: 4, bytes: ascii('ftyp') }],
+  // Brand typefaces (roadmap #42): TrueType (version 1.0 or Apple's 'true'), OpenType/CFF, WOFF 1 and 2.
+  'font/ttf': [{ offset: 0, bytes: [0x00, 0x01, 0x00, 0x00] }, { offset: 0, bytes: ascii('true') }],
+  'font/otf': [{ offset: 0, bytes: ascii('OTTO') }],
+  'font/woff': [{ offset: 0, bytes: ascii('wOFF') }],
+  'font/woff2': [{ offset: 0, bytes: ascii('wOF2') }],
 };
 
 /** ZIP local-file header, plus the empty and spanned variants. */

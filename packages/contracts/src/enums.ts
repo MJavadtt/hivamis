@@ -206,6 +206,15 @@ export const ENVELOPE_STATUS_LABELS: Record<string, string> = {
   SENT: 'در انتظار امضا', COMPLETED: 'امضا شد', DECLINED: 'رد شد', VOIDED: 'باطل شد', EXPIRED: 'منقضی شد',
 };
 export const SIGNER_STATUS_LABELS: Record<string, string> = { PENDING: 'در انتظار', SIGNED: 'امضا کرد', DECLINED: 'رد کرد' };
+/** A client's brand library (roadmap #42). */
+export const BRAND_ROLES = ['LOGO', 'FONT', 'GUIDELINE', 'IMAGE', 'OTHER'] as const;
+export type BrandRole = (typeof BRAND_ROLES)[number];
+export const BRAND_ROLE_LABELS: Record<BrandRole, string> = { LOGO: 'لوگو', FONT: 'فونت', GUIDELINE: 'راهنمای هویت بصری', IMAGE: 'تصویر', OTHER: 'سایر' };
+export const BRAND_COLOR_ROLES = ['PRIMARY', 'SECONDARY', 'ACCENT', 'NEUTRAL'] as const;
+export const BRAND_COLOR_ROLE_LABELS: Record<(typeof BRAND_COLOR_ROLES)[number], string> = { PRIMARY: 'اصلی', SECONDARY: 'دوم', ACCENT: 'تأکیدی', NEUTRAL: 'خنثی' };
+export const COLOR_SPACE_LABELS: Record<string, string> = {
+  RGB: 'RGB', RGBA: 'RGB با شفافیت', GRAYSCALE: 'سیاه‌وسفید', GRAYSCALE_ALPHA: 'سیاه‌وسفید با شفافیت', INDEXED: 'پالت محدود', CMYK: 'CMYK (چاپی)', YCCK: 'YCCK (چاپی)',
+};
 export const PORTAL_USER_STATUS_LABELS: Record<string, string> = { INVITED: 'دعوت شده', ACTIVE: 'فعال', DISABLED: 'غیرفعال' };
 export const CLIENT_APPROVAL_EVENT_LABELS: Record<string, string> = {
   CREATED: 'درخواست ثبت شد', SENT: 'پیوند فرستاده شد', OPENED: 'صفحه باز شد', FILE_VIEWED: 'فایل دریافت شد',
@@ -290,5 +299,7 @@ export const AUDIT_ACTIONS = [
   'CREATE', 'UPDATE', 'DELETE', 'STATE_TRANSITION', 'APPROVE', 'REJECT',
   'LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'PERMISSION_DENIED', 'REFRESH_TOKEN_REUSE', 'AI_ACTION',
   'EXPORT', 'FILE_UPLOAD', 'FILE_DOWNLOAD',
+  // A file shown in the app (a preview), once per person, file and hour — roadmap #42.
+  'FILE_VIEW',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
