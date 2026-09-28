@@ -3,7 +3,7 @@ import {
   DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
-  BRAND_COLOR_ROLES,
+  BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS,
 } from './enums.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
@@ -806,7 +806,7 @@ export const updateLocaleSchema = z.object({
  */
 const routingLeafSchema = z.object({
   field: z.string().trim().min(1).max(80),
-  op: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in', 'notIn', 'isTrue', 'isFalse', 'isSet', 'isEmpty', 'ltField', 'gtField']),
+  op: z.enum(['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in', 'notIn', 'isTrue', 'isFalse', 'isSet', 'isEmpty', 'ltField', 'gtField', 'eqField', 'neField']),
   value: z.union([z.number(), z.string().max(200), z.array(z.string().max(120)).max(50)]).optional(),
 });
 type RoutingConditionInput =
@@ -833,6 +833,24 @@ export const routingRuleSchema = z.object({
 export const updateRoutingSchema = z.object({
   rules: z.array(routingRuleSchema).max(20),
   note: z.string().trim().max(200).optional(),
+});
+
+/**
+ * An organisation's own rule on a transition (roadmap #47), written without code: a guard the
+ * move must satisfy, or a notice sent when it happens. The condition is #17's language, so it is
+ * pure, total and readable back in Persian; it can add a requirement but never remove one.
+ */
+export const customRuleSchema = z.object({
+  kind: z.enum(CUSTOM_RULE_KINDS),
+  entity: z.string().trim().min(2).max(40),
+  action: z.string().trim().min(2).max(60),
+  labelFa: z.string().trim().min(3).max(120),
+  messageFa: z.string().trim().max(500).optional().nullable(),
+  when: routingConditionSchema.optional().nullable(),
+  notifyRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+}).superRefine((r, ctx) => {
+  if (r.kind === 'GUARD' && !r.when) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['when'], message: 'قانونی که انتقال را کنترل می‌کند شرط لازم دارد' });
+  if (r.kind === 'NOTIFY' && !r.notifyRoles?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['notifyRoles'], message: 'دست‌کم یک نقش برای آگاه‌شدن لازم است' });
 });
 
 /** Ordered approval stages with quorum (roadmap #18), as an administrator may edit them. */

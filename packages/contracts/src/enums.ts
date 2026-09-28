@@ -212,6 +212,13 @@ export type BrandRole = (typeof BRAND_ROLES)[number];
 export const BRAND_ROLE_LABELS: Record<BrandRole, string> = { LOGO: 'لوگو', FONT: 'فونت', GUIDELINE: 'راهنمای هویت بصری', IMAGE: 'تصویر', OTHER: 'سایر' };
 export const BRAND_COLOR_ROLES = ['PRIMARY', 'SECONDARY', 'ACCENT', 'NEUTRAL'] as const;
 export const BRAND_COLOR_ROLE_LABELS: Record<(typeof BRAND_COLOR_ROLES)[number], string> = { PRIMARY: 'اصلی', SECONDARY: 'دوم', ACCENT: 'تأکیدی', NEUTRAL: 'خنثی' };
+/** An organisation's own rule on a transition (roadmap #47). */
+export const CUSTOM_RULE_KINDS = ['GUARD', 'NOTIFY'] as const;
+export type CustomRuleKind = (typeof CUSTOM_RULE_KINDS)[number];
+export const CUSTOM_RULE_KIND_LABELS: Record<CustomRuleKind, string> = { GUARD: 'شرط انتقال', NOTIFY: 'آگاه‌سازی' };
+/** Where a rule on a transition comes from: the product, an installed extension, or the organisation. */
+export const RULE_SOURCE_LABELS: Record<string, string> = { core: 'Doc_H (هستهٔ سامانه)', extension: 'افزونه', custom: 'قانون سازمان' };
+
 /** How a file's colour or typeface stands against the brand library (roadmap #43). */
 export const BRAND_CHECK_STATUS_LABELS: Record<string, string> = {
   BRAND: 'رنگ برند', NEAR: 'نزدیک به رنگ برند', NEUTRAL: 'خنثی', OFF: 'بیرون از پالت', UNCHECKED: 'سنجیده نشد',

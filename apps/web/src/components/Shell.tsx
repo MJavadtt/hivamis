@@ -82,6 +82,8 @@ const NAV: NavGroup[] = [
       // No permission of its own: memory only ever searches what the caller may already read.
       { to: '/memory', label: 'حافظهٔ سازمان', icon: IconSearch },
       { to: '/ai', label: 'دستیار هوشمند', icon: IconSpark, permission: 'ai.use' },
+      // No permission of its own: the rules are for everyone they bind to read (roadmap #47).
+      { to: '/rules', label: 'قوانین سازمان', icon: IconShield },
       { to: '/admin', label: 'مدیریت سیستم', icon: IconSettings, permission: 'admin.audit' },
     ],
   },

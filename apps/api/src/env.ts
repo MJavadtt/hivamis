@@ -22,6 +22,12 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL: ttl('REFRESH_TOKEN_TTL').default('7d'),
   STORAGE_DIR: z.string().default('./storage'),
   /**
+   * Where the operator installs extensions — modules that add guards and effects to the workflow
+   * engine without forking it (roadmap #47). Read once at boot; unset, nothing is loaded. Code
+   * here runs with the API's own rights, so it is set on the server, never from the app.
+   */
+  EXTENSIONS_DIR: z.string().optional(),
+  /**
    * Absolute path to the Chromium/Chrome binary the PDF engine drives. Left unset in local
    * development, where the renderer probes the Playwright cache and the usual system paths;
    * set explicitly in the container so resolution never depends on a filesystem probe.

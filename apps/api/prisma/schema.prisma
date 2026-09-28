@@ -2552,3 +2552,32 @@ model BrandKit {
 
   @@map("brand_kits")
 }
+
+/// An organisation's own rule on a transition (roadmap #47): a guard the move must satisfy, or a
+/// notice sent when it happens. Never edited in place — a change is a new version under the same
+/// code, and the version it replaces is retired — so a transition can name the rule it met.
+model CustomRule {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// Stable across versions: RUL-000001. Waivers and the audit trail name it as `custom:<code>`.
+  code           String
+  version        Int
+  /// GUARD | NOTIFY
+  kind           String
+  entity         String
+  action         String
+  labelFa        String
+  messageFa      String?
+  /// #17's condition language. A GUARD's must hold for the move; a NOTIFY's decides whether to tell.
+  when           Json?
+  notifyRoles    String[]  @default([])
+  createdById    String
+  createdAt      DateTime  @default(now())
+  retiredAt      DateTime?
+  retiredById    String?
+  supersededById String?
+
+  @@unique([organizationId, code, version])
+  @@index([organizationId, entity, action])
+  @@map("custom_rules")
+}

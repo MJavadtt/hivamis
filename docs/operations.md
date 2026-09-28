@@ -52,6 +52,7 @@ on first sign-in), then deactivate the demo users.
 | `ACCESS_TOKEN_TTL` | no | 15m | |
 | `REFRESH_TOKEN_TTL` | no | 7d | |
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
+| `EXTENSIONS_DIR` | no | unset | Modules that add guards and effects to the workflow engine (roadmap #47). Loaded at boot; a broken one stops the boot. See [Extensions](#extensions) |
 | `MAX_UPLOAD_MB` | no | 25 | |
 | `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
 | `MAIL_ENABLED` | no | `false` | Outbound email. Off by default; notifications stay in-app and nothing throws. Requires `SMTP_HOST` and `SMTP_FROM` to actually engage — the flag alone is not enough. |
@@ -326,6 +327,26 @@ honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s i
 `infrastructure/docker/nginx.conf`). A browser that cannot hold the stream falls back to polling
 notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
 installed as pg-boss's driver) is now a direct dependency of the API for this listener.
+
+## Extensions
+
+Roadmap #47. An organisation adds its own code rules without forking: `.js`/`.mjs` modules in
+`EXTENSIONS_DIR`, loaded at boot in file-name order. `apps/api/extensions/examples` holds a working
+example and the full contract (`README.md` there). What an operator needs to know:
+
+- **Boot fails closed.** An extension that throws, names a transition that does not exist, or
+  registers a key outside its own name stops the API from starting, with the reason in the log.
+  Fix or remove it; a workflow must not look governed and not be.
+- **It changes the rules.** Installing, upgrading or removing one gives the workflows rule set a new
+  version (`/rules/versions`), with the extension's additions in the diff; transitions after it
+  name that version.
+- **It runs with the API's rights** — database included. Install only reviewed code, keep the
+  directory writable only by the deploy user, and never make it reachable from the web app.
+- **Effects run inside the transition's transaction.** A slow effect holds the move's locks; calls to
+  outside systems belong in webhooks (#46).
+
+The organisation's no-code rules (the «قوانین سازمان» page) need none of this: they are data,
+written in the app under `rules.manage`, versioned in `custom_rules`.
 
 ## Files and versions
 

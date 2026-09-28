@@ -50,10 +50,15 @@ import brandRoutes from './routes/brand.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
+import orgRuleRoutes from './routes/org-rules.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   // The rules the running code declares become a version row if they changed since last boot,
   // so every transition can name the rules that allowed it (roadmap #4).
+  // Extensions first (roadmap #47): what they add is part of the rules being registered. A broken
+  // one stops the boot — see src/extensions/loader.ts.
+  const { loadExtensions } = await import('./extensions/loader.js');
+  await loadExtensions();
   const { registerRuleSets } = await import('./workflow/rules.js');
   await registerRuleSets().catch(() => undefined);
   const app = Fastify({
@@ -184,6 +189,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(delegationRoutes);
     await api.register(waiverRoutes);
     await api.register(ruleRoutes);
+    await api.register(orgRuleRoutes);
     await api.register(memoryRoutes);
     await api.register(securityRoutes);
     await api.register(meetingRoutes);

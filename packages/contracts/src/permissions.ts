@@ -145,6 +145,7 @@ export const PERMISSIONS = {
   'admin.settings': 'تنظیمات سیستم',
   'admin.audit': 'مشاهده گزارش حسابرسی',
   'admin.keys': 'کلیدهای API و Webhook',
+  'rules.manage': 'تعریف قوانین سازمان روی گردش کار',
   // Client portal (roadmap #34)
   'portal.manage': 'مدیریت پورتال مشتری',
   // Brand library (roadmap #42)
@@ -244,7 +245,7 @@ const PMO_CORE: Permission[] = [
  * keys, more users, other roles, or exceptions to the rules — a leaked key must not be a way in
  * that outlives its discovery.
  */
-export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage'];
+export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage', 'rules.manage'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
@@ -270,7 +271,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   ACCOUNT_EXEC: ACCOUNT_CORE.filter((p) => p !== 'project.close'),
   UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage'],
   UNIT_MEMBER: UNIT_CORE,
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close'],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage'],
   PMO_SPECIALIST: PMO_CORE,
   FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive'],
   FINANCE_SPECIALIST: FINANCE_CORE,

@@ -3,8 +3,8 @@ import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { RULE_KINDS, RULE_KIND_LABEL, diffRuleSets, rulesAt, type RuleKind } from '../workflow/rules.js';
-import { runLab, ALL_GUARD_IDS, type LabEdit } from '../workflow/lab.js';
-import { GUARD_LABELS } from '../workflow/guards.js';
+import { runLab, allGuardIds, type LabEdit } from '../workflow/lab.js';
+import { guardLabel } from '../workflow/registry.js';
 
 /**
  * The rules as they stood at any time (roadmap #4). Read-only: versions come from what the
@@ -74,7 +74,7 @@ const ruleRoutes: FastifyPluginAsync = async (app) => {
 
   /** The vocabulary the lab's editor needs: every guard with its label. */
   app.get('/rules/lab/vocabulary', gate, async () => ({
-    guards: ALL_GUARD_IDS.map((id) => ({ id, labelFa: GUARD_LABELS[id] ?? id })),
+    guards: allGuardIds().map((id) => ({ id, labelFa: guardLabel(id) })),
   }));
 
   /** The rules a given transition was allowed under. */

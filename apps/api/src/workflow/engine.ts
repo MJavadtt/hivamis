@@ -5,7 +5,9 @@ import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, startSla, stopSla } from '../sla/engine.js';
 import { runGuards, runAllGuards, activeWaivers, type GuardCheck } from './guards.js';
 import { rulesInForce } from './rules.js';
-import { EFFECTS } from './effects.js';
+import './effects.js';
+import { PROTECTED_FIELDS, effectsFor, guardsFor } from './registry.js';
+import { applyNotifyRules, customGuards, customRulesFor } from './custom.js';
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
 /**
@@ -139,9 +141,13 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       );
     }
 
-    const waivers = def.guards?.length ? await activeWaivers(tx, entity, id, action) : [];
-    const guardResult = await runGuards(def.guards, {
-      tx, entity, id, record, payload, actorId: actor.id,
+    // Doc_H's guards, those an installed extension attached, then the organisation's own (#47).
+    const custom = await customRulesFor(tx, actor.organizationId, entity, action);
+    const own = customGuards(custom);
+    const guardKeys = [...guardsFor(entity, action, def.guards), ...own.keys];
+    const waivers = guardKeys.length ? await activeWaivers(tx, entity, id, action) : [];
+    const guardResult = await runGuards(guardKeys, {
+      tx, entity, id, record, payload, actorId: actor.id, resolve: own.resolve, labelOf: own.labelOf,
     }, waivers);
     if (!guardResult.ok) {
       throw new GovernanceError(
@@ -159,20 +165,24 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
     // Which rules said yes: the versions in force now, kept on the row for the auditor of later.
     const rules = await rulesInForce(tx);
 
-    const effect = EFFECTS[`${entity}.${action}`];
-    const patch = effect
-      ? await effect({
-          tx, id, record, payload,
-          actorId: actor.id,
-          organizationId: actor.organizationId,
-          reason,
-        })
-      : {};
+    // The core effect, then what extensions add (#47). An extension adds to the update; it may
+    // not write the state, identity, or anything the core effect already set.
+    const patch: Record<string, unknown> = {};
+    for (const effect of effectsFor(entity, action)) {
+      const out = (await effect.run({ tx, id, record, payload, actorId: actor.id, organizationId: actor.organizationId, reason })) ?? {};
+      if (effect.source !== 'core') {
+        const refused = Object.keys(out).filter((k) => PROTECTED_FIELDS.has(k) || k in patch);
+        if (refused.length) throw new AppError(500, 'EFFECT_REFUSED', `اثر «${effect.key}» از افزونهٔ «${effect.extension ?? '—'}» می‌خواهد «${refused.join('، ')}» را بنویسد؛ افزونه فقط می‌افزاید.`);
+      }
+      Object.assign(patch, out);
+    }
 
     const updated = await model.update({
       where: { id },
       data: { state: def.to, ...patch },
     });
+    const notified = await applyNotifyRules(tx, custom, { organizationId: actor.organizationId, entity, record: updated, actorId: actor.id, transitionFa: def.labelFa });
+    const ownRules = custom.filter((r) => r.kind === 'GUARD').map((r) => `${r.code}@${r.version}`);
 
     await tx.stateTransition.create({
       data: {
@@ -198,7 +208,12 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       entityId: id,
       onBehalfOfId,
       before: { state: fromState },
-      after: { state: def.to, rules: { workflows: rules.workflows, permissions: rules.permissions }, ...(waived.length ? { waived } : {}) },
+      after: {
+        state: def.to, rules: { workflows: rules.workflows, permissions: rules.permissions },
+        ...(waived.length ? { waived } : {}),
+        // The organisation's rules this move met, by version (#47).
+        ...(ownRules.length || notified.length ? { customRules: { guards: ownRules, notified } } : {}),
+      },
       reason: reason ?? null,
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
@@ -360,10 +375,13 @@ export async function preflight(
   }
 
   const transitions: PreflightEntry[] = [];
+  const custom = await customRulesFor(tx, actor.organizationId, entity);
   for (const def of candidates) {
     const permitted = !def.permission || actor.permissions.includes(def.permission as Permission);
-    const waivers = def.guards?.length ? await activeWaivers(tx, entity, id, def.action) : [];
-    const checks = await runAllGuards(def.guards, { tx, entity, id, record, payload: {}, actorId: actor.id }, waivers);
+    const own = customGuards(custom.filter((r) => r.action === def.action));
+    const guardKeys = [...guardsFor(entity, def.action, def.guards), ...own.keys];
+    const waivers = guardKeys.length ? await activeWaivers(tx, entity, id, def.action) : [];
+    const checks = await runAllGuards(guardKeys, { tx, entity, id, record, payload: {}, actorId: actor.id, resolve: own.resolve, labelOf: own.labelOf }, waivers);
     transitions.push({
       action: def.action, labelFa: def.labelFa, labelEn: def.labelEn, to: def.to,
       requiresReason: def.requiresReason ?? false,

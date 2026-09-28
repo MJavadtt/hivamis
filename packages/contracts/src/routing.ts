@@ -24,7 +24,9 @@ export type RoutingOperator =
   | 'in' | 'notIn'
   | 'isTrue' | 'isFalse' | 'isSet' | 'isEmpty'
   /** Numeric comparison against another field: "sale price below total cost". */
-  | 'ltField' | 'gtField';
+  | 'ltField' | 'gtField'
+  /** Sameness with another field — "whoever approves is not whoever created" (roadmap #47). */
+  | 'eqField' | 'neField';
 
 export interface RoutingLeaf {
   readonly field: string;
@@ -86,6 +88,8 @@ export function matchesCondition(cond: RoutingCondition, data: Record<string, un
     case 'notIn': return Array.isArray(cond.value) && !cond.value.includes(String(raw));
     case 'eq': return String(raw) === String(cond.value);
     case 'ne': return String(raw) !== String(cond.value);
+    case 'eqField': return !isEmpty(raw) && String(raw) === String(data[String(cond.value)]);
+    case 'neField': return String(raw) !== String(data[String(cond.value)] ?? '');
     case 'ltField':
     case 'gtField': {
       const a = num(raw); const b = num(data[String(cond.value)]);
@@ -138,6 +142,7 @@ const OP_FA: Record<RoutingOperator, string> = {
   eq: 'برابر', ne: 'نابرابر با', in: 'یکی از', notIn: 'هیچ‌یک از',
   isTrue: 'تیک‌خورده', isFalse: 'تیک‌نخورده', isSet: 'پر شده', isEmpty: 'خالی',
   ltField: 'کمتر از مقدار فیلد', gtField: 'بیشتر از مقدار فیلد',
+  eqField: 'همان مقدار فیلد', neField: 'غیر از مقدار فیلد',
 };
 
 /** The condition in Persian, for an editor that must not require reading JSON. */
@@ -147,7 +152,7 @@ export function describeCondition(cond: RoutingCondition, fields: readonly Field
   const label = fields.find((f) => f.key === cond.field)?.labelFa ?? cond.field;
   const op = OP_FA[cond.op];
   if (['isTrue', 'isFalse', 'isSet', 'isEmpty'].includes(cond.op)) return `«${label}» ${op} باشد`;
-  if (cond.op === 'ltField' || cond.op === 'gtField') {
+  if (cond.op === 'ltField' || cond.op === 'gtField' || cond.op === 'eqField' || cond.op === 'neField') {
     const other = fields.find((f) => f.key === String(cond.value))?.labelFa ?? String(cond.value);
     return `«${label}» ${op} «${other}» باشد`;
   }

@@ -17,7 +17,8 @@
  */
 import { ROLE_PERMISSIONS, WORKFLOWS } from '@hiva/contracts';
 import type { Tx } from '../db.js';
-import { GUARDS, runAllGuards } from './guards.js';
+import { runAllGuards } from './guards.js';
+import { allGuards, hasGuard } from './registry.js';
 import { delegate } from './engine.js';
 
 export type LabEdit =
@@ -68,7 +69,7 @@ export function applyEdits(edits: LabEdit[]): { workflows: typeof WORKFLOWS; per
       const def = wf?.transitions.find((t) => t.action === e.action);
       if (!def) { invalid.push(`انتقال «${e.entity}.${e.action}» وجود ندارد`); continue; }
       if (e.guards) {
-        const unknown = e.guards.filter((g) => !GUARDS[g]);
+        const unknown = e.guards.filter((g) => !hasGuard(g));
         if (unknown.length) { invalid.push(`قانون کنترلی ناشناخته: ${unknown.join('، ')}`); continue; }
         def.guards = e.guards;
       }
@@ -183,4 +184,5 @@ export async function runLab(tx: Tx, organizationId: string, input: LabInput): P
   };
 }
 
-export const ALL_GUARD_IDS = Object.keys(GUARDS);
+/** Every registered guard, core and extension — read when asked, since extensions load at boot. */
+export const allGuardIds = () => allGuards().map((g) => g.key);

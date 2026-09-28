@@ -11,6 +11,7 @@ const PREFIXES: Record<string, string> = {
   changeRequest: 'CR', contract: 'CNT', invoice: 'INV', risk: 'RSK', issue: 'ISS',
   decision: 'DEC', meeting: 'MTG', statusReport: 'RPT', outsourceRequest: 'OSR',
   formSubmission: 'FRM', handoff: 'HND', mediaOrder: 'MO', clientApproval: 'CA', signatureEnvelope: 'ESG',
+  customRule: 'RUL',
 };
 
 export async function nextCode(tx: Tx, scope: keyof typeof PREFIXES | string): Promise<string> {

@@ -97,6 +97,11 @@ load record → find declared transition → check permission → check mandator
   *which rule* fired rather than showing a generic failure. Enforcement stops at the first failing guard; `preflight()` runs every guard and reports every verdict, and the action bar shows that checklist beside each button — so a blocked move says what is missing before the click, not after (roadmap #2). Guards are read-only, which is what makes that safe to call on every page view; each has a positive `GUARD_LABELS` entry for the tick, since a guard's own message only exists on failure.
 - **Effects** (`src/workflow/effects.ts`) are side effects applied atomically with the state
   change, so timestamps can never drift from the state they describe.
+- **The registry** (`src/workflow/registry.ts`, roadmap #47) is where the engine finds both. Doc_H's
+  guards and effects register themselves; an extension in `EXTENSIONS_DIR` registers its own and
+  attaches guards to existing transitions; an organisation's no-code rules (`custom_rules`) join at
+  the transition. A rule is added, never replaced: keys are unique, attached guards stand beside
+  Doc_H's, and an extension effect may not write the state or rewrite what the core set.
 
 An undeclared transition returns 409 with the list of legal actions.
 
@@ -195,7 +200,7 @@ reshaping the schema.
 | Password storage | Argon2id, 19 MiB / 2 iterations / 1 lane (OWASP) |
 | Session | 15-minute access JWT; opaque refresh token stored only as SHA-256 digest; rotated single-use. Refresh re-checks that the account is still active, so a deactivated user cannot keep minting access tokens. Replaying a spent token is treated as theft: every session for that user is revoked and a `REFRESH_TOKEN_REUSE` audit event is written. Changing a user's roles revokes their sessions, because permissions are carried in the access token |
 | Brute force | Login and refresh rate limits plus account lock after 5 failures. `TRUST_PROXY` defaults to trusting no proxy, so a forged `X-Forwarded-For` cannot move a client between rate-limit buckets |
-| Authorization | 109 permissions across 16 roles, checked per route and again inside the workflow engine |
+| Authorization | 110 permissions across 16 roles, checked per route and again inside the workflow engine |
 | Audit | Every consequential mutation writes who / what / when / before / after / why; sensitive fields redacted |
 | Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list. Path parameters naming an entity are validated against the declared workflow list before any dynamic delegate lookup |
 | State integrity | Each workflow table carries a CHECK constraint pinning `state` to its declared vocabulary, generated from `packages/contracts` by `prisma/generate-state-constraints.mts`. The engine remains the only sanctioned writer; the constraint means a direct UPDATE or a data import cannot introduce an undeclared state either |

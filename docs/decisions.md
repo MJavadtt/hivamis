@@ -1272,3 +1272,35 @@ remain the reviewer's. Spot inks match only by name. Arithmetic-coded JPEGs and 
 megapixels are reported as unread. The reading costs up to about half a second of CPU per large
 image, in the upload request.
 
+## ADR-050 — Rules are added through one registry, from three sources, and never taken away
+
+**Decision.** The engine no longer reads fixed `GUARDS` and `EFFECTS` maps; it asks a registry what
+applies to a transition. Doc_H's guards and effects register themselves at start-up; an extension —
+a module an operator puts in `EXTENSIONS_DIR` — registers its own through the same calls and may
+attach guards to existing transitions; an organisation's no-code rules, written in the app and
+stored as versioned rows in `custom_rules`, join at the transition: a GUARD is a condition in #17's
+routing language that the move must satisfy, a NOTIFY tells roles when it happens. Preflight (#2),
+waivers (#7), the audit trail and rule versions (#4) see all three. Installed extensions ride in
+the workflows rule-set snapshot, so installing one is a new rules version that every later
+transition names; with none installed the snapshot is exactly Doc_H's, so nothing changes.
+
+**Rationale.** The product sells an organisation's rules, and every organisation's rules differ.
+If the only way to add one is to change this repository, every customer is a fork — a project, not
+a product. Two kinds of customer need two doors: an integrator writes code (an extension, loaded
+from a directory, with the full context a core guard has), and a manager writes a sentence (a
+condition over the record's fields, tried on a record and replayed against history before it is
+published). Both are held to one property that keeps Doc_H meaningful: a rule can add a
+requirement, never remove one. Keys are unique, so no extension replaces a core guard; attached
+guards stand beside the declared ones; an extension effect may not write the state or rewrite a
+field the core effect set; an organisation's rule can only block or notify. A rule version is never
+edited — a change is the next version, the database refuses an in-place edit — so a transition can
+always name the rule it met. Extensions fail closed at boot: running with some of an
+organisation's rules silently missing is worse than not running.
+
+**Limits.** Extension code runs with the API's rights; the directory is the operator's to guard,
+and nothing in the app can install code. A guard is trusted to be read-only — it is given the
+transaction to read and could write. No-code rules see the record's own scalar fields, dates as
+days from now, and the acting user — not related records, counts or sums; the editor builds one
+level of all/any (deeper nesting is API-only). A replay judges past moves against records as they
+are today, as the rule lab does. Notices are in-app only (no email or messenger push).
+

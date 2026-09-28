@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Forms from './pages/Forms';
 import Quality from './pages/Quality';
 import Admin from './pages/Admin';
+import Rules from './pages/Rules';
 import Assistant from './pages/Assistant';
 import { ProjectDetail, ProjectsList } from './pages/Projects';
 import { CompaniesList, CompanyDetail, LeadsList, OpportunitiesList, OpportunityDetail } from './pages/Crm';
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/forms" element={<Guarded permission="form.read" element={<Forms />} />} />
         <Route path="/reports" element={<Guarded permission="report.read" element={<Reports />} />} />
         <Route path="/memory" element={<Memory />} />
+        <Route path="/rules" element={<Rules />} />
         <Route path="/ai" element={<Guarded permission="ai.use" element={<Assistant />} />} />
         <Route path="/admin" element={<Guarded permission="admin.audit" element={<Admin />} />} />
 

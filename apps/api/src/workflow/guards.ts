@@ -1,5 +1,6 @@
 import type { Tx } from '../db.js';
 import { stageZero } from '../quality/stage-zero.js';
+import { guardLabel, guardOf, registerGuard } from './registry.js';
 
 export interface GuardContext {
   tx: Tx;
@@ -8,6 +9,9 @@ export interface GuardContext {
   record: Record<string, any>;
   payload: Record<string, unknown>;
   actorId: string;
+  /** Guards the registry does not hold — an organisation's own rules (#47) — resolved by the caller. */
+  resolve?: (key: string) => ((c: GuardContext) => Promise<GuardResult>) | undefined;
+  labelOf?: (key: string) => string | undefined;
 }
 
 export interface GuardResult {
@@ -580,8 +584,8 @@ export async function runAllGuards(
 ): Promise<GuardCheck[]> {
   const checks: GuardCheck[] = [];
   for (const gid of guardIds ?? []) {
-    const guard = GUARDS[gid];
-    const labelFa = GUARD_LABELS[gid] ?? gid;
+    const guard = ctx.resolve?.(gid) ?? guardOf(gid)?.run;
+    const labelFa = ctx.labelOf?.(gid) ?? guardLabel(gid);
     if (!guard) {
       checks.push({ guard: gid, labelFa, ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.` });
       continue;
@@ -607,7 +611,7 @@ export async function runGuards(
 ): Promise<GuardResult & { usedWaivers: ActiveWaiver[]; guard?: string }> {
   const usedWaivers: ActiveWaiver[] = [];
   for (const gid of guardIds ?? []) {
-    const guard = GUARDS[gid];
+    const guard = ctx.resolve?.(gid) ?? guardOf(gid)?.run;
     if (!guard) {
       return { ok: false, rule: gid, messageFa: `قانون کنترلی «${gid}» تعریف نشده است.`, usedWaivers, guard: gid };
     }
@@ -620,3 +624,6 @@ export async function runGuards(
   }
   return { ...pass, usedWaivers };
 }
+
+// The core's guards enter the registry the way an extension's do (roadmap #47).
+for (const [key, run] of Object.entries(GUARDS)) registerGuard({ key, run, labelFa: GUARD_LABELS[key] ?? key, source: 'core' });

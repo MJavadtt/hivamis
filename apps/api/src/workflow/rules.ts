@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { ROLE_PERMISSIONS, SLA_POLICIES, WORKFLOWS } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
+import { extensionSnapshot } from './registry.js';
 
 export type RuleKind = 'workflows' | 'permissions' | 'sla';
 export const RULE_KINDS: readonly RuleKind[] = ['workflows', 'permissions', 'sla'];
@@ -33,9 +34,17 @@ export function canonical(v: unknown): string {
 
 export const fingerprint = (snapshot: unknown) => createHash('sha256').update(canonical(snapshot)).digest('hex').slice(0, 24);
 
+/**
+ * What installed extensions add (roadmap #47) rides in the workflows snapshot under this key:
+ * installing, changing or removing one is a change of the rules, so it becomes a new version and
+ * every transition names it. With none installed the snapshot is exactly Doc_H's.
+ */
+export const EXTENSIONS_KEY = '~extensions';
+
 /** The rule sets as the running code declares them. Injectable so a change can be simulated. */
 export function currentSnapshots(): Record<RuleKind, unknown> {
-  return { workflows: WORKFLOWS, permissions: ROLE_PERMISSIONS, sla: SLA_POLICIES };
+  const ext = extensionSnapshot();
+  return { workflows: ext ? { ...WORKFLOWS, [EXTENSIONS_KEY]: ext } : WORKFLOWS, permissions: ROLE_PERMISSIONS, sla: SLA_POLICIES };
 }
 
 export interface CurrentRules { workflows: string; permissions: string; sla: string }
@@ -104,6 +113,7 @@ export function diffRuleSets(kind: RuleKind, from: unknown, to: unknown): string
     const a = from as Record<string, { transitions: Array<Record<string, unknown>>; states: string[] }>;
     const b = to as Record<string, { transitions: Array<Record<string, unknown>>; states: string[] }>;
     for (const entity of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (entity === EXTENSIONS_KEY) continue;
       if (!a[entity]) { changes.push(`ماشین حالت «${entity}» اضافه شد`); continue; }
       if (!b[entity]) { changes.push(`ماشین حالت «${entity}» حذف شد`); continue; }
       for (const s of b[entity].states.filter((x) => !a[entity]!.states.includes(x))) changes.push(`${entity}: وضعیت «${s}» اضافه شد`);
@@ -121,6 +131,13 @@ export function diffRuleSets(kind: RuleKind, from: unknown, to: unknown): string
         }
       }
       for (const [k, t] of am) if (!bm.has(k)) changes.push(`${entity}: انتقال «${t.action}» حذف شد`);
+    }
+    const none = { guards: [], attachments: [], effects: [] } as Record<string, string[]>;
+    const ea = ((a as Record<string, unknown>)[EXTENSIONS_KEY] ?? none) as Record<string, string[]>;
+    const eb = ((b as Record<string, unknown>)[EXTENSIONS_KEY] ?? none) as Record<string, string[]>;
+    for (const [field, label] of [['guards', 'قانون'], ['attachments', 'قانون روی انتقال'], ['effects', 'اثر']] as const) {
+      for (const x of (eb[field] ?? []).filter((v) => !(ea[field] ?? []).includes(v))) changes.push(`افزونه: ${label} «${x}» اضافه شد`);
+      for (const x of (ea[field] ?? []).filter((v) => !(eb[field] ?? []).includes(v))) changes.push(`افزونه: ${label} «${x}» حذف شد`);
     }
   } else if (kind === 'permissions') {
     const a = from as Record<string, string[]>; const b = to as Record<string, string[]>;

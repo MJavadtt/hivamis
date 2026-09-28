@@ -473,6 +473,34 @@ same check on the deliverable's current files: `check: 'brand'` findings are `WA
 colours, typefaces outside the brand) or `INFO` (a PDF colour nearly the brand's) — never `FAIL`.
 What was not judged goes to `notCheckedFa`.
 
+## Rules on the workflows: the registry, extensions, and the organisation's own
+
+Roadmap #47. Guards and effects come from a registry with three sources: Doc_H's (`core`), those an
+installed extension adds (`extension`, from `EXTENSIONS_DIR`), and the organisation's own
+(`custom`, written in the app). Every transition runs Doc_H's guards, the guards extensions attached
+to it, then the organisation's; effects run core first. A rule can add a requirement, never remove
+one. The organisation's guards appear in preflight as `custom:<code>`, can be waived (#7) under that
+key, and a passing move's audit row records them: `after.customRules = { guards: ['RUL-000001@2'],
+notified: [...] }`. A refused move is `422 GOVERNANCE_RULE_VIOLATION` with
+`details.rule = 'قانون سازمان RUL-000001 (نسخهٔ 2)'`. An extension effect that writes `state`,
+identity or a field the core effect set is refused, `500 EFFECT_REFUSED`, and the move is undone.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /rules/registry` | signed in | Installed extensions and what each adds; every guard with its `source`; guards attached to transitions; extension effects |
+| `GET /rules/custom` (`?all=1` for retired versions too) | signed in | The organisation's rules, current versions, each with `whenFa` — its condition in Persian |
+| `GET /rules/custom/:code` | signed in | Every version of one rule, newest first |
+| `GET /rules/custom/vocabulary` | signed in | Workflows, their transitions, and each entity's fields a condition may name (from the schema; each date also as `<field>.daysFromNow`; `actor.id` for four-eyes rules) |
+| `POST /rules/custom` `{ kind, entity, action, labelFa, messageFa?, when?, notifyRoles? }` | `rules.manage` | Publish a rule as `RUL-000001` v1. `kind` `GUARD` needs `when` (the condition the move must satisfy); `NOTIFY` needs `notifyRoles` and may have `when`. `422 RULE_INVALID` for a transition or field that does not exist. Audited |
+| `PUT /rules/custom/:code` | `rules.manage` | A change: the next version, and the current one retired (`supersededById`). A version is never edited — the database refuses it. `409 RULE_CHANGED` if another edit won. Audited |
+| `POST /rules/custom/:code/retire` `{ reason }` | `rules.manage` | Stop applying it; its versions stay. Audited with the reason |
+| `POST /rules/custom/test` `{ rule, recordId }` | `rules.manage` | A draft against one record (id or code), now: `holds`, `verdictFa`, and the values the condition read. Nothing written |
+| `POST /rules/custom/replay` `{ rule, limit? }` | `rules.manage` | A draft against this organisation's past transitions of that move: how many it would have held back (or notified), judged on the records as they are today |
+
+Conditions are #17's routing language, which gains `eqField` and `neField` — sameness with another
+field. A `NOTIFY` rule writes `CUSTOM_RULE` notifications to the active holders of its roles, except
+the person who made the move, inside the move's transaction.
+
 ## Messenger
 
 Roadmap #40. A person links their messenger chat, and the notifications that matter

@@ -484,6 +484,28 @@ anything, and every request is logged.
 
 ---
 
+## The organisation's rules
+
+**قوانین سازمان** (in the sidebar, for everyone) lists every rule the workflows follow: the
+organisation's own, and — under **Doc_H و افزونه‌ها** — the product's and any installed extension's.
+Each rule is read back as a sentence: «انتقال فقط وقتی مجاز است که …».
+
+The CEO and the PMO manager (**rules.manage**) write the organisation's own, with no code:
+
+1. **قانون تازه** — choose the workflow and the move («تأیید قرارداد»، «واجد شرایط کردن سرنخ»…),
+   name the rule as people should see it, and build the condition from the record's fields: an
+   amount at least so much, a date no more than so many days away, a field filled in, the person
+   making the move being (or not being) the record's owner. For a notice, choose instead who
+   should be told.
+2. **آزمون روی این رکورد** tries it on one record by its code; **سنجش روی سابقه** says how many of
+   the moves already made it would have held back — before anyone is stopped by it.
+3. **انتشار** — it applies from that moment. The blocked person sees it in «چرا نمی‌توانم؟» by its
+   name; the CEO's governed exception (استثنا) covers it like any other rule.
+
+A change is **نسخهٔ تازه**: the old version is kept, and every move records the version it met.
+**کنار گذاشتن** stops a rule, with a reason; its history stays. A rule can only add a requirement or
+a notice — it never switches off one of Doc_H's.
+
 ## When the system blocks you
 
 A refusal names the rule. For example:

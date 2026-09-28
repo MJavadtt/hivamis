@@ -3,6 +3,7 @@ import { badRequest } from '../lib/errors.js';
 import { logTime } from '../reports/time.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { cascadeState } from './engine.js';
+import { registerEffect } from './registry.js';
 
 export interface EffectContext {
   tx: Tx;
@@ -199,3 +200,10 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   'mediaOrder.reconcile': async () => ({ reconciledAt: new Date() }),
   'mediaOrder.cancel': async ({ reason }) => ({ cancelReason: reason ?? null }),
 };
+
+// The core's effects enter the registry the way an extension's do (roadmap #47): first on their
+// transition, so whatever an extension adds runs after them.
+for (const [key, run] of Object.entries(EFFECTS)) {
+  const [entity, action] = key.split('.') as [string, string];
+  registerEffect({ key, entity, action, labelFa: key, source: 'core', run });
+}

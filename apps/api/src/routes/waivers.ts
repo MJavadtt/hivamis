@@ -4,7 +4,8 @@ import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
-import { GUARDS, GUARD_LABELS } from '../workflow/guards.js';
+import { guardLabel, guardsFor, hasGuard } from '../workflow/registry.js';
+import { CUSTOM_PREFIX, isCustomKey } from '../workflow/custom.js';
 import { delegate } from '../workflow/engine.js';
 
 export const DEFAULT_WAIVER_DAYS = 7;
@@ -25,13 +26,19 @@ const waiverRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const body = (req.body ?? {}) as { entityType?: string; entityId?: string; guard?: string; action?: string; reason?: string; expiresAt?: string };
     if (!body.entityType || !isWorkflowEntity(body.entityType)) throw badRequest('UNKNOWN_ENTITY', 'موجودیت باید ماشین حالت داشته باشد');
-    if (!body.guard || !GUARDS[body.guard]) throw badRequest('UNKNOWN_GUARD', `قانون کنترلی «${body.guard ?? ''}» وجود ندارد`);
+    // Any guard may be waived — Doc_H's, an extension's, or the organisation's own (#47).
+    const own = body.guard && isCustomKey(body.guard)
+      ? await prisma.customRule.findFirst({ where: { organizationId: actor.organizationId, code: body.guard.slice(CUSTOM_PREFIX.length), kind: 'GUARD', retiredAt: null } })
+      : null;
+    if (!body.guard || !(hasGuard(body.guard) || own)) throw badRequest('UNKNOWN_GUARD', `قانون کنترلی «${body.guard ?? ''}» وجود ندارد`);
     if (!body.reason?.trim() || body.reason.trim().length < 10) {
       throw badRequest('REASON_REQUIRED', 'دلیل استثنا الزامی است و باید دست‌کم ده حرف باشد — این متن در دفتر استثناها می‌ماند');
     }
     // The guard must actually stand on some transition of this entity; otherwise the waiver is noise.
     const wf = WORKFLOWS[body.entityType]!;
-    const guarded = wf.transitions.filter((t) => t.guards?.includes(body.guard!));
+    const guarded = own
+      ? wf.transitions.filter((t) => own.entity === body.entityType && t.action === own.action)
+      : wf.transitions.filter((t) => guardsFor(body.entityType!, t.action, t.guards).includes(body.guard!));
     if (guarded.length === 0) throw badRequest('GUARD_NOT_ON_ENTITY', `قانون «${body.guard}» روی هیچ انتقالی از «${body.entityType}» نیست`);
     if (body.action && !guarded.some((t) => t.action === body.action)) {
       throw badRequest('ACTION_NOT_GUARDED', `انتقال «${body.action}» با قانون «${body.guard}» کنترل نمی‌شود`, { guarded: guarded.map((t) => t.action) });
@@ -62,7 +69,7 @@ const waiverRoutes: FastifyPluginAsync = async (app) => {
       after: { waiverId: waiver.id, guard: waiver.guard, action: waiver.action, expiresAt, reason: waiver.reason },
       reason: waiver.reason, ipAddress: actor.ipAddress,
     });
-    return reply.code(201).send({ ...waiver, guardLabelFa: GUARD_LABELS[waiver.guard] ?? waiver.guard });
+    return reply.code(201).send({ ...waiver, guardLabelFa: own?.labelFa ?? guardLabel(waiver.guard) });
   });
 
   /** The register: every exception, with its state. Open to whoever reads governance. */
@@ -78,9 +85,13 @@ const waiverRoutes: FastifyPluginAsync = async (app) => {
     });
     const ids = [...new Set(rows.flatMap((r) => [r.grantedById, r.usedById, r.revokedById]).filter((x): x is string => !!x))];
     const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
+    const ownCodes = rows.filter((r) => isCustomKey(r.guard)).map((r) => r.guard.slice(CUSTOM_PREFIX.length));
+    const ownLabels = new Map((ownCodes.length
+      ? await prisma.customRule.findMany({ where: { organizationId: actor.organizationId, code: { in: ownCodes } }, orderBy: { version: 'desc' }, select: { code: true, labelFa: true } })
+      : []).reverse().map((r) => [`${CUSTOM_PREFIX}${r.code}`, r.labelFa]));
     const withStatus = rows.map((r) => ({
       ...r,
-      guardLabelFa: GUARD_LABELS[r.guard] ?? r.guard,
+      guardLabelFa: ownLabels.get(r.guard) ?? guardLabel(r.guard),
       grantedByName: names.get(r.grantedById) ?? '—',
       usedByName: r.usedById ? names.get(r.usedById) ?? '—' : null,
       status: r.revokedAt ? 'REVOKED' : r.usedAt ? 'USED' : r.expiresAt <= now ? 'EXPIRED' : 'OPEN',
