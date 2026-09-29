@@ -66,5 +66,6 @@ export const SECTION_TITLE_FA: Record<string, string> = {
   Forms: 'فرم‌ها',
   'Organisational memory': 'حافظهٔ سازمان',
   'The AI assistant': 'دستیار هوشمند',
+  "The organisation's rules": 'قوانین سازمان',
   'When the system blocks you': 'وقتی سامانه مانع می‌شود',
 };
