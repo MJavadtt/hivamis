@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import ApprovePublic from './pages/ApprovePublic';
+import Activate from './pages/Activate';
 import PortalApp from './pages/Portal';
 import ESignSandbox from './pages/ESignSandbox';
 import { AuthProvider } from './lib/auth';
@@ -46,6 +47,8 @@ const queryClient = new QueryClient({
 const approvalToken = /^\/approve\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
 /** The e-signature sandbox's signing page (roadmap #36) — a stand-in for a provider's own page. */
 const esignToken = /^\/esign-sandbox\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
+/** A first password from a one-time link (roadmap #48) — before there is any session. */
+const activationToken = /^\/activate\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
 /** The client portal (roadmap #34): its own sign-in, never the staff session. */
 const isPortal = /^\/portal(\/|$)/.test(window.location.pathname);
 
@@ -55,7 +58,7 @@ createRoot(document.getElementById('root')!).render(
       <ToastProvider>
         <LocaleProvider>
           <ThemeProvider>
-          {approvalToken ? <ApprovePublic token={approvalToken} /> : esignToken ? <ESignSandbox token={esignToken} /> : isPortal ? <BrowserRouter><PortalApp /></BrowserRouter> : (
+          {approvalToken ? <ApprovePublic token={approvalToken} /> : activationToken ? <Activate token={activationToken} /> : esignToken ? <ESignSandbox token={esignToken} /> : isPortal ? <BrowserRouter><PortalApp /></BrowserRouter> : (
           <AuthProvider>
           <BrowserRouter>
             <App />

@@ -51,6 +51,7 @@ import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
 import orgRuleRoutes from './routes/org-rules.js';
+import onboardingRoutes from './routes/onboarding.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   // The rules the running code declares become a version row if they changed since last boot,
@@ -190,6 +191,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(waiverRoutes);
     await api.register(ruleRoutes);
     await api.register(orgRuleRoutes);
+    await api.register(onboardingRoutes);
     await api.register(memoryRoutes);
     await api.register(securityRoutes);
     await api.register(meetingRoutes);

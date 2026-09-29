@@ -652,6 +652,9 @@ model Project {
   revenueEntries        RevenueEntry[]
   mediaOrders           MediaOrder[]
   state          String       @default("DRAFT")
+  /// The project's reference in the system it came from (roadmap #48): a migration file run twice
+  /// finds it and does not create it again.
+  legacyRef      String?
   healthStatus   String       @default("GREEN")
   closedAt       DateTime?
   cancelReason   String?
@@ -690,6 +693,7 @@ model Project {
 
   @@index([organizationId, state])
   @@index([companyId])
+  @@unique([organizationId, legacyRef])
   @@map("projects")
 }
 
@@ -1751,6 +1755,9 @@ model StateTransition {
   reason     String?
   /// Written by a cascade from another record's move, not by someone acting on this one.
   cascade      Boolean  @default(false)
+  /// The state a record had when it came over from a previous system (roadmap #48) — recorded,
+  /// not moved: no guard ran, and mining, the rule lab and webhooks leave it out.
+  opening      Boolean  @default(false)
   /// See AuditEvent.onBehalfOfId.
   onBehalfOfId String?
   /// The rule-set versions in force when this happened (RuleSetVersion ids).
@@ -2580,4 +2587,21 @@ model CustomRule {
   @@unique([organizationId, code, version])
   @@index([organizationId, entity, action])
   @@map("custom_rules")
+}
+
+/// A one-time link that lets a person set their first password (roadmap #48). Staff imported in
+/// bulk never have a password in a file: they get this, by email when mail is on, or shown once
+/// to the administrator to pass on. Only the SHA-256 of the token is kept.
+model AccountActivation {
+  id          String    @id @default(uuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@map("account_activations")
 }

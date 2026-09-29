@@ -97,6 +97,10 @@ load record → find declared transition → check permission → check mandator
   *which rule* fired rather than showing a generic failure. Enforcement stops at the first failing guard; `preflight()` runs every guard and reports every verdict, and the action bar shows that checklist beside each button — so a blocked move says what is missing before the click, not after (roadmap #2). Guards are read-only, which is what makes that safe to call on every page view; each has a positive `GUARD_LABELS` entry for the tick, since a guard's own message only exists on failure.
 - **Effects** (`src/workflow/effects.ts`) are side effects applied atomically with the state
   change, so timestamps can never drift from the state they describe.
+- **Opening states** (`recordOpeningState`, roadmap #48): a record that arrives from a previous
+  system already in mid-life has its state *recorded*, in the engine, from the workflow's first
+  state and only once — no guard runs — and the transition row is marked `opening`, which process
+  mining, the rule lab and webhooks leave out.
 - **The registry** (`src/workflow/registry.ts`, roadmap #47) is where the engine finds both. Doc_H's
   guards and effects register themselves; an extension in `EXTENSIONS_DIR` registers its own and
   attaches guards to existing transitions; an organisation's no-code rules (`custom_rules`) join at

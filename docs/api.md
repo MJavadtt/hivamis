@@ -501,6 +501,46 @@ Conditions are #17's routing language, which gains `eqField` and `neField` — s
 field. A `NOTIFY` rule writes `CUSTOM_RULE` notifications to the active holders of its roles, except
 the person who made the move, inside the move's transaction.
 
+## Onboarding
+
+Roadmap #48. An organisation's own spreadsheets, brought in: people and their units, clients and
+contacts, projects already running, holidays. Every import is the same two calls with the same file —
+an `.xlsx` (first sheet) or a CSV (UTF-8 or Windows-1256, comma or semicolon); headers in Persian or
+English; digits in any script; dates Jalali or Gregorian.
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /onboarding` | `admin.settings` | Six steps read from the data — units, users, calendar, SLA, clients, projects — each `done`, with a Persian detail; the three that are a judgement carry `confirmed { at, by }` |
+| `GET /onboarding/columns/:kind` · `GET /onboarding/templates/:kind` | `admin.settings` | The columns of `users`, `companies`, `contacts`, `projects` or `holidays`, with how to fill each; a CSV of Persian headers |
+| `POST /onboarding/import/:kind/preview` (multipart `file`) | `admin.users` for `users`, else `admin.settings` | Every row checked, nothing written: `rows[] { line, label, status: CREATE \| SKIP \| INVALID, issues[], notes[] }`, `summary`, and the header's `missing` and `unknown` columns. `SKIP` is a row already here — a file run twice creates nothing twice |
+| `POST /onboarding/import/:kind/commit` (same file) | same | The valid rows written, each in its own transaction: `created[]`, `failed[]`, and for people `activations[]`. Audited as `BULK_IMPORT` |
+| `GET /onboarding/units` · `PUT /onboarding/units { map }` | `admin.settings` | The organisation's unit names, each mapped to one of the ten Doc_H unit codes. Audited |
+| `POST /onboarding/units/scan` (multipart users file) | `admin.settings` | The unit names the file uses: `{ name, people, resolved, suggestion }` |
+| `POST /onboarding/confirm/:step` (`units`, `calendar`, `sla`) | `admin.settings` | A person says the step is right. Audited |
+| `GET /onboarding/activations` | `admin.users` | People imported who have not set a password |
+| `POST /users/:id/activation` | `admin.users` | A fresh one-time link; the old one stops working. `url` only when it was not emailed |
+| `GET /auth/activation/:token` · `POST /auth/activation/:token { password }` | public, rate-limited | Who the link is for; then the first password (the staff password rules). `404 ACTIVATION_INVALID`, `410 ACTIVATION_USED`, `410 ACTIVATION_EXPIRED` |
+
+What each import holds to:
+
+- **users** — `email`, `fullName`, `unit` (a Doc_H code, the organisation's own name through the unit
+  map, or Doc_H's Persian name), `roles` (codes or Persian names, `|`-separated; `SUPER_ADMIN` is
+  never granted by file). No password is in the file or set by it: each person gets a one-time link
+  — emailed when mail is on, otherwise returned once — good for seven days.
+- **companies** — found again by national id or legal name (Arabic «ي»/«ك» read as Persian). An empty
+  account owner makes the importer the owner, and the row says so.
+- **contacts** — the client by national id or legal name.
+- **projects** — `legacyRef` (the old system's reference) makes a re-run skip it. The state it comes
+  over in — draft, pending authorization, authorized, planning, active, on hold — is recorded by the
+  engine as an *opening state*: not a move, no guard, marked `opening` on the transition so process
+  mining, the rule lab and webhooks leave it out. From authorized on, Doc_H rule 13 needs
+  `authorizationBasis` and `authorizationRef`, recorded as the project's execution authorization.
+- **holidays** — a date and a title, once per day.
+
+`PATCH /organization` and `PATCH /sla-policies/:code` now validate what they are given (weekdays
+0–6, hours in order, SLA hours 0.5–2000, warning 0.1–0.99), and a change of the working week is
+audited.
+
 ## Messenger
 
 Roadmap #40. A person links their messenger chat, and the notifications that matter

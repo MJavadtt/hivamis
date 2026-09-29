@@ -328,6 +328,24 @@ honours, and a heartbeat every 25 s keeps it under `proxy_read_timeout` (120 s i
 notifications and «کارهای من» every minute; while it is live, every five minutes. `pg` (already
 installed as pg-boss's driver) is now a direct dependency of the API for this listener.
 
+## Onboarding a new organisation
+
+Roadmap #48, **راه‌اندازی سازمان** (under `admin.settings`). The order that works:
+
+1. **Units** — give it the users file; it reads the unit names and suggests one of Doc_H's ten for
+   each. Correct, save, confirm. A name left unmapped holds its people back at import.
+2. **Users** — preview, then create. With mail on, each person gets a link by email; without it, the
+   links are shown once — pass them on, they are not shown again (a fresh one can be issued from the
+   same page). Grant `SUPER_ADMIN` by hand in user management; a file cannot.
+3. **Calendar** — the working week and hours (every SLA clock runs on them), and the year's
+   holidays from a file. Confirm.
+4. **SLA** — Doc_H's hours; change any the organisation's contracts set differently. Confirm.
+5. **Clients**, then **contacts**.
+6. **Projects** already running, at the state they are in, with their authorization.
+
+Every import can be run again with the same (or a corrected) file: what is already there is skipped.
+Keep each organisation's source files; the audit trail records every `BULK_IMPORT` with its counts.
+
 ## Extensions
 
 Roadmap #47. An organisation adds its own code rules without forking: `.js`/`.mjs` modules in

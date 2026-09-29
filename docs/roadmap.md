@@ -62,7 +62,7 @@ Status vocabulary, and it is used strictly:
 | 38 | Annotation on deliverables | — | Verified | b3f4271 |
 | 42 | Digital asset management with versioning | — | Verified | c88ef3f |
 | 43 | Brand-identity compliance check | 42 | Verified | a415755 |
-| 47 | Extension points on guards and effects | — | Verified | next |
-| 48 | Migration and onboarding toolkit | 20 | Pending | |
+| 47 | Extension points on guards and effects | — | Verified | 462057a |
+| 48 | Migration and onboarding toolkit | 20 | Verified | next |
 | 49 | Mobile for the three short-SLA loops | 39 | Pending | |
 | 50 | Multi-tenancy and on-premise installer | — | Pending | |

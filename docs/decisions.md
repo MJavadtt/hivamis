@@ -1304,3 +1304,32 @@ days from now, and the acting user — not related records, counts or sums; the 
 level of all/any (deeper nesting is API-only). A replay judges past moves against records as they
 are today, as the rule lab does. Notices are in-app only (no email or messenger push).
 
+## ADR-051 — An organisation is brought in from its own files, previewed, idempotent, and never around the rules
+
+**Decision.** Onboarding imports people, units, clients, contacts, running projects and holidays
+from the files an organisation has — `.xlsx` read without a library, or CSV in UTF-8 or
+Windows-1256 — through one pattern: a preview that checks every row and writes nothing, then a
+commit that writes the valid rows one by one. Rows already present are skipped by a natural key
+(email, national id or legal name, the old system's project reference, the date), so a file can be
+run again. The organisation's unit names are mapped to Doc_H's ten by a map a person confirms. No
+password travels in a file: imported people get a one-time link to set their own, emailed or shown
+once. Running projects come in at their current state through `recordOpeningState` — in the
+engine, from the first state only, once, marked `opening` — and a project past authorization must
+bring its authorization basis and document, recorded as an execution authorization.
+
+**Rationale.** Setting up is where enterprise software sales are lost: the demo seed shows what the
+system does, but a customer's first week is their own org chart, their clients, their running work.
+The files they have are Excel, often saved as Windows-1256 CSV by Persian Excel (so «ي»/«ك» are read
+as «ی»/«ک», or no name would ever match). A preview before any write, and a skip for what is there,
+make a migration something that can be tried, corrected and run again, instead of a one-shot
+operation. The two rules that make the system worth having are not relaxed for it: state is still
+written only in the engine — an opening state is recorded there, visibly, never as a move — and
+rule 13's authorization is still required, only now as a document reference from the old world.
+`SUPER_ADMIN` is never granted by a file.
+
+**Limits.** One sheet per workbook; formulas are read by their cached value; no import of work
+orders, tasks, invoices or history — a running project comes in as a project, and its detail is
+added in the system. Opening states cover projects only. The unit map is by name; two different units
+with the same name cannot be told apart. The activation link, when mail is off, has to be passed on
+by hand.
+

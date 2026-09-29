@@ -484,6 +484,26 @@ anything, and every request is logged.
 
 ---
 
+## Getting the organisation started
+
+**راه‌اندازی سازمان** (for the system administrator) takes the organisation from empty to working,
+from the spreadsheets it already has — Excel or CSV, headers in Persian. Six steps, each showing what
+is already there:
+
+1. **واحدها** — your own unit names («استودیو طراحی»، «بازاریابی دیجیتال»…) are read from the users
+   file, and each is given one of Doc_H's ten units, with a suggestion to accept or correct.
+2. **کاربران** — each file is checked first, row by row, before anything is written: what will be
+   created, what is already there, what is wrong and why. Then the valid rows are created. Nobody's
+   password is ever in a file: each new person receives a one-time link to set their own.
+3. **تقویم کاری** — the working week and hours, and the holidays (a file of dates, Jalali is fine).
+4. **مهلت‌های SLA** — Doc_H's hours, which you may adjust to your contracts.
+5. **مشتریان** and their contacts.
+6. **پروژه‌های در جریان** — projects that are already running come in at the state they are in. A
+   project past authorization needs its basis and document (a contract number, an order letter): Doc_H
+   rule 13 holds for migrated work too.
+
+Running a file twice creates nothing twice.
+
 ## The organisation's rules
 
 **قوانین سازمان** (in the sidebar, for everyone) lists every rule the workflows follow: the

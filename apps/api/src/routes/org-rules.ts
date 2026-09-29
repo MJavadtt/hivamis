@@ -191,7 +191,7 @@ const orgRuleRoutes: FastifyPluginAsync = async (app) => {
     const { rule, limit } = (req.body ?? {}) as { rule?: unknown; limit?: number };
     const input = validated(rule);
     const rows = await prisma.stateTransition.findMany({
-      where: { organizationId: actor.organizationId, entityType: input.entity, action: input.action, cascade: false },
+      where: { organizationId: actor.organizationId, entityType: input.entity, action: input.action, cascade: false, opening: false },
       orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(Number(limit) || 500, 1), 2000),
     });
     const ids = [...new Set(rows.map((r) => r.entityId))];

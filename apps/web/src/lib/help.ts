@@ -67,5 +67,6 @@ export const SECTION_TITLE_FA: Record<string, string> = {
   'Organisational memory': 'حافظهٔ سازمان',
   'The AI assistant': 'دستیار هوشمند',
   "The organisation's rules": 'قوانین سازمان',
+  'Getting the organisation started': 'راه‌اندازی سازمان',
   'When the system blocks you': 'وقتی سامانه مانع می‌شود',
 };

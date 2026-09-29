@@ -259,6 +259,43 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
   }
 }
 
+/**
+ * A record that comes over from a previous system already in the middle of its life (roadmap #48):
+ * a project that was running before this system existed. Its state is recorded, not moved — no
+ * guard runs, since guards judge moves made here, and no effect or SLA clock starts — and the row
+ * is marked `opening`, so process mining, the rule lab and webhooks leave it out. Only from the
+ * workflow's first state, and only once, so it can never serve as a way round a guard.
+ */
+export async function recordOpeningState(
+  tx: Tx,
+  input: { entity: string; id: string; toState: string; reason: string; actor: Pick<TransitionActor, 'id' | 'organizationId' | 'ipAddress' | 'requestId'> },
+): Promise<void> {
+  const wf = WORKFLOWS[input.entity];
+  if (!wf || !wf.states.includes(input.toState)) throw badRequest('UNKNOWN_STATE', `وضعیت «${input.toState}» در «${input.entity}» نیست.`);
+  const model = delegate(tx, input.entity);
+  const record = await model.findFirst({ where: { id: input.id, organizationId: input.actor.organizationId }, select: { id: true, state: true } });
+  if (!record) throw notFound('رکورد');
+  const moved = await tx.stateTransition.count({ where: { entityType: input.entity, entityId: input.id } });
+  if (record.state !== wf.initial || moved > 0) {
+    throw new AppError(409, 'OPENING_STATE', 'وضعیت آغازین فقط یک بار و برای رکوردی ثبت می‌شود که هنوز در این سامانه حرکتی نکرده است.');
+  }
+  if (input.toState === wf.initial) return;
+  const rules = await rulesInForce(tx);
+  await model.update({ where: { id: input.id }, data: { state: input.toState } });
+  await tx.stateTransition.create({
+    data: {
+      organizationId: input.actor.organizationId, entityType: input.entity, entityId: input.id,
+      fromState: wf.initial, toState: input.toState, action: 'opening', reason: input.reason, opening: true,
+      actorId: input.actor.id, rulesVersionId: rules.workflows, permissionsVersionId: rules.permissions,
+    },
+  });
+  await audit({
+    organizationId: input.actor.organizationId, actorId: input.actor.id, action: 'STATE_TRANSITION',
+    entityType: input.entity, entityId: input.id, before: { state: wf.initial }, after: { state: input.toState, opening: true },
+    reason: input.reason, ipAddress: input.actor.ipAddress, requestId: input.actor.requestId,
+  }, tx);
+}
+
 export interface CascadeInput {
   entity: string;
   id: string;

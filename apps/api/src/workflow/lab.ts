@@ -94,7 +94,7 @@ export async function runLab(tx: Tx, organizationId: string, input: LabInput): P
 
   const rows = await tx.stateTransition.findMany({
     where: {
-      organizationId, cascade: false,
+      organizationId, cascade: false, opening: false,
       ...(touched.size && !roleEdits.length ? { entityType: { in: [...touched] } } : {}),
       ...(input.since ? { createdAt: { gte: input.since } } : {}),
     },

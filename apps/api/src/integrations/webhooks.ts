@@ -157,7 +157,8 @@ export async function enqueueDeliveries(limitPerSubscription = 500): Promise<num
     const perms = permissionsForRoles(sub.createdBy.roles.map((r) => r.role.code as RoleCode));
     const rows = await prisma.stateTransition.findMany({
       where: {
-        organizationId: sub.organizationId,
+        // A state recorded on migration (#48) is not news to anyone outside.
+        organizationId: sub.organizationId, opening: false,
         OR: [{ createdAt: { gt: sub.cursorAt } }, { createdAt: sub.cursorAt, id: { gt: sub.cursorId ?? '' } }],
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limitPerSubscription,

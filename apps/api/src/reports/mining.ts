@@ -115,7 +115,8 @@ export async function mine(
 
   const rows = await tx.stateTransition.findMany({
     where: {
-      organizationId, entityType: entity,
+      // A state recorded on migration (#48) is not an event of this process.
+      organizationId, entityType: entity, opening: false,
       ...(window.from || window.to ? { createdAt: { ...(window.from ? { gte: window.from } : {}), ...(window.to ? { lte: window.to } : {}) } } : {}),
     },
     orderBy: [{ entityId: 'asc' }, { createdAt: 'asc' }],

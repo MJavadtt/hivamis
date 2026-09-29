@@ -12,7 +12,7 @@ import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
-import { SLA_PAUSE_KINDS, type SlaPauseKind } from '@hiva/contracts';
+import { SLA_PAUSE_KINDS, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
 
 const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── Users (read is broad; write is admin-only) ──────────────────────── */
@@ -371,15 +371,15 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { code } = req.params as { code: string };
-    const { hours, warnAt, isActive } = (req.body ?? {}) as Record<string, unknown>;
-    const before = await prisma.slaPolicy.findUnique({ where: { code } });
+    const { hours, warnAt, isActive } = parse(updateSlaPolicySchema, req.body ?? {});
+    const before = await prisma.slaPolicy.findFirst({ where: { code, organizationId: actor.organizationId } });
     if (!before) throw notFound('سیاست SLA');
     const updated = await prisma.slaPolicy.update({
-      where: { code },
+      where: { id: before.id },
       data: {
-        ...(hours != null ? { hours: Number(hours) } : {}),
-        ...(warnAt != null ? { warnAt: Number(warnAt) } : {}),
-        ...(isActive != null ? { isActive: Boolean(isActive) } : {}),
+        ...(hours != null ? { hours } : {}),
+        ...(warnAt != null ? { warnAt } : {}),
+        ...(isActive != null ? { isActive } : {}),
       },
     });
     await audit({
@@ -400,16 +400,16 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('admin.settings')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const data: Record<string, unknown> = {};
-    for (const k of ['name', 'legalName', 'currency', 'timezone'] as const) {
-      if (typeof body[k] === 'string') data[k] = body[k];
-    }
-    for (const k of ['workStartHour', 'workEndHour', 'breakHours'] as const) {
-      if (body[k] != null) data[k] = Number(body[k]);
-    }
-    if (Array.isArray(body.workingDays)) data.workingDays = body.workingDays.map(Number);
+    const data = parse(updateOrganizationSchema, req.body ?? {});
+    const before = await prisma.organization.findUniqueOrThrow({ where: { id: actor.organizationId } });
+    const start = data.workStartHour ?? before.workStartHour, end = data.workEndHour ?? before.workEndHour;
+    if (start >= end) throw badRequest('INVALID_HOURS', 'ساعت پایان کار باید پس از شروع باشد');
     const updated = await prisma.organization.update({ where: { id: actor.organizationId }, data });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'organization', entityId: actor.organizationId,
+      before: { name: before.name, workingDays: before.workingDays, workStartHour: before.workStartHour, workEndHour: before.workEndHour, breakHours: before.breakHours },
+      after: data, ipAddress: actor.ipAddress, requestId: actor.requestId,
+    });
     // The SLA engine caches the calendar; invalidate it so new hours take effect immediately.
     resetCalendarCache();
     return updated;

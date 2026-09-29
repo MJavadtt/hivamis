@@ -523,6 +523,38 @@ export const cancelClientApprovalSchema = z.object({ reason: z.string().trim().m
 
 /* ── client portal (roadmap #34) ───────────────────────────────────────────── */
 
+/**
+ * The organisation's own working week and hours (roadmap #48's calendar step writes these). Every
+ * SLA clock is measured against them, so nonsense is refused rather than stored.
+ */
+export const updateOrganizationSchema = z.object({
+  name: z.string().trim().min(2).max(200).optional(),
+  legalName: z.string().trim().max(200).optional(),
+  currency: z.string().trim().length(3).optional(),
+  timezone: z.string().trim().min(3).max(60).optional(),
+  workingDays: z.array(z.number().int().min(0).max(6)).min(1).max(7).refine((d) => new Set(d).size === d.length, 'روز تکراری').optional(),
+  workStartHour: z.number().int().min(0).max(23).optional(),
+  workEndHour: z.number().int().min(1).max(24).optional(),
+  breakHours: z.number().min(0).max(4).optional(),
+}).refine((o) => o.workStartHour == null || o.workEndHour == null || o.workStartHour < o.workEndHour, { message: 'ساعت پایان کار باید پس از شروع باشد', path: ['workEndHour'] });
+
+export const updateSlaPolicySchema = z.object({
+  hours: z.number().min(0.5).max(2000).optional(),
+  warnAt: z.number().min(0.1).max(0.99).optional(),
+  isActive: z.boolean().optional(),
+});
+
+/** A person imported in bulk sets their first password from a one-time link (roadmap #48). */
+export const activateAccountSchema = z.object({ password: z.string().min(12).max(200)
+  .regex(/[a-z]/, 'باید شامل حرف کوچک باشد')
+  .regex(/[A-Z]/, 'باید شامل حرف بزرگ باشد')
+  .regex(/[0-9]/, 'باید شامل عدد باشد') });
+
+/** The organisation's own unit names, each mapped to one of Doc_H's ten units (roadmap #48). */
+export const unitMapSchema = z.object({
+  map: z.record(z.string().trim().min(1).max(120), z.enum(DEPARTMENT_CODES)).refine((m) => Object.keys(m).length <= 200, 'حداکثر ۲۰۰ نام واحد'),
+});
+
 export const invitePortalUserSchema = z.object({ contactId: idSchema });
 /** The client sets their own password from the invitation — the same rules as staff passwords. */
 export const acceptPortalInviteSchema = z.object({

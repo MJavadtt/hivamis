@@ -212,6 +212,15 @@ export type BrandRole = (typeof BRAND_ROLES)[number];
 export const BRAND_ROLE_LABELS: Record<BrandRole, string> = { LOGO: 'لوگو', FONT: 'فونت', GUIDELINE: 'راهنمای هویت بصری', IMAGE: 'تصویر', OTHER: 'سایر' };
 export const BRAND_COLOR_ROLES = ['PRIMARY', 'SECONDARY', 'ACCENT', 'NEUTRAL'] as const;
 export const BRAND_COLOR_ROLE_LABELS: Record<(typeof BRAND_COLOR_ROLES)[number], string> = { PRIMARY: 'اصلی', SECONDARY: 'دوم', ACCENT: 'تأکیدی', NEUTRAL: 'خنثی' };
+/** What an organisation brings with it when it starts (roadmap #48). */
+export const ONBOARDING_IMPORTS = ['users', 'companies', 'contacts', 'projects', 'holidays'] as const;
+export type OnboardingImport = (typeof ONBOARDING_IMPORTS)[number];
+export const ONBOARDING_IMPORT_LABELS: Record<OnboardingImport, string> = {
+  users: 'کاربران و ساختار سازمانی', companies: 'مشتریان', contacts: 'مخاطبان مشتریان', projects: 'پروژه‌های در جریان', holidays: 'تعطیلات',
+};
+/** The states an in-flight project may come over in; a closed one is history, not onboarding. */
+export const PROJECT_OPENING_STATES = ['DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE', 'ON_HOLD'] as const;
+
 /** An organisation's own rule on a transition (roadmap #47). */
 export const CUSTOM_RULE_KINDS = ['GUARD', 'NOTIFY'] as const;
 export type CustomRuleKind = (typeof CUSTOM_RULE_KINDS)[number];

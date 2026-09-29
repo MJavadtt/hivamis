@@ -84,6 +84,7 @@ const NAV: NavGroup[] = [
       { to: '/ai', label: 'دستیار هوشمند', icon: IconSpark, permission: 'ai.use' },
       // No permission of its own: the rules are for everyone they bind to read (roadmap #47).
       { to: '/rules', label: 'قوانین سازمان', icon: IconShield },
+      { to: '/onboarding', label: 'راه‌اندازی سازمان', icon: IconClipboard, permission: 'admin.settings' },
       { to: '/admin', label: 'مدیریت سیستم', icon: IconSettings, permission: 'admin.audit' },
     ],
   },
