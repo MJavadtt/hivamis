@@ -196,7 +196,7 @@ async function renderPdfUnthrottled(bodyHtml: string, opts: RenderOptions = {}):
 const headerTemplate = (right: string) => `
 <div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
             padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
-  <span>هیوا — سامانه عملیات سازمانی</span><span>${esc(right)}</span>
+  <span>هیوامیس — سامانه عملیات سازمانی</span><span>${esc(right)}</span>
 </div>`;
 
 const footerTemplate = (note: string) => `

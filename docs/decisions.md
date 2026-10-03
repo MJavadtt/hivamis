@@ -1368,3 +1368,15 @@ offline, because it must meet the record's current state. The payload carries ti
 order's name — encrypted, but its length and timing are visible to the push service. What this
 installation can observe ends at the push service's `201`; that a phone showed the notice is checked
 by a person with the test button.
+
+## ADR-053 — The product is called هیوامیس; the code keeps its identifiers
+
+**Decision.** From 2026-10-03 the product is **هیوامیس** (Hivamis): the browser title, the installed
+app's name, the sign-in page, the shell, the mail and PDF taglines, the assistant's introduction, the
+messenger bot and the phone screen say so. The agency in the demo data is still «هیوا» — an
+organisation that uses the product, not the product. Package names (`@hiva/*`), storage keys
+(`hiva.refresh`, `hiva.locale`), the database names and the outbound user agents are unchanged.
+
+**Rationale.** The name is what people read; the identifiers are what installations depend on. A
+renamed storage key signs everyone out; a renamed database or package breaks every deployment script
+and integration that names it, for nothing a person would see.

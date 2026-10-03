@@ -29,7 +29,7 @@ export default function Login() {
           <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand-600 text-xl font-bold text-white">
             ه
           </span>
-          <h1 className="text-xl font-semibold text-ink-900">هیوا او‌اس</h1>
+          <h1 className="text-xl font-semibold text-ink-900">هیوامیس</h1>
           <p className="mt-1 text-sm text-ink-500">سیستم‌عامل سازمانی — ورود به سامانه</p>
         </div>
 

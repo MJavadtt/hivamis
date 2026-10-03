@@ -149,7 +149,7 @@ export async function buildBundle(
   // 5. Merge.
   const out = await PDFDocument.create();
   out.setTitle(`${main.titleFa} — ${main.code}`);
-  out.setProducer('Hiva OS');
+  out.setProducer('Hivamis');
   out.setCreationDate(new Date());
 
   for (const bytes of [cover, ...parts.map((p) => p.bytes)]) {

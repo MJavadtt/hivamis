@@ -1,4 +1,4 @@
-# Hiva OS — سیستم‌عامل سازمانی
+# هیوامیس (Hivamis) — سیستم‌عامل سازمانی
 
 An enterprise operating platform for the Hiva advertising agency, built directly from the
 process documentation in [`Doc_H/`](Doc_H). It unifies CRM, Sales, Account Management, PMO,
@@ -6,7 +6,7 @@ Traffic, Creative/Production operations, Quality Control, Proposal & Pricing, Co
 Finance and Customer Success into one governed system.
 
 The product thesis is narrow and deliberate: agency tools already do projects, resourcing and
-invoicing. **None of them enforce the operating rules an agency actually runs on.** Hiva OS makes
+invoicing. **None of them enforce the operating rules an agency actually runs on.** Hivamis makes
 those rules structurally impossible to bypass.
 
 ---

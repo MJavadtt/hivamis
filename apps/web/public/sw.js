@@ -1,5 +1,5 @@
 /**
- * Hiva OS service worker (roadmap #19).
+ * Hivamis service worker (roadmap #19).
  *
  * Written by hand rather than generated: the caching rules here are short enough to read, and
  * a form the production unit fills on set is not the place to find out what a plugin decided.
@@ -108,7 +108,7 @@ self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : '' }; }
   event.waitUntil((async () => {
-    await self.registration.showNotification(data.title || 'هیوا', {
+    await self.registration.showNotification(data.title || 'هیوامیس', {
       body: data.body || '',
       tag: data.tag || undefined,
       // The same record again (a warning after the first notice) replaces it — and says so.

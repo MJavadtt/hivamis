@@ -27,7 +27,7 @@ export default function Activate({ token }: { token: string }) {
   return (
     <main dir="rtl" className="grid min-h-screen place-items-center bg-ink-50 p-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl bg-surface p-6 shadow-sm ring-1 ring-ink-200" data-testid="activate">
-        <h1 className="text-lg font-semibold text-ink-900">هیوا او‌اس — گذاشتن رمز عبور</h1>
+        <h1 className="text-lg font-semibold text-ink-900">هیوامیس — گذاشتن رمز عبور</h1>
         {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
         {done ? (
           <>

@@ -34,9 +34,9 @@ export async function createActivation(tx: Tx, userId: string, createdById: stri
   const days = new Intl.NumberFormat('fa-IR').format(ACTIVATION_DAYS);
   const mail: MailJob | null = mailEnabled ? {
     to: user.email,
-    subject: `دعوت به هیوا او‌اس — ${user.organization.name}`,
-    text: `${user.fullName} عزیز،\n\nحساب شما در هیوا او‌اس ${user.organization.name} ساخته شد. برای گذاشتن رمز عبور و ورود، این پیوند را باز کنید:\n${url}\n\nپیوند تا ${days} روز و فقط یک بار کار می‌کند.`,
-    html: `<div dir="rtl" style="font-family:Tahoma,sans-serif"><p>${user.fullName} عزیز،</p><p>حساب شما در هیوا او‌اس ${user.organization.name} ساخته شد. برای گذاشتن رمز عبور و ورود:</p><p><a href="${url}">گذاشتن رمز عبور</a></p><p style="color:#666">پیوند تا ${days} روز و فقط یک بار کار می‌کند.</p></div>`,
+    subject: `دعوت به هیوامیس — ${user.organization.name}`,
+    text: `${user.fullName} عزیز،\n\nحساب شما در هیوامیس ${user.organization.name} ساخته شد. برای گذاشتن رمز عبور و ورود، این پیوند را باز کنید:\n${url}\n\nپیوند تا ${days} روز و فقط یک بار کار می‌کند.`,
+    html: `<div dir="rtl" style="font-family:Tahoma,sans-serif"><p>${user.fullName} عزیز،</p><p>حساب شما در هیوامیس ${user.organization.name} ساخته شد. برای گذاشتن رمز عبور و ورود:</p><p><a href="${url}">گذاشتن رمز عبور</a></p><p style="color:#666">پیوند تا ${days} روز و فقط یک بار کار می‌کند.</p></div>`,
   } : null;
   return { url, expiresAt, emailed: !!mail, mail };
 }

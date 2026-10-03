@@ -284,7 +284,7 @@ export async function sendTest(userId: string, net: PushNet = defaultNet()) {
     const host = new URL(s.endpoint).hostname;
     if (env.PUSH_DELIVERY === 'off') { results.push({ subscriptionId: s.id, host, status: 'OFF', error: null }); continue; }
     const m = await prisma.pushMessage.create({
-      data: { organizationId: s.organizationId, userId, subscriptionId: s.id, kind: 'TEST', title: 'آزمایش اعلان هیوا', body: 'اگر این را روی گوشی می‌بینید، اعلان‌ها می‌رسند.', url: '/m', tag: 'test' },
+      data: { organizationId: s.organizationId, userId, subscriptionId: s.id, kind: 'TEST', title: 'آزمایش اعلان هیوامیس', body: 'اگر این را روی گوشی می‌بینید، اعلان‌ها می‌رسند.', url: '/m', tag: 'test' },
       select: { id: true },
     });
     const status = (await deliver(m.id, net)) ?? 'FAILED';

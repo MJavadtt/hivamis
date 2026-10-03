@@ -2,7 +2,7 @@
   "name": "hiva-os",
   "version": "1.0.0",
   "private": true,
-  "description": "Hiva OS — Enterprise Operating Platform (CRM + Account + PMO + Traffic + QC + Proposal/Pricing + Contract + Finance + Customer Success)",
+  "description": "Hivamis (هیوامیس) — Enterprise Operating Platform (CRM + Account + PMO + Traffic + QC + Proposal/Pricing + Contract + Finance + Customer Success)",
   "engines": {
     "node": ">=22"
   },

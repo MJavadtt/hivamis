@@ -23,7 +23,7 @@ function shell(title: string, lines: string[], action?: { label: string; url: st
 <body style="margin:0;padding:24px;background:#f8fafc;font-family:${SYSTEM_FONTS};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;">
     <tr><td style="background:#ffffff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;">
-      <p style="margin:0 0 4px;font-size:12px;color:#64748b;">هیوا — سامانه عملیات سازمانی</p>
+      <p style="margin:0 0 4px;font-size:12px;color:#64748b;">هیوامیس — سامانه عملیات سازمانی</p>
       <h1 style="margin:0 0 16px;font-size:17px;color:#0f172a;">${esc(title)}</h1>
       ${lines.map((l) => `<p style="margin:0 0 10px;font-size:14px;line-height:1.9;color:#334155;">${l}</p>`).join('')}
       ${action ? `<p style="margin:20px 0 0;"><a href="${esc(action.url)}"

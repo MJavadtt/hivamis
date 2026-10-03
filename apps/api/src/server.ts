@@ -30,7 +30,7 @@ if (env.NODE_ENV === 'production') {
 
 try {
   await app.listen({ port: env.PORT, host: env.HOST });
-  app.log.info(`Hiva OS API listening on http://${env.HOST}:${env.PORT}`);
+  app.log.info(`Hivamis API listening on http://${env.HOST}:${env.PORT}`);
 } catch (err) {
   app.log.error({ err }, 'failed to start server');
   process.exit(1);

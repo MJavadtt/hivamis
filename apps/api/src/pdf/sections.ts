@@ -10,7 +10,7 @@ export function docHeader(opts: {
 }): string {
   return `<div class="doc-head">
   <div>
-    <div class="brand">هیوا — سامانه عملیات سازمانی</div>
+    <div class="brand">هیوامیس — سامانه عملیات سازمانی</div>
     <h1>${esc(opts.title)}</h1>
     ${opts.subtitle ? `<div class="muted">${esc(opts.subtitle)}</div>` : ''}
   </div>

@@ -180,16 +180,16 @@ export async function handleUpdate(p: MessengerProvider, update: Update): Promis
   }
   return {
     reply: await say(p, orgId, link?.userId ?? null, chatId, link
-      ? 'این ربات اعلان‌ها و درخواست‌های تأیید هیوا را می‌فرستد؛ برای تصمیم، دکمه‌های زیر هر پیام را بزنید.'
-      : 'برای اتصال، در هیوا «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد همین‌جا بفرستید.'),
+      ? 'این ربات اعلان‌ها و درخواست‌های تأیید هیوامیس را می‌فرستد؛ برای تصمیم، دکمه‌های زیر هر پیام را بزنید.'
+      : 'برای اتصال، در هیوامیس «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد همین‌جا بفرستید.'),
   };
 }
 
 async function linkChat(p: MessengerProvider, chatId: string, code: string, username?: string) {
   const a = await prisma.messengerAction.findUnique({ where: { token: code } });
-  if (!a || a.kind !== 'LINK' || a.state !== 'OPEN' || a.expiresAt <= new Date()) return 'این کد معتبر نیست یا مهلتش گذشته است؛ در هیوا کد تازه بگیرید.';
+  if (!a || a.kind !== 'LINK' || a.state !== 'OPEN' || a.expiresAt <= new Date()) return 'این کد معتبر نیست یا مهلتش گذشته است؛ در هیوامیس کد تازه بگیرید.';
   const other = await prisma.messengerLink.findUnique({ where: { provider_chatId: { provider: p.name, chatId } } });
-  if (other && other.userId !== a.userId) return 'این گفت‌وگو به حساب دیگری در هیوا وصل است؛ نخست از آن حساب جدا شوید.';
+  if (other && other.userId !== a.userId) return 'این گفت‌وگو به حساب دیگری در هیوامیس وصل است؛ نخست از آن حساب جدا شوید.';
   const user = await prisma.user.findUnique({ where: { id: a.userId }, select: { fullName: true, organizationId: true } });
   await prisma.$transaction([
     prisma.messengerAction.update({ where: { id: a.id }, data: { state: 'DONE', usedAt: new Date(), chatId } }),
@@ -231,7 +231,7 @@ async function decide(p: MessengerProvider, userId: string, a: { id: string; tok
   let outcome: string;
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true, deletedAt: true } });
-    if (!user?.isActive || user.deletedAt) throw new AppError(403, 'FORBIDDEN', 'حساب شما در هیوا فعال نیست.');
+    if (!user?.isActive || user.deletedAt) throw new AppError(403, 'FORBIDDEN', 'حساب شما در هیوامیس فعال نیست.');
     const { claims } = await claimsFor(userId);
     // The same gate as the app's decision endpoint, before the engine's own checks.
     if (!claims.permissions.includes('form.approve')) throw new AppError(403, 'FORBIDDEN', 'دسترسی تأیید فرم را ندارید.');

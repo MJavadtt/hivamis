@@ -13,7 +13,7 @@ than a vendor statement, it is marked as such.
 The brief asked for a survey of CRM (Salesforce, Dynamics 365, HubSpot, Zoho, Pipedrive…),
 ERP (SAP, Oracle, NetSuite, Odoo, ERPNext…) and project management (Jira, Asana, Monday, ClickUp,
 Wrike, Smartsheet, Linear…). Those markets set the *usability baseline* — global search, saved
-views, keyboard access, contextual actions, permission-aware navigation — and Hiva OS adopts that
+views, keyboard access, contextual actions, permission-aware navigation — and Hivamis adopts that
 baseline.
 
 But they are not the competitive set. Hiva is a full-service advertising agency whose operating
@@ -37,7 +37,7 @@ rule exists to end.
 
 Taken together, the agency platforms cover: project and task management, resource planning and
 capacity forecasting, time tracking, budget versus actual, invoicing and profitability, a CRM
-layer, client portals, and — in the enterprise tier — media buying and commissions. Hiva OS
+layer, client portals, and — in the enterprise tier — media buying and commissions. Hivamis
 does not out-build them on any of these. It matches the necessary subset and treats the rest as
 either out of scope (general ledger) or future work (Gantt, e-signature).
 
@@ -62,10 +62,10 @@ already decided that governance is the product. No tool in the set sells that.
 
 ## Positioning
 
-**Hiva OS is a governance-enforcing agency operating platform.** The differentiation is not a
+**Hivamis is a governance-enforcing agency operating platform.** The differentiation is not a
 feature list; it is that the rules are structural rather than advisory.
 
-| Capability | Agency platforms | Hiva OS |
+| Capability | Agency platforms | Hivamis |
 |---|---|---|
 | Projects, tasks, resourcing, invoicing | Mature, often deeper | Present at the depth Doc_H requires |
 | Time tracking, media commissions | Present in the leaders | Built since this analysis — roadmap #14 and #31 |
@@ -85,11 +85,11 @@ feature list; it is that the rules are structural rather than advisory.
 
 ## Honest assessment
 
-Hiva OS would lose a feature-by-feature comparison against Workamajig or Scoro on breadth. It has
+Hivamis would lose a feature-by-feature comparison against Workamajig or Scoro on breadth. It has
 no client portal, no time tracking, no media-buying module, no general ledger, no Gantt. (Since
 written: time tracking, the Gantt and media buying have been built — roadmap #14, #10, #31.)
 
-It wins on exactly one axis, and it is the axis Doc_H cares about: an agency running Hiva OS
+It wins on exactly one axis, and it is the axis Doc_H cares about: an agency running Hivamis
 **cannot** skip authorisation, cannot deliver unreviewed work, cannot let a unit quote a price,
 cannot implement an uncosted change, and cannot close a project with loose ends. In the
 alternatives, all of those depend on people remembering.

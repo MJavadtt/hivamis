@@ -149,7 +149,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="flex h-14 items-center justify-between gap-2 border-b border-ink-100 px-4">
           <Link to="/" className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">ه</span>
-            <span className="text-sm font-semibold text-ink-800">هیوا او‌اس</span>
+            <span className="text-sm font-semibold text-ink-800">هیوامیس</span>
           </Link>
           <button className="rounded p-1 text-ink-400 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="بستن منو">
             <IconClose className="size-4" />

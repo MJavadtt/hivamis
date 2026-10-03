@@ -7,7 +7,7 @@ import { formatDateTime, toPersianDigits } from '../lib/format';
 /* Roadmap #40 — notifications and approvals in the messenger. */
 
 const MODE_FA: Record<string, string> = {
-  sandbox: 'گفت‌وگوی آزمایشی درون هیوا — به پیام‌رسانی وصل نیست',
+  sandbox: 'گفت‌وگوی آزمایشی درون هیوامیس — به پیام‌رسانی وصل نیست',
   bale: 'ربات بله', telegram: 'ربات تلگرام', off: 'خاموش',
 };
 
@@ -88,7 +88,7 @@ function SandboxChat({ onLinked }: { onLinked: () => void }) {
   };
   return (
     <div className="rounded-lg border border-ink-200" data-testid="sandbox-chat">
-      <p className="border-b border-ink-100 px-3 py-1.5 text-[11px] text-ink-500">گفت‌وگوی آزمایشی با ربات هیوا</p>
+      <p className="border-b border-ink-100 px-3 py-1.5 text-[11px] text-ink-500">گفت‌وگوی آزمایشی با ربات هیوامیس</p>
       <div className="max-h-80 space-y-2 overflow-y-auto px-3 py-2">
         {!chat?.length && <p className="text-xs text-ink-400">هنوز پیامی نیست.</p>}
         {chat?.map((m) => (

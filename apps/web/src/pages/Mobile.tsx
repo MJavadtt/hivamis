@@ -426,7 +426,7 @@ function PushPanel({ onClose }: { onClose: () => void }) {
   const explain: Partial<Record<PushState, string>> = {
     unsupported: 'این مرورگر اعلان وب (Web Push) ندارد. روی اندروید، Chrome یا Firefox را به‌روز کنید؛ پیام‌رسان هم راه دیگر است.',
     'needs-install': 'در آیفون، اعلان فقط وقتی کار می‌کند که این صفحه را با «Share ← Add to Home Screen» به صفحهٔ اصلی بیفزایید و از همان‌جا باز کنید.',
-    'server-off': 'این نصب هیوا اعلان روی گوشی نمی‌فرستد (به سرویس‌های اعلان مرورگرها راه ندارد). پیام‌رسان یا ایمیل را از مدیر سیستم بخواهید.',
+    'server-off': 'این نصب هیوامیس اعلان روی گوشی نمی‌فرستد (به سرویس‌های اعلان مرورگرها راه ندارد). پیام‌رسان یا ایمیل را از مدیر سیستم بخواهید.',
     denied: 'اجازهٔ اعلان برای این سایت بسته است؛ از تنظیمات سایت در مرورگر «اعلان‌ها» را مجاز کنید و دوباره بیایید.',
   };
 
@@ -470,7 +470,7 @@ function PushPanel({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3 text-xs">
-        <Link to="/my-work" className="text-brand-700 underline">نسخهٔ کامل هیوا</Link>
+        <Link to="/my-work" className="text-brand-700 underline">نسخهٔ کامل هیوامیس</Link>
         <button className="text-ink-500 underline" onClick={() => void signOut()}>خروج از حساب</button>
       </div>
     </Sheet>
@@ -550,7 +550,7 @@ export default function Mobile() {
     <div className="flex min-h-dvh flex-col bg-ink-50">
       <header className="sticky top-0 z-30 flex items-center justify-between gap-2 bg-ink-900 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold">هیوا همراه</h1>
+          <h1 className="text-sm font-semibold">هیوامیس همراه</h1>
           <p className="truncate text-[11px] text-white/70">
             {user?.fullName} · <span className={cx('inline-block size-1.5 rounded-full align-middle', live === 'live' ? 'bg-emerald-400' : live === 'connecting' ? 'bg-amber-400' : 'bg-rose-400')} aria-hidden />{' '}
             {live === 'live' ? 'زنده' : live === 'connecting' ? 'در حال اتصال' : 'بدون اتصال زنده'}
@@ -570,7 +570,7 @@ export default function Mobile() {
       <main className="flex-1 px-3 pb-24 pt-3">
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !items.length ? (
           <EmptyState title={TABS.find((t) => t.key === active)!.emptyFa}
-            description={total ? undefined : 'چیزی از این سه کار با شما نیست. کارهای دیگر در نسخهٔ کامل هیواست.'} />
+            description={total ? undefined : 'چیزی از این سه کار با شما نیست. کارهای دیگر در نسخهٔ کامل هیوامیس است.'} />
         ) : (
           <ul className="space-y-2" data-testid="mobile-list">
             {items.map((i) => (

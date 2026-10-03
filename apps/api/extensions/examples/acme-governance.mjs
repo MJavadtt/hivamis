@@ -1,6 +1,6 @@
 /**
  * An example extension (roadmap #47) — how an organisation adds its own code rules without
- * forking Hiva OS. Not loaded unless EXTENSIONS_DIR points at this directory.
+ * forking Hivamis. Not loaded unless EXTENSIONS_DIR points at this directory.
  *
  * A guard: a project may not be activated with a planned budget above its contract value — the
  * cost plan may not exceed what the client pays. An effect: when a deliverable is sent to the

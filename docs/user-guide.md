@@ -1,6 +1,6 @@
 # User guide
 
-Hiva OS follows the agency's own process. If you know your role in Doc_H, the system will feel
+Hivamis (هیوامیس) follows the agency's own process. If you know your role in Doc_H, the system will feel
 familiar — and it will stop you when a step is skipped.
 
 ## Signing in

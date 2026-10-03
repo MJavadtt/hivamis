@@ -1,6 +1,6 @@
 # Extensions (roadmap #47)
 
-An extension adds guards and effects to the workflow engine without forking Hiva OS. Put
+An extension adds guards and effects to the workflow engine without forking Hivamis. Put
 `.js`/`.mjs` modules in a directory and point `EXTENSIONS_DIR` at it; they load at boot, in file
 name order. `acme-governance.mjs` here is a working example.
 
