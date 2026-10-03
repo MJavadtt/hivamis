@@ -52,6 +52,13 @@ sent** — refresh tokens are single-use.
 | 422 | `GOVERNANCE_RULE_VIOLATION` | A Doc_H rule blocked it; `details.rule` names the clause |
 | 429 | `RATE_LIMITED` | Too many requests |
 
+**Language** — messages are written in Persian. A request whose `Accept-Language` puts English first
+(`en`, `en-GB,en;q=0.9`, …) gets the error's `message`, and the words inside its `details`
+(`message`, `labelFa`, `messageFa`, `rule`, …), in English; data inside `details` is left as it is.
+Persian, or no header, gets Persian. Response bodies other than errors are not translated: labels
+arrive as `labelFa` / `labelEn` pairs where the source has both, and the web reads the rest against
+the catalogue in `@hiva/contracts/i18n/en.json` (ADR-056).
+
 ## Workflow — the universal state-change path
 
 Every lifecycle move in the platform goes through one endpoint.

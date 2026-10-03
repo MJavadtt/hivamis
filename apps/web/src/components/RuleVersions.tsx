@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { Code } from './common';
 import { Badge, Button, Card, EmptyState } from './ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { tr, trx } from '../i18n';
 
 interface Version { id: string; kind: string; version: number; hash: string; effectiveFrom: string; note: string | null }
 interface Listing { kinds: Record<string, string>; versions: Version[]; current: Record<string, string | null> }
@@ -20,8 +21,8 @@ export function RuleVersions() {
       {Object.entries(data.kinds).map(([kind, label]) => {
         const rows = data.versions.filter((v) => v.kind === kind);
         return (
-          <Card key={kind} title={label} subtitle={rows.length ? `${toPersianDigits(rows.length)} نسخه — نسخهٔ جاری ${toPersianDigits(rows[0]!.version)}` : undefined}>
-            {!rows.length ? <EmptyState title="نسخه‌ای ثبت نشده" /> : (
+          <Card key={kind} title={trx(label)} subtitle={rows.length ? tr('{0} نسخه — نسخهٔ جاری {1}', localDigits(rows.length), localDigits(rows[0]!.version)) : undefined}>
+            {!rows.length ? <EmptyState title={tr('نسخه‌ای ثبت نشده')} /> : (
               <ul className="divide-y divide-ink-100">
                 {rows.map((v, i) => <Row key={v.id} v={v} current={data.current[kind] === v.id} previous={rows[i + 1]} />)}
               </ul>
@@ -43,16 +44,16 @@ function Row({ v, current, previous }: { v: Version; current: boolean; previous?
   return (
     <li className="px-4 py-2.5 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-ink-800">نسخهٔ {toPersianDigits(v.version)}</span>
-        {current && <Badge tone="success">جاری</Badge>}
-        <span className="text-ink-500">از {formatDateTime(v.effectiveFrom)}</span>
+        <span className="text-sm font-medium text-ink-800">{tr('نسخهٔ {0}', localDigits(v.version))}</span>
+        {current && <Badge tone="success">{tr('جاری')}</Badge>}
+        <span className="text-ink-500">{tr('از {0}', formatDateTime(v.effectiveFrom))}</span>
         <Code>{v.hash.slice(0, 10)}</Code>
         {v.note && <span className="text-ink-600">— {v.note}</span>}
-        {previous && <Button size="sm" variant="ghost" className="ms-auto" onClick={() => setOpen(!open)}>{open ? 'بستن' : 'تغییرات نسبت به نسخهٔ قبل'}</Button>}
+        {previous && <Button size="sm" variant="ghost" className="ms-auto" onClick={() => setOpen(!open)}>{open ? tr('بستن') : tr('تغییرات نسبت به نسخهٔ قبل')}</Button>}
       </div>
       {open && data && (
         <ul className="mt-2 space-y-0.5 rounded-lg bg-ink-50/60 p-2 text-ink-700" data-testid="rule-diff">
-          {data.changes.length ? data.changes.map((c, i) => <li key={i}>• {c}</li>) : <li>تفاوتی در ساختار ثبت نشده</li>}
+          {data.changes.length ? data.changes.map((c, i) => <li key={i}>• {c}</li>) : <li>{tr('تفاوتی در ساختار ثبت نشده')}</li>}
         </ul>
       )}
     </li>

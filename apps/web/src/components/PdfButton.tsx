@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError, downloadPdf } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Button, useToast } from './ui';
+import { tr } from '../i18n';
 
 /** Permission each document kind needs — mirrors DOCUMENT_POLICIES on the server. */
 const KIND_PERMISSION: Record<string, string> = {
@@ -36,7 +37,7 @@ export interface PdfButtonProps {
  * Export a record as a PDF. Hidden when the signed-in user lacks the read permission for that
  * kind, and the server re-checks regardless — the button is a convenience, not the control.
  */
-export function PdfButton({ kind, id, label = 'خروجی PDF', variant = 'secondary', size = 'sm', className }: PdfButtonProps) {
+export function PdfButton({ kind, id, label = tr('خروجی PDF'), variant = 'secondary', size = 'sm', className }: PdfButtonProps) {
   const { can } = useAuth();
   const showToast = useToast();
   const [busy, setBusy] = useState(false);
@@ -52,7 +53,7 @@ export function PdfButton({ kind, id, label = 'خروجی PDF', variant = 'secon
       const message =
         err instanceof ApiError
           ? err.body.message
-          : 'تولید فایل PDF ناموفق بود. لطفاً دوباره تلاش کنید.';
+          : tr('تولید فایل PDF ناموفق بود. لطفاً دوباره تلاش کنید.');
       showToast(message, 'danger');
     } finally {
       setBusy(false);
@@ -60,7 +61,7 @@ export function PdfButton({ kind, id, label = 'خروجی PDF', variant = 'secon
   };
 
   return (
-    <Button variant={variant} size={size} loading={busy} onClick={run} className={className} title="دریافت نسخه PDF">
+    <Button variant={variant} size={size} loading={busy} onClick={run} className={className} title={tr('دریافت نسخه PDF')}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
            strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />

@@ -4,7 +4,8 @@ import { COLOR_SPACE_LABELS } from '@hiva/contracts';
 import { apiBlob, apiGet, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Modal, Select, useToast } from './ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { tr, trx } from '../i18n';
 
 /*
  * Roadmap #42 — a file's versions and what each one says about itself. A new version takes the
@@ -25,27 +26,27 @@ const PAPERS: [string, number, number][] = [['A3', 297, 420], ['A4', 210, 297], 
 export function paperName(mm: { w: number; h: number }) {
   const [short, long] = mm.w <= mm.h ? [mm.w, mm.h] : [mm.h, mm.w];
   const paper = PAPERS.find(([, w, h]) => Math.abs(w - short) <= 2 && Math.abs(h - long) <= 2)?.[0];
-  const size = paper ?? `${toPersianDigits(mm.w)}×${toPersianDigits(mm.h)} میلی‌متر`;
-  return mm.w > mm.h ? `${size} افقی` : size;
+  const size = paper ?? tr('{0}×{1} میلی‌متر', localDigits(mm.w), localDigits(mm.h));
+  return mm.w > mm.h ? tr('{0} افقی', size) : size;
 }
 export const durationFa = (sec: number) => {
   const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
   const two = (n: number) => String(n).padStart(2, '0');
-  return toPersianDigits(h ? `${h}:${two(m)}:${two(r)}` : `${two(m)}:${two(r)}`);
+  return localDigits(h ? `${h}:${two(m)}:${two(r)}` : `${two(m)}:${two(r)}`);
 };
 export const sizeFa = (bytes: number) =>
-  bytes < 1024 * 1024 ? `${toPersianDigits(Math.max(1, Math.ceil(bytes / 1024)))} KB` : `${toPersianDigits((bytes / 1024 / 1024).toFixed(1))} MB`;
+  bytes < 1024 * 1024 ? `${localDigits(Math.max(1, Math.ceil(bytes / 1024)))} KB` : `${localDigits((bytes / 1024 / 1024).toFixed(1))} MB`;
 
 /** One line for a file's facts, as a designer would say them. */
 export function metadataFa(m: FileMeta | null | undefined): string {
   if (!m) return '';
   const parts: string[] = [];
-  if (m.width && m.height) parts.push(`${toPersianDigits(m.width)}×${toPersianDigits(m.height)} پیکسل`);
-  if (m.colorSpace) parts.push(COLOR_SPACE_LABELS[m.colorSpace] ?? m.colorSpace);
-  if (m.durationSec != null) parts.push(`مدت ${durationFa(m.durationSec)}`);
-  if (m.pageCount) parts.push(`${toPersianDigits(m.pageCount)} صفحه`);
+  if (m.width && m.height) parts.push(tr('{0}×{1} پیکسل', localDigits(m.width), localDigits(m.height)));
+  if (m.colorSpace) parts.push(trx(COLOR_SPACE_LABELS[m.colorSpace] ?? m.colorSpace));
+  if (m.durationSec != null) parts.push(tr('مدت {0}', durationFa(m.durationSec)));
+  if (m.pageCount) parts.push(tr('{0} صفحه', localDigits(m.pageCount)));
   if (m.pageSizeMm) parts.push(paperName(m.pageSizeMm));
-  if (m.fontFamily) parts.push(`خانوادهٔ ${m.fontFamily}`);
+  if (m.fontFamily) parts.push(tr('خانوادهٔ {0}', m.fontFamily));
   return parts.join(' · ');
 }
 
@@ -53,19 +54,19 @@ export function metadataFa(m: FileMeta | null | undefined): string {
 export function factRows(v: Pick<VersionRow, 'mimeType' | 'sizeBytes' | 'metadata'>): [string, string][] {
   const m = v.metadata ?? {};
   return [
-    ['ابعاد', m.width && m.height ? `${toPersianDigits(m.width)}×${toPersianDigits(m.height)}` : '—'],
-    ['فضای رنگ', m.colorSpace ? COLOR_SPACE_LABELS[m.colorSpace] ?? m.colorSpace : '—'],
-    ['مدت', m.durationSec != null ? durationFa(m.durationSec) : '—'],
-    ['صفحه‌ها', m.pageCount ? toPersianDigits(m.pageCount) : '—'],
-    ['اندازهٔ صفحه', m.pageSizeMm ? paperName(m.pageSizeMm) : '—'],
-    ['خانوادهٔ فونت', m.fontFamily ?? '—'],
-    ['نوع فایل', v.mimeType],
-    ['حجم', sizeFa(v.sizeBytes)],
+    [tr('ابعاد'), m.width && m.height ? `${localDigits(m.width)}×${localDigits(m.height)}` : '—'],
+    [tr('فضای رنگ'), m.colorSpace ? COLOR_SPACE_LABELS[m.colorSpace] ?? m.colorSpace : '—'],
+    [tr('مدت'), m.durationSec != null ? durationFa(m.durationSec) : '—'],
+    [tr('صفحه‌ها'), m.pageCount ? localDigits(m.pageCount) : '—'],
+    [tr('اندازهٔ صفحه'), m.pageSizeMm ? paperName(m.pageSizeMm) : '—'],
+    [tr('خانوادهٔ فونت'), m.fontFamily ?? '—'],
+    [tr('نوع فایل'), v.mimeType],
+    [tr('حجم'), sizeFa(v.sizeBytes)],
   ];
 }
 
 export const VersionBadge = ({ version, current = true }: { version: number; current?: boolean }) =>
-  version > 1 || !current ? <Badge tone={current ? 'info' : 'neutral'}>{current ? `نسخهٔ ${toPersianDigits(version)}` : `نسخهٔ قدیمی ${toPersianDigits(version)}`}</Badge> : null;
+  version > 1 || !current ? <Badge tone={current ? 'info' : 'neutral'}>{current ? tr('نسخهٔ {0}', localDigits(version)) : tr('نسخهٔ قدیمی {0}', localDigits(version))}</Badge> : null;
 
 /**
  * A file's bytes behind the session, as an object URL that is released when no longer shown.
@@ -91,7 +92,7 @@ export async function openPdf(url: string) {
 }
 
 const FONT_TYPES = ['font/ttf', 'font/otf', 'font/woff', 'font/woff2'];
-export const SAMPLE_TEXT = 'نمونهٔ متن برند — ابجد هوز ۱۲۳۴ Hiva';
+export const SAMPLE_TEXT = tr('نمونهٔ متن برند — ابجد هوز ۱۲۳۴ Hiva');
 
 /** A typeface from its own file, registered under a private name for this page only. */
 function useFontFace(url: string | null, id: string) {
@@ -157,7 +158,7 @@ function FontSample({ url, id, large }: { url: string; id: string; large: boolea
 }
 
 /** Upload a new version of a file: it takes the file's place, and the old one is kept. */
-export function NewVersionButton({ documentId, onDone, label = 'نسخهٔ جدید' }: { documentId: string; onDone?: () => void | Promise<unknown>; label?: string }) {
+export function NewVersionButton({ documentId, onDone, label = tr('نسخهٔ جدید') }: { documentId: string; onDone?: () => void | Promise<unknown>; label?: string }) {
   const { can } = useAuth();
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
@@ -170,9 +171,9 @@ export function NewVersionButton({ documentId, onDone, label = 'نسخهٔ جد�
     setBusy(true);
     try {
       const d = await apiUpload<{ version: number }>('/documents', form);
-      toast(`نسخهٔ ${toPersianDigits(d.version)} جای نسخهٔ پیشین را گرفت؛ نسخهٔ پیشین نگه داشته شد.`);
+      toast(tr('نسخهٔ {0} جای نسخهٔ پیشین را گرفت؛ نسخهٔ پیشین نگه داشته شد.', localDigits(d.version)));
       await onDone?.();
-    } catch (e: any) { toast(e?.message ?? 'بارگذاری ناموفق بود.', 'danger'); } finally { setBusy(false); }
+    } catch (e: any) { toast(e?.message ?? tr('بارگذاری ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
     <>
@@ -196,11 +197,11 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
   const to = data.find((v) => v.id === picked.to) ?? data[data.length - 1];
   const both = from && to && from.id !== to.id ? [from, to] as const : null;
   const refresh = async () => { await qc.invalidateQueries({ queryKey: key }); await onChanged?.(); };
-  const label = (v: VersionRow) => `نسخهٔ ${toPersianDigits(v.version)}${v.current ? ' (فعلی)' : ''}`;
+  const label = (v: VersionRow) => tr('نسخهٔ {0}{1}', localDigits(v.version), v.current ? tr(' (فعلی)') : '');
   const images = both && both.every((v) => v.mimeType.startsWith('image/'));
   return (
-    <Modal open wide title={`نسخه‌های «${current?.fileName ?? data[data.length - 1]?.fileName ?? ''}»`} onClose={onClose}
-      footer={<>{current && <NewVersionButton documentId={current.id} onDone={refresh} label="بارگذاری نسخهٔ جدید" />}<Button variant="ghost" onClick={onClose}>بستن</Button></>}>
+    <Modal open wide title={tr('نسخه‌های «{0}»', current?.fileName ?? data[data.length - 1]?.fileName ?? '')} onClose={onClose}
+      footer={<>{current && <NewVersionButton documentId={current.id} onDone={refresh} label={tr('بارگذاری نسخهٔ جدید')} />}<Button variant="ghost" onClick={onClose}>{tr('بستن')}</Button></>}>
       <div className="space-y-4" data-testid="versions">
         <ol className="divide-y divide-ink-100 rounded-lg border border-ink-200 text-sm">
           {[...data].reverse().map((v) => (
@@ -210,40 +211,40 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
                 <p className="flex flex-wrap items-center gap-1.5">
                   <span className="font-medium">{label(v)}</span>
                   <span className="truncate text-ink-600">{v.fileName}</span>
-                  {v.clientVisible && <Badge tone="info">در پورتال</Badge>}
-                  {v.annotations > 0 && <Badge tone="warning">{toPersianDigits(v.annotations)} یادداشت</Badge>}
+                  {v.clientVisible && <Badge tone="info">{tr('در پورتال')}</Badge>}
+                  {v.annotations > 0 && <Badge tone="warning">{tr('{0} یادداشت', localDigits(v.annotations))}</Badge>}
                 </p>
                 <p className="text-[11px] text-ink-500">{[metadataFa(v.metadata), sizeFa(v.sizeBytes)].filter(Boolean).join(' · ')}</p>
                 <p className="text-[11px] text-ink-400">{v.uploadedBy?.fullName ?? '—'} · {formatDateTime(v.createdAt)}</p>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${v.id}/download`, v.fileName)}>دریافت</Button>
+              <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${v.id}/download`, v.fileName)}>{tr('دریافت')}</Button>
             </li>
           ))}
         </ol>
 
-        {data.length < 2 ? <p className="text-xs text-ink-500">این فایل هنوز یک نسخه دارد؛ با «بارگذاری نسخهٔ جدید» نسخهٔ بعدی جای آن را می‌گیرد و این نسخه نگه داشته می‌شود.</p> : (
+        {data.length < 2 ? <p className="text-xs text-ink-500">{tr('این فایل هنوز یک نسخه دارد؛ با «بارگذاری نسخهٔ جدید» نسخهٔ بعدی جای آن را می‌گیرد و این نسخه نگه داشته می‌شود.')}</p> : (
           <section className="space-y-3" data-testid="compare">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span>مقایسهٔ</span>
-              <Select aria-label="نسخهٔ نخست" value={from?.id} onChange={(e) => setPicked({ ...picked, from: e.target.value })} className="w-auto">
+              <span>{tr('مقایسهٔ')}</span>
+              <Select aria-label={tr('نسخهٔ نخست')} value={from?.id} onChange={(e) => setPicked({ ...picked, from: e.target.value })} className="w-auto">
                 {data.map((v) => <option key={v.id} value={v.id}>{label(v)}</option>)}
               </Select>
-              <span>با</span>
-              <Select aria-label="نسخهٔ دوم" value={to?.id} onChange={(e) => setPicked({ ...picked, to: e.target.value })} className="w-auto">
+              <span>{tr('با')}</span>
+              <Select aria-label={tr('نسخهٔ دوم')} value={to?.id} onChange={(e) => setPicked({ ...picked, to: e.target.value })} className="w-auto">
                 {data.map((v) => <option key={v.id} value={v.id}>{label(v)}</option>)}
               </Select>
-              {images && <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} /> روی هم</label>}
+              {images && <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />{' '}{tr('روی هم')}</label>}
             </div>
-            {!both ? <p className="text-xs text-ink-500">دو نسخهٔ متفاوت را برگزینید.</p> : (
+            {!both ? <p className="text-xs text-ink-500">{tr('دو نسخهٔ متفاوت را برگزینید.')}</p> : (
               <>
-                {both[0].checksum && both[0].checksum === both[1].checksum && <p className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">این دو نسخه بایت‌به‌بایت یکسان‌اند.</p>}
+                {both[0].checksum && both[0].checksum === both[1].checksum && <p className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">{tr('این دو نسخه بایت‌به‌بایت یکسان‌اند.')}</p>}
                 {overlay && images ? (
                   <div className="space-y-2">
                     <div className="relative inline-block" data-testid="overlay">
                       <FilePreview documentId={both[0].id} mimeType={both[0].mimeType} size="lg" />
                       <div className="absolute inset-0" style={{ opacity: opacity / 100 }}><FilePreview documentId={both[1].id} mimeType={both[1].mimeType} size="lg" /></div>
                     </div>
-                    <label className="flex items-center gap-2 text-xs">{label(both[0])}<input type="range" min={0} max={100} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} aria-label="میزان نمایش نسخهٔ دوم" />{label(both[1])}</label>
+                    <label className="flex items-center gap-2 text-xs">{label(both[0])}<input type="range" min={0} max={100} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} aria-label={tr('میزان نمایش نسخهٔ دوم')} />{label(both[1])}</label>
                   </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -263,7 +264,7 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
                       if (a === '—' && b === '—') return null;
                       return (
                         <tr key={name} className={a !== b ? 'bg-amber-50 text-amber-900' : ''} data-changed={a !== b || undefined}>
-                          <td className="px-1 py-1 text-ink-500">{name}</td><td className="px-1 py-1">{a}</td><td className="px-1 py-1">{b}{a !== b && <span className="ms-1 text-[10px]">(تغییر کرد)</span>}</td>
+                          <td className="px-1 py-1 text-ink-500">{name}</td><td className="px-1 py-1">{a}</td><td className="px-1 py-1">{b}{a !== b && <span className="ms-1 text-[10px]">{tr('(تغییر کرد)')}</span>}</td>
                         </tr>
                       );
                     })}
@@ -283,7 +284,7 @@ export function VersionsButton({ documentId, version, onChanged }: { documentId:
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{version > 1 ? `نسخه‌ها (${toPersianDigits(version)})` : 'نسخه‌ها'}</Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{version > 1 ? tr('نسخه‌ها ({0})', localDigits(version)) : tr('نسخه‌ها')}</Button>
       {open && <VersionsModal documentId={documentId} onClose={() => setOpen(false)} onChanged={onChanged} />}
     </>
   );

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { apiGet, type Page } from '../lib/api';
 import { useToast } from '../components/ui';
+import { tr } from '../i18n';
 
 /** Typed list query for the paginated collection endpoints. */
 export function useList<T>(
@@ -45,6 +46,6 @@ export function useAction<TInput, TResult = unknown>(
       toast(successMessage);
       await qc.invalidateQueries();
     },
-    onError: (e: any) => toast(e?.message ?? 'عملیات ناموفق بود.', 'danger'),
+    onError: (e: any) => toast(e?.message ?? tr('عملیات ناموفق بود.'), 'danger'),
   });
 }

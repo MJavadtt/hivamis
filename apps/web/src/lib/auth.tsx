@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TOKEN_REFRESHED_EVENT, api, apiGet, apiPost, getRefreshToken, setAccessToken, setRefreshToken } from './api';
+import { adoptAccountLocale } from './locale';
 import { forgetPushOnSignOut } from './push';
 
 export interface CurrentUser {
@@ -39,7 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUser = useCallback(async () => {
     try {
-      setUser(await apiGet<CurrentUser>('/auth/me'));
+      const me = await apiGet<CurrentUser>('/auth/me');
+      setUser(me);
+      adoptAccountLocale(me.locale);
     } catch {
       setUser(null);
     }

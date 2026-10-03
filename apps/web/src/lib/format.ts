@@ -4,40 +4,56 @@ import {
   getDate as jalaliGetDate, getMonth as jalaliGetMonth, getYear as jalaliGetYear,
   newDate as jalaliNewDate, getDaysInMonth as jalaliGetDaysInMonth,
 } from 'date-fns-jalali';
-/** Persian formatting helpers. All user-visible numbers and dates go through here. */
+import { isEnglish } from '../i18n';
+/**
+ * Number and date formatting. All user-visible numbers and dates go through here.
+ *
+ * Persian: Persian digits, «ریال», the Solar Hijri calendar the organisation works in. English
+ * (Hivamis task 7): Latin digits, "Rials", and Gregorian dates — an English reader is not assumed to
+ * read the Persian calendar; the stored value is the same instant either way.
+ */
 
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
+/** Persian digits, whatever the interface language — for the Solar Hijri date input. */
 export const toPersianDigits = (input: string | number): string =>
   String(input).replace(/\d/g, (d) => PERSIAN_DIGITS[Number(d)]);
+
+/** Digits as the reader's language writes them: Persian in Persian, Latin in English. */
+export const localDigits = (input: string | number): string =>
+  isEnglish() ? String(input) : toPersianDigits(input);
 
 export function formatNumber(value: number | string | null | undefined, fractionDigits = 0): string {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);
   if (Number.isNaN(n)) return '—';
-  return toPersianDigits(
+  return localDigits(
     n.toLocaleString('en-US', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }),
   );
 }
 
+const rials = (amount: string) => (isEnglish() ? `${amount} Rials` : `${amount} ریال`);
+
 /**
- * Rial amounts run to billions, so large figures are abbreviated («۴٫۳ میلیارد ریال»)
- * with the exact value available on hover.
+ * Rial amounts run to billions, so large figures are abbreviated («۴٫۳ میلیارد ریال», "4.3 billion
+ * Rials") with the exact value available on hover.
  */
 export function formatCurrency(value: number | string | null | undefined, compact = true): string {
   if (value === null || value === undefined || value === '') return '—';
   const n = Number(value);
   if (Number.isNaN(n)) return '—';
-  if (!compact) return `${formatNumber(n)} ریال`;
+  if (!compact) return rials(formatNumber(n));
   const abs = Math.abs(n);
-  if (abs >= 1_000_000_000_000) return `${toPersianDigits((n / 1_000_000_000_000).toFixed(1))} هزار میلیارد ریال`;
-  if (abs >= 1_000_000_000) return `${toPersianDigits((n / 1_000_000_000).toFixed(1))} میلیارد ریال`;
-  if (abs >= 1_000_000) return `${toPersianDigits((n / 1_000_000).toFixed(1))} میلیون ریال`;
-  return `${formatNumber(n)} ریال`;
+  const scaled = (div: number, fa: string, en: string) =>
+    isEnglish() ? `${(n / div).toFixed(1)} ${en} Rials` : `${toPersianDigits((n / div).toFixed(1))} ${fa} ریال`;
+  if (abs >= 1_000_000_000_000) return scaled(1_000_000_000_000, 'هزار میلیارد', 'trillion');
+  if (abs >= 1_000_000_000) return scaled(1_000_000_000, 'میلیارد', 'billion');
+  if (abs >= 1_000_000) return scaled(1_000_000, 'میلیون', 'million');
+  return rials(formatNumber(n));
 }
 
 export const exactCurrency = (value: number | string | null | undefined): string =>
-  value === null || value === undefined ? '' : `${formatNumber(value)} ریال`;
+  value === null || value === undefined ? '' : rials(formatNumber(value));
 
 const jalaliFormatter = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
   year: 'numeric', month: '2-digit', day: '2-digit',
@@ -48,6 +64,12 @@ const jalaliLong = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
 const jalaliDateTime = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
 });
+// "3 Oct 2026": day first and the month in words, so no reader mistakes 03/10 for March.
+const gregorian = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+const gregorianLong = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
+const gregorianDateTime = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
 
 const asDate = (v: string | Date | null | undefined): Date | null => {
   if (!v) return null;
@@ -55,20 +77,20 @@ const asDate = (v: string | Date | null | undefined): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-/** Jalali (Solar Hijri) date — the calendar the organisation actually works in. */
+/** The organisation's calendar in Persian — Solar Hijri — and Gregorian in English. */
 export function formatDate(value: string | Date | null | undefined): string {
   const d = asDate(value);
-  return d ? jalaliFormatter.format(d) : '—';
+  return d ? (isEnglish() ? gregorian : jalaliFormatter).format(d) : '—';
 }
 
 export function formatDateLong(value: string | Date | null | undefined): string {
   const d = asDate(value);
-  return d ? jalaliLong.format(d) : '—';
+  return d ? (isEnglish() ? gregorianLong : jalaliLong).format(d) : '—';
 }
 
 export function formatDateTime(value: string | Date | null | undefined): string {
   const d = asDate(value);
-  return d ? jalaliDateTime.format(d) : '—';
+  return d ? (isEnglish() ? gregorianDateTime : jalaliDateTime).format(d) : '—';
 }
 
 /** Signed day distance from today; negative means overdue. */
@@ -81,6 +103,12 @@ export function daysFromNow(value: string | Date | null | undefined): number | n
 export function formatRelative(value: string | Date | null | undefined): string {
   const days = daysFromNow(value);
   if (days === null) return '—';
+  if (isEnglish()) {
+    if (days === 0) return 'today';
+    if (days === 1) return 'tomorrow';
+    if (days === -1) return 'yesterday';
+    return days > 0 ? `in ${days} days` : `${Math.abs(days)} days ago`;
+  }
   if (days === 0) return 'امروز';
   if (days === 1) return 'فردا';
   if (days === -1) return 'دیروز';
@@ -89,7 +117,9 @@ export function formatRelative(value: string | Date | null | undefined): string 
 }
 
 export const formatPercent = (value: number | string | null | undefined): string =>
-  value === null || value === undefined || value === '' ? '—' : `${toPersianDigits(Number(value).toFixed(1))}٪`;
+  value === null || value === undefined || value === ''
+    ? '—'
+    : isEnglish() ? `${Number(value).toFixed(1)}%` : `${toPersianDigits(Number(value).toFixed(1))}٪`;
 
 /** Convert a Jalali date input back to an ISO string for the API. */
 /** Kept for callers that hold a Gregorian value; Jalali entry uses jalaliPartsToValue. */
@@ -187,6 +217,10 @@ export const JALALI_MONTHS = [
 
 /** Saturday-first, matching the Iranian week the SLA calendar already uses. */
 export const JALALI_WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'] as const;
+const WEEKDAYS_EN = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
+
+/** A weekday's short name in the reader's language; `i` counts from Saturday, as the week here does. */
+export const weekdayShort = (i: number): string => (isEnglish() ? WEEKDAYS_EN : JALALI_WEEKDAYS)[i] ?? '';
 
 /** Weekday column (0 = Saturday) for the 1st of a Jalali month. */
 export function jalaliFirstWeekday(jy: number, jm: number): number {

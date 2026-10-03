@@ -5,8 +5,9 @@ import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, WorkflowActions } from '../components/common';
 import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile, cx } from '../components/ui';
-import { formatDate, formatRelative, toPersianDigits } from '../lib/format';
+import { formatDate, formatRelative, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus } from '../lib/live';
+import { loc, tr, trx } from '../i18n';
 
 interface WorkItem {
   kind: string; entityType: string; entityId: string; code: string; title: string; state: string;
@@ -26,10 +27,10 @@ interface Queue {
 function SlaChip({ sla }: { sla: NonNullable<WorkItem['sla']> }) {
   const left = Math.max(0, sla.budgetHours - sla.controlledHours);
   const tone = sla.state === 'BREACHED' ? 'danger' : sla.state === 'AT_RISK' ? 'warning' : sla.state === 'PAUSED' ? 'neutral' : 'info';
-  const text = sla.state === 'BREACHED' ? `نقض شده — ${formatRelative(sla.dueAt)}`
-    : sla.state === 'PAUSED' ? 'متوقف'
-    : `${toPersianDigits(Math.round(left * 10) / 10)} ساعت کاری مانده`;
-  return <Badge tone={tone} className="whitespace-nowrap">{sla.labelFa}: {text}</Badge>;
+  const text = sla.state === 'BREACHED' ? tr('نقض شده — {0}', formatRelative(sla.dueAt))
+    : sla.state === 'PAUSED' ? tr('متوقف')
+    : tr('{0} ساعت کاری مانده', localDigits(Math.round(left * 10) / 10));
+  return <Badge tone={tone} className="whitespace-nowrap">{loc(sla, 'label')}: {text}</Badge>;
 }
 
 /**
@@ -40,9 +41,7 @@ function RiskChip({ risk }: { risk: NonNullable<NonNullable<WorkItem['sla']>['ri
   return (
     <Badge tone={risk.risk === 'CRITICAL' ? 'danger' : risk.risk === 'LIKELY' ? 'warning' : 'info'}
       className="whitespace-nowrap" >
-      <span title={risk.becauseFa ?? undefined}>
-        احتمال نقض {toPersianDigits(Math.round(risk.probability * 100))}٪
-      </span>
+      <span title={trx(risk.becauseFa ?? undefined)}>{tr('احتمال نقض {0}٪', localDigits(Math.round(risk.probability * 100)))}</span>
     </Badge>
   );
 }
@@ -62,28 +61,28 @@ export default function MyWork() {
 
   return (
     <>
-      <PageHeader title="کارهای من" subtitle="هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد" />
+      <PageHeader title={tr('کارهای من')} subtitle={tr('هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد')} />
       <PageBody>
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !data ? null : (
           <>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile label="در صف" value={toPersianDigits(data.items.length)} />
-              <StatTile label="مهلت نقض‌شده" value={toPersianDigits(data.breached)} tone={data.breached > 0 ? 'danger' : 'success'} />
-              <StatTile label="در خطر" value={toPersianDigits(data.atRisk)} tone={data.atRisk > 0 ? 'warning' : 'neutral'} />
-              <StatTile label="نوع کار" value={toPersianDigits(Object.values(data.counts).filter(Boolean).length)} />
+              <StatTile label={tr('در صف')} value={localDigits(data.items.length)} />
+              <StatTile label={tr('مهلت نقض‌شده')} value={localDigits(data.breached)} tone={data.breached > 0 ? 'danger' : 'success'} />
+              <StatTile label={tr('در خطر')} value={localDigits(data.atRisk)} tone={data.atRisk > 0 ? 'warning' : 'neutral'} />
+              <StatTile label={tr('نوع کار')} value={localDigits(Object.values(data.counts).filter(Boolean).length)} />
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="فیلتر بر اساس نوع کار">
-              <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>همه</Button>
+            <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={tr('فیلتر بر اساس نوع کار')}>
+              <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>{tr('همه')}</Button>
               {Object.entries(data.kinds).filter(([k]) => data.counts[k]).map(([k, label]) => (
                 <Button key={k} size="sm" variant={kind === k ? 'primary' : 'secondary'} onClick={() => setKind(kind === k ? null : k)}>
-                  {label} <span className="ms-1 text-[11px] opacity-70">{toPersianDigits(data.counts[k]!)}</span>
+                  {label} <span className="ms-1 text-[11px] opacity-70">{localDigits(data.counts[k]!)}</span>
                 </Button>
               ))}
             </div>
 
             <Card>
-              {!items.length ? <EmptyState title="کاری در صف شما نیست" /> : (
+              {!items.length ? <EmptyState title={tr('کاری در صف شما نیست')} /> : (
                 <ul className="divide-y divide-ink-100" data-testid="my-work">
                   {items.map((i) => (
                     <li key={`${i.kind}:${i.entityId}`} className={cx('px-4 py-3', i.sla?.state === 'BREACHED' && 'bg-rose-50/40')}>
@@ -97,7 +96,7 @@ export default function MyWork() {
                           </div>
                           <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-ink-500">
                             {i.projectCode && <span>{i.projectName} <Code>{i.projectCode}</Code></span>}
-                            {i.dueAt && <span>مهلت: {formatDate(i.dueAt)} — {formatRelative(i.dueAt)}</span>}
+                            {i.dueAt && <span>{tr('مهلت: {0} — {1}', formatDate(i.dueAt), formatRelative(i.dueAt))}</span>}
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-2">
@@ -105,7 +104,7 @@ export default function MyWork() {
                           {i.sla?.risk && <RiskChip risk={i.sla.risk} />}
                           {i.availableTransitions.length > 0
                             ? <WorkflowActions entity={i.entityType} id={i.entityId} transitions={i.availableTransitions} onDone={() => void refetch()} />
-                            : <Link to={i.href}><Button size="sm">باز کردن</Button></Link>}
+                            : <Link to={i.href}><Button size="sm">{tr('باز کردن')}</Button></Link>}
                         </div>
                       </div>
                     </li>

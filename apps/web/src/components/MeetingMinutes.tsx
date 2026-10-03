@@ -6,7 +6,8 @@ import { UserSelect } from '../pages/Forms';
 import { JalaliDateInput } from './JalaliDateInput';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { Code } from './common';
-import { formatDate, formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDate, formatDateTime, localDigits } from '../lib/format';
+import { tr } from '../i18n';
 
 interface Meeting {
   id: string; code: string; subject: string; heldAt: string; kind: string; attendees: string;
@@ -21,7 +22,7 @@ interface DraftAction {
 interface Draft { decisions: { text: string }[]; actions: DraftAction[]; unresolvedFa: string[]; canCreateTasks: boolean }
 interface Row { title: string; assigneeId: string; departmentCode: string; dueDate: string; createTask: boolean; candidates: DraftAction['candidates']; ownerRaw: string | null; confidence: string; sourceLine: string }
 
-const UNITS = [['S', 'فروش'], ['A', 'اکانت'], ['ST', 'استراتژی'], ['CR', 'خلاقیت/تولید'], ['ME', 'رسانه'], ['DM', 'دیجیتال'], ['FI', 'مالی'], ['LG', 'حقوقی'], ['OP', 'عملیات'], ['M', 'مدیریت']] as const;
+const UNITS = [['S', tr('فروش')], ['A', tr('اکانت')], ['ST', tr('استراتژی')], ['CR', tr('خلاقیت/تولید')], ['ME', tr('رسانه')], ['DM', tr('دیجیتال')], ['FI', tr('مالی')], ['LG', tr('حقوقی')], ['OP', tr('عملیات')], ['M', tr('مدیریت')]] as const;
 const CONF_TONE = { HIGH: 'success', MEDIUM: 'warning', LOW: 'neutral' } as const;
 
 /**
@@ -37,11 +38,11 @@ export function ProjectMeetings({ projectId, meetings }: { projectId: string; me
 
   return (
     <Card
-      title="جلسه‌ها و صورتجلسه‌ها"
-      subtitle="قانون ۶ — هیچ وظیفهٔ شفاهی معتبر نیست. تصمیم‌های جلسه با صورتجلسه به وظیفهٔ ثبت‌شده تبدیل می‌شوند."
-      action={mayWrite ? <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>جلسهٔ تازه</Button> : undefined}
+      title={tr('جلسه‌ها و صورتجلسه‌ها')}
+      subtitle={tr('قانون ۶ — هیچ وظیفهٔ شفاهی معتبر نیست. تصمیم‌های جلسه با صورتجلسه به وظیفهٔ ثبت‌شده تبدیل می‌شوند.')}
+      action={mayWrite ? <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>{tr('جلسهٔ تازه')}</Button> : undefined}
     >
-      {!meetings.length ? <EmptyState title="جلسه‌ای برای این پروژه ثبت نشده" /> : (
+      {!meetings.length ? <EmptyState title={tr('جلسه‌ای برای این پروژه ثبت نشده')} /> : (
         <ul className="divide-y divide-ink-100" data-testid="project-meetings">
           {meetings.map((m) => {
             const tasks = (m.actions ?? []).filter((a) => a.taskId).length;
@@ -51,10 +52,10 @@ export function ProjectMeetings({ projectId, meetings }: { projectId: string; me
                 <span className="font-medium text-ink-800">{m.subject}</span>
                 <span className="text-xs text-ink-500">{formatDateTime(m.heldAt)}</span>
                 {m.minutesRecordedAt
-                  ? <Badge tone="success">صورتجلسه ثبت شده{tasks ? ` — ${toPersianDigits(tasks)} وظیفه` : ''}</Badge>
-                  : <Badge tone="warning">بدون صورتجلسه</Badge>}
+                  ? <Badge tone="success">{tr('صورتجلسه ثبت شده{0}', tasks ? tr(' — {0} وظیفه', localDigits(tasks)) : '')}</Badge>
+                  : <Badge tone="warning">{tr('بدون صورتجلسه')}</Badge>}
                 {mayWrite && !m.minutesRecordedAt && (
-                  <Button size="sm" variant="primary" className="ms-auto" onClick={() => setOpen(m)}>ثبت صورتجلسه</Button>
+                  <Button size="sm" variant="primary" className="ms-auto" onClick={() => setOpen(m)}>{tr('ثبت صورتجلسه')}</Button>
                 )}
               </li>
             );
@@ -73,25 +74,25 @@ function NewMeeting({ projectId, onClose }: { projectId: string; onClose: () => 
   const toast = useToast();
   const qc = useQueryClient();
   return (
-    <Modal open title="جلسهٔ تازه" onClose={onClose}
+    <Modal open title={tr('جلسهٔ تازه')} onClose={onClose}
       footer={<>
-        <Button variant="ghost" onClick={onClose}>انصراف</Button>
+        <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
         <Button variant="primary" loading={busy} disabled={v.subject.trim().length < 2 || v.attendees.trim().length < 2}
           onClick={async () => {
             setBusy(true);
             try {
               await apiPost('/meetings', { projectId, ...v });
-              toast('جلسه ثبت شد.'); await qc.invalidateQueries(); onClose();
-            } catch (e: any) { toast(e?.message ?? 'ثبت جلسه ناموفق بود.', 'danger'); } finally { setBusy(false); }
-          }}>ثبت</Button>
+              toast(tr('جلسه ثبت شد.')); await qc.invalidateQueries(); onClose();
+            } catch (e: any) { toast(e?.message ?? tr('ثبت جلسه ناموفق بود.'), 'danger'); } finally { setBusy(false); }
+          }}>{tr('ثبت')}</Button>
       </>}>
       <div className="grid gap-3">
-        <Field label="موضوع" required><Input value={v.subject} onChange={(e) => setV({ ...v, subject: e.target.value })} aria-label="موضوع" /></Field>
-        <Field label="زمان" required><JalaliDateInput mode="datetime" value={v.heldAt} onChange={(val) => setV({ ...v, heldAt: val ?? v.heldAt })} /></Field>
-        <Field label="حاضران" required><Input value={v.attendees} onChange={(e) => setV({ ...v, attendees: e.target.value })} aria-label="حاضران" /></Field>
-        <Field label="نوع">
-          <Select value={v.kind} onChange={(e) => setV({ ...v, kind: e.target.value })} aria-label="نوع">
-            <option value="INTERNAL">داخلی</option><option value="CLIENT">با مشتری</option><option value="KICKOFF">Kick-off</option><option value="CLOSURE">پایان پروژه</option>
+        <Field label={tr('موضوع')} required><Input value={v.subject} onChange={(e) => setV({ ...v, subject: e.target.value })} aria-label={tr('موضوع')} /></Field>
+        <Field label={tr('زمان')} required><JalaliDateInput mode="datetime" value={v.heldAt} onChange={(val) => setV({ ...v, heldAt: val ?? v.heldAt })} /></Field>
+        <Field label={tr('حاضران')} required><Input value={v.attendees} onChange={(e) => setV({ ...v, attendees: e.target.value })} aria-label={tr('حاضران')} /></Field>
+        <Field label={tr('نوع')}>
+          <Select value={v.kind} onChange={(e) => setV({ ...v, kind: e.target.value })} aria-label={tr('نوع')}>
+            <option value="INTERNAL">{tr('داخلی')}</option><option value="CLIENT">{tr('با مشتری')}</option><option value="KICKOFF">Kick-off</option><option value="CLOSURE">{tr('پایان پروژه')}</option>
           </Select>
         </Field>
       </div>
@@ -120,7 +121,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
         title: a.title, assigneeId: a.assigneeId ?? '', departmentCode: a.departmentCode ?? '', dueDate: a.dueDate ?? '',
         createTask: d.canCreateTasks, candidates: a.candidates, ownerRaw: a.ownerRaw, confidence: a.confidence, sourceLine: a.sourceLine,
       })));
-    } catch (e: any) { toast(e?.message ?? 'ساخت پیش‌نویس ناموفق بود.', 'danger'); } finally { setBusy(false); }
+    } catch (e: any) { toast(e?.message ?? tr('ساخت پیش‌نویس ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
 
   const upload = async (file: File) => {
@@ -129,8 +130,8 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
       const body = new FormData(); body.append('file', file);
       const res = await apiUpload<{ transcript: string }>(`/meetings/${meeting.id}/transcribe`, body);
       setNotes(res.transcript);
-      toast('صوت جلسه رونویسی شد — متن را بازبینی و سپس پیش‌نویس بسازید.');
-    } catch (e: any) { toast(e?.message ?? 'رونویسی ناموفق بود.', 'danger'); } finally { setBusy(false); }
+      toast(tr('صوت جلسه رونویسی شد — متن را بازبینی و سپس پیش‌نویس بسازید.'));
+    } catch (e: any) { toast(e?.message ?? tr('رونویسی ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
 
   const save = async () => {
@@ -143,43 +144,41 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
           dueDate: r.dueDate || undefined, createTask: r.createTask,
         })),
       });
-      toast(`صورتجلسه ثبت شد${res.tasks.length ? ` و ${toPersianDigits(res.tasks.length)} وظیفه ساخته شد` : ''}.`);
+      toast(tr('صورتجلسه ثبت شد{0}.', res.tasks.length ? tr(' و {0} وظیفه ساخته شد', localDigits(res.tasks.length)) : ''));
       await qc.invalidateQueries(); onClose();
     } catch (e: any) {
       setProblems((e?.body?.details?.problems as string[]) ?? []);
-      toast(e?.message ?? 'ثبت صورتجلسه ناموفق بود.', 'danger');
+      toast(e?.message ?? tr('ثبت صورتجلسه ناموفق بود.'), 'danger');
     } finally { setBusy(false); }
   };
   const set = (i: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   return (
-    <Modal open wide title={`صورتجلسه — ${meeting.subject}`} onClose={onClose}
+    <Modal open wide title={tr('صورتجلسه — {0}', meeting.subject)} onClose={onClose}
       footer={<>
-        <Button variant="ghost" onClick={onClose}>انصراف</Button>
-        {draft && <Button variant="primary" loading={busy} onClick={() => void save()}>ثبت صورتجلسه{rows.some((r) => r.createTask) ? ' و ساخت وظایف' : ''}</Button>}
+        <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
+        {draft && <Button variant="primary" loading={busy} onClick={() => void save()}>{tr('ثبت صورتجلسه{0}', rows.some((r) => r.createTask) ? tr(' و ساخت وظایف') : '')}</Button>}
       </>}>
       {!draft ? (
         <div className="space-y-3">
-          <Field label="یادداشت‌های جلسه" hint="هر تصمیم یا اقدام در یک خط؛ نام مسئول و مهلت («تا شنبه»، «ظرف ۳ روز»، «۱۲ مهر») را همان‌طور که گفته شد بنویسید.">
-            <Textarea rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="یادداشت‌های جلسه" />
+          <Field label={tr('یادداشت‌های جلسه')} hint={tr('هر تصمیم یا اقدام در یک خط؛ نام مسئول و مهلت («تا شنبه»، «ظرف ۳ روز»، «۱۲ مهر») را همان‌طور که گفته شد بنویسید.')}>
+            <Textarea rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label={tr('یادداشت‌های جلسه')} />
           </Field>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="primary" loading={busy} disabled={notes.trim().length < 10} onClick={() => void makeDraft()}>ساخت پیش‌نویس</Button>
+            <Button variant="primary" loading={busy} disabled={notes.trim().length < 10} onClick={() => void makeDraft()}>{tr('ساخت پیش‌نویس')}</Button>
             {caps?.transcription ? (
-              <label className="cursor-pointer text-xs text-brand-700 underline">
-                بارگذاری صوت جلسه
-                <input type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+              <label className="cursor-pointer text-xs text-brand-700 underline">{tr('بارگذاری صوت جلسه')}<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
               </label>
             ) : (
-              <span className="text-[11px] text-ink-400">رونویسی صوت پیکربندی نشده — متن یادداشت‌ها را وارد کنید.</span>
+              <span className="text-[11px] text-ink-400">{tr('رونویسی صوت پیکربندی نشده — متن یادداشت‌ها را وارد کنید.')}</span>
             )}
           </div>
         </div>
       ) : (
         <div className="space-y-4" data-testid="minutes-draft">
-          <Field label="تصمیم‌ها"><Textarea rows={3} value={decisions} onChange={(e) => setDecisions(e.target.value)} aria-label="تصمیم‌ها" /></Field>
+          <Field label={tr('تصمیم‌ها')}><Textarea rows={3} value={decisions} onChange={(e) => setDecisions(e.target.value)} aria-label={tr('تصمیم‌ها')} /></Field>
           {!draft.canCreateTasks && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">این جلسه به پروژه‌ای وصل نیست؛ اقدام‌ها فقط در صورتجلسه ثبت می‌شوند.</p>
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{tr('این جلسه به پروژه‌ای وصل نیست؛ اقدام‌ها فقط در صورتجلسه ثبت می‌شوند.')}</p>
           )}
           {problems.length > 0 && <ul className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{problems.map((p, i) => <li key={i}>· {p}</li>)}</ul>}
           <div className="space-y-3">
@@ -187,41 +186,41 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
               <div key={i} className="rounded-lg ring-1 ring-ink-200/70 p-3" data-testid="minutes-action">
                 <div className="mb-2 flex items-center gap-2 text-[11px] text-ink-400">
                   <Badge tone={CONF_TONE[r.confidence as keyof typeof CONF_TONE] ?? 'neutral'}>
-                    {r.confidence === 'HIGH' ? 'مسئول و مهلت مشخص' : r.confidence === 'MEDIUM' ? 'نیازمند تکمیل' : 'حدسی'}
+                    {r.confidence === 'HIGH' ? tr('مسئول و مهلت مشخص') : r.confidence === 'MEDIUM' ? tr('نیازمند تکمیل') : tr('حدسی')}
                   </Badge>
-                  <span className="truncate">از متن: «{r.sourceLine}»</span>
+                  <span className="truncate">{tr('از متن: «{0}»', r.sourceLine)}</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="اقدام"><Input value={r.title} onChange={(e) => set(i, { title: e.target.value })} aria-label="اقدام" /></Field>
-                  <Field label="مسئول" hint={!r.assigneeId && r.ownerRaw ? `در متن: «${r.ownerRaw}»${r.candidates.length ? ` — ${toPersianDigits(r.candidates.length)} نفر با این نام` : ''}` : undefined}>
+                  <Field label={tr('اقدام')}><Input value={r.title} onChange={(e) => set(i, { title: e.target.value })} aria-label={tr('اقدام')} /></Field>
+                  <Field label={tr('مسئول')} hint={!r.assigneeId && r.ownerRaw ? tr('در متن: «{0}»{1}', r.ownerRaw, r.candidates.length ? tr(' — {0} نفر با این نام', localDigits(r.candidates.length)) : '') : undefined}>
                     {r.candidates.length && !r.assigneeId ? (
-                      <Select value="" onChange={(e) => set(i, { assigneeId: e.target.value })} aria-label="مسئول">
-                        <option value="">— کدام {r.ownerRaw}؟ —</option>
+                      <Select value="" onChange={(e) => set(i, { assigneeId: e.target.value })} aria-label={tr('مسئول')}>
+                        <option value="">{tr('— کدام {0}؟ —', r.ownerRaw)}</option>
                         {r.candidates.map((c) => <option key={c.id} value={c.id}>{c.fullName}</option>)}
                       </Select>
                     ) : <UserSelect value={r.assigneeId} onChange={(v) => set(i, { assigneeId: v })} />}
                   </Field>
-                  <Field label="مهلت"><JalaliDateInput mode="date" value={r.dueDate || null} onChange={(v) => set(i, { dueDate: v ?? '' })} /></Field>
-                  <Field label="واحد" hint={r.assigneeId ? 'از واحد مسئول' : undefined}>
-                    <Select value={r.departmentCode} onChange={(e) => set(i, { departmentCode: e.target.value })} aria-label="واحد">
+                  <Field label={tr('مهلت')}><JalaliDateInput mode="date" value={r.dueDate || null} onChange={(v) => set(i, { dueDate: v ?? '' })} /></Field>
+                  <Field label={tr('واحد')} hint={r.assigneeId ? tr('از واحد مسئول') : undefined}>
+                    <Select value={r.departmentCode} onChange={(e) => set(i, { departmentCode: e.target.value })} aria-label={tr('واحد')}>
                       <option value="">—</option>{UNITS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}
                     </Select>
                   </Field>
                 </div>
-                <Checkbox checked={r.createTask} disabled={!draft.canCreateTasks} onChange={(e) => set(i, { createTask: e.target.checked })} label="ساخت وظیفه از این اقدام" />
+                <Checkbox checked={r.createTask} disabled={!draft.canCreateTasks} onChange={(e) => set(i, { createTask: e.target.checked })} label={tr('ساخت وظیفه از این اقدام')} />
               </div>
             ))}
           </div>
           {draft.unresolvedFa.length > 0 && (
             <div className="rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
-              <p className="font-medium">تعهدهایی بدون مسئول و مهلت — تا یکی مشخص نشود، همین‌طور شفاهی می‌مانند:</p>
+              <p className="font-medium">{tr('تعهدهایی بدون مسئول و مهلت — تا یکی مشخص نشود، همین‌طور شفاهی می‌مانند:')}</p>
               <ul className="mt-1 space-y-0.5">{draft.unresolvedFa.map((u, i) => <li key={i}>· {u}</li>)}</ul>
               <Button size="sm" variant="ghost" onClick={() => setRows((rs) => [...rs, ...draft.unresolvedFa.map((u) => ({
                 title: u, assigneeId: '', departmentCode: '', dueDate: '', createTask: draft.canCreateTasks, candidates: [], ownerRaw: null, confidence: 'LOW', sourceLine: u,
-              }))])}>افزودن به اقدام‌ها</Button>
+              }))])}>{tr('افزودن به اقدام‌ها')}</Button>
             </div>
           )}
-          <p className="text-[11px] text-ink-400">جلسه در {formatDate(meeting.heldAt)} — مهلت‌های نسبی («تا شنبه») از همین تاریخ حساب شده‌اند.</p>
+          <p className="text-[11px] text-ink-400">{tr('جلسه در {0} — مهلت‌های نسبی («تا شنبه») از همین تاریخ حساب شده‌اند.', formatDate(meeting.heldAt))}</p>
         </div>
       )}
     </Modal>

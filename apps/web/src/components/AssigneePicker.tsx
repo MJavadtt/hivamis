@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { Badge, LoadingBlock, ProgressBar, cx } from './ui';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
+import { tr, trx } from '../i18n';
 
 interface Candidate {
   load: {
@@ -26,15 +27,12 @@ export function AssigneePicker({ taskId, value, onChange }: { taskId: string; va
     queryKey: ['/tasks/suggest-assignee', taskId],
     queryFn: () => apiGet('/tasks/suggest-assignee', { taskId, limit: '8' }),
   });
-  if (isLoading) return <LoadingBlock label="در حال سنجش ظرفیت…" />;
-  if (!data?.candidates.length) return <p className="text-xs text-ink-500">فردی در این واحد برای پیشنهاد یافت نشد — مسئول را از فهرست کاربران انتخاب کنید.</p>;
+  if (isLoading) return <LoadingBlock label={tr('در حال سنجش ظرفیت…')} />;
+  if (!data?.candidates.length) return <p className="text-xs text-ink-500">{tr('فردی در این واحد برای پیشنهاد یافت نشد — مسئول را از فهرست کاربران انتخاب کنید.')}</p>;
 
   return (
     <div className="space-y-2" data-testid="assignee-picker">
-      <p className="text-[11px] text-ink-500">
-        {toPersianDigits(data.hours)} ساعت کار
-        {data.by ? ` با موعد ${formatDate(data.by)}` : ''} — ظرفیت آزاد هر فرد تا {formatDate(data.window.to)}، روی تقویم خودش
-      </p>
+      <p className="text-[11px] text-ink-500">{tr('{0} ساعت کار{1} — ظرفیت آزاد هر فرد تا {2}، روی تقویم خودش', localDigits(data.hours), data.by ? tr(' با موعد {0}', formatDate(data.by)) : '', formatDate(data.window.to))}</p>
       {data.candidates.map((c) => {
         const picked = value === c.load.userId;
         return (
@@ -50,22 +48,18 @@ export function AssigneePicker({ taskId, value, onChange }: { taskId: string; va
           >
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-ink-800">{c.load.fullName}</span>
-              {c.load.jobTitle && <span className="text-[11px] text-ink-400">{c.load.jobTitle}</span>}
-              <span className="ms-auto nums text-[11px] text-ink-500">
-                {toPersianDigits(c.load.remainingHours)} ساعت آزاد
-              </span>
+              {c.load.jobTitle && <span className="text-[11px] text-ink-400">{trx(c.load.jobTitle)}</span>}
+              <span className="ms-auto nums text-[11px] text-ink-500">{tr('{0} ساعت آزاد', localDigits(c.load.remainingHours))}</span>
             </div>
             <div className="mt-1 flex items-center gap-2">
               <div className="w-28">
                 <ProgressBar value={c.utilisationAfter}
                   tone={c.utilisationAfter > 100 ? 'danger' : c.utilisationAfter >= 85 ? 'warning' : 'success'} />
               </div>
-              <span className="nums text-[11px] text-ink-500">
-                {toPersianDigits(c.load.utilisation)}٪ → {toPersianDigits(c.utilisationAfter)}٪ با این وظیفه
-              </span>
+              <span className="nums text-[11px] text-ink-500">{tr('{0}٪ → {1}٪ با این وظیفه', localDigits(c.load.utilisation), localDigits(c.utilisationAfter))}</span>
               {c.missesDueDate
-                ? <Badge tone="danger">تا {formatDate(c.earliestFinish)} تمام می‌کند</Badge>
-                : <Badge tone="success">تا {formatDate(c.earliestFinish)}</Badge>}
+                ? <Badge tone="danger">{tr('تا {0} تمام می‌کند', formatDate(c.earliestFinish))}</Badge>
+                : <Badge tone="success">{tr('تا {0}', formatDate(c.earliestFinish))}</Badge>}
             </div>
             <ul className="mt-1 space-y-0.5 text-[11px] text-ink-500">
               {c.reasonsFa.map((r, i) => <li key={i}>· {r}</li>)}

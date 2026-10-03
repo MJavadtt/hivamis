@@ -10,7 +10,7 @@ import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
   Modal, Select, StateBadge, Table, Tabs, Td, Textarea, Th, Tr, useToast, cx, IconPlus, IconSearch,
 } from '../components/ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
 import { JalaliDateInput } from '../components/JalaliDateInput';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
@@ -18,24 +18,25 @@ import { BulkImport } from '../components/BulkImport';
 import { Outbox } from '../components/Outbox';
 import { enqueue, newKey } from '../lib/outbox';
 import { evaluateRouting, buildStages, type ApprovalStage, type ResolvedStage, type RoutingRule } from '@hiva/contracts';
+import { flow, loc, tr } from '../i18n';
 
 /** Doc_H unit codes → Persian names, so routing reads as language rather than symbols. */
 const DEPT_FA: Record<string, string> = {
-  S: 'فروش', A: 'اکانت', ST: 'استراتژی', CR: 'خلاقیت', ME: 'رسانه',
-  DM: 'دیجیتال', FI: 'مالی', LG: 'حقوقی', OP: 'عملیات', M: 'مدیریت',
+  S: tr('فروش'), A: tr('اکانت'), ST: tr('استراتژی'), CR: tr('خلاقیت'), ME: tr('رسانه'),
+  DM: tr('دیجیتال'), FI: tr('مالی'), LG: tr('حقوقی'), OP: tr('عملیات'), M: tr('مدیریت'),
 };
-const deptNames = (codes: string[]) => codes.map((c) => DEPT_FA[c] ?? c).join('، ');
+const deptNames = (codes: string[]) => codes.map((c) => DEPT_FA[c] ?? c).join(tr('، '));
 
 const ROLE_FA: Record<string, string> = {
-  SUPER_ADMIN: 'مدیر سیستم', CEO: 'مدیرعامل', DEPUTY: 'قائم‌مقام',
-  SALES_MANAGER: 'مدیر فروش', SALES_REP: 'کارشناس فروش',
-  ACCOUNT_MANAGER: 'مدیر اکانت', ACCOUNT_EXEC: 'کارشناس اکانت',
-  UNIT_MANAGER: 'مدیر واحد', UNIT_MEMBER: 'کارشناس واحد',
-  PMO_MANAGER: 'مدیر عملیات', PMO_SPECIALIST: 'کارشناس PMO',
-  FINANCE_MANAGER: 'مدیر مالی', FINANCE_SPECIALIST: 'کارشناس مالی',
-  LEGAL_MANAGER: 'مدیر حقوقی', LEGAL_SPECIALIST: 'کارشناس حقوقی', VIEWER: 'بیننده',
+  SUPER_ADMIN: tr('مدیر سیستم'), CEO: tr('مدیرعامل'), DEPUTY: tr('قائم‌مقام'),
+  SALES_MANAGER: tr('مدیر فروش'), SALES_REP: tr('کارشناس فروش'),
+  ACCOUNT_MANAGER: tr('مدیر اکانت'), ACCOUNT_EXEC: tr('کارشناس اکانت'),
+  UNIT_MANAGER: tr('مدیر واحد'), UNIT_MEMBER: tr('کارشناس واحد'),
+  PMO_MANAGER: tr('مدیر عملیات'), PMO_SPECIALIST: tr('کارشناس PMO'),
+  FINANCE_MANAGER: tr('مدیر مالی'), FINANCE_SPECIALIST: tr('کارشناس مالی'),
+  LEGAL_MANAGER: tr('مدیر حقوقی'), LEGAL_SPECIALIST: tr('کارشناس حقوقی'), VIEWER: tr('بیننده'),
 };
-const roleNames = (codes: string[]) => codes.map((c) => ROLE_FA[c] ?? c).join('، ');
+const roleNames = (codes: string[]) => codes.map((c) => ROLE_FA[c] ?? c).join(tr('، '));
 
 interface FieldDef {
   key: string; labelFa: string; labelEn: string; type: string; required?: boolean;
@@ -73,8 +74,8 @@ export default function Forms() {
   return (
     <>
       <PageHeader
-        title="فرم‌ها"
-        subtitle="۱۳۰ فرم ارتباطی و انتقال داده — هر فرم یک Data Object با مسیر، تأییدکننده و SLA مشخص"
+        title={tr('فرم‌ها')}
+        subtitle={tr('۱۳۰ فرم ارتباطی و انتقال داده — هر فرم یک Data Object با مسیر، تأییدکننده و SLA مشخص')}
       
         actions={<ContextualHelp />}
       />
@@ -83,9 +84,9 @@ export default function Forms() {
           active={tab}
           onChange={setTab}
           tabs={[
-            { key: 'catalogue', label: 'کاتالوگ فرم‌ها' },
-            { key: 'inbox', label: 'در انتظار تأیید من' },
-            { key: 'mine', label: 'فرم‌های من' },
+            { key: 'catalogue', label: tr('کاتالوگ فرم‌ها') },
+            { key: 'inbox', label: tr('در انتظار تأیید من') },
+            { key: 'mine', label: tr('فرم‌های من') },
           ]}
         />
       </div>
@@ -131,17 +132,17 @@ function Catalogue() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <IconSearch className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-ink-400" />
-          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="جستجوی فرم…" className="ps-9" />
+          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={tr('جستجوی فرم…')} className="ps-9" />
         </div>
         <div className="w-64 shrink-0"><Select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">همه دسته‌ها</option>
+          <option value="">{tr('همه دسته‌ها')}</option>
           {data?.categories.map((c) => (
             <option key={c.key} value={c.key}>
-              {c.key} — {t(c, "label")} ({toPersianDigits(c.count)})
+              {c.key} — {t(c, "label")} ({localDigits(c.count)})
             </option>
           ))}
         </Select></div>
-        <span className="text-xs text-ink-500 nums">{toPersianDigits(visible.length)} فرم</span>
+        <span className="text-xs text-ink-500 nums">{tr('{0} فرم', localDigits(visible.length))}</span>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -157,19 +158,17 @@ function Catalogue() {
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-ink-800">{t(def, "name")}</p>
               <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-500 nums">
-                {toPersianDigits(def.no)}
+                {localDigits(def.no)}
               </span>
             </div>
-            <p className="mt-2 text-[11px] leading-5 text-ink-500">
-              از <span className="text-ink-700">{deptNames(def.senderDepts)}</span>
-              {' '}به <span className="text-ink-700">{deptNames(def.receiverDepts)}</span>
+            <p className="mt-2 text-[11px] leading-5 text-ink-500">{tr('از')}{' '}<span className="text-ink-700">{deptNames(def.senderDepts)}</span>{tr('{0}به', ' ')}{' '}<span className="text-ink-700">{deptNames(def.receiverDepts)}</span>
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-              <Badge tone="neutral">دسته {def.category}</Badge>
-              {def.slaCode && <Badge tone="warning">دارای SLA</Badge>}
+              <Badge tone="neutral">{tr('دسته {0}', def.category)}</Badge>
+              {def.slaCode && <Badge tone="warning">{tr('دارای SLA')}</Badge>}
             </div>
             {!def.canSubmit && (
-              <p className="mt-1.5 text-[11px] text-ink-400">ثبت این فرم در اختیار واحد شما نیست</p>
+              <p className="mt-1.5 text-[11px] text-ink-400">{tr('ثبت این فرم در اختیار واحد شما نیست')}</p>
             )}
           </button>
         ))}
@@ -222,24 +221,24 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
     const clientKey = newKey();
     const queue = async (reason: string) => {
       await enqueue({ id: clientKey, formCode: definition.code, formNameFa: definition.nameFa, data: values, asDraft });
-      toast(`${reason} — فرم در صف ارسال نگه داشته شد و با بازگشت اینترنت خودش ارسال می‌شود.`, 'warning');
+      toast(tr('{0} — فرم در صف ارسال نگه داشته شد و با بازگشت اینترنت خودش ارسال می‌شود.', reason), 'warning');
       await qc.invalidateQueries({ queryKey: ['outbox'] });
       onClose();
     };
     try {
-      if (navigator.onLine === false) { await queue('اینترنت در دسترس نیست'); return; }
+      if (navigator.onLine === false) { await queue(tr('اینترنت در دسترس نیست')); return; }
       await apiPost('/forms/submissions', { formCode: definition.code, data: values, asDraft, clientKey });
-      toast(asDraft ? 'پیش‌نویس ذخیره شد.' : `فرم «${definition.nameFa}» ثبت شد.`);
+      toast(asDraft ? tr('پیش‌نویس ذخیره شد.') : tr('فرم «{0}» ثبت شد.', definition.nameFa));
       await qc.invalidateQueries();
       onClose();
     } catch (e: any) {
       // A refusal is an answer and belongs on the form; an unreachable server is not, and the
       // form belongs in the queue rather than in the bin.
-      if (e?.status === undefined) { await queue('ارتباط با سامانه برقرار نشد'); return; }
+      if (e?.status === undefined) { await queue(tr('ارتباط با سامانه برقرار نشد')); return; }
       const list: Record<string, string> = {};
       for (const i of e?.issues ?? []) list[i.path] = i.message;
       setIssues(list);
-      toast(e?.message ?? 'ثبت فرم ناموفق بود.', 'danger');
+      toast(e?.message ?? tr('ثبت فرم ناموفق بود.'), 'danger');
     } finally {
       setBusy(false);
     }
@@ -250,38 +249,32 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
       open
       wide
       onClose={onClose}
-      title={definition.nameFa}
+      title={loc(definition, 'name')}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>انصراف</Button>
-          <Button variant="secondary" loading={busy} onClick={() => void submit(true)}>
-            ذخیره پیش‌نویس
-          </Button>
-          <Button variant="primary" loading={busy} disabled={!definition.canSubmit} onClick={() => void submit(false)}>
-            ثبت و ارسال
-          </Button>
+          <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
+          <Button variant="secondary" loading={busy} onClick={() => void submit(true)}>{tr('ذخیره پیش‌نویس')}</Button>
+          <Button variant="primary" loading={busy} disabled={!definition.canSubmit} onClick={() => void submit(false)}>{tr('ثبت و ارسال')}</Button>
         </>
       }
     >
       <div className="mb-4 space-y-1.5 rounded-lg bg-ink-50 p-3 text-xs text-ink-600">
         <p>
-          <span className="font-medium">مسیر فرم: </span>
-          از {deptNames(definition.senderDepts)} به {deptNames(definition.receiverDepts)}
-        </p>
+          <span className="font-medium">{tr('مسیر فرم:')}{' '}</span>{tr('از {0} به {1}', deptNames(definition.senderDepts), deptNames(definition.receiverDepts))}</p>
         <p data-testid="routing-approvers">
-          <span className="font-medium">تأییدکننده: </span>
+          <span className="font-medium">{tr('تأییدکننده:')}{' '}</span>
           {roleNames(routed.roles)}
           {added.length > 0 && (
-            <Badge tone="warning" className="ms-1">+{roleNames(added)} به‌دلیل مقادیر این فرم</Badge>
+            <Badge tone="warning" className="ms-1">{tr('+{0} به‌دلیل مقادیر این فرم', roleNames(added))}</Badge>
           )}
         </p>
         {stages.length > 1 && (
           <p data-testid="routing-chain">
-            <span className="font-medium">زنجیرهٔ تأیید: </span>
+            <span className="font-medium">{tr('زنجیرهٔ تأیید:')}{' '}</span>
             {stages.map((st, i) => (
               <span key={st.id}>
-                {i > 0 && ' ← '}
-                {toPersianDigits(i + 1)}. {st.labelFa} ({roleNames(st.roles)}{st.quorum > 1 ? ` — ${toPersianDigits(st.quorum)} تأیید` : ''})
+                {i > 0 && ` ${flow()} `}
+                {localDigits(i + 1)}. {loc(st, 'label')} ({roleNames(st.roles)}{st.quorum > 1 ? tr(' — {0} تأیید', localDigits(st.quorum)) : ''})
               </span>
             ))}
           </p>
@@ -289,28 +282,26 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
         {routed.matched.length > 0 && (
           <ul className="space-y-0.5 text-[11px] text-amber-800" data-testid="routing-matched">
             {routed.matched.map((m) => (
-              <li key={m.id}>⚠ {m.whenFa} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
+              <li key={m.id}>⚠ {loc(m, 'when')} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
             ))}
           </ul>
         )}
         {routed.unmatched.length > 0 && (
           <details className="text-[11px] text-ink-500">
-            <summary className="cursor-pointer">قواعد مشروط این فرم ({toPersianDigits(routed.unmatched.length)} مورد هنوز فعال نشده)</summary>
+            <summary className="cursor-pointer">{tr('قواعد مشروط این فرم ({0} مورد هنوز فعال نشده)', localDigits(routed.unmatched.length))}</summary>
             <ul className="mt-1 space-y-0.5 ps-3">
-              {routed.unmatched.map((u) => <li key={u.id}>· {u.whenFa}</li>)}
+              {routed.unmatched.map((u) => <li key={u.id}>· {loc(u, 'when')}</li>)}
             </ul>
           </details>
         )}
         {detail?.sla && (
           <p>
-            <span className="font-medium">SLA: </span>
-            {detail.sla.labelFa} — {toPersianDigits(Number(detail.sla.hours))} ساعت کاری
-          </p>
+            <span className="font-medium">SLA: </span>{tr('{0} — {1} ساعت کاری', detail.sla.labelFa, localDigits(Number(detail.sla.hours)))}</p>
         )}
         {definition.nextProcessFa && (
           <p>
-            <span className="font-medium">فرآیند بعدی: </span>
-            {definition.nextProcessFa}
+            <span className="font-medium">{tr('فرآیند بعدی:')}{' '}</span>
+            {loc(definition, 'nextProcess')}
           </p>
         )}
       </div>
@@ -318,10 +309,7 @@ function FormRunner({ definition, onClose }: { definition: FormDefinition; onClo
       <div className="mb-4"><BulkImport code={definition.code} canSubmit={definition.canSubmit} /></div>
 
       {!definition.canSubmit && (
-        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">
-          طبق تعریف Doc_H، ثبت این فرم فقط توسط واحد {deptNames(definition.senderDepts)} مجاز است.
-          می‌توانید ساختار فرم را ببینید اما ارسال آن مسدود است.
-        </p>
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-200">{tr('طبق تعریف Doc_H، ثبت این فرم فقط توسط واحد {0} مجاز است. می‌توانید ساختار فرم را ببینید اما ارسال آن مسدود است.', deptNames(definition.senderDepts))}</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -347,7 +335,7 @@ export function FormField({ field, value, onChange, error }: {
   field: FieldDef; value: unknown; onChange: (v: unknown) => void; error?: string;
 }) {
   const { t } = useLocale();
-  const common = { required: field.required, error, hint: field.helpFa };
+  const common = { required: field.required, error, hint: loc(field, 'help') || undefined };
 
   switch (field.type) {
     case 'textarea':
@@ -360,7 +348,7 @@ export function FormField({ field, value, onChange, error }: {
     case 'currency':
     case 'percent':
       return (
-        <Field label={t(field, "label")} {...common} hint={field.type === 'currency' ? 'مبلغ به ریال' : common.hint}>
+        <Field label={t(field, "label")} {...common} hint={field.type === 'currency' ? tr('مبلغ به ریال') : common.hint}>
           <Input type="number" value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" />
         </Field>
       );
@@ -386,8 +374,8 @@ export function FormField({ field, value, onChange, error }: {
       return (
         <Field label={t(field, "label")} {...common}>
           <Select value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}>
-            <option value="">— انتخاب کنید —</option>
-            {field.options?.map((o) => <option key={o.value} value={o.value}>{o.labelFa}</option>)}
+            <option value="">{tr('— انتخاب کنید —')}</option>
+            {field.options?.map((o) => <option key={o.value} value={o.value}>{loc(o, 'label')}</option>)}
           </Select>
         </Field>
       );
@@ -408,7 +396,7 @@ export function FormField({ field, value, onChange, error }: {
                     on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-ink-600 ring-ink-300 hover:bg-ink-50',
                   )}
                 >
-                  {o.labelFa}
+                  {loc(o, 'label')}
                 </button>
               );
             })}
@@ -435,16 +423,14 @@ export function FormField({ field, value, onChange, error }: {
       );
     case 'mobile':
       return (
-        <Field label={t(field, "label")} {...common} hint={common.hint ?? 'مانند ۰۹۱۲۱۲۳۴۵۶۷'}>
+        <Field label={t(field, "label")} {...common} hint={common.hint ?? tr('مانند ۰۹۱۲۱۲۳۴۵۶۷')}>
           <Input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" inputMode="tel" placeholder="09xx xxx xxxx" />
         </Field>
       );
     case 'attachment':
       return (
-        <Field label={t(field, "label")} hint="پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند." error={error}>
-          <div className="rounded-lg border border-dashed border-ink-300 px-3 py-4 text-center text-xs text-ink-400">
-            بارگذاری پیوست پس از ثبت
-          </div>
+        <Field label={t(field, "label")} hint={tr('پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند.')} error={error}>
+          <div className="rounded-lg border border-dashed border-ink-300 px-3 py-4 text-center text-xs text-ink-400">{tr('بارگذاری پیوست پس از ثبت')}</div>
         </Field>
       );
     case 'table':
@@ -492,7 +478,7 @@ function TableField({ field, value, onChange, error }: {
                         className="py-1 text-xs"
                       >
                         <option value="">—</option>
-                        {c.options?.map((o) => <option key={o.value} value={o.value}>{o.labelFa}</option>)}
+                        {c.options?.map((o) => <option key={o.value} value={o.value}>{loc(o, 'label')}</option>)}
                       </Select>
                     ) : (
                       c.type === 'date' ? (
@@ -513,7 +499,7 @@ function TableField({ field, value, onChange, error }: {
                   </td>
                 ))}
                 <td className="p-1 text-center">
-                  <button type="button" onClick={() => removeRow(i)} className="text-ink-400 hover:text-rose-600" aria-label="حذف ردیف">×</button>
+                  <button type="button" onClick={() => removeRow(i)} className="text-ink-400 hover:text-rose-600" aria-label={tr('حذف ردیف')}>×</button>
                 </td>
               </tr>
             ))}
@@ -524,8 +510,7 @@ function TableField({ field, value, onChange, error }: {
           onClick={addRow}
           className="flex w-full items-center justify-center gap-1 border-t border-ink-100 py-1.5 text-xs text-brand-600 hover:bg-brand-50"
         >
-          <IconPlus className="size-3" /> افزودن ردیف
-        </button>
+          <IconPlus className="size-3" />{' '}{tr('افزودن ردیف')}</button>
       </div>
     </Field>
   );
@@ -539,8 +524,8 @@ function DepartmentSelect({ value, onChange }: { value: string; onChange: (v: st
   });
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">— انتخاب واحد —</option>
-      {data?.map((d) => <option key={d.code} value={d.code}>{d.nameFa}</option>)}
+      <option value="">{tr('— انتخاب واحد —')}</option>
+      {data?.map((d) => <option key={d.code} value={d.code}>{loc(d, 'name')}</option>)}
     </Select>
   );
 }
@@ -552,10 +537,10 @@ export function UserSelect({ value, onChange }: { value: string; onChange: (v: s
   });
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">— انتخاب کاربر —</option>
+      <option value="">{tr('— انتخاب کاربر —')}</option>
       {data?.items.map((u) => (
         <option key={u.id} value={u.id}>
-          {u.fullName}{u.department ? ` — ${u.department.nameFa}` : ''}
+          {u.fullName}{u.department ? ` — ${loc(u.department, 'name')}` : ''}
         </option>
       ))}
     </Select>
@@ -592,11 +577,11 @@ export function EntitySelect({ entity, value, onChange }: { entity: string; valu
   });
 
   if (!config || isError) {
-    return <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="شناسه رکورد" className="ltr" />;
+    return <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={tr('شناسه رکورد')} className="ltr" />;
   }
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">— انتخاب —</option>
+      <option value="">{tr('— انتخاب —')}</option>
       {data?.items?.map((r) => <option key={r.id} value={r.id}>{config.label(r)}</option>)}
     </Select>
   );
@@ -623,7 +608,7 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
     setOpened(true);
     const found = data.items.find((s) => s.id === openId);
     if (found) setDecide(found);
-    else toast('این فرم دیگر در انتظار تصمیم شما نیست.', 'warning');
+    else toast(tr('این فرم دیگر در انتظار تصمیم شما نیست.'), 'warning');
   }, [openId, opened, data, toast]);
 
   if (isLoading) return <LoadingBlock />;
@@ -634,21 +619,21 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
       <Card>
         {!data?.items.length ? (
           <EmptyState
-            title={awaitingMe ? 'فرمی در انتظار تأیید شما نیست' : 'فرمی ثبت نکرده‌اید'}
-            description={awaitingMe ? 'فرم‌های ارجاع‌شده به نقش شما اینجا نمایش داده می‌شوند.' : undefined}
+            title={awaitingMe ? tr('فرمی در انتظار تأیید شما نیست') : tr('فرمی ثبت نکرده‌اید')}
+            description={awaitingMe ? tr('فرم‌های ارجاع‌شده به نقش شما اینجا نمایش داده می‌شوند.') : undefined}
           />
         ) : (
           <Table>
             <thead className="bg-ink-50/60">
               <tr>
-                <Th>فرم</Th><Th>دسته</Th><Th>ثبت‌کننده</Th><Th>پروژه</Th>
-                <Th>زمان</Th><Th>وضعیت</Th><Th>خروجی</Th>{awaitingMe && <Th>اقدام</Th>}
+                <Th>{tr('فرم')}</Th><Th>{tr('دسته')}</Th><Th>{tr('ثبت‌کننده')}</Th><Th>{tr('پروژه')}</Th>
+                <Th>{tr('زمان')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('خروجی')}</Th>{awaitingMe && <Th>{tr('اقدام')}</Th>}
               </tr>
             </thead>
             <tbody>
               {data.items.map((s) => (
                 <Tr key={s.id}>
-                  <Td><p className="text-sm">{s.definition.nameFa}</p><Code>{s.code}</Code></Td>
+                  <Td><p className="text-sm">{loc(s.definition, 'name')}</p><Code>{s.code}</Code></Td>
                   <Td><Badge tone="neutral">{s.definition.category}</Badge></Td>
                   <Td className="text-xs">{s.submittedBy?.fullName}</Td>
                   <Td className="text-xs">{s.project?.name ?? '—'}</Td>
@@ -657,7 +642,7 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
                   <Td><PdfButton kind="form-submission" id={s.id} label="PDF" variant="ghost" /></Td>
                   {awaitingMe && (
                     <Td>
-                      <Button size="sm" variant="primary" onClick={() => setDecide(s)}>بررسی</Button>
+                      <Button size="sm" variant="primary" onClick={() => setDecide(s)}>{tr('بررسی')}</Button>
                     </Td>
                   )}
                 </Tr>
@@ -695,11 +680,11 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
     setBusy(true);
     try {
       await apiPost(`/forms/submissions/${submission.id}/decision`, { decision, comment: comment.trim() || undefined });
-      toast(decision === 'APPROVE' ? 'فرم تأیید شد.' : decision === 'REJECT' ? 'فرم رد شد.' : 'فرم بازگردانده شد.');
+      toast(decision === 'APPROVE' ? tr('فرم تأیید شد.') : decision === 'REJECT' ? tr('فرم رد شد.') : tr('فرم بازگردانده شد.'));
       await qc.invalidateQueries();
       onClose();
     } catch (e: any) {
-      toast(e?.message ?? 'ثبت تصمیم ناموفق بود.', 'danger');
+      toast(e?.message ?? tr('ثبت تصمیم ناموفق بود.'), 'danger');
     } finally {
       setBusy(false);
     }
@@ -707,7 +692,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
 
   const labels = new Map((data?.schema ?? data?.definition.schema ?? []).map((f) => [f.key, f.labelFa]));
   const versionNote = data?.definitionVersion && data.definition.version && data.definitionVersion !== data.definition.version
-    ? `این فرم با نسخهٔ ${toPersianDigits(data.definitionVersion)} تعریف پر شده؛ نسخهٔ فعلی ${toPersianDigits(data.definition.version)} است.`
+    ? tr('این فرم با نسخهٔ {0} تعریف پر شده؛ نسخهٔ فعلی {1} است.', localDigits(data.definitionVersion), localDigits(data.definition.version))
     : null;
 
   return (
@@ -715,21 +700,15 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       open
       wide
       onClose={onClose}
-      title={`بررسی: ${submission.definition.nameFa}`}
+      title={tr('بررسی: {0}', submission.definition.nameFa)}
       footer={
         <>
           <PdfButton kind="form-submission" id={submission.id} />
           <PdfBundleButton kind="form-submission" id={submission.id} />
-          <Button variant="ghost" onClick={onClose}>انصراف</Button>
-          <Button variant="secondary" loading={busy} disabled={!comment.trim()} onClick={() => void decide('RETURN')}>
-            بازگشت برای اصلاح
-          </Button>
-          <Button variant="danger" loading={busy} disabled={!comment.trim()} onClick={() => void decide('REJECT')}>
-            رد
-          </Button>
-          <Button variant="primary" loading={busy} onClick={() => void decide('APPROVE')}>
-            تأیید
-          </Button>
+          <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
+          <Button variant="secondary" loading={busy} disabled={!comment.trim()} onClick={() => void decide('RETURN')}>{tr('بازگشت برای اصلاح')}</Button>
+          <Button variant="danger" loading={busy} disabled={!comment.trim()} onClick={() => void decide('REJECT')}>{tr('رد')}</Button>
+          <Button variant="primary" loading={busy} onClick={() => void decide('APPROVE')}>{tr('تأیید')}</Button>
         </>
       }
     >
@@ -744,15 +723,13 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
                 <span aria-hidden className={st.state === 'APPROVED' ? 'text-emerald-600' : waiting ? 'text-amber-600' : 'text-ink-300'}>
                   {st.state === 'APPROVED' ? '✓' : waiting ? '◆' : '○'}
                 </span>
-                <span>{toPersianDigits(i + 1)}. {st.labelFa}</span>
+                <span>{localDigits(i + 1)}. {loc(st, 'label')}</span>
                 <span className="text-ink-500">({roleNames(st.roles)})</span>
                 {st.quorum > 1 && (
-                  <Badge tone={st.state === 'APPROVED' ? 'success' : 'neutral'}>
-                    {toPersianDigits(st.approvedBy.length)} از {toPersianDigits(st.quorum)} تأیید
-                  </Badge>
+                  <Badge tone={st.state === 'APPROVED' ? 'success' : 'neutral'}>{tr('{0} از {1} تأیید', localDigits(st.approvedBy.length), localDigits(st.quorum))}</Badge>
                 )}
-                {names.length > 0 && <span className="text-[11px] text-ink-400">— {names.join('، ')}</span>}
-                {waiting && <Badge tone="warning">اکنون با شماست</Badge>}
+                {names.length > 0 && <span className="text-[11px] text-ink-400">— {names.join(tr('، '))}</span>}
+                {waiting && <Badge tone="warning">{tr('اکنون با شماست')}</Badge>}
               </li>
             );
           })}
@@ -760,10 +737,10 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       ) : null}
       {data?.routing?.matched?.length ? (
         <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200" data-testid="routing-why">
-          <p className="font-medium">چرا به تأیید {roleNames(data.requiredRoles ?? [])} رسید؟</p>
+          <p className="font-medium">{tr('چرا به تأیید {0} رسید؟', roleNames(data.requiredRoles ?? []))}</p>
           <ul className="mt-1 space-y-0.5">
             {data.routing.matched.map((m) => (
-              <li key={m.id}>· {m.whenFa} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
+              <li key={m.id}>· {loc(m, 'when')} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
             ))}
           </ul>
         </div>
@@ -775,14 +752,14 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
             <div key={k} className="flex items-start justify-between gap-4 py-2">
               <dt className="shrink-0 text-xs text-ink-500">{labels.get(k) ?? k}</dt>
               <dd className="min-w-0 text-end text-sm text-ink-800">
-                {typeof v === 'boolean' ? (v ? 'بله' : 'خیر')
-                  : Array.isArray(v) ? `${toPersianDigits(v.length)} مورد`
+                {typeof v === 'boolean' ? (v ? tr('بله') : tr('خیر'))
+                  : Array.isArray(v) ? tr('{0} مورد', localDigits(v.length))
                   : String(v)}
               </dd>
             </div>
           ))}
       </dl>
-      <Field label="توضیح تصمیم" hint="برای «رد» یا «بازگشت» ثبت دلیل الزامی است.">
+      <Field label={tr('توضیح تصمیم')} hint={tr('برای «رد» یا «بازگشت» ثبت دلیل الزامی است.')}>
         <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
       </Field>
     </Modal>
@@ -799,9 +776,7 @@ function ContextualHelp() {
         onClick={() => setOpen(true)}
         className="text-xs text-brand-600 hover:underline
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-      >
-        راهنمای این بخش
-      </button>
+      >{tr('راهنمای این بخش')}</button>
       <HelpDrawer open={open} onClose={() => setOpen(false)} initialSection="Forms" />
     </>
   );

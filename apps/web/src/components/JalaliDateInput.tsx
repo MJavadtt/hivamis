@@ -5,6 +5,55 @@ import {
   type JalaliParts,
 } from '../lib/format';
 import { Input, cx } from './ui';
+import { isEnglish, tr } from '../i18n';
+
+type DateInputProps = {
+  value: string | null | undefined;
+  onChange: (next: string) => void;
+  mode?: 'date' | 'datetime';
+  disabled?: boolean;
+  id?: string;
+  invalid?: boolean;
+};
+
+/**
+ * Date entry in the reader's calendar: Solar Hijri in Persian, the browser's own Gregorian picker in
+ * English (Hivamis task 7). Both emit the same value — `YYYY-MM-DD`, or a UTC instant for a
+ * datetime — so nothing behind the field knows which calendar it was typed in.
+ */
+export function JalaliDateInput(props: DateInputProps) {
+  return isEnglish() ? <GregorianDateInput {...props} /> : <JalaliEntry {...props} />;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** A stored instant as the `datetime-local` input wants it: the reader's local wall clock. */
+function toLocalInput(value: string | null | undefined, mode: 'date' | 'datetime'): string {
+  if (!value) return '';
+  if (mode === 'date') return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function GregorianDateInput({ value, onChange, mode = 'date', disabled, id, invalid }: DateInputProps) {
+  return (
+    <Input
+      id={id}
+      type={mode === 'date' ? 'date' : 'datetime-local'}
+      value={toLocalInput(value, mode)}
+      disabled={disabled}
+      aria-invalid={invalid || undefined}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (!v) { onChange(''); return; }
+        // A datetime is an instant: the local wall clock goes out as UTC, as the Solar Hijri entry does.
+        onChange(mode === 'date' ? v : new Date(v).toISOString());
+      }}
+      className="ltr"
+    />
+  );
+}
 
 /**
  * Jalali date entry.
@@ -19,16 +68,7 @@ import { Input, cx } from './ui';
  * The value emitted is unchanged from the native input: `YYYY-MM-DD` for a date, and a UTC
  * instant for a datetime. No API contract moves.
  */
-export function JalaliDateInput({
-  value, onChange, mode = 'date', disabled, id, invalid,
-}: {
-  value: string | null | undefined;
-  onChange: (next: string) => void;
-  mode?: 'date' | 'datetime';
-  disabled?: boolean;
-  id?: string;
-  invalid?: boolean;
-}) {
+function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid }: DateInputProps) {
   const parts = useMemo(() => isoToJalaliParts(value), [value]);
   const [text, setText] = useState(() => formatJalaliInput(parts, mode));
   const [open, setOpen] = useState(false);
@@ -90,7 +130,7 @@ export function JalaliDateInput({
         aria-invalid={invalid || badInput || undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
-        placeholder={mode === 'date' ? '۱۴۰۵/۰۶/۳۱' : '۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'}
+        placeholder={mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰')}
         onChange={(e) => { setText(e.target.value); setBadInput(false); }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
@@ -104,7 +144,7 @@ export function JalaliDateInput({
         type="button"
         tabIndex={-1}
         disabled={disabled}
-        aria-label="انتخاب از تقویم"
+        aria-label={tr('انتخاب از تقویم')}
         onClick={() => setOpen((o) => !o)}
         className="absolute inset-y-0 start-0 flex items-center px-2.5 text-ink-400 hover:text-brand-600
                    disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
@@ -116,9 +156,7 @@ export function JalaliDateInput({
       </button>
 
       {badInput && (
-        <p className="mt-1 text-[11px] text-rose-600">
-          تاریخ نامعتبر است — قالب درست: {mode === 'date' ? '۱۴۰۵/۰۶/۳۱' : '۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'}
-        </p>
+        <p className="mt-1 text-[11px] text-rose-600">{tr('تاریخ نامعتبر است — قالب درست: {0}', mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'))}</p>
       )}
 
       {open && !disabled && (
@@ -159,17 +197,17 @@ function CalendarPopover({
   return (
     <div
       role="dialog"
-      aria-label="تقویم"
+      aria-label={tr('تقویم')}
       className="absolute z-30 mt-1 w-[17.5rem] rounded-xl border border-ink-200 bg-surface p-3 shadow-lg"
     >
       <div className="mb-2 flex items-center justify-between">
         {/* In RTL the "previous month" control sits on the right, so the arrows are mirrored. */}
-        <button type="button" onClick={() => step(1)} aria-label="ماه بعد"
+        <button type="button" onClick={() => step(1)} aria-label={tr('ماه بعد')}
           className="rounded-md px-2 py-1 text-ink-500 hover:bg-ink-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">‹</button>
         <span className="text-sm font-medium text-ink-800">
           {JALALI_MONTHS[view.jm - 1]} {toPersianDigits(view.jy)}
         </span>
-        <button type="button" onClick={() => step(-1)} aria-label="ماه قبل"
+        <button type="button" onClick={() => step(-1)} aria-label={tr('ماه قبل')}
           className="rounded-md px-2 py-1 text-ink-500 hover:bg-ink-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">›</button>
       </div>
 
@@ -203,7 +241,7 @@ function CalendarPopover({
 
       {mode === 'datetime' && (
         <div className="mt-2 flex items-center gap-2 border-t border-ink-100 pt-2">
-          <label className="text-[11px] text-ink-500" htmlFor="jdi-time">ساعت</label>
+          <label className="text-[11px] text-ink-500" htmlFor="jdi-time">{tr('ساعت')}</label>
           <input
             id="jdi-time"
             type="time"
@@ -220,13 +258,9 @@ function CalendarPopover({
 
       <div className="mt-2 flex justify-between border-t border-ink-100 pt-2">
         <button type="button" onClick={() => onPick({ ...today, hh: time.hh, mm: time.mm })}
-          className="text-[11px] text-brand-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
-          امروز
-        </button>
+          className="text-[11px] text-brand-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('امروز')}</button>
         <button type="button" onClick={onClose}
-          className="text-[11px] text-ink-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
-          بستن
-        </button>
+          className="text-[11px] text-ink-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('بستن')}</button>
       </div>
     </div>
   );

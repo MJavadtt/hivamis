@@ -1,14 +1,14 @@
-import {
-  createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { apiPatch } from './api';
+import { LOCALE_KEY, loc, locale as loadedLocale, tr, type Locale } from '../i18n';
 
-export type Locale = 'fa' | 'en';
+export type { Locale };
 
 interface LocaleState {
   locale: Locale;
   dir: 'rtl' | 'ltr';
-  setLocale: (l: Locale) => void;
+  /** Saves the choice and reloads the page in that language. */
+  setLocale: (l: Locale) => Promise<void>;
   /**
    * Picks the right side of a bilingual label: t(field, 'label') reads labelFa or labelEn.
    * Typed structurally rather than as Record<string, unknown>, which the contracts interfaces
@@ -17,56 +17,46 @@ interface LocaleState {
   t: (source: object, base: string) => string;
 }
 
-const STORAGE_KEY = 'hiva.locale';
 const LocaleContext = createContext<LocaleState | null>(null);
 
 function read(): Locale {
-  const v = localStorage.getItem(STORAGE_KEY);
+  const v = localStorage.getItem(LOCALE_KEY);
   return v === 'en' ? 'en' : 'fa';
 }
 
+/** The page reload, behind a seam a test can replace (jsdom cannot reload). */
+export const page = { reload: () => window.location.reload() };
+
 /**
- * Interface language.
+ * Interface language (ADR-009, Hivamis task 7 / ADR-056).
  *
- * Persian is the product's first language and the default; English is additive, exactly as
- * ADR-009 describes. Every enum, role, department, module, form and field in contracts already
- * carries both sides — 327 label pairs — so this switches which side is read rather than
- * introducing a translation layer.
- *
- * NOT yet translated, and deliberately out of scope here: the Persian strings written directly
- * into page components, and STATE_LABELS, which carries `fa` only. Switching to English today
- * gives English navigation, roles, modules, form names and field labels, with Persian state
- * badges and page copy. See docs/decisions.md ADR-009.
+ * Persian is the product's first language and the default; English is additive. The language is
+ * fixed for the life of a page — every `tr()` reads it — so switching saves the choice, tells the
+ * server (it follows the person to another device), and reloads.
  */
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    try { return read(); } catch { return 'fa'; }
-  });
+  const locale = loadedLocale();
 
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('lang', locale);
     root.setAttribute('dir', locale === 'fa' ? 'rtl' : 'ltr');
+    // index.html carries the Persian title; the tab reads it in the page's language.
+    document.title = tr('هیوامیس — سیستم‌عامل سازمانی');
   }, [locale]);
 
-  const setLocale = useCallback((l: Locale) => {
-    setLocaleState(l);
-    try { localStorage.setItem(STORAGE_KEY, l); } catch { /* private mode */ }
-    // Persisted so the choice follows the user to another device; a failure here is not worth
-    // blocking the switch, which has already taken effect locally.
-    void apiPatch('/auth/me/locale', { locale: l }).catch(() => undefined);
-  }, []);
+  const setLocale = useCallback(async (l: Locale) => {
+    try { localStorage.setItem(LOCALE_KEY, l); } catch { /* private mode */ }
+    // Persisted so the choice follows the person; never allowed to hold the switch up for long.
+    await Promise.race([apiPatch('/auth/me/locale', { locale: l }).catch(() => undefined), new Promise((r) => setTimeout(r, 1500))]);
+    if (l !== locale) page.reload();
+  }, [locale]);
 
   const value = useMemo<LocaleState>(() => ({
     locale,
     dir: locale === 'fa' ? 'rtl' : 'ltr',
     setLocale,
-    t: (source, base) => {
-      const bag = source as Record<string, unknown>;
-      const key = locale === 'fa' ? `${base}Fa` : `${base}En`;
-      // Falls back to Persian when a pair is missing its English side, so a label is never blank.
-      return String(bag[key] ?? bag[`${base}Fa`] ?? '');
-    },
+    t: (source, base) => loc(source, base),
   }), [locale, setLocale]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
@@ -85,6 +75,19 @@ export function applyStoredLocaleEarly(): void {
     document.documentElement.setAttribute('lang', l);
     document.documentElement.setAttribute('dir', l === 'fa' ? 'rtl' : 'ltr');
   } catch { /* storage unavailable */ }
+}
+
+/**
+ * A signed-in person's saved language, on a device that has no choice of its own yet: adopt it.
+ * A device that has chosen keeps its choice — the person made it there.
+ */
+export function adoptAccountLocale(account: string | null | undefined): void {
+  if (account !== 'fa' && account !== 'en') return;
+  let chosen: string | null = null;
+  try { chosen = localStorage.getItem(LOCALE_KEY); } catch { return; }
+  if (chosen || account === loadedLocale()) return;
+  try { localStorage.setItem(LOCALE_KEY, account); } catch { return; }
+  page.reload();
 }
 
 /** Pick from a `{ fa, en }` pair — the shape DEPARTMENT_LABELS, ROLE_LABELS and MODULE_LABELS use. */

@@ -1436,3 +1436,49 @@ token, not instantly. Open live-update streams keep the permissions they opened 
 behind them ends. Roles themselves are the sixteen Doc_H roles; an organisation cannot yet define a
 new one. Form approver routing names roles (`approverRoles`), not permissions, so a full-access role
 decides only the forms routed to it.
+
+---
+
+## ADR-056 — English is a catalogue over Persian sources, read back where it was composed
+
+**Decision.** (Hivamis task 7.) Persian stays the source language everywhere. Every visible string
+in the web app goes through `tr('…{0}…', value)` — 2,430 of them, put there by a type-aware codemod
+(`apps/web/scripts/i18n-wrap.mts`) that keeps each JSX sentence whole with placeholders. Two
+catalogues hold the English: the app's own words (`apps/web/src/i18n/en.json`) and what the API and
+the contracts put in front of people — states, transitions, guard messages, permissions, form fields,
+notifications (`packages/contracts/i18n/en.json`, 2,467 entries, extracted by
+`packages/contracts/scripts/i18n-keys.mts`; where a source already pairs `labelFa` with `labelEn`,
+that pair is the translation). A translator in `@hiva/contracts` reads text that arrives already
+composed («انتقال «ارسال» از وضعیت «پیش‌نویس» مجاز نیست.») back against the template it came from,
+recovers the values, translates each in turn, gives a bare number Latin digits, and joins phrases
+built from known parts («تماس مستقیم — رویداد») part by part. A person's or client's name — which no
+catalogue holds — stays as written.
+
+The web reads data-borne Persian through `loc(record, 'label')` (a record's English side, else its
+Persian read back), `pair({ fa, en })` and `trx(text)`; a second codemod
+(`apps/web/scripts/i18n-dynamic.mts`) applied them where such a value is shown, never where it is
+data. Numbers are Latin, money says "Rials", dates are Gregorian ("3 Oct 2026") and the date fields
+are the browser's own picker, emitting the same `YYYY-MM-DD` / UTC instant as the Solar Hijri entry.
+The API answers errors in the request's `Accept-Language` (the web sends it on every call), message
+and the words inside its details; logs, the audit trail and stored records keep the Persian they
+were written in.
+
+The language is fixed for the life of a page: switching saves the choice, tells the server
+(`PATCH /auth/me/locale`) and reloads. The catalogues are fetched only for English, before any app
+module runs (`main.tsx` → `boot.tsx`), so a label a module builds when it loads is already in English
+and a Persian reader downloads none of it. A device with no choice of its own adopts the signed-in
+person's saved language.
+
+**Rationale.** The product is written, reviewed and used in Persian; an English layer must not move
+that. Keeping Persian as the key means a string cannot be added without its source, and the
+completeness tests (`apps/web/tests/english.test.tsx`, `apps/api/tests/029-english.test.ts`) fail
+the build for any string — web or server — without English. Reading composed text back avoids
+threading a locale through every guard, validator and notice in the API, which would have touched
+hundreds of call sites and the stored audit text with them.
+
+**Limits.** Documents keep the language they were issued in: PDFs, emails, the approval certificate
+and accounting vouchers are Persian. The question parser of "ask the reports" understands Persian
+questions only. The user guide is written in English and shown as it is in both languages. A short
+Persian word with two meanings in two places has one English; where that read wrong («ورود» as both
+"Sign in" and "Import") the Persian source was made specific. Text an organisation types itself —
+a department's name, a rule's label — is English only where they gave an English side.

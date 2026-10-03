@@ -4,7 +4,8 @@ import { WORKFLOWS, stateLabelFa } from '@hiva/contracts';
 import { apiGet } from '../lib/api';
 import { Code } from './common';
 import { Badge, Card, EmptyState, LoadingBlock, Select, StatTile, Table, Td, Th, Tr } from './ui';
-import { toPersianDigits } from '../lib/format';
+import { localDigits } from '../lib/format';
+import { flow, loc, tr, trx } from '../i18n';
 
 interface Node { state: string; visits: number; meanDwellHours: number | null; open: number; declared: boolean; initial: boolean; terminal: boolean }
 interface Edge { from: string; to: string; action: string; count: number; cases: number; meanHours: number | null; declared: boolean; cascade: boolean }
@@ -18,7 +19,7 @@ interface Mining {
   bottlenecks: { state: string; meanDwellHours: number; visits: number }[];
 }
 
-const h = (n: number | null) => (n == null ? '—' : `${toPersianDigits(Math.round(n * 10) / 10)} س`);
+const h = (n: number | null) => (n == null ? '—' : tr('{0} س', localDigits(Math.round(n * 10) / 10)));
 
 /**
  * The process as it is actually run, drawn from the event log, against the one declared.
@@ -34,19 +35,19 @@ export function ProcessMap() {
 
   return (
     <div className="space-y-5">
-      <Card title="کشف فرآیند و تحلیل انطباق" subtitle="فرآیندی که نوشته‌اید و فرآیندی که اجرا می‌شود — از جدول انتقال‌ها، بدون هیچ ETL"
+      <Card title={tr('کشف فرآیند و تحلیل انطباق')} subtitle={tr('فرآیندی که نوشته‌اید و فرآیندی که اجرا می‌شود — از جدول انتقال‌ها، بدون هیچ ETL')}
         action={
-          <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="w-auto text-xs" aria-label="موجودیت">
-            {entities.map((e) => <option key={e.key} value={e.key}>{e.labelFa}</option>)}
+          <Select value={entity} onChange={(e) => setEntity(e.target.value)} className="w-auto text-xs" aria-label={tr('موجودیت')}>
+            {entities.map((e) => <option key={e.key} value={e.key}>{loc(e, 'label')}</option>)}
           </Select>
         }>
-        {isLoading ? <LoadingBlock /> : !data ? null : !data.cases ? <EmptyState title="هنوز انتقالی برای این موجودیت ثبت نشده" /> : (
+        {isLoading ? <LoadingBlock /> : !data ? null : !data.cases ? <EmptyState title={tr('هنوز انتقالی برای این موجودیت ثبت نشده')} /> : (
           <>
             <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
-              <StatTile label="پرونده‌ها" value={toPersianDigits(data.cases)} hint={`${toPersianDigits(data.events)} انتقال`} />
-              <StatTile label="زمان چرخه (میانه)" value={h(data.cycleTime.medianHours)} hint={`${toPersianDigits(data.cycleTime.completed)} پروندهٔ خاتمه‌یافته · میانگین ${h(data.cycleTime.meanHours)}`} />
-              <StatTile label="مسیرهای اعلام‌شدهٔ بی‌استفاده" value={toPersianDigits(data.unusedDeclared.length)} tone={data.unusedDeclared.length ? 'warning' : 'success'} />
-              <StatTile label="حلقه‌ها" value={toPersianDigits(data.loops.reduce((s, l) => s + l.count, 0))} hint={`${toPersianDigits(data.loops.length)} یال بازگشتی`} tone={data.loops.length ? 'warning' : 'success'} />
+              <StatTile label={tr('پرونده‌ها')} value={localDigits(data.cases)} hint={tr('{0} انتقال', localDigits(data.events))} />
+              <StatTile label={tr('زمان چرخه (میانه)')} value={h(data.cycleTime.medianHours)} hint={tr('{0} پروندهٔ خاتمه‌یافته · میانگین {1}', localDigits(data.cycleTime.completed), h(data.cycleTime.meanHours))} />
+              <StatTile label={tr('مسیرهای اعلام‌شدهٔ بی‌استفاده')} value={localDigits(data.unusedDeclared.length)} tone={data.unusedDeclared.length ? 'warning' : 'success'} />
+              <StatTile label={tr('حلقه‌ها')} value={localDigits(data.loops.reduce((s, l) => s + l.count, 0))} hint={tr('{0} یال بازگشتی', localDigits(data.loops.length))} tone={data.loops.length ? 'warning' : 'success'} />
             </div>
             <Graph data={data} />
           </>
@@ -55,49 +56,49 @@ export function ProcessMap() {
 
       {data && data.cases > 0 && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card title="گلوگاه‌ها" subtitle="وضعیت‌هایی که پرونده‌ها بیشترین زمان را در آن‌ها منتظر می‌مانند (ساعت کاری)">
+          <Card title={tr('گلوگاه‌ها')} subtitle={tr('وضعیت‌هایی که پرونده‌ها بیشترین زمان را در آن‌ها منتظر می‌مانند (ساعت کاری)')}>
             <ul className="divide-y divide-ink-100" data-testid="bottlenecks">
               {data.bottlenecks.map((b) => (
                 <li key={b.state} className="flex items-center justify-between px-4 py-2 text-xs">
-                  <span>{stateLabelFa(b.state)} <Code>{b.state}</Code></span>
-                  <span className="nums">{h(b.meanDwellHours)} · {toPersianDigits(b.visits)} پرونده</span>
+                  <span>{trx(stateLabelFa(b.state))} <Code>{b.state}</Code></span>
+                  <span className="nums">{tr('{0} · {1} پرونده', h(b.meanDwellHours), localDigits(b.visits))}</span>
                 </li>
               ))}
             </ul>
           </Card>
-          <Card title="مسیرهای اعلام‌شده که هیچ‌کس نمی‌رود" subtitle="در ماشین حالت هست، در واقعیت نیست — یا لازم نیست، یا کسی راهش را بلد نیست">
-            {!data.unusedDeclared.length ? <EmptyState title="هر مسیر اعلام‌شده دست‌کم یک بار طی شده" /> : (
+          <Card title={tr('مسیرهای اعلام‌شده که هیچ‌کس نمی‌رود')} subtitle={tr('در ماشین حالت هست، در واقعیت نیست — یا لازم نیست، یا کسی راهش را بلد نیست')}>
+            {!data.unusedDeclared.length ? <EmptyState title={tr('هر مسیر اعلام‌شده دست‌کم یک بار طی شده')} /> : (
               <ul className="divide-y divide-ink-100" data-testid="unused">
                 {data.unusedDeclared.map((u) => (
-                  <li key={`${u.from}${u.action}`} className="px-4 py-2 text-xs">{stateLabelFa(u.from)} ← «{u.labelFa}» → {stateLabelFa(u.to)}</li>
+                  <li key={`${u.from}${u.action}`} className="px-4 py-2 text-xs">{trx(stateLabelFa(u.from))} {flow()} «{loc(u, 'label')}» {flow()} {trx(stateLabelFa(u.to))}</li>
                 ))}
               </ul>
             )}
           </Card>
-          <Card title="حلقه‌ها" subtitle="بازگشت به وضعیتی که پرونده قبلاً در آن بوده: دوباره‌کاری، برگشت، رد">
-            {!data.loops.length ? <EmptyState title="حلقه‌ای ثبت نشده" /> : (
+          <Card title={tr('حلقه‌ها')} subtitle={tr('بازگشت به وضعیتی که پرونده قبلاً در آن بوده: دوباره‌کاری، برگشت، رد')}>
+            {!data.loops.length ? <EmptyState title={tr('حلقه‌ای ثبت نشده')} /> : (
               <Table>
-                <thead className="bg-ink-50/60"><tr><Th>از</Th><Th>به</Th><Th>اقدام</Th><Th>دفعات</Th><Th>پرونده‌ها</Th></tr></thead>
+                <thead className="bg-ink-50/60"><tr><Th>{tr('از')}</Th><Th>{tr('به')}</Th><Th>{tr('اقدام')}</Th><Th>{tr('دفعات')}</Th><Th>{tr('پرونده‌ها')}</Th></tr></thead>
                 <tbody data-testid="loops">
                   {data.loops.map((l) => (
                     <Tr key={`${l.from}${l.to}${l.action}`}>
-                      <Td className="text-xs">{stateLabelFa(l.from)}</Td><Td className="text-xs">{stateLabelFa(l.to)}</Td>
-                      <Td><Code>{l.action}</Code></Td><Td className="nums text-xs">{toPersianDigits(l.count)}</Td><Td className="nums text-xs">{toPersianDigits(l.cases)}</Td>
+                      <Td className="text-xs">{trx(stateLabelFa(l.from))}</Td><Td className="text-xs">{trx(stateLabelFa(l.to))}</Td>
+                      <Td><Code>{l.action}</Code></Td><Td className="nums text-xs">{localDigits(l.count)}</Td><Td className="nums text-xs">{localDigits(l.cases)}</Td>
                     </Tr>
                   ))}
                 </tbody>
               </Table>
             )}
           </Card>
-          <Card title="مسیرهای واقعی" subtitle="توالی وضعیت‌هایی که پرونده‌ها واقعاً طی کرده‌اند، پرتکرارترین اول">
+          <Card title={tr('مسیرهای واقعی')} subtitle={tr('توالی وضعیت‌هایی که پرونده‌ها واقعاً طی کرده‌اند، پرتکرارترین اول')}>
             <ul className="divide-y divide-ink-100" data-testid="variants">
               {data.variants.map((v, i) => (
                 <li key={i} className="px-4 py-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <Badge tone={data.happyPath && v.path.join('>') === data.happyPath.join('>') ? 'success' : 'neutral'}>{toPersianDigits(v.share)}٪</Badge>
-                    <span className="nums text-ink-500">{toPersianDigits(v.count)} پرونده · {h(v.meanHours)}</span>
+                    <Badge tone={data.happyPath && v.path.join('>') === data.happyPath.join('>') ? 'success' : 'neutral'}>{tr('{0}٪', localDigits(v.share))}</Badge>
+                    <span className="nums text-ink-500">{tr('{0} پرونده · {1}', localDigits(v.count), h(v.meanHours))}</span>
                   </div>
-                  <p className="mt-1 text-ink-700">{v.path.map(stateLabelFa).join(' ← ')}</p>
+                  <p className="mt-1 text-ink-700">{v.path.map((s) => trx(stateLabelFa(s))).join(` ${flow()} `)}</p>
                 </li>
               ))}
             </ul>
@@ -133,7 +134,7 @@ function Graph({ data }: { data: Mining }) {
 
   return (
     <div className="overflow-x-auto px-2 pb-3" dir="ltr">
-      <svg viewBox={`0 0 ${W} ${H}`} className="min-w-[720px]" role="img" aria-label={`نقشهٔ فرآیند ${data.labelFa}`} data-testid="process-map">
+      <svg viewBox={`0 0 ${W} ${H}`} className="min-w-[720px]" role="img" aria-label={tr('نقشهٔ فرآیند {0}', data.labelFa)} data-testid="process-map">
         <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke" /></marker></defs>
         {data.edges.map((e) => {
           const a = pos.get(e.from), b = pos.get(e.to);
@@ -155,13 +156,13 @@ function Graph({ data }: { data: Mining }) {
           return (
             <g key={s} data-testid="node">
               <rect x={p.x - 52} y={p.y - 22} width={104} height={44} rx={10} fill={n?.terminal ? '#ecfdf5' : n?.initial ? '#eff6ff' : '#ffffff'} stroke={n?.declared === false ? '#be123c' : '#94a3b8'} strokeWidth={1.5} />
-              <text x={p.x} y={p.y - 4} fontSize="11" textAnchor="middle" fill="#0f172a">{stateLabelFa(s)}</text>
+              <text x={p.x} y={p.y - 4} fontSize="11" textAnchor="middle" fill="#0f172a">{trx(stateLabelFa(s))}</text>
               <text x={p.x} y={p.y + 12} fontSize="10" textAnchor="middle" fill="#64748b">{n ? `${n.visits}${n.open ? ` · ${n.open} open` : ''}${n.meanDwellHours != null ? ` · ${Math.round(n.meanDwellHours * 10) / 10}h` : ''}` : ''}</text>
             </g>
           );
         })}
       </svg>
-      <p className="px-2 text-[11px] text-ink-500" dir="rtl">ضخامت یال = فراوانی · رنگ = میانگین انتظار پیش از انتقال (آبی کم، نارنجی میانه، قرمز زیاد) · خط‌چین = آبشاری · نقطه‌چین = خارج از مدل اعلام‌شده</p>
+      <p className="px-2 text-[11px] text-ink-500" dir="rtl">{tr('ضخامت یال = فراوانی · رنگ = میانگین انتظار پیش از انتقال (آبی کم، نارنجی میانه، قرمز زیاد) · خط‌چین = آبشاری · نقطه‌چین = خارج از مدل اعلام‌شده')}</p>
     </div>
   );
 }

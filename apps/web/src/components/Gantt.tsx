@@ -5,8 +5,9 @@ import { useAuth } from '../lib/auth';
 import { useAction } from '../hooks/queries';
 import { Code } from './common';
 import { Badge, Button, Card, EmptyState, Select, StatTile } from './ui';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
 import { Forecast } from './Forecast';
+import { tr } from '../i18n';
 
 interface Row {
   taskId: string; code: string; title: string; state: string; assigneeName: string | null; departmentCode: string;
@@ -16,7 +17,7 @@ interface Row {
 interface Schedule { projectId: string; start: string; plannedEnd: string | null; projectedEnd: string; slipHours: number | null; criticalPath: string[]; tasks: Row[]; cycles: string[][] }
 
 const DAY = 86_400_000;
-const h = (n: number) => `${toPersianDigits(Math.round(n * 10) / 10)} س`;
+const h = (n: number) => tr('{0} س', localDigits(Math.round(n * 10) / 10));
 
 /**
  * Every task as a bar from its earliest start to its earliest finish, with its float drawn as
@@ -27,10 +28,10 @@ export function Gantt({ projectId }: { projectId: string }) {
   const { can } = useAuth();
   const { data, refetch } = useQuery<Schedule>({ queryKey: ['/projects', projectId, 'schedule'], queryFn: () => apiGet(`/projects/${projectId}/schedule`) });
   const [linking, setLinking] = useState<{ task: string; pre: string }>({ task: '', pre: '' });
-  const link = useAction(() => apiPost(`/tasks/${linking.task}/dependencies`, { prerequisiteId: linking.pre }), 'وابستگی ثبت شد.');
-  const unlink = useAction((p: { task: string; pre: string }) => apiDelete(`/tasks/${p.task}/dependencies/${p.pre}`), 'وابستگی حذف شد.');
+  const link = useAction(() => apiPost(`/tasks/${linking.task}/dependencies`, { prerequisiteId: linking.pre }), tr('وابستگی ثبت شد.'));
+  const unlink = useAction((p: { task: string; pre: string }) => apiDelete(`/tasks/${p.task}/dependencies/${p.pre}`), tr('وابستگی حذف شد.'));
   if (!data) return null;
-  if (!data.tasks.length) return <Card title="زمان‌بندی"><EmptyState title="وظیفه‌ای برای زمان‌بندی نیست" /></Card>;
+  if (!data.tasks.length) return <Card title={tr('زمان‌بندی')}><EmptyState title={tr('وظیفه‌ای برای زمان‌بندی نیست')} /></Card>;
 
   const t0 = Math.min(new Date(data.start).getTime(), ...data.tasks.map((t) => new Date(t.earliestStart).getTime()));
   const t1 = Math.max(new Date(data.projectedEnd).getTime(), data.plannedEnd ? new Date(data.plannedEnd).getTime() : 0, ...data.tasks.map((t) => new Date(t.latestFinish).getTime()));
@@ -44,15 +45,15 @@ export function Gantt({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="پایان برنامه‌ریزی‌شده" value={data.plannedEnd ? formatDate(data.plannedEnd) : '—'} />
-        <StatTile label="پایان پیش‌بینی‌شده" value={formatDate(data.projectedEnd)} tone={data.slipHours != null && data.slipHours > 0 ? 'danger' : 'success'}
-          hint={data.slipHours == null ? 'برنامه‌ای ثبت نشده' : data.slipHours > 0 ? `${h(data.slipHours)} کاری دیرتر از برنامه` : `${h(-data.slipHours)} کاری زودتر از برنامه`} />
-        <StatTile label="مسیر بحرانی" value={toPersianDigits(data.criticalPath.length)} hint="وظیفه‌ای که یک ساعت تأخیرش پایان پروژه را جابه‌جا می‌کند" tone={data.criticalPath.length ? 'warning' : 'neutral'} />
-        <StatTile label="از موعد خود می‌گذرد" value={toPersianDigits(data.tasks.filter((t) => t.missesDueDate).length)} tone={data.tasks.some((t) => t.missesDueDate) ? 'danger' : 'success'} />
+        <StatTile label={tr('پایان برنامه‌ریزی‌شده')} value={data.plannedEnd ? formatDate(data.plannedEnd) : '—'} />
+        <StatTile label={tr('پایان پیش‌بینی‌شده')} value={formatDate(data.projectedEnd)} tone={data.slipHours != null && data.slipHours > 0 ? 'danger' : 'success'}
+          hint={data.slipHours == null ? tr('برنامه‌ای ثبت نشده') : data.slipHours > 0 ? tr('{0} کاری دیرتر از برنامه', h(data.slipHours)) : tr('{0} کاری زودتر از برنامه', h(-data.slipHours))} />
+        <StatTile label={tr('مسیر بحرانی')} value={localDigits(data.criticalPath.length)} hint={tr('وظیفه‌ای که یک ساعت تأخیرش پایان پروژه را جابه‌جا می‌کند')} tone={data.criticalPath.length ? 'warning' : 'neutral'} />
+        <StatTile label={tr('از موعد خود می‌گذرد')} value={localDigits(data.tasks.filter((t) => t.missesDueDate).length)} tone={data.tasks.some((t) => t.missesDueDate) ? 'danger' : 'success'} />
       </div>
-      {data.cycles.length > 0 && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">وابستگی‌های حلقوی: {data.cycles[0]!.map((id) => byId.get(id)?.t.code ?? id).join('، ')} — این وظایف زمان‌بندی نشدند.</p>}
+      {data.cycles.length > 0 && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{tr('وابستگی‌های حلقوی: {0} — این وظایف زمان‌بندی نشدند.', data.cycles[0]!.map((id) => byId.get(id)?.t.code ?? id).join(tr('، ')))}</p>}
 
-      <Card title="نمودار گانت و مسیر بحرانی" subtitle="قرمز: بحرانی — یک ساعت تأخیر، پایان پروژه را جابه‌جا می‌کند · ناحیهٔ کم‌رنگ: شناوری · نارنجی: از موعد خود می‌گذرد · سبز: انجام‌شده">
+      <Card title={tr('نمودار گانت و مسیر بحرانی')} subtitle={tr('قرمز: بحرانی — یک ساعت تأخیر، پایان پروژه را جابه‌جا می‌کند · ناحیهٔ کم‌رنگ: شناوری · نارنجی: از موعد خود می‌گذرد · سبز: انجام‌شده')}>
         <div className="grid grid-cols-[minmax(12rem,16rem)_1fr]" dir="rtl">
           <ul className="divide-y divide-ink-100 border-e border-ink-100" style={{ paddingTop: TOP }}>
             {data.tasks.map((t) => (
@@ -60,12 +61,12 @@ export function Gantt({ projectId }: { projectId: string }) {
                 <span className={`inline-block size-2 shrink-0 rounded-full`} style={{ background: bar(t) }} />
                 <span className="min-w-0 flex-1 truncate">{t.title}</span>
                 <Code>{t.code.slice(-6)}</Code>
-                {!t.done && <span className="nums shrink-0 text-ink-500" title="شناوری">{h(t.floatHours)}</span>}
+                {!t.done && <span className="nums shrink-0 text-ink-500" title={tr('شناوری')}>{h(t.floatHours)}</span>}
               </li>
             ))}
           </ul>
           <div className="overflow-x-auto" dir="ltr">
-            <svg width={W} height={H} role="img" aria-label="نمودار گانت" data-testid="gantt">
+            <svg width={W} height={H} role="img" aria-label={tr('نمودار گانت')} data-testid="gantt">
               {Array.from({ length: days }, (_, i) => {
                 const d = new Date(t0 + i * DAY);
                 const weekend = [4, 5].includes(d.getDay());
@@ -102,23 +103,23 @@ export function Gantt({ projectId }: { projectId: string }) {
       <Forecast projectId={projectId} />
 
       {can('task.write') && (
-        <Card title="وابستگی‌ها" subtitle="«ب» تا «الف» تمام نشود شروع نمی‌شود — حلقه‌ها پیش از ثبت رد می‌شوند">
+        <Card title={tr('وابستگی‌ها')} subtitle={tr('«ب» تا «الف» تمام نشود شروع نمی‌شود — حلقه‌ها پیش از ثبت رد می‌شوند')}>
           <div className="flex flex-wrap items-end gap-2 px-4 py-3">
-            <label className="text-xs text-ink-600"><span className="mb-1 block">وظیفه</span>
-              <Select value={linking.task} onChange={(e) => setLinking({ ...linking, task: e.target.value })} className="w-56 text-xs" aria-label="وظیفه">
-                <option value="">— انتخاب —</option>{data.tasks.map((t) => <option key={t.taskId} value={t.taskId}>{t.title}</option>)}
+            <label className="text-xs text-ink-600"><span className="mb-1 block">{tr('وظیفه')}</span>
+              <Select value={linking.task} onChange={(e) => setLinking({ ...linking, task: e.target.value })} className="w-56 text-xs" aria-label={tr('وظیفه')}>
+                <option value="">{tr('— انتخاب —')}</option>{data.tasks.map((t) => <option key={t.taskId} value={t.taskId}>{t.title}</option>)}
               </Select></label>
-            <label className="text-xs text-ink-600"><span className="mb-1 block">پس از</span>
-              <Select value={linking.pre} onChange={(e) => setLinking({ ...linking, pre: e.target.value })} className="w-56 text-xs" aria-label="پیش‌نیاز">
-                <option value="">— انتخاب —</option>{data.tasks.filter((t) => t.taskId !== linking.task).map((t) => <option key={t.taskId} value={t.taskId}>{t.title}</option>)}
+            <label className="text-xs text-ink-600"><span className="mb-1 block">{tr('پس از')}</span>
+              <Select value={linking.pre} onChange={(e) => setLinking({ ...linking, pre: e.target.value })} className="w-56 text-xs" aria-label={tr('پیش‌نیاز')}>
+                <option value="">{tr('— انتخاب —')}</option>{data.tasks.filter((t) => t.taskId !== linking.task).map((t) => <option key={t.taskId} value={t.taskId}>{t.title}</option>)}
               </Select></label>
-            <Button size="sm" variant="primary" disabled={!linking.task || !linking.pre} loading={link.isPending} onClick={() => link.mutate(undefined, { onSuccess: () => void refetch() })}>ثبت وابستگی</Button>
+            <Button size="sm" variant="primary" disabled={!linking.task || !linking.pre} loading={link.isPending} onClick={() => link.mutate(undefined, { onSuccess: () => void refetch() })}>{tr('ثبت وابستگی')}</Button>
           </div>
           <ul className="divide-y divide-ink-100 text-xs" data-testid="dependencies">
             {data.tasks.flatMap((t) => t.prerequisites.map((p) => (
               <li key={`${t.taskId}${p}`} className="flex items-center justify-between px-4 py-1.5">
-                <span>{t.title} <Badge tone="neutral">پس از</Badge> {byId.get(p)?.t.title ?? p}</span>
-                <Button size="sm" variant="ghost" onClick={() => unlink.mutate({ task: t.taskId, pre: p }, { onSuccess: () => void refetch() })}>حذف</Button>
+                <span>{t.title} <Badge tone="neutral">{tr('پس از')}</Badge> {byId.get(p)?.t.title ?? p}</span>
+                <Button size="sm" variant="ghost" onClick={() => unlink.mutate({ task: t.taskId, pre: p }, { onSuccess: () => void refetch() })}>{tr('حذف')}</Button>
               </li>
             )))}
           </ul>

@@ -10,3 +10,4 @@ export { FORMS_G_N } from './forms-g-n.js';
 export * from './labels.js';
 export * from './schemas.js';
 export * from './crm.js';
+export * from './i18n.js';

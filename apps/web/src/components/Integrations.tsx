@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Table, Td, Th, Tr, useToast } from './ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { loc, tr } from '../i18n';
 
 /* Roadmap #46 — identities for systems, and events sent to them. */
 
@@ -12,18 +13,18 @@ interface ApiKeyRow {
   revokeReason: string | null; createdAt: string; createdBy: { fullName: string };
 }
 const KEY_STATUS: Record<ApiKeyRow['status'], [string, 'success' | 'neutral' | 'danger' | 'warning']> = {
-  ACTIVE: ['فعال', 'success'], REVOKED: ['باطل‌شده', 'danger'], EXPIRED: ['منقضی', 'neutral'], OWNER_INACTIVE: ['سازنده غیرفعال', 'warning'],
+  ACTIVE: [tr('فعال'), 'success'], REVOKED: [tr('باطل‌شده'), 'danger'], EXPIRED: [tr('منقضی'), 'neutral'], OWNER_INACTIVE: [tr('سازنده غیرفعال'), 'warning'],
 };
 
 /** Shown once: after this dialog closes the secret exists only where it was copied to. */
 function OnceSecret({ title, secret, note, onClose }: { title: string; secret: string; note: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
-    <Modal open title={title} onClose={onClose} footer={<Button variant="primary" onClick={onClose}>ذخیره کردم</Button>}>
+    <Modal open title={title} onClose={onClose} footer={<Button variant="primary" onClick={onClose}>{tr('ذخیره کردم')}</Button>}>
       <p className="mb-2 text-xs text-amber-800">{note}</p>
       <div className="flex items-center gap-2">
         <code className="ltr flex-1 break-all rounded-lg bg-ink-50 px-3 py-2 text-xs" data-testid="once-secret">{secret}</code>
-        <Button size="sm" variant="secondary" onClick={() => { void navigator.clipboard?.writeText(secret); setCopied(true); }}>{copied ? 'کپی شد' : 'کپی'}</Button>
+        <Button size="sm" variant="secondary" onClick={() => { void navigator.clipboard?.writeText(secret); setCopied(true); }}>{copied ? tr('کپی شد') : tr('کپی')}</Button>
       </div>
     </Modal>
   );
@@ -36,34 +37,34 @@ export function ApiKeys() {
   const qc = useQueryClient();
   const toast = useToast();
   const revoke = async (k: ApiKeyRow) => {
-    const reason = window.prompt(`دلیل ابطال «${k.name}»`);
+    const reason = window.prompt(tr('دلیل ابطال «{0}»', k.name));
     if (!reason) return;
-    try { await apiPost(`/admin/api-keys/${k.id}/revoke`, { reason }); toast('کلید باطل شد؛ از همین لحظه کار نمی‌کند.'); await qc.invalidateQueries({ queryKey: ['/admin/api-keys'] }); }
-    catch (e: any) { toast(e?.message ?? 'ابطال ناموفق بود.', 'danger'); }
+    try { await apiPost(`/admin/api-keys/${k.id}/revoke`, { reason }); toast(tr('کلید باطل شد؛ از همین لحظه کار نمی‌کند.')); await qc.invalidateQueries({ queryKey: ['/admin/api-keys'] }); }
+    catch (e: any) { toast(e?.message ?? tr('ابطال ناموفق بود.'), 'danger'); }
   };
   return (
-    <Card title="کلیدهای API" subtitle="هر کلید با اختیار سازنده‌اش کار می‌کند، محدود به دسترسی‌هایی که به آن داده شده؛ هرگز بیش از اختیار امروز سازنده، و با سهمیهٔ درخواست خودش."
-      action={<Button size="sm" variant="primary" onClick={() => setCreating(true)}>کلید تازه</Button>}>
-      {!data?.length ? <EmptyState title="کلیدی ساخته نشده" /> : (
+    <Card title={tr('کلیدهای API')} subtitle={tr('هر کلید با اختیار سازنده‌اش کار می‌کند، محدود به دسترسی‌هایی که به آن داده شده؛ هرگز بیش از اختیار امروز سازنده، و با سهمیهٔ درخواست خودش.')}
+      action={<Button size="sm" variant="primary" onClick={() => setCreating(true)}>{tr('کلید تازه')}</Button>}>
+      {!data?.length ? <EmptyState title={tr('کلیدی ساخته نشده')} /> : (
         <Table>
-          <thead className="bg-ink-50/60"><tr><Th>نام</Th><Th>کلید</Th><Th>دسترسی‌ها</Th><Th>سهمیه</Th><Th>آخرین استفاده</Th><Th>وضعیت</Th><Th /></tr></thead>
+          <thead className="bg-ink-50/60"><tr><Th>{tr('نام')}</Th><Th>{tr('کلید')}</Th><Th>{tr('دسترسی‌ها')}</Th><Th>{tr('سهمیه')}</Th><Th>{tr('آخرین استفاده')}</Th><Th>{tr('وضعیت')}</Th><Th /></tr></thead>
           <tbody data-testid="api-keys">
             {data.map((k) => (
               <Tr key={k.id}>
                 <Td className="text-xs">{k.name}<p className="text-[10px] text-ink-400">{k.createdBy.fullName}</p></Td>
                 <Td className="ltr text-xs">{k.display}</Td>
-                <Td className="text-xs" title={k.permissions.join('، ')}>{toPersianDigits(k.permissions.length)} دسترسی</Td>
-                <Td className="text-xs">{toPersianDigits(k.rateLimitPerMinute)} در دقیقه</Td>
-                <Td className="text-xs">{k.lastUsedAt ? <>{formatDateTime(k.lastUsedAt)}<span className="ltr block text-[10px] text-ink-400">{k.lastUsedIp}</span></> : 'هرگز'}</Td>
+                <Td className="text-xs" title={k.permissions.join(tr('، '))}>{tr('{0} دسترسی', localDigits(k.permissions.length))}</Td>
+                <Td className="text-xs">{tr('{0} در دقیقه', localDigits(k.rateLimitPerMinute))}</Td>
+                <Td className="text-xs">{k.lastUsedAt ? <>{formatDateTime(k.lastUsedAt)}<span className="ltr block text-[10px] text-ink-400">{k.lastUsedIp}</span></> : tr('هرگز')}</Td>
                 <Td><Badge tone={KEY_STATUS[k.status][1]}>{KEY_STATUS[k.status][0]}</Badge>{k.revokeReason && <p className="text-[10px] text-ink-400">{k.revokeReason}</p>}</Td>
-                <Td>{k.status === 'ACTIVE' && <Button size="sm" variant="ghost" onClick={() => void revoke(k)}>ابطال</Button>}</Td>
+                <Td>{k.status === 'ACTIVE' && <Button size="sm" variant="ghost" onClick={() => void revoke(k)}>{tr('ابطال')}</Button>}</Td>
               </Tr>
             ))}
           </tbody>
         </Table>
       )}
       {creating && <NewKey onClose={(secret) => { setCreating(false); if (secret) setRevealed(secret); }} />}
-      {revealed && <OnceSecret title="کلید ساخته شد" secret={revealed} note="این کلید فقط همین یک بار نمایش داده می‌شود و فقط هش آن نگه داشته می‌شود. آن را در سامانهٔ گیرنده ذخیره کنید؛ اگر گم شد، ابطالش کنید و کلید تازه بسازید." onClose={() => setRevealed(null)} />}
+      {revealed && <OnceSecret title={tr('کلید ساخته شد')} secret={revealed} note={tr('این کلید فقط همین یک بار نمایش داده می‌شود و فقط هش آن نگه داشته می‌شود. آن را در سامانهٔ گیرنده ذخیره کنید؛ اگر گم شد، ابطالش کنید و کلید تازه بسازید.')} onClose={() => setRevealed(null)} />}
     </Card>
   );
 }
@@ -83,21 +84,21 @@ function NewKey({ onClose }: { onClose: (secret?: string) => void }) {
     try {
       const r = await apiPost<{ key: string }>('/admin/api-keys', { name, permissions: picked, rateLimitPerMinute: Number(rate) });
       await qc.invalidateQueries({ queryKey: ['/admin/api-keys'] }); onClose(r.key);
-    } catch (e: any) { toast(e?.message ?? 'ساخت کلید ناموفق بود.', 'danger'); } finally { setBusy(false); }
+    } catch (e: any) { toast(e?.message ?? tr('ساخت کلید ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title="کلید API تازه" onClose={() => onClose()}
-      footer={<><Button variant="ghost" onClick={() => onClose()}>انصراف</Button><Button variant="primary" loading={busy} disabled={name.trim().length < 3 || !picked.length} onClick={() => void save()}>ساخت</Button></>}>
+    <Modal open wide title={tr('کلید API تازه')} onClose={() => onClose()}
+      footer={<><Button variant="ghost" onClick={() => onClose()}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={name.trim().length < 3 || !picked.length} onClick={() => void save()}>{tr('ساخت')}</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="نام (برای کدام سامانه)" required><Input value={name} onChange={(e) => setName(e.target.value)} aria-label="نام کلید" /></Field>
-        <Field label="سهمیه در دقیقه"><Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} className="ltr" aria-label="سهمیه" /></Field>
+        <Field label={tr('نام (برای کدام سامانه)')} required><Input value={name} onChange={(e) => setName(e.target.value)} aria-label={tr('نام کلید')} /></Field>
+        <Field label={tr('سهمیه در دقیقه')}><Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} className="ltr" aria-label={tr('سهمیه')} /></Field>
       </div>
-      <Field label={`دسترسی‌ها (${toPersianDigits(picked.length)} انتخاب‌شده)`} hint="فقط آنچه خودتان به نام خود دارید؛ مدیریت کاربران، نقش‌ها، کلیدها و استثناها به کلید داده نمی‌شود.">
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="جستجو در دسترسی‌ها" aria-label="جستجوی دسترسی" />
+      <Field label={tr('دسترسی‌ها ({0} انتخاب‌شده)', localDigits(picked.length))} hint={tr('فقط آنچه خودتان به نام خود دارید؛ مدیریت کاربران، نقش‌ها، کلیدها و استثناها به کلید داده نمی‌شود.')}>
+        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={tr('جستجو در دسترسی‌ها')} aria-label={tr('جستجوی دسترسی')} />
       </Field>
       <div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2" data-testid="grantable">
         {shown.map((g) => (
-          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{g.labelFa} <span className="ltr text-[10px] text-ink-400">{g.code}</span></span>}
+          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{loc(g, 'label')} <span className="ltr text-[10px] text-ink-400">{g.code}</span></span>}
             onChange={(e) => setPicked(e.target.checked ? [...picked, g.code] : picked.filter((p) => p !== g.code))} />
         ))}
       </div>
@@ -122,34 +123,32 @@ export function Webhooks() {
   const refresh = () => qc.invalidateQueries({ queryKey: ['/admin/webhooks'] });
   const ping = async (w: WebhookRow) => {
     const r = await apiPost<{ ok: boolean; status: number | null; error: string | null }>(`/admin/webhooks/${w.id}/test`, {});
-    toast(r.ok ? `گیرنده پاسخ داد (${toPersianDigits(r.status ?? 0)}).` : `ناموفق: ${r.error}`, r.ok ? 'success' : 'danger');
+    toast(r.ok ? tr('گیرنده پاسخ داد ({0}).', localDigits(r.status ?? 0)) : tr('ناموفق: {0}', r.error), r.ok ? 'success' : 'danger');
     await refresh();
   };
   const toggle = async (w: WebhookRow) => { await apiPatch(`/admin/webhooks/${w.id}`, { active: !w.active }); await refresh(); };
   return (
-    <Card title="Webhook" subtitle="رویدادهای گذار وضعیت، امضاشده با HMAC، به نشانی‌ای که تعیین می‌کنید — فقط رویدادهایی که سازنده اجازهٔ دیدنشان را دارد، و فقط شناسه و گذار، نه خود رکورد."
-      action={<Button size="sm" variant="primary" onClick={() => setCreating(true)}>Webhook تازه</Button>}>
-      {!data?.length ? <EmptyState title="Webhook‌ای تعریف نشده" /> : (
+    <Card title="Webhook" subtitle={tr('رویدادهای گذار وضعیت، امضاشده با HMAC، به نشانی‌ای که تعیین می‌کنید — فقط رویدادهایی که سازنده اجازهٔ دیدنشان را دارد، و فقط شناسه و گذار، نه خود رکورد.')}
+      action={<Button size="sm" variant="primary" onClick={() => setCreating(true)}>{tr('Webhook تازه')}</Button>}>
+      {!data?.length ? <EmptyState title={tr('Webhook‌ای تعریف نشده')} /> : (
         <Table>
-          <thead className="bg-ink-50/60"><tr><Th>نام</Th><Th>نشانی</Th><Th>رویدادها</Th><Th>تحویل‌ها</Th><Th>وضعیت</Th><Th /></tr></thead>
+          <thead className="bg-ink-50/60"><tr><Th>{tr('نام')}</Th><Th>{tr('نشانی')}</Th><Th>{tr('رویدادها')}</Th><Th>{tr('تحویل‌ها')}</Th><Th>{tr('وضعیت')}</Th><Th /></tr></thead>
           <tbody data-testid="webhooks">
             {data.map((w) => (
               <Tr key={w.id}>
                 <Td className="text-xs">{w.name}<p className="text-[10px] text-ink-400">{w.createdBy.fullName}</p></Td>
                 <Td className="ltr max-w-[14rem] truncate text-xs" title={w.url}>{w.url}</Td>
                 <Td className="ltr text-[11px]">{w.events.join(', ')}</Td>
-                <Td className="text-[11px]">
-                  {toPersianDigits(w.deliveries.DELIVERED ?? 0)} موفق · {toPersianDigits(w.deliveries.PENDING ?? 0)} در صف · {toPersianDigits(w.deliveries.DEAD ?? 0)} رهاشده
-                </Td>
+                <Td className="text-[11px]">{tr('{0} موفق · {1} در صف · {2} رهاشده', localDigits(w.deliveries.DELIVERED ?? 0), localDigits(w.deliveries.PENDING ?? 0), localDigits(w.deliveries.DEAD ?? 0))}</Td>
                 <Td>
-                  {w.active ? <Badge tone={w.consecutiveFailures ? 'warning' : 'success'}>{w.consecutiveFailures ? `فعال — ${toPersianDigits(w.consecutiveFailures)} خطای پیاپی` : 'فعال'}</Badge> : <Badge tone="danger">غیرفعال</Badge>}
+                  {w.active ? <Badge tone={w.consecutiveFailures ? 'warning' : 'success'}>{w.consecutiveFailures ? tr('فعال — {0} خطای پیاپی', localDigits(w.consecutiveFailures)) : tr('فعال')}</Badge> : <Badge tone="danger">{tr('غیرفعال')}</Badge>}
                   {w.disabledReason && <p className="text-[10px] text-ink-400">{w.disabledReason}</p>}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => void ping(w)}>آزمایش</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setLog(w)}>تحویل‌ها</Button>
-                    <Button size="sm" variant="ghost" onClick={() => void toggle(w)}>{w.active ? 'توقف' : 'فعال‌سازی'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => void ping(w)}>{tr('آزمایش')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setLog(w)}>{tr('تحویل‌ها')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => void toggle(w)}>{w.active ? tr('توقف') : tr('فعال‌سازی')}</Button>
                   </div>
                 </Td>
               </Tr>
@@ -158,7 +157,7 @@ export function Webhooks() {
         </Table>
       )}
       {creating && <NewWebhook onClose={(secret) => { setCreating(false); if (secret) setRevealed(secret); }} />}
-      {revealed && <OnceSecret title="Webhook ساخته شد" secret={revealed} note="این رمز امضا فقط همین یک بار نمایش داده می‌شود. گیرنده با آن امضای X-Hiva-Signature را بررسی می‌کند: HMAC-SHA256 روی «timestamp.body»." onClose={() => setRevealed(null)} />}
+      {revealed && <OnceSecret title={tr('Webhook ساخته شد')} secret={revealed} note={tr('این رمز امضا فقط همین یک بار نمایش داده می‌شود. گیرنده با آن امضای X-Hiva-Signature را بررسی می‌کند: HMAC-SHA256 روی «timestamp.body».')} onClose={() => setRevealed(null)} />}
       {log && <DeliveryLog webhook={log} onClose={() => setLog(null)} />}
     </Card>
   );
@@ -183,12 +182,12 @@ function NewWebhook({ onClose }: { onClose: (secret?: string) => void }) {
     } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title="Webhook تازه" onClose={() => onClose()}
-      footer={<><Button variant="ghost" onClick={() => onClose()}>انصراف</Button><Button variant="primary" loading={busy} disabled={v.name.trim().length < 3 || !events.length} onClick={() => void save()}>ساخت</Button></>}>
+    <Modal open wide title={tr('Webhook تازه')} onClose={() => onClose()}
+      footer={<><Button variant="ghost" onClick={() => onClose()}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={v.name.trim().length < 3 || !events.length} onClick={() => void save()}>{tr('ساخت')}</Button></>}>
       <div className="grid gap-3">
-        <Field label="نام" required><Input value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} aria-label="نام Webhook" /></Field>
-        <Field label="نشانی گیرنده (https)" required hint="نشانی‌های شبکهٔ داخلی پذیرفته نمی‌شوند."><Input value={v.url} onChange={(e) => setV({ ...v, url: e.target.value })} className="ltr" aria-label="نشانی" /></Field>
-        <Field label="رویدادها" hint="همهٔ گذارهای یک موجودیت، یا گذارهای مشخص.">
+        <Field label={tr('نام')} required><Input value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} aria-label={tr('نام Webhook')} /></Field>
+        <Field label={tr('نشانی گیرنده (https)')} required hint={tr('نشانی‌های شبکهٔ داخلی پذیرفته نمی‌شوند.')}><Input value={v.url} onChange={(e) => setV({ ...v, url: e.target.value })} className="ltr" aria-label={tr('نشانی')} /></Field>
+        <Field label={tr('رویدادها')} hint={tr('همهٔ گذارهای یک موجودیت، یا گذارهای مشخص.')}>
           <div className="max-h-72 space-y-2 overflow-y-auto" data-testid="event-picker">
             {entities.map((ent) => {
               const all = `${ent.entity}.*`;
@@ -196,10 +195,10 @@ function NewWebhook({ onClose }: { onClose: (secret?: string) => void }) {
               return (
                 <div key={ent.entity} className={ent.allowed ? '' : 'opacity-50'}>
                   <Checkbox checked={events.includes(all)} disabled={!ent.allowed} onChange={(e) => toggle(all, e.target.checked)}
-                    label={<span className="text-xs font-medium">{ent.entityLabelFa} — همهٔ گذارها{!ent.allowed && ' (بدون دسترسی دیدن)'}</span>} />
+                    label={<span className="text-xs font-medium">{tr('{0} — همهٔ گذارها', ent.entityLabelFa)}{!ent.allowed && tr(' (بدون دسترسی دیدن)')}</span>} />
                   {!events.includes(all) && ent.allowed && (
                     <div className="ms-6 flex flex-wrap gap-x-3">
-                      {own.map((e) => <Checkbox key={e.event} checked={events.includes(e.event)} onChange={(x) => toggle(e.event, x.target.checked)} label={<span className="text-[11px]">{e.labelFa}</span>} />)}
+                      {own.map((e) => <Checkbox key={e.event} checked={events.includes(e.event)} onChange={(x) => toggle(e.event, x.target.checked)} label={<span className="text-[11px]">{loc(e, 'label')}</span>} />)}
                     </div>
                   )}
                 </div>
@@ -217,21 +216,21 @@ function DeliveryLog({ webhook, onClose }: { webhook: WebhookRow; onClose: () =>
   const { data } = useQuery<any[]>({ queryKey: ['/admin/webhooks', webhook.id, 'deliveries'], queryFn: () => apiGet(`/admin/webhooks/${webhook.id}/deliveries`) });
   const redeliver = async (id: string) => { await apiPost(`/admin/webhooks/deliveries/${id}/redeliver`, {}); await qc.invalidateQueries({ queryKey: ['/admin/webhooks', webhook.id, 'deliveries'] }); };
   return (
-    <Modal open wide title={`تحویل‌های «${webhook.name}»`} onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>بستن</Button>}>
-      {!data?.length ? <EmptyState title="تحویلی نبوده" /> : (
+    <Modal open wide title={tr('تحویل‌های «{0}»', webhook.name)} onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>{tr('بستن')}</Button>}>
+      {!data?.length ? <EmptyState title={tr('تحویلی نبوده')} /> : (
         <Table>
-          <thead className="bg-ink-50/60"><tr><Th>رویداد</Th><Th>زمان</Th><Th>تلاش</Th><Th>نتیجه</Th><Th /></tr></thead>
+          <thead className="bg-ink-50/60"><tr><Th>{tr('رویداد')}</Th><Th>{tr('زمان')}</Th><Th>{tr('تلاش')}</Th><Th>{tr('نتیجه')}</Th><Th /></tr></thead>
           <tbody data-testid="deliveries">
             {data.map((d) => (
               <Tr key={d.id}>
                 <Td className="ltr text-xs">{d.event}</Td>
                 <Td className="text-xs">{formatDateTime(d.createdAt)}</Td>
-                <Td className="text-xs">{toPersianDigits(d.attempts)}</Td>
+                <Td className="text-xs">{localDigits(d.attempts)}</Td>
                 <Td className="text-xs">
-                  <Badge tone={d.status === 'DELIVERED' ? 'success' : d.status === 'DEAD' ? 'danger' : 'warning'}>{d.status === 'DELIVERED' ? 'تحویل شد' : d.status === 'DEAD' ? 'رها شد' : 'در صف'}</Badge>
+                  <Badge tone={d.status === 'DELIVERED' ? 'success' : d.status === 'DEAD' ? 'danger' : 'warning'}>{d.status === 'DELIVERED' ? tr('تحویل شد') : d.status === 'DEAD' ? tr('رها شد') : tr('در صف')}</Badge>
                   {d.lastError && <p className="ltr text-[10px] text-ink-400">{d.lastError}</p>}
                 </Td>
-                <Td>{d.status !== 'DELIVERED' && <Button size="sm" variant="ghost" onClick={() => void redeliver(d.id)}>ارسال دوباره</Button>}</Td>
+                <Td>{d.status !== 'DELIVERED' && <Button size="sm" variant="ghost" onClick={() => void redeliver(d.id)}>{tr('ارسال دوباره')}</Button>}</Td>
               </Tr>
             ))}
           </tbody>

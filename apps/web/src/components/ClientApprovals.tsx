@@ -4,7 +4,8 @@ import { CLIENT_APPROVAL_EVENT_LABELS, CLIENT_APPROVAL_STATUS_LABELS, type Clien
 import { apiGet, apiPost, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { tr, trx } from '../i18n';
 
 /* Roadmap #35 — a client's approval, kept as evidence. */
 
@@ -16,7 +17,7 @@ const TONE: Record<string, 'success' | 'warning' | 'danger' | 'neutral' | 'info'
 const short = (h?: string | null) => (h ? `${h.slice(0, 12)}…${h.slice(-6)}` : '—');
 
 export function ApprovalStatus({ status }: { status: string }) {
-  return <Badge tone={TONE[status] ?? 'neutral'}>{CLIENT_APPROVAL_STATUS_LABELS[status as ClientApprovalStatus] ?? status}</Badge>;
+  return <Badge tone={TONE[status] ?? 'neutral'}>{trx(CLIENT_APPROVAL_STATUS_LABELS[status as ClientApprovalStatus] ?? status)}</Badge>;
 }
 
 /** Every request for one deliverable or proposal: ask, withdraw, check, print. */
@@ -33,18 +34,18 @@ export function ClientApprovalsPanel({ subjectType, subjectId }: { subjectType: 
   return (
     <div className="space-y-3" data-testid="client-approvals">
       {can(WRITE[subjectType]) && !pending && (
-        <Button size="sm" variant="primary" onClick={() => setAsking(true)}>درخواست تأیید از مشتری</Button>
+        <Button size="sm" variant="primary" onClick={() => setAsking(true)}>{tr('درخواست تأیید از مشتری')}</Button>
       )}
       {link && (
         <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="approval-link">
-          <p className="font-medium">ایمیل سازمان پیکربندی نشده است؛ این پیوند را خودتان به مشتری برسانید. فقط همین یک بار نمایش داده می‌شود.</p>
+          <p className="font-medium">{tr('ایمیل سازمان پیکربندی نشده است؛ این پیوند را خودتان به مشتری برسانید. فقط همین یک بار نمایش داده می‌شود.')}</p>
           <div className="mt-1 flex items-center gap-2">
             <code className="ltr block flex-1 truncate rounded bg-white px-2 py-1 text-[11px]">{link}</code>
-            <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(link)}>رونوشت</Button>
+            <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(link)}>{tr('رونوشت')}</Button>
           </div>
         </div>
       )}
-      {!rows.length ? <EmptyState title="هنوز از مشتری تأییدی خواسته نشده" description="تأیید مشتری با نام، زمان، نشانی و اثر انگشت فایل‌هایی که دید ثبت می‌شود." /> : (
+      {!rows.length ? <EmptyState title={tr('هنوز از مشتری تأییدی خواسته نشده')} description={tr('تأیید مشتری با نام، زمان، نشانی و اثر انگشت فایل‌هایی که دید ثبت می‌شود.')} /> : (
         <ul className="space-y-3">{rows.map((r) => <ApprovalCard key={r.id} a={r} canWrite={can(WRITE[subjectType])} />)}</ul>
       )}
       {asking && <AskModal subjectType={subjectType} subjectId={subjectId} onClose={() => setAsking(false)} onLink={setLink} />}
@@ -60,13 +61,13 @@ function ApprovalCard({ a, canWrite }: { a: any; canWrite: boolean }) {
   const files: any[] = a.manifest?.files ?? [];
   const fileName = (id: string | null) => files.find((f) => f.documentId === id)?.fileName ?? '';
   const verify = async () => {
-    try { setCheck(await apiGet(`/client-approvals/${a.id}/verify`)); } catch (e: any) { toast(e?.message ?? 'بررسی ناموفق بود.', 'danger'); }
+    try { setCheck(await apiGet(`/client-approvals/${a.id}/verify`)); } catch (e: any) { toast(e?.message ?? tr('بررسی ناموفق بود.'), 'danger'); }
   };
   const withdraw = async () => {
-    const reason = window.prompt('دلیل لغو درخواست:');
+    const reason = window.prompt(tr('دلیل لغو درخواست:'));
     if (!reason) return;
-    try { await apiPost(`/client-approvals/${a.id}/cancel`, { reason }); toast('درخواست لغو شد.'); await qc.invalidateQueries(); }
-    catch (e: any) { toast(e?.message ?? 'لغو ناموفق بود.', 'danger'); }
+    try { await apiPost(`/client-approvals/${a.id}/cancel`, { reason }); toast(tr('درخواست لغو شد.')); await qc.invalidateQueries(); }
+    catch (e: any) { toast(e?.message ?? tr('لغو ناموفق بود.'), 'danger'); }
   };
   return (
     <li className="rounded-lg border border-ink-200 px-3 py-2 text-xs" data-testid="approval-row">
@@ -76,33 +77,32 @@ function ApprovalCard({ a, canWrite }: { a: any; canWrite: boolean }) {
         <span>{a.contactName} <span className="ltr text-ink-400">{a.contactEmail}</span></span>
         <span className="text-ink-400">· {formatDateTime(a.createdAt)} · {a.requestedBy?.fullName}</span>
         <div className="ms-auto flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>{open ? 'بستن' : 'جزئیات'}</Button>
-          {a.decision && <Button size="sm" variant="ghost" onClick={() => void verify()}>بررسی دوباره</Button>}
-          {a.decision && <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/client-approvals/${a.id}/certificate`, `${a.code}-certificate.pdf`).catch((e) => toast(e?.message ?? 'دریافت ناموفق بود.', 'danger'))}>گواهی PDF</Button>}
-          {canWrite && a.status === 'PENDING' && <Button size="sm" variant="ghost" onClick={() => void withdraw()}>لغو</Button>}
+          <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>{open ? tr('بستن') : tr('جزئیات')}</Button>
+          {a.decision && <Button size="sm" variant="ghost" onClick={() => void verify()}>{tr('بررسی دوباره')}</Button>}
+          {a.decision && <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/client-approvals/${a.id}/certificate`, `${a.code}-certificate.pdf`).catch((e) => toast(e?.message ?? tr('دریافت ناموفق بود.'), 'danger'))}>{tr('گواهی PDF')}</Button>}
+          {canWrite && a.status === 'PENDING' && <Button size="sm" variant="ghost" onClick={() => void withdraw()}>{tr('لغو')}</Button>}
         </div>
       </div>
       {a.decision && (
-        <p className="mt-1.5 text-ink-700">
-          {a.decision === 'APPROVE' ? '✓ تأیید' : '✗ درخواست اصلاح'} توسط «{a.signerName}» در {formatDateTime(a.decidedAt)} از <span className="ltr">{a.decidedIp}</span>
-          {' — '}{a.verification === 'EMAIL_CODE' ? 'با کد یک‌بارمصرف ایمیل‌شده' : 'فقط با پیوند (بدون کد)'}
+        <p className="mt-1.5 text-ink-700">{tr('{0} توسط «', a.decision === 'APPROVE' ? tr('✓ تأیید') : tr('✗ درخواست اصلاح'))}{a.signerName}{tr('» در {0} از', formatDateTime(a.decidedAt))}{' '}<span className="ltr">{a.decidedIp}</span>
+          {' — '}{a.verification === 'EMAIL_CODE' ? tr('با کد یک‌بارمصرف ایمیل‌شده') : tr('فقط با پیوند (بدون کد)')}
           {a.comment && <span className="mt-1 block text-ink-600">«{a.comment}»</span>}
         </p>
       )}
-      {a.transitionError && <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-rose-800">تصمیم ثبت شد اما بر پرونده اعمال نشد: {a.transitionError}</p>}
-      {a.evidence?.staffAddress && <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-amber-900">این تصمیم از نشانی‌ای ثبت شد که کارکنان سازمان هم از آن کار کرده‌اند.</p>}
+      {a.transitionError && <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-rose-800">{tr('تصمیم ثبت شد اما بر پرونده اعمال نشد:')}{' '}{a.transitionError}</p>}
+      {a.evidence?.staffAddress && <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-amber-900">{tr('این تصمیم از نشانی‌ای ثبت شد که کارکنان سازمان هم از آن کار کرده‌اند.')}</p>}
       {check && (
         <p className={`mt-1 rounded px-2 py-1 ${check.ok ? 'bg-emerald-50 text-emerald-900' : 'bg-rose-50 text-rose-800'}`} data-testid="approval-check">
-          {check.ok ? 'همهٔ اثر انگشت‌ها دوباره محاسبه شد و با ثبت‌شده‌ها یکی است: فایل‌ها، فهرست، تصمیم و زنجیره.' : check.problems.map((p) => p.message).join(' · ')}
+          {check.ok ? tr('همهٔ اثر انگشت‌ها دوباره محاسبه شد و با ثبت‌شده‌ها یکی است: فایل‌ها، فهرست، تصمیم و زنجیره.') : check.problems.map((p) => p.message).join(' · ')}
         </p>
       )}
       {open && (
         <div className="mt-2 space-y-2 border-t border-ink-100 pt-2">
-          <p>اثر انگشت آنچه نشان داده شد: <code className="ltr">{short(a.manifestHash)}</code>{a.evidenceHash && <> · اثر انگشت تصمیم: <code className="ltr">{short(a.evidenceHash)}</code> (حلقهٔ {toPersianDigits(a.sequence)})</>}</p>
+          <p>{tr('اثر انگشت آنچه نشان داده شد:')}{' '}<code className="ltr">{short(a.manifestHash)}</code>{a.evidenceHash && <>{' '}{tr('· اثر انگشت تصمیم:')}{' '}<code className="ltr">{short(a.evidenceHash)}</code>{' '}{tr('(حلقهٔ {0})', localDigits(a.sequence))}</>}</p>
           <ul className="space-y-0.5">{files.map((f) => <li key={f.documentId}>{f.fileName} <code className="ltr text-[10px] text-ink-400">{short(f.sha256)}</code></li>)}</ul>
           <ol className="space-y-0.5 text-[11px] text-ink-600" data-testid="approval-events">
             {a.events.map((e: any) => (
-              <li key={e.id}>{formatDateTime(e.at)} — {CLIENT_APPROVAL_EVENT_LABELS[e.kind] ?? e.kind}{e.documentId ? ` «${fileName(e.documentId)}»` : ''} <span className="ltr text-ink-400">{e.ip}</span></li>
+              <li key={e.id}>{formatDateTime(e.at)} — {trx(CLIENT_APPROVAL_EVENT_LABELS[e.kind] ?? e.kind)}{e.documentId ? ` «${fileName(e.documentId)}»` : ''} <span className="ltr text-ink-400">{e.ip}</span></li>
             ))}
           </ol>
         </div>
@@ -133,7 +133,7 @@ function AskModal({ subjectType, subjectId, onClose, onLink }: { subjectType: Su
       const doc = await apiUpload<{ id: string }>('/documents', form);
       await refetch();
       setChosen(new Set([...selected, doc.id]));
-    } catch (e: any) { toast(e?.message ?? 'بارگذاری ناموفق بود.', 'danger'); }
+    } catch (e: any) { toast(e?.message ?? tr('بارگذاری ناموفق بود.'), 'danger'); }
   };
   const send = async () => {
     setBusy(true);
@@ -141,37 +141,37 @@ function AskModal({ subjectType, subjectId, onClose, onLink }: { subjectType: Su
       const a = await apiPost<{ code: string; link: string | null }>('/client-approvals', {
         subjectType, subjectId, contactId: contact, documentIds: [...selected], message: message.trim() || undefined, expiresInDays: Number(days),
       });
-      toast(a.link ? `درخواست ${a.code} ساخته شد؛ پیوند را به مشتری برسانید.` : `درخواست ${a.code} به ایمیل مشتری فرستاده شد.`);
+      toast(a.link ? tr('درخواست {0} ساخته شد؛ پیوند را به مشتری برسانید.', a.code) : tr('درخواست {0} به ایمیل مشتری فرستاده شد.', a.code));
       if (a.link) onLink(a.link);
       await qc.invalidateQueries(); onClose();
-    } catch (e: any) { toast(e?.message ?? 'ساخت درخواست ناموفق بود.', 'danger'); } finally { setBusy(false); }
+    } catch (e: any) { toast(e?.message ?? tr('ساخت درخواست ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title="درخواست تأیید از مشتری" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} disabled={!o.eligible || !contact || (subjectType === 'DELIVERABLE' && !selected.size)} onClick={() => void send()}>فرستادن</Button></>}>
+    <Modal open wide title={tr('درخواست تأیید از مشتری')} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!o.eligible || !contact || (subjectType === 'DELIVERABLE' && !selected.size)} onClick={() => void send()}>{tr('فرستادن')}</Button></>}>
       <div className="space-y-4" data-testid="ask-approval">
-        {!o.eligible && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{subjectType === 'DELIVERABLE' ? 'فقط خروجیِ تحویل‌شده به مشتری را می‌توان برای تأیید فرستاد.' : 'فقط پروپوزالِ ارائه‌شده به مشتری را می‌توان برای تأیید فرستاد.'}</p>}
-        <Field label="از چه کسی" hint={o.mailOn ? 'پیوند و کد یک‌بارمصرف به ایمیل همین شخص می‌رود.' : 'ایمیل سازمان خاموش است: پیوند یک بار به شما نشان داده می‌شود تا برسانید.'}>
+        {!o.eligible && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{subjectType === 'DELIVERABLE' ? tr('فقط خروجیِ تحویل‌شده به مشتری را می‌توان برای تأیید فرستاد.') : tr('فقط پروپوزالِ ارائه‌شده به مشتری را می‌توان برای تأیید فرستاد.')}</p>}
+        <Field label={tr('از چه کسی')} hint={o.mailOn ? tr('پیوند و کد یک‌بارمصرف به ایمیل همین شخص می‌رود.') : tr('ایمیل سازمان خاموش است: پیوند یک بار به شما نشان داده می‌شود تا برسانید.')}>
           {withEmail.length ? (
-            <Select value={contact} onChange={(e) => setContactId(e.target.value)} aria-label="مخاطب">
-              {withEmail.map((c: any) => <option key={c.id} value={c.id}>{c.fullName}{c.jobTitle ? ` — ${c.jobTitle}` : ''} ({c.email})</option>)}
+            <Select value={contact} onChange={(e) => setContactId(e.target.value)} aria-label={tr('مخاطب')}>
+              {withEmail.map((c: any) => <option key={c.id} value={c.id}>{c.fullName}{c.jobTitle ? ` — ${trx(c.jobTitle)}` : ''} ({c.email})</option>)}
             </Select>
-          ) : <p className="text-xs text-rose-700">هیچ مخاطبِ این مشتری ایمیل ندارد؛ نخست ایمیل مخاطب را در پروندهٔ مشتری ثبت کنید.</p>}
+          ) : <p className="text-xs text-rose-700">{tr('هیچ مخاطبِ این مشتری ایمیل ندارد؛ نخست ایمیل مخاطب را در پروندهٔ مشتری ثبت کنید.')}</p>}
         </Field>
         <div>
-          <p className="mb-1 text-xs font-medium text-ink-700">آنچه مشتری می‌بیند و تأیید می‌کند</p>
-          {!o.documents.length && <p className="text-[11px] text-ink-500">{subjectType === 'DELIVERABLE' ? 'این خروجی هنوز فایلی ندارد.' : 'متن پروپوزال و مبلغ آن نشان داده می‌شود؛ فایل ارائه (دِک) را هم می‌توانید پیوست کنید.'}</p>}
+          <p className="mb-1 text-xs font-medium text-ink-700">{tr('آنچه مشتری می‌بیند و تأیید می‌کند')}</p>
+          {!o.documents.length && <p className="text-[11px] text-ink-500">{subjectType === 'DELIVERABLE' ? tr('این خروجی هنوز فایلی ندارد.') : tr('متن پروپوزال و مبلغ آن نشان داده می‌شود؛ فایل ارائه (دِک) را هم می‌توانید پیوست کنید.')}</p>}
           <div className="space-y-1">
             {o.documents.map((d: any) => (
-              <Checkbox key={d.id} label={`${d.fileName} (${toPersianDigits(Math.ceil(d.sizeBytes / 1024))} KB)`} checked={selected.has(d.id)}
+              <Checkbox key={d.id} label={`${d.fileName} (${localDigits(Math.ceil(d.sizeBytes / 1024))} KB)`} checked={selected.has(d.id)}
                 onChange={(e) => { const s = new Set(selected); if (e.target.checked) s.add(d.id); else s.delete(d.id); setChosen(s); }} />
             ))}
           </div>
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadFile(f); e.target.value = ''; }} />
-          <Button size="sm" variant="secondary" className="mt-2" onClick={() => fileRef.current?.click()}>بارگذاری فایل</Button>
+          <Button size="sm" variant="secondary" className="mt-2" onClick={() => fileRef.current?.click()}>{tr('بارگذاری فایل')}</Button>
         </div>
-        <Field label="پیام برای مشتری"><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} aria-label="پیام برای مشتری" /></Field>
-        <Field label="مهلت (روز)"><Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(e.target.value)} className="w-24" aria-label="مهلت" /></Field>
+        <Field label={tr('پیام برای مشتری')}><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} aria-label={tr('پیام برای مشتری')} /></Field>
+        <Field label={tr('مهلت (روز)')}><Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(e.target.value)} className="w-24" aria-label={tr('مهلت')} /></Field>
       </div>
     </Modal>
   );
@@ -183,9 +183,9 @@ export function DeliverableApprovalButton({ deliverable }: { deliverable: { id: 
   if (!['DELIVERED', 'ACCEPTED', 'REVISION_REQUIRED'].includes(deliverable.state)) return null;
   return (
     <>
-      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>تأیید مشتری</Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{tr('تأیید مشتری')}</Button>
       {open && (
-        <Modal open wide title={`تأیید مشتری — ${deliverable.name}`} onClose={() => setOpen(false)} footer={<Button variant="ghost" onClick={() => setOpen(false)}>بستن</Button>}>
+        <Modal open wide title={tr('تأیید مشتری — {0}', deliverable.name)} onClose={() => setOpen(false)} footer={<Button variant="ghost" onClick={() => setOpen(false)}>{tr('بستن')}</Button>}>
           <ClientApprovalsPanel subjectType="DELIVERABLE" subjectId={deliverable.id} />
         </Modal>
       )}
@@ -196,7 +196,7 @@ export function DeliverableApprovalButton({ deliverable }: { deliverable: { id: 
 export function ProposalApprovalCard({ proposal }: { proposal: { id: string; state: string } }) {
   if (!['PRESENTED_TO_CLIENT', 'CLIENT_APPROVED', 'CLIENT_REVISION_REQUESTED', 'CLIENT_REJECTED'].includes(proposal.state)) return null;
   return (
-    <Card title="تأیید مشتری" subtitle="تأیید یا درخواست اصلاح مشتری، با نام، زمان، نشانی، و اثر انگشت آنچه دید — قابل اثبات در اختلاف بعدی.">
+    <Card title={tr('تأیید مشتری')} subtitle={tr('تأیید یا درخواست اصلاح مشتری، با نام، زمان، نشانی، و اثر انگشت آنچه دید — قابل اثبات در اختلاف بعدی.')}>
       <div className="px-4 py-3"><ClientApprovalsPanel subjectType="PROPOSAL" subjectId={proposal.id} /></div>
     </Card>
   );

@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PERMISSIONS, PERMISSION_GROUPS, permissionGroup, type Permission } from '@hiva/contracts';
 import { apiGet, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
 import { Badge, Button, Card, ErrorBlock, Input, LoadingBlock, cx, useToast } from './ui';
+import { loc, pair, tr, trx } from '../i18n';
 
 /**
  * Who may do what (Hivamis task 6). The managing director, deputy, system administrator and account
@@ -25,9 +26,9 @@ const GROUPED = PERMISSION_GROUPS.map((g) => ({
 })).filter((g) => g.permissions.length);
 
 function status(r: RoleRow): { tone: 'success' | 'warning' | 'info'; text: string } {
-  if (r.fullAccess) return { tone: 'info', text: 'دسترسی کامل' };
-  if (!r.review) return { tone: 'warning', text: 'پیش‌فرض — بازبینی نشده' };
-  return { tone: 'success', text: `تأیید ${r.review.grantedBy?.fullName ?? 'مدیر سیستم'}` };
+  if (r.fullAccess) return { tone: 'info', text: tr('دسترسی کامل') };
+  if (!r.review) return { tone: 'warning', text: tr('پیش‌فرض — بازبینی نشده') };
+  return { tone: 'success', text: tr('تأیید {0}', r.review.grantedBy?.fullName ?? tr('مدیر سیستم')) };
 }
 
 export function RoleGrants() {
@@ -65,7 +66,7 @@ export function RoleGrants() {
     setBusy(true);
     try {
       const r = await apiPut<{ added: string[]; removed: string[] }>(`/roles/${role.code}/permissions`, { permissions: [...picked], note: note.trim() || undefined });
-      toast(`دسترسی «${role.nameFa}» ثبت شد — ${toPersianDigits(r.added.length)} داده، ${toPersianDigits(r.removed.length)} گرفته.`);
+      toast(tr('دسترسی «{0}» ثبت شد — {1} داده، {2} گرفته.', role.nameFa, localDigits(r.added.length), localDigits(r.removed.length)));
       await qc.invalidateQueries({ queryKey: ['/roles'] });
       await qc.invalidateQueries({ queryKey: [`/roles/${role.code}/grants`] });
     } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(false); }
@@ -73,14 +74,10 @@ export function RoleGrants() {
 
   return (
     <div className="space-y-4" data-testid="role-grants">
-      <p className="rounded-lg bg-ink-50 px-4 py-3 text-xs leading-6 text-ink-600">
-        مدیرعامل، قائم‌مقام، مدیر سیستم و مدیر اکانت به همهٔ سامانه دسترسی دارند. دسترسی هر نقش دیگر را مدیر سیستم
-        همین‌جا می‌دهد؛ هر بخشی که به نقشی داده نشود، دارندگانش حتی آن را نمی‌بینند. قوانین فرآیند (Doc_H) برای همه
-        برقرار می‌ماند — دسترسی، کسی را از قانون معاف نمی‌کند.
-      </p>
+      <p className="rounded-lg bg-ink-50 px-4 py-3 text-xs leading-6 text-ink-600">{tr('مدیرعامل، قائم‌مقام، مدیر سیستم و مدیر اکانت به همهٔ سامانه دسترسی دارند. دسترسی هر نقش دیگر را مدیر سیستم همین‌جا می‌دهد؛ هر بخشی که به نقشی داده نشود، دارندگانش حتی آن را نمی‌بینند. قوانین فرآیند (Doc_H) برای همه برقرار می‌ماند — دسترسی، کسی را از قانون معاف نمی‌کند.')}</p>
       <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-        <Card title="نقش‌ها">
-          <ul className="divide-y divide-ink-100" role="listbox" aria-label="نقش‌ها">
+        <Card title={tr('نقش‌ها')}>
+          <ul className="divide-y divide-ink-100" role="listbox" aria-label={tr('نقش‌ها')}>
             {data.map((r) => {
               const st = status(r);
               return (
@@ -88,8 +85,8 @@ export function RoleGrants() {
                   <button role="option" aria-selected={r.code === role.code} onClick={() => setCode(r.code)}
                     className={cx('flex w-full items-center justify-between gap-2 px-4 py-2.5 text-start', r.code === role.code ? 'bg-brand-50' : 'hover:bg-ink-50')}>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-ink-800">{r.nameFa}</span>
-                      <span className="text-[11px] text-ink-500">{toPersianDigits(r.userCount)} نفر</span>
+                      <span className="block truncate text-sm font-medium text-ink-800">{loc(r, 'name')}</span>
+                      <span className="text-[11px] text-ink-500">{tr('{0} نفر', localDigits(r.userCount))}</span>
                     </span>
                     <Badge tone={st.tone} className="shrink-0">{st.text}</Badge>
                   </button>
@@ -100,18 +97,18 @@ export function RoleGrants() {
         </Card>
 
         <Card
-          title={role.nameFa}
-          subtitle={role.fullAccess ? 'به همهٔ سامانه دسترسی دارد؛ ثابت است.'
-            : role.review ? `آخرین تأیید: ${role.review.grantedBy?.fullName ?? '—'}، ${formatDateTime(role.review.at)}${role.review.note ? ` — ${role.review.note}` : ''}`
-            : 'هنوز بازبینی نشده؛ دسترسی پیش‌فرض Doc_H برقرار است تا مدیر سیستم آن را تأیید یا تغییر دهد.'}
-          action={editable && !role.fullAccess ? <Button size="sm" variant="ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? 'بستن سابقه' : 'سابقه'}</Button> : undefined}
+          title={loc(role, 'name')}
+          subtitle={role.fullAccess ? tr('به همهٔ سامانه دسترسی دارد؛ ثابت است.')
+            : role.review ? tr('آخرین تأیید: {0}، {1}{2}', role.review.grantedBy?.fullName ?? '—', formatDateTime(role.review.at), role.review.note ? ` — ${role.review.note}` : '')
+            : tr('هنوز بازبینی نشده؛ دسترسی پیش‌فرض Doc_H برقرار است تا مدیر سیستم آن را تأیید یا تغییر دهد.')}
+          action={editable && !role.fullAccess ? <Button size="sm" variant="ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? tr('بستن سابقه') : tr('سابقه')}</Button> : undefined}
         >
           {showHistory && (
             <div className="border-b border-ink-100 px-4 py-3 text-xs" data-testid="grant-history">
-              {!history.data?.length ? <p className="text-ink-500">هنوز چیزی ثبت نشده است.</p> : (
+              {!history.data?.length ? <p className="text-ink-500">{tr('هنوز چیزی ثبت نشده است.')}</p> : (
                 <ul className="space-y-1">
                   {history.data.map((h) => (
-                    <li key={h.id}>{formatDateTime(h.createdAt)} — {h.grantedBy?.fullName ?? '—'}: {toPersianDigits(h.permissions.length)} دسترسی{h.note ? ` — ${h.note}` : ''}{h.supersededAt ? '' : ' (در حال اجرا)'}</li>
+                    <li key={h.id}>{tr('{0} — {1}: {2} دسترسی{3}{4}', formatDateTime(h.createdAt), h.grantedBy?.fullName ?? '—', localDigits(h.permissions.length), h.note ? ` — ${h.note}` : '', h.supersededAt ? '' : tr(' (در حال اجرا)'))}</li>
                   ))}
                 </ul>
               )}
@@ -123,19 +120,19 @@ export function RoleGrants() {
               return (
                 <fieldset key={g.key} className="rounded-lg p-3 ring-1 ring-inset ring-ink-200" disabled={locked}>
                   <legend className="flex w-full items-center justify-between gap-2 px-1 text-xs font-semibold text-ink-700">
-                    <span>{g.fa} <span className="font-normal text-ink-400">({toPersianDigits(on)}/{toPersianDigits(g.permissions.length)})</span></span>
+                    <span>{pair(g)} <span className="font-normal text-ink-400">({localDigits(on)}/{localDigits(g.permissions.length)})</span></span>
                     {!locked && (
                       <button type="button" className="text-[11px] font-normal text-brand-700 underline" onClick={() => toggleGroup(g.permissions, on < g.permissions.length)}>
-                        {on < g.permissions.length ? 'همه' : 'هیچ'}
+                        {on < g.permissions.length ? tr('همه') : tr('هیچ')}
                       </button>
                     )}
                   </legend>
                   <div className="mt-1 space-y-1">
                     {g.permissions.map((p) => (
                       <label key={p} className="flex cursor-pointer items-start gap-2 text-xs text-ink-700">
-                        <input type="checkbox" className="mt-0.5 size-3.5" checked={picked.has(p)} onChange={() => toggle(p)} aria-label={PERMISSIONS[p]} />
-                        <span>{PERMISSIONS[p]} <span className="ltr font-mono text-[10px] text-ink-400">{p}</span>
-                          {!role.fullAccess && !role.defaults.includes(p) && picked.has(p) && <Badge tone="info" className="ms-1">بیش از پیش‌فرض</Badge>}
+                        <input type="checkbox" className="mt-0.5 size-3.5" checked={picked.has(p)} onChange={() => toggle(p)} aria-label={trx(PERMISSIONS[p])} />
+                        <span>{trx(PERMISSIONS[p])} <span className="ltr font-mono text-[10px] text-ink-400">{p}</span>
+                          {!role.fullAccess && !role.defaults.includes(p) && picked.has(p) && <Badge tone="info" className="ms-1">{tr('بیش از پیش‌فرض')}</Badge>}
                         </span>
                       </label>
                     ))}
@@ -148,13 +145,13 @@ export function RoleGrants() {
             <div className="flex flex-wrap items-center gap-3 border-t border-ink-100 px-4 py-3">
               <span className="text-xs text-ink-600" data-testid="grant-changes">
                 {changes.added.length || changes.removed.length
-                  ? `${toPersianDigits(changes.added.length)} افزوده، ${toPersianDigits(changes.removed.length)} برداشته`
-                  : role.review ? 'بدون تغییر' : 'با «تأیید» همین دسترسی‌ها به نام شما ثبت می‌شود.'}
+                  ? tr('{0} افزوده، {1} برداشته', localDigits(changes.added.length), localDigits(changes.removed.length))
+                  : role.review ? tr('بدون تغییر') : tr('با «تأیید» همین دسترسی‌ها به نام شما ثبت می‌شود.')}
               </span>
-              <div className="min-w-48 flex-1"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت (اختیاری) — چرا؟" aria-label="یادداشت" /></div>
-              <Button variant="ghost" onClick={() => setPicked(new Set(role.defaults))}>پیش‌فرض Doc_H</Button>
+              <div className="min-w-48 flex-1"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr('یادداشت (اختیاری) — چرا؟')} aria-label={tr('یادداشت')} /></div>
+              <Button variant="ghost" onClick={() => setPicked(new Set(role.defaults))}>{tr('پیش‌فرض Doc_H')}</Button>
               <Button variant="primary" loading={busy} disabled={!changes.added.length && !changes.removed.length && !!role.review} onClick={() => void save()}>
-                {changes.added.length || changes.removed.length ? 'ذخیره و تأیید' : 'تأیید'}
+                {changes.added.length || changes.removed.length ? tr('ذخیره و تأیید') : tr('تأیید')}
               </Button>
             </div>
           )}

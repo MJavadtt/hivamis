@@ -7,11 +7,12 @@ import { Code, WorkflowActions } from './common';
 import { CurrencySelect, FxPreview, money } from './Fx';
 import { JalaliDateInput } from './JalaliDateInput';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, StateBadge, StatTile, Table, Td, Th, Tr, useToast } from './ui';
-import { formatCurrency, formatDate, localDateOnly, toPersianDigits } from '../lib/format';
+import { formatCurrency, formatDate, localDateOnly, localDigits } from '../lib/format';
+import { loc, tr, trx } from '../i18n';
 
 /* Roadmap #31 — media bought on a client's behalf: the vendor's net passes through, the commission is the agency's. */
 
-export const channelFa = (c: string) => MEDIA_CHANNEL_LABELS[c as MediaChannel] ?? c;
+export const channelFa = (c: string) => trx(MEDIA_CHANNEL_LABELS[c as MediaChannel] ?? c);
 const MEDIA_UNITS = ['ME', 'A', 'M'];
 
 interface MediaOrder {
@@ -25,7 +26,7 @@ interface MediaOrder {
 
 /** Commission under COMMISSION, markup under MARKUP — named as the deal names it. */
 const pctLabel = (o: Pick<MediaOrder, 'pricingModel' | 'commissionPercent'>) =>
-  `${o.pricingModel === 'COMMISSION' ? 'کمیسیون' : 'کارمزد'} ${toPersianDigits(Number(o.commissionPercent))}٪`;
+  tr('{0} {1}٪', o.pricingModel === 'COMMISSION' ? tr('کمیسیون') : tr('کارمزد'), localDigits(Number(o.commissionPercent)));
 
 export function ProjectMedia({ projectId }: { projectId: string }) {
   const { can, user } = useAuth();
@@ -45,38 +46,38 @@ export function ProjectMedia({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3">
-        <StatTile label="صورت‌حساب مشتری بابت رسانه" value={formatCurrency(total('clientAmount'))} />
-        <StatTile label="عبوری به رسانه‌ها" value={formatCurrency(total('netAmount'))} hint="درآمد آژانس نیست" />
-        <StatTile label="سهم آژانس" value={formatCurrency(total('agencyRevenue'))} tone="success" hint="هنگام پخش شناسایی می‌شود" />
+        <StatTile label={tr('صورت‌حساب مشتری بابت رسانه')} value={formatCurrency(total('clientAmount'))} />
+        <StatTile label={tr('عبوری به رسانه‌ها')} value={formatCurrency(total('netAmount'))} hint={tr('درآمد آژانس نیست')} />
+        <StatTile label={tr('سهم آژانس')} value={formatCurrency(total('agencyRevenue'))} tone="success" hint={tr('هنگام پخش شناسایی می‌شود')} />
       </div>
-      <Card title="سفارش‌های خرید رسانه"
+      <Card title={tr('سفارش‌های خرید رسانه')}
         action={<div className="flex gap-2">
-          {can('finance.invoice') && selected.length > 0 && <Button size="sm" variant="secondary" onClick={() => setBilling(true)}>صورت‌حساب {toPersianDigits(selected.length)} سفارش</Button>}
-          {mayBuy && <Button size="sm" variant="primary" onClick={() => setCreating(true)}>سفارش رسانهٔ تازه</Button>}
+          {can('finance.invoice') && selected.length > 0 && <Button size="sm" variant="secondary" onClick={() => setBilling(true)}>{tr('صورت‌حساب {0} سفارش', localDigits(selected.length))}</Button>}
+          {mayBuy && <Button size="sm" variant="primary" onClick={() => setCreating(true)}>{tr('سفارش رسانهٔ تازه')}</Button>}
         </div>}>
-        {!orders.length ? <EmptyState title="سفارش رسانه‌ای ثبت نشده" /> : (
+        {!orders.length ? <EmptyState title={tr('سفارش رسانه‌ای ثبت نشده')} /> : (
           <Table>
-            <thead className="bg-ink-50/60"><tr><Th /><Th>سفارش</Th><Th>رسانه</Th><Th>پخش</Th><Th>مشتری / عبوری / آژانس</Th><Th>صورت‌حساب</Th><Th>وضعیت</Th><Th /></tr></thead>
+            <thead className="bg-ink-50/60"><tr><Th /><Th>{tr('سفارش')}</Th><Th>{tr('رسانه')}</Th><Th>{tr('پخش')}</Th><Th>{tr('مشتری / عبوری / آژانس')}</Th><Th>{tr('صورت‌حساب')}</Th><Th>{tr('وضعیت')}</Th><Th /></tr></thead>
             <tbody data-testid="media-orders">
               {orders.map((o) => (
                 <Tr key={o.id}>
                   <Td>{can('finance.invoice') && billable.includes(o) && (
-                    <input type="checkbox" aria-label={`انتخاب ${o.code}`} checked={selected.includes(o.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, o.id] : selected.filter((x) => x !== o.id))} />
+                    <input type="checkbox" aria-label={tr('انتخاب {0}', o.code)} checked={selected.includes(o.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, o.id] : selected.filter((x) => x !== o.id))} />
                   )}</Td>
                   <Td className="text-xs"><Code>{o.code}</Code><p className="mt-0.5 text-ink-700">{channelFa(o.channel)} — {o.placement}</p></Td>
                   <Td className="text-xs">{o.supplier.name}<p className="text-[10px] text-ink-400">{pctLabel(o)}</p></Td>
-                  <Td className="text-xs">{formatDate(o.flightStart)} تا {formatDate(o.flightEnd)}</Td>
+                  <Td className="text-xs">{tr('{0} تا {1}', formatDate(o.flightStart), formatDate(o.flightEnd))}</Td>
                   <Td className="text-xs">
                     {money(o.originalClientAmount ?? o.clientAmount, o.currency)}
-                    <p className="text-[10px] text-ink-400">عبوری {money(o.originalNetAmount ?? o.netAmount, o.currency)} · آژانس {formatCurrency(o.agencyRevenue)}</p>
+                    <p className="text-[10px] text-ink-400">{tr('عبوری {0} · آژانس {1}', money(o.originalNetAmount ?? o.netAmount, o.currency), formatCurrency(o.agencyRevenue))}</p>
                   </Td>
                   <Td className="text-xs">{o.clientInvoice ? <span className="ltr">{o.clientInvoice.number}</span> : <span className="text-ink-400">—</span>}
-                    {o.vendorInvoiceAmount != null && <p className="text-[10px] text-ink-500">رسانه: {money(o.vendorInvoiceAmount, o.currency)}</p>}
+                    {o.vendorInvoiceAmount != null && <p className="text-[10px] text-ink-500">{tr('رسانه: {0}', money(o.vendorInvoiceAmount, o.currency))}</p>}
                   </Td>
                   <Td><StateBadge state={o.state} /></Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-1">
-                      {can('finance.payment') && ['BOOKED', 'AIRED'].includes(o.state) && <Button size="sm" variant="ghost" onClick={() => setInvoicing(o)}>صورت‌حساب رسانه</Button>}
+                      {can('finance.payment') && ['BOOKED', 'AIRED'].includes(o.state) && <Button size="sm" variant="ghost" onClick={() => setInvoicing(o)}>{tr('صورت‌حساب رسانه')}</Button>}
                       <WorkflowActions entity="mediaOrder" id={o.id} transitions={o.availableTransitions} onDone={() => void refresh()} />
                     </div>
                   </Td>
@@ -106,22 +107,21 @@ function BillMedia({ projectId, orders, onClose }: { projectId: string; orders: 
     setBusy(true);
     try {
       await apiPost(`/projects/${projectId}/media-billing`, { orderIds: orders.map((o) => o.id), number: v.number.trim(), issueDate: v.issueDate, taxPercent: Number(v.taxPercent || 0) });
-      toast('صورت‌حساب رسانه صادر شد: هزینهٔ عبوری و کمیسیون در ردیف‌های جدا.');
+      toast(tr('صورت‌حساب رسانه صادر شد: هزینهٔ عبوری و کمیسیون در ردیف‌های جدا.'));
       await qc.invalidateQueries(); onClose(true);
     } catch (e: any) {
       toast([e?.message, ...((e?.body?.details?.problems as string[]) ?? [])].filter(Boolean).join(' — '), 'danger');
     } finally { setBusy(false); }
   };
   return (
-    <Modal open title="صورت‌حساب رسانه به مشتری" onClose={() => onClose(false)}
-      footer={<><Button variant="ghost" onClick={() => onClose(false)}>انصراف</Button><Button variant="primary" loading={busy} disabled={!v.number.trim()} onClick={() => void save()}>صدور</Button></>}>
+    <Modal open title={tr('صورت‌حساب رسانه به مشتری')} onClose={() => onClose(false)}
+      footer={<><Button variant="ghost" onClick={() => onClose(false)}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!v.number.trim()} onClick={() => void save()}>{tr('صدور')}</Button></>}>
       <div className="grid gap-3">
-        <p className="rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-700" data-testid="media-bill-split">
-          {toPersianDigits(orders.length)} سفارش: هزینهٔ عبوری رسانه {money(net, currency)} + {orders[0]?.pricingModel === 'MARKUP' ? 'کارمزد' : 'کمیسیون'} آژانس {money(client - net, currency)} = <strong>{money(client, currency)}</strong>
+        <p className="rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-700" data-testid="media-bill-split">{tr('{0} سفارش: هزینهٔ عبوری رسانه {1} + {2} آژانس {3} =', localDigits(orders.length), money(net, currency), orders[0]?.pricingModel === 'MARKUP' ? tr('کارمزد') : tr('کمیسیون'), money(client - net, currency))}{' '}<strong>{money(client, currency)}</strong>
         </p>
-        <Field label="شمارهٔ صورت‌حساب" required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label="شمارهٔ صورت‌حساب" /></Field>
-        <Field label="تاریخ صدور"><JalaliDateInput mode="date" value={v.issueDate} onChange={(d) => setV({ ...v, issueDate: d || v.issueDate })} /></Field>
-        <Field label="مالیات (٪)"><Input type="number" value={v.taxPercent} onChange={(e) => setV({ ...v, taxPercent: e.target.value })} className="ltr" aria-label="مالیات" /></Field>
+        <Field label={tr('شمارهٔ صورت‌حساب')} required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label={tr('شمارهٔ صورت‌حساب')} /></Field>
+        <Field label={tr('تاریخ صدور')}><JalaliDateInput mode="date" value={v.issueDate} onChange={(d) => setV({ ...v, issueDate: d || v.issueDate })} /></Field>
+        <Field label={tr('مالیات (٪)')}><Input type="number" value={v.taxPercent} onChange={(e) => setV({ ...v, taxPercent: e.target.value })} className="ltr" aria-label={tr('مالیات')} /></Field>
       </div>
     </Modal>
   );
@@ -141,39 +141,38 @@ function NewMediaOrder({ projectId, onClose }: { projectId: string; onClose: () 
     setBusy(true);
     try {
       await apiPost('/media-orders', { projectId, ...v, amount, commissionPercent: Number(v.commissionPercent) });
-      toast('سفارش رسانه ثبت شد (پیش‌نویس).'); await qc.invalidateQueries(); onClose();
-    } catch (e: any) { toast(e?.message ?? 'ثبت ناموفق بود.', 'danger'); } finally { setBusy(false); }
+      toast(tr('سفارش رسانه ثبت شد (پیش‌نویس).')); await qc.invalidateQueries(); onClose();
+    } catch (e: any) { toast(e?.message ?? tr('ثبت ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title="سفارش خرید رسانه" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} disabled={!v.supplierId || v.placement.trim().length < 3 || !(amount > 0)} onClick={() => void save()}>ثبت</Button></>}>
+    <Modal open wide title={tr('سفارش خرید رسانه')} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!v.supplierId || v.placement.trim().length < 3 || !(amount > 0)} onClick={() => void save()}>{tr('ثبت')}</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="رسانه (تأمین‌کننده)" required>
-          <Select value={v.supplierId} onChange={(e) => setV({ ...v, supplierId: e.target.value })} aria-label="رسانه">
+        <Field label={tr('رسانه (تأمین‌کننده)')} required>
+          <Select value={v.supplierId} onChange={(e) => setV({ ...v, supplierId: e.target.value })} aria-label={tr('رسانه')}>
             <option value="">—</option>
             {(suppliers?.items ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </Select>
         </Field>
-        <Field label="نوع رسانه">
-          <Select value={v.channel} onChange={(e) => setV({ ...v, channel: e.target.value })} aria-label="نوع رسانه">
+        <Field label={tr('نوع رسانه')}>
+          <Select value={v.channel} onChange={(e) => setV({ ...v, channel: e.target.value })} aria-label={tr('نوع رسانه')}>
             {MEDIA_CHANNELS.map((c) => <option key={c} value={c}>{channelFa(c)}</option>)}
           </Select>
         </Field>
-        <div className="sm:col-span-2"><Field label="جایگاه و شرح" required><Input value={v.placement} onChange={(e) => setV({ ...v, placement: e.target.value })} aria-label="جایگاه" placeholder="مثلاً: تیزر ۳۰ ثانیه، پیش از اخبار ۲۱، ۲۰ نوبت" /></Field></div>
-        <Field label="آغاز پخش"><JalaliDateInput mode="date" value={v.flightStart} onChange={(d) => setV({ ...v, flightStart: d || v.flightStart })} /></Field>
-        <Field label="پایان پخش"><JalaliDateInput mode="date" value={v.flightEnd} onChange={(d) => setV({ ...v, flightEnd: d || v.flightEnd })} /></Field>
-        <Field label="مدل قیمت" hint={v.pricingModel === 'COMMISSION' ? 'مشتری ناخالص را می‌پردازد؛ رسانه کمیسیون آژانس را کسر می‌کند' : 'رسانه خالص را می‌گیرد؛ مشتری خالص به‌علاوهٔ کارمزد آژانس را می‌پردازد'}>
-          <Select value={v.pricingModel} onChange={(e) => setV({ ...v, pricingModel: e.target.value })} aria-label="مدل قیمت">
-            <option value="COMMISSION">کمیسیون از ناخالص</option><option value="MARKUP">کارمزد روی خالص</option>
+        <div className="sm:col-span-2"><Field label={tr('جایگاه و شرح')} required><Input value={v.placement} onChange={(e) => setV({ ...v, placement: e.target.value })} aria-label={tr('جایگاه')} placeholder={tr('مثلاً: تیزر ۳۰ ثانیه، پیش از اخبار ۲۱، ۲۰ نوبت')} /></Field></div>
+        <Field label={tr('آغاز پخش')}><JalaliDateInput mode="date" value={v.flightStart} onChange={(d) => setV({ ...v, flightStart: d || v.flightStart })} /></Field>
+        <Field label={tr('پایان پخش')}><JalaliDateInput mode="date" value={v.flightEnd} onChange={(d) => setV({ ...v, flightEnd: d || v.flightEnd })} /></Field>
+        <Field label={tr('مدل قیمت')} hint={v.pricingModel === 'COMMISSION' ? tr('مشتری ناخالص را می‌پردازد؛ رسانه کمیسیون آژانس را کسر می‌کند') : tr('رسانه خالص را می‌گیرد؛ مشتری خالص به‌علاوهٔ کارمزد آژانس را می‌پردازد')}>
+          <Select value={v.pricingModel} onChange={(e) => setV({ ...v, pricingModel: e.target.value })} aria-label={tr('مدل قیمت')}>
+            <option value="COMMISSION">{tr('کمیسیون از ناخالص')}</option><option value="MARKUP">{tr('کارمزد روی خالص')}</option>
           </Select>
         </Field>
-        <Field label={v.pricingModel === 'COMMISSION' ? 'درصد کمیسیون' : 'درصد کارمزد'}><Input type="number" value={v.commissionPercent} onChange={(e) => setV({ ...v, commissionPercent: e.target.value })} className="ltr" aria-label="درصد" /></Field>
-        <Field label={v.pricingModel === 'COMMISSION' ? 'مبلغ ناخالص رسانه' : 'مبلغ خالص رسانه'} required><Input type="number" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} className="ltr" aria-label="مبلغ رسانه" /></Field>
-        <Field label="ارز"><CurrencySelect value={v.currency} onChange={(c) => setV({ ...v, currency: c })} /></Field>
+        <Field label={v.pricingModel === 'COMMISSION' ? tr('درصد کمیسیون') : tr('درصد کارمزد')}><Input type="number" value={v.commissionPercent} onChange={(e) => setV({ ...v, commissionPercent: e.target.value })} className="ltr" aria-label={tr('درصد')} /></Field>
+        <Field label={v.pricingModel === 'COMMISSION' ? tr('مبلغ ناخالص رسانه') : tr('مبلغ خالص رسانه')} required><Input type="number" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} className="ltr" aria-label={tr('مبلغ رسانه')} /></Field>
+        <Field label={tr('ارز')}><CurrencySelect value={v.currency} onChange={(c) => setV({ ...v, currency: c })} /></Field>
       </div>
       {amount > 0 && (
-        <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-700" data-testid="media-split">
-          مشتری: <strong>{money(client, v.currency)}</strong> · عبوری به رسانه: {money(net, v.currency)} · سهم آژانس: <strong>{money(client - net, v.currency)}</strong>
+        <p className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-700" data-testid="media-split">{tr('مشتری:')}{' '}<strong>{money(client, v.currency)}</strong>{' '}{tr('· عبوری به رسانه: {0} · سهم آژانس:', money(net, v.currency))}{' '}<strong>{money(client - net, v.currency)}</strong>
         </p>
       )}
       <div className="mt-2"><FxPreview currency={v.currency} amount={client} on={null} /></div>
@@ -193,21 +192,21 @@ function VendorInvoice({ order, onClose }: { order: MediaOrder; onClose: () => v
     setBusy(true);
     try {
       await apiPost(`/media-orders/${order.id}/vendor-invoice`, { ...v, amount: Number(v.amount), discrepancyNote: v.discrepancyNote || undefined });
-      toast('صورت‌حساب رسانه ثبت شد.'); await qc.invalidateQueries(); onClose();
-    } catch (e: any) { toast(e?.message ?? 'ثبت ناموفق بود.', 'danger'); } finally { setBusy(false); }
+      toast(tr('صورت‌حساب رسانه ثبت شد.')); await qc.invalidateQueries(); onClose();
+    } catch (e: any) { toast(e?.message ?? tr('ثبت ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open title={`صورت‌حساب رسانه — ${order.code}`} onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} disabled={!v.number.trim() || !(Number(v.amount) > 0)} onClick={() => void save()}>ثبت</Button></>}>
+    <Modal open title={tr('صورت‌حساب رسانه — {0}', order.code)} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!v.number.trim() || !(Number(v.amount) > 0)} onClick={() => void save()}>{tr('ثبت')}</Button></>}>
       <div className="grid gap-3">
-        <p className="text-xs text-ink-600">خالص رزروشده: <strong>{money(expected, order.currency)}</strong></p>
-        <Field label="شمارهٔ صورت‌حساب رسانه" required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label="شماره" /></Field>
-        <Field label={`مبلغ (${order.currency})`} required><Input type="number" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} className="ltr" aria-label="مبلغ صورت‌حساب" /></Field>
-        <Field label="تاریخ"><JalaliDateInput mode="date" value={v.invoiceDate} onChange={(d) => setV({ ...v, invoiceDate: d || v.invoiceDate })} /></Field>
+        <p className="text-xs text-ink-600">{tr('خالص رزروشده:')}{' '}<strong>{money(expected, order.currency)}</strong></p>
+        <Field label={tr('شمارهٔ صورت‌حساب رسانه')} required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label={tr('شماره')} /></Field>
+        <Field label={tr('مبلغ ({0})', order.currency)} required><Input type="number" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} className="ltr" aria-label={tr('مبلغ صورت‌حساب')} /></Field>
+        <Field label={tr('تاریخ')}><JalaliDateInput mode="date" value={v.invoiceDate} onChange={(d) => setV({ ...v, invoiceDate: d || v.invoiceDate })} /></Field>
         {off && (
           <>
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="media-discrepancy">اختلاف با رزرو: {money(diff, order.currency)} — برای تطبیق، دلیل آن را بنویسید.</p>
-            <Field label="دلیل اختلاف"><Input value={v.discrepancyNote} onChange={(e) => setV({ ...v, discrepancyNote: e.target.value })} aria-label="دلیل اختلاف" /></Field>
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="media-discrepancy">{tr('اختلاف با رزرو: {0} — برای تطبیق، دلیل آن را بنویسید.', money(diff, order.currency))}</p>
+            <Field label={tr('دلیل اختلاف')}><Input value={v.discrepancyNote} onChange={(e) => setV({ ...v, discrepancyNote: e.target.value })} aria-label={tr('دلیل اختلاف')} /></Field>
           </>
         )}
       </div>
@@ -220,11 +219,11 @@ function VendorInvoice({ order, onClose }: { order: MediaOrder; onClose: () => v
 export function MediaReport() {
   const { data } = useQuery<any>({ queryKey: ['/reports/media'], queryFn: () => apiGet('/reports/media') });
   if (!data) return null;
-  if (!data.totals.orders) return <Card title="رسانه"><EmptyState title="سفارش رسانه‌ای ثبت نشده" /></Card>;
+  if (!data.totals.orders) return <Card title={tr('رسانه')}><EmptyState title={tr('سفارش رسانه‌ای ثبت نشده')} /></Card>;
   const exc = data.exceptions;
   const Exception = ({ title, rows, hint }: { title: string; rows: any[]; hint: string }) => (
-    <Card title={`${title} (${toPersianDigits(rows.length)})`} subtitle={hint}>
-      {!rows.length ? <p className="px-4 py-3 text-xs text-emerald-700">موردی نیست.</p> : (
+    <Card title={`${title} (${localDigits(rows.length)})`} subtitle={hint}>
+      {!rows.length ? <p className="px-4 py-3 text-xs text-emerald-700">{tr('موردی نیست.')}</p> : (
         <ul className="divide-y divide-ink-100 text-xs">
           {rows.map((o) => <li key={o.id} className="px-4 py-2"><Code>{o.code}</Code> {o.placement} — {o.supplier.name} — {o.project.name} — {money(o.clientAmount)}{o.discrepancyNote ? <span className="text-ink-500"> — {o.discrepancyNote}</span> : null}</li>)}
         </ul>
@@ -234,19 +233,19 @@ export function MediaReport() {
   return (
     <div className="space-y-5" data-testid="media-report">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="صورت‌حساب رسانه به مشتریان" value={formatCurrency(data.totals.billings)} />
-        <StatTile label="عبوری به رسانه‌ها" value={formatCurrency(data.totals.passThrough)} hint="درآمد آژانس نیست" />
-        <StatTile label="درآمد آژانس از رسانه" value={formatCurrency(data.totals.revenue)} tone="success" />
-        <StatTile label="نرخ مؤثر" value={data.totals.effectivePercent == null ? '—' : `${toPersianDigits(data.totals.effectivePercent)}٪`} />
+        <StatTile label={tr('صورت‌حساب رسانه به مشتریان')} value={formatCurrency(data.totals.billings)} />
+        <StatTile label={tr('عبوری به رسانه‌ها')} value={formatCurrency(data.totals.passThrough)} hint={tr('درآمد آژانس نیست')} />
+        <StatTile label={tr('درآمد آژانس از رسانه')} value={formatCurrency(data.totals.revenue)} tone="success" />
+        <StatTile label={tr('نرخ مؤثر')} value={data.totals.effectivePercent == null ? '—' : tr('{0}٪', localDigits(data.totals.effectivePercent))} />
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
-        {[['به تفکیک نوع رسانه', data.byChannel], ['به تفکیک رسانه', data.byVendor]].map(([title, rows]) => (
+        {[[tr('به تفکیک نوع رسانه'), data.byChannel], [tr('به تفکیک رسانه'), data.byVendor]].map(([title, rows]) => (
           <Card key={title as string} title={title as string}>
             <Table>
-              <thead className="bg-ink-50/60"><tr><Th /><Th>صورت‌حساب</Th><Th>عبوری</Th><Th>آژانس</Th><Th>٪</Th></tr></thead>
+              <thead className="bg-ink-50/60"><tr><Th /><Th>{tr('صورت‌حساب')}</Th><Th>{tr('عبوری')}</Th><Th>{tr('آژانس')}</Th><Th>{tr('٪')}</Th></tr></thead>
               <tbody>
                 {(rows as any[]).map((r) => (
-                  <Tr key={r.key}><Td className="text-xs">{r.labelFa}</Td><Td className="text-xs">{formatCurrency(r.billings)}</Td><Td className="text-xs">{formatCurrency(r.passThrough)}</Td><Td className="text-xs">{formatCurrency(r.revenue)}</Td><Td className="text-xs">{r.effectivePercent == null ? '—' : toPersianDigits(r.effectivePercent)}</Td></Tr>
+                  <Tr key={r.key}><Td className="text-xs">{loc(r, 'label')}</Td><Td className="text-xs">{formatCurrency(r.billings)}</Td><Td className="text-xs">{formatCurrency(r.passThrough)}</Td><Td className="text-xs">{formatCurrency(r.revenue)}</Td><Td className="text-xs">{r.effectivePercent == null ? '—' : localDigits(r.effectivePercent)}</Td></Tr>
                 ))}
               </tbody>
             </Table>
@@ -254,12 +253,12 @@ export function MediaReport() {
         ))}
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
-        <Exception title="پخش‌شده، صورت‌حساب‌نشده" rows={exc.unbilled} hint="آژانس رسانهٔ مشتری را از جیب خود تأمین می‌کند" />
-        <Exception title="پایان پخش، بی‌گواهی" rows={exc.unproven} hint="دورهٔ پخش تمام شده و گواهی پخش ثبت نشده" />
-        <Exception title="در انتظار صورت‌حساب رسانه" rows={exc.awaitingVendorInvoice} hint="بدهی‌ای که هنوز کسی ندیده" />
-        <Exception title="اختلاف با صورت‌حساب رسانه" rows={exc.discrepancies} hint="رسانه چیزی جز رزرو صورت‌حساب کرده است" />
+        <Exception title={tr('پخش‌شده، صورت‌حساب‌نشده')} rows={exc.unbilled} hint={tr('آژانس رسانهٔ مشتری را از جیب خود تأمین می‌کند')} />
+        <Exception title={tr('پایان پخش، بی‌گواهی')} rows={exc.unproven} hint={tr('دورهٔ پخش تمام شده و گواهی پخش ثبت نشده')} />
+        <Exception title={tr('در انتظار صورت‌حساب رسانه')} rows={exc.awaitingVendorInvoice} hint={tr('بدهی‌ای که هنوز کسی ندیده')} />
+        <Exception title={tr('اختلاف با صورت‌حساب رسانه')} rows={exc.discrepancies} hint={tr('رسانه چیزی جز رزرو صورت‌حساب کرده است')} />
       </div>
-      <p className="text-[11px] text-ink-400"><Badge tone="neutral">{toPersianDigits(data.totals.orders)} سفارش</Badge> — عبوری در درآمد و حاشیهٔ پروژه‌ها شمرده نمی‌شود؛ کمیسیون هنگام پخش شناسایی می‌شود.</p>
+      <p className="text-[11px] text-ink-400"><Badge tone="neutral">{tr('{0} سفارش', localDigits(data.totals.orders))}</Badge>{' '}{tr('— عبوری در درآمد و حاشیهٔ پروژه‌ها شمرده نمی‌شود؛ کمیسیون هنگام پخش شناسایی می‌شود.')}</p>
     </div>
   );
 }

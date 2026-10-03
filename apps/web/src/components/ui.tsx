@@ -2,8 +2,9 @@ import { forwardRef } from 'react';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
-import { toPersianDigits } from '../lib/format';
+import { localDigits } from '../lib/format';
 import { STATE_LABELS } from '@hiva/contracts';
+import { pair, tr } from '../i18n';
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ');
 
@@ -41,7 +42,7 @@ export function StateBadge({ state, className }: { state: string; className?: st
         className,
       )}
     >
-      {meta.fa}
+      {pair(meta)}
     </span>
   );
 }
@@ -154,14 +155,14 @@ export function EmptyState({ title, description, action, icon }: {
 
 export function Spinner({ className }: { className?: string }) {
   return (
-    <svg className={cx('animate-spin text-brand-600', className ?? 'size-5')} viewBox="0 0 24 24" fill="none" aria-label="در حال بارگذاری">
+    <svg className={cx('animate-spin text-brand-600', className ?? 'size-5')} viewBox="0 0 24 24" fill="none" aria-label={tr('در حال بارگذاری')}>
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
       <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function LoadingBlock({ label = 'در حال بارگذاری…' }: { label?: string }) {
+export function LoadingBlock({ label = tr('در حال بارگذاری…') }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-2 py-12 text-sm text-ink-500">
       <Spinner className="size-4" /> {label}
@@ -177,10 +178,9 @@ export function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () =>
       <div className="flex items-start gap-2">
         <IconAlert className="mt-0.5 size-4 shrink-0 text-rose-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-rose-800">{err?.message ?? 'خطایی رخ داد.'}</p>
+          <p className="text-sm font-medium text-rose-800">{err?.message ?? tr('خطایی رخ داد.')}</p>
           {err?.rule && (
-            <p className="mt-1 text-xs text-rose-700">
-              قانون حاکم: <span className="font-medium">{err.rule}</span>
+            <p className="mt-1 text-xs text-rose-700">{tr('قانون حاکم:')}{' '}<span className="font-medium">{err.rule}</span>
             </p>
           )}
           {err?.issues && err.issues.length > 0 && (
@@ -191,9 +191,7 @@ export function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () =>
             </ul>
           )}
           {onRetry && (
-            <Button size="sm" variant="secondary" className="mt-3" onClick={onRetry}>
-              تلاش دوباره
-            </Button>
+            <Button size="sm" variant="secondary" className="mt-3" onClick={onRetry}>{tr('تلاش دوباره')}</Button>
           )}
         </div>
       </div>
@@ -321,16 +319,10 @@ export function Pagination({ page, pageCount, total, onChange }: {
   if (pageCount <= 1) return null;
   return (
     <div className="flex items-center justify-between border-t border-ink-100 px-4 py-2.5 text-xs text-ink-500">
-      <span className="nums">
-        {toPersianDigits(total)} رکورد — صفحه {toPersianDigits(page)} از {toPersianDigits(pageCount)}
-      </span>
+      <span className="nums">{tr('{0} رکورد — صفحه {1} از {2}', localDigits(total), localDigits(page), localDigits(pageCount))}</span>
       <div className="flex gap-1.5">
-        <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-          قبلی
-        </Button>
-        <Button size="sm" variant="secondary" disabled={page >= pageCount} onClick={() => onChange(page + 1)}>
-          بعدی
-        </Button>
+        <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onChange(page - 1)}>{tr('قبلی')}</Button>
+        <Button size="sm" variant="secondary" disabled={page >= pageCount} onClick={() => onChange(page + 1)}>{tr('بعدی')}</Button>
       </div>
     </div>
   );
@@ -367,7 +359,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
       >
         <header className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-ink-800">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-600" aria-label="بستن">
+          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-600" aria-label={tr('بستن')}>
             <IconClose className="size-4" />
           </button>
         </header>
@@ -406,7 +398,7 @@ export function Tabs({ tabs, active, onChange }: {
           {t.label}
           {t.count !== undefined && t.count > 0 && (
             <span className="ms-1.5 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] nums text-ink-600">
-              {toPersianDigits(t.count)}
+              {localDigits(t.count)}
             </span>
           )}
           {active === t.key && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded bg-brand-600" />}

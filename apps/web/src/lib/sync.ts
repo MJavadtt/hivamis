@@ -12,6 +12,7 @@
  */
 import { api, ApiError } from './api';
 import { listOutbox, updateItem, type OutboxItem } from './outbox';
+import { tr } from '../i18n';
 
 export interface SyncResult {
   sent: number;
@@ -40,7 +41,7 @@ export async function syncOutbox(): Promise<SyncResult> {
       } catch (e) {
         // A 4xx is an answer — the form was read and refused. A 5xx or a network failure is not.
         if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-          const issues = e.issues.map((i) => i.message).join('؛ ');
+          const issues = e.issues.map((i) => i.message).join(tr('؛ '));
           await updateItem(item.id, { state: 'REJECTED', errorFa: issues ? `${e.message} — ${issues}` : e.message, errorCode: e.body.code });
           result.rejected++;
         } else {

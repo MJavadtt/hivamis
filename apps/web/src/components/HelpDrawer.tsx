@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import {
-  HELP_SECTIONS, SECTION_TITLE_FA, findSection, sectionForRoles, type HelpSection,
+  HELP_SECTIONS, findSection, sectionForRoles, sectionTitle, type HelpSection,
 } from '../lib/help';
 import { cx } from './ui';
+import { tr } from '../i18n';
 
 /**
  * The written guide, surfaced where people are rather than in a file nobody opens.
@@ -47,14 +48,14 @@ export function HelpDrawer({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="راهنمای کاربری"
+        aria-label={tr('راهنمای کاربری')}
         className="animate-in relative flex h-full w-full max-w-xl flex-col bg-surface shadow-2xl"
       >
         <header className="flex shrink-0 items-center justify-between border-b border-ink-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-ink-800">راهنمای کاربری</h2>
+          <h2 className="text-sm font-semibold text-ink-800">{tr('راهنمای کاربری')}</h2>
           <button
             onClick={onClose}
-            aria-label="بستن راهنما"
+            aria-label={tr('بستن راهنما')}
             className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-600
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
           >
@@ -62,7 +63,7 @@ export function HelpDrawer({
           </button>
         </header>
 
-        <nav aria-label="بخش‌های راهنما" className="shrink-0 border-b border-ink-100 px-3 py-2">
+        <nav aria-label={tr('بخش‌های راهنما')} className="shrink-0 border-b border-ink-100 px-3 py-2">
           <ul className="flex flex-wrap gap-1">
             {HELP_SECTIONS.map((s) => (
               <li key={s.title}>
@@ -76,7 +77,7 @@ export function HelpDrawer({
                       : 'text-ink-600 hover:bg-ink-100',
                   )}
                 >
-                  {SECTION_TITLE_FA[s.title] ?? s.title}
+                  {sectionTitle(s.title)}
                 </button>
               </li>
             ))}
@@ -87,7 +88,7 @@ export function HelpDrawer({
           {active && (
             <>
               <h3 className="mb-3 text-sm font-semibold text-ink-800">
-                {SECTION_TITLE_FA[active.title] ?? active.title}
+                {sectionTitle(active.title)}
               </h3>
               <Markdown source={active.body} />
             </>

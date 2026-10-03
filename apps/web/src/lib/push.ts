@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPost, api } from './api';
+import { tr } from '../i18n';
 
 /**
  * Web Push on this browser (roadmap #49). The service worker receives the notice and shows it; the
@@ -69,12 +70,12 @@ export function pushErrorFa(e: unknown): string {
   const name = (e as { name?: string })?.name ?? '';
   const message = (e as { message?: string })?.message ?? '';
   if (name === 'NotAllowedError' || (typeof Notification !== 'undefined' && Notification.permission === 'denied')) {
-    return 'اجازهٔ اعلان داده نشد. اگر پیش‌تر «مسدود» زده‌اید، از تنظیمات سایت در مرورگر باز کنید.';
+    return tr('اجازهٔ اعلان داده نشد. اگر پیش‌تر «مسدود» زده‌اید، از تنظیمات سایت در مرورگر باز کنید.');
   }
   if (name === 'AbortError' || /push service/i.test(message)) {
-    return 'این مرورگر به سرویس اعلان خود دسترسی ندارد؛ برخی مرورگرها و شبکه‌ها Web Push را نمی‌رسانند. پیام‌رسان (بخش اتصال پیام‌رسان) راه دیگر است.';
+    return tr('این مرورگر به سرویس اعلان خود دسترسی ندارد؛ برخی مرورگرها و شبکه‌ها Web Push را نمی‌رسانند. پیام‌رسان (بخش اتصال پیام‌رسان) راه دیگر است.');
   }
-  return message || 'روشن کردن اعلان ممکن نشد.';
+  return message || tr('روشن کردن اعلان ممکن نشد.');
 }
 
 /** Ask, subscribe, and tell the server where this browser is. */

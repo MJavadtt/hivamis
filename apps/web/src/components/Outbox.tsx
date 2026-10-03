@@ -4,13 +4,14 @@ import { clearSent, listOutbox, pendingCount, removeItem, OUTBOX_EVENT } from '.
 import { requeue, syncOutbox, watchConnectivity } from '../lib/sync';
 import { Badge, Button, Card, EmptyState, Table, Td, Th, Tr, useToast } from './ui';
 import { Code } from './common';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { loc, pair, tr } from '../i18n';
 
 const STATE_FA: Record<string, { fa: string; tone: 'neutral' | 'info' | 'warning' | 'danger' | 'success' }> = {
-  QUEUED: { fa: 'در صف ارسال', tone: 'warning' },
-  SENDING: { fa: 'در حال ارسال', tone: 'info' },
-  REJECTED: { fa: 'رد شد', tone: 'danger' },
-  SENT: { fa: 'ارسال شد', tone: 'success' },
+  QUEUED: { fa: tr('در صف ارسال'), tone: 'warning' },
+  SENDING: { fa: tr('در حال ارسال'), tone: 'info' },
+  REJECTED: { fa: tr('رد شد'), tone: 'danger' },
+  SENT: { fa: tr('ارسال شد'), tone: 'success' },
 };
 
 /**
@@ -55,8 +56,8 @@ export function Outbox() {
       await qc.invalidateQueries({ queryKey: ['/forms/submissions'] });
       toast(
         result.sent || result.rejected
-          ? `${toPersianDigits(result.sent)} فرم ارسال شد${result.rejected ? ` و ${toPersianDigits(result.rejected)} فرم رد شد` : ''}.`
-          : 'چیزی برای ارسال نبود یا هنوز ارتباط برقرار نیست.',
+          ? tr('{0} فرم ارسال شد{1}.', localDigits(result.sent), result.rejected ? tr(' و {0} فرم رد شد', localDigits(result.rejected)) : '')
+          : tr('چیزی برای ارسال نبود یا هنوز ارتباط برقرار نیست.'),
         result.rejected ? 'warning' : 'success',
       );
     } finally { setBusy(false); }
@@ -67,46 +68,44 @@ export function Outbox() {
 
   return (
     <Card
-      title="صف ارسال فرم‌ها"
-      subtitle="فرم‌هایی که بدون اینترنت پر شده‌اند — با بازگشت شبکه خودشان ارسال می‌شوند"
+      title={tr('صف ارسال فرم‌ها')}
+      subtitle={tr('فرم‌هایی که بدون اینترنت پر شده‌اند — با بازگشت شبکه خودشان ارسال می‌شوند')}
       action={
         <div className="flex items-center gap-2">
-          <Badge tone={online ? 'success' : 'warning'}>{online ? 'آنلاین' : 'آفلاین'}</Badge>
-          <Button size="sm" variant="secondary" loading={busy} disabled={!waiting} onClick={() => void send()}>ارسال همین حالا</Button>
+          <Badge tone={online ? 'success' : 'warning'}>{online ? tr('آنلاین') : tr('آفلاین')}</Badge>
+          <Button size="sm" variant="secondary" loading={busy} disabled={!waiting} onClick={() => void send()}>{tr('ارسال همین حالا')}</Button>
           {items.some((i) => i.state === 'SENT') && (
-            <Button size="sm" variant="ghost" onClick={() => void clearSent().then(() => refresh())}>پاک‌کردن ارسال‌شده‌ها</Button>
+            <Button size="sm" variant="ghost" onClick={() => void clearSent().then(() => refresh())}>{tr('پاک‌کردن ارسال‌شده‌ها')}</Button>
           )}
         </div>
       }
     >
-      {!items.length ? <EmptyState title="صف خالی است" /> : (
+      {!items.length ? <EmptyState title={tr('صف خالی است')} /> : (
         <Table>
           <thead className="bg-ink-50/60">
-            <tr><Th>فرم</Th><Th>زمان پر شدن</Th><Th>وضعیت</Th><Th>تلاش</Th><Th>پیام سامانه</Th><Th> </Th></tr>
+            <tr><Th>{tr('فرم')}</Th><Th>{tr('زمان پر شدن')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('تلاش')}</Th><Th>{tr('پیام سامانه')}</Th><Th> </Th></tr>
           </thead>
           <tbody data-testid="outbox-items">
             {items.map((i) => (
               <Tr key={i.id}>
                 <Td className="text-sm">
-                  {i.formNameFa}
-                  <span className="block text-[11px] text-ink-400"><Code>{i.formCode}</Code>{i.asDraft ? ' — پیش‌نویس' : ''}</span>
+                  {loc(i, 'formName')}
+                  <span className="block text-[11px] text-ink-400"><Code>{i.formCode}</Code>{i.asDraft ? tr(' — پیش‌نویس') : ''}</span>
                 </Td>
                 <Td className="text-xs">{formatDateTime(new Date(i.createdAt).toISOString())}</Td>
-                <Td><Badge tone={STATE_FA[i.state]!.tone}>{STATE_FA[i.state]!.fa}</Badge></Td>
-                <Td className="nums text-xs">{toPersianDigits(i.attempts)}</Td>
+                <Td><Badge tone={STATE_FA[i.state]!.tone}>{pair(STATE_FA[i.state]!)}</Badge></Td>
+                <Td className="nums text-xs">{localDigits(i.attempts)}</Td>
                 <Td className="max-w-xs text-[11px] text-ink-600">
-                  {i.state === 'SENT' && i.submissionCode ? <span className="text-emerald-700">ثبت شد: {i.submissionCode}</span> : i.errorFa ?? '—'}
+                  {i.state === 'SENT' && i.submissionCode ? <span className="text-emerald-700">{tr('ثبت شد: {0}', i.submissionCode)}</span> : i.errorFa ?? '—'}
                 </Td>
                 <Td>
                   <div className="flex gap-1">
                     {i.state === 'REJECTED' && (
-                      <Button size="sm" variant="ghost" onClick={() => void requeue(i).then(() => refresh())}>تلاش دوباره</Button>
+                      <Button size="sm" variant="ghost" onClick={() => void requeue(i).then(() => refresh())}>{tr('تلاش دوباره')}</Button>
                     )}
                     {i.state !== 'SENDING' && (
                       <Button size="sm" variant="ghost"
-                        onClick={() => { if (confirm(`فرم «${i.formNameFa}» از صف حذف شود؟ داده‌های آن از دست می‌رود.`)) void removeItem(i.id).then(() => refresh()); }}>
-                        حذف
-                      </Button>
+                        onClick={() => { if (confirm(tr('فرم «{0}» از صف حذف شود؟ داده‌های آن از دست می‌رود.', i.formNameFa))) void removeItem(i.id).then(() => refresh()); }}>{tr('حذف')}</Button>
                     )}
                   </div>
                 </Td>
@@ -130,5 +129,5 @@ export function OutboxBadge() {
   }, [qc]);
   const waiting = pendingCount(data ?? []);
   if (!waiting) return null;
-  return <Badge tone="warning">{toPersianDigits(waiting)} فرم در صف ارسال</Badge>;
+  return <Badge tone="warning">{tr('{0} فرم در صف ارسال', localDigits(waiting))}</Badge>;
 }

@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Badge, Button, Card, EmptyState, Input, LoadingBlock, ProgressBar, StatTile, cx } from '../components/ui';
-import { formatDateTime, toPersianDigits } from '../lib/format';
+import { formatDateTime, localDigits } from '../lib/format';
+import { loc, tr } from '../i18n';
 
 interface Hit {
   entityType: string; entityId: string; titleFa: string; kindFa: string; projectId: string | null;
@@ -21,9 +22,9 @@ interface Status {
 }
 
 const EXAMPLES = [
-  'برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟',
-  'کجا تدوین ویدئو باعث تأخیر شد؟',
-  'بازخورد مشتری‌ها دربارهٔ کیفیت گرافیک',
+  tr('برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟'),
+  tr('کجا تدوین ویدئو باعث تأخیر شد؟'),
+  tr('بازخورد مشتری‌ها دربارهٔ کیفیت گرافیک'),
 ];
 
 /**
@@ -51,28 +52,28 @@ export default function Memory() {
   return (
     <>
       <PageHeader
-        title="حافظهٔ سازمان"
-        subtitle="جستجو در بریف‌ها، پروپوزال‌ها، صورتجلسه‌ها، درس‌های آموخته و بازخورد مشتری — بر پایهٔ معنا، نه فقط کلمه"
+        title={tr('حافظهٔ سازمان')}
+        subtitle={tr('جستجو در بریف‌ها، پروپوزال‌ها، صورتجلسه‌ها، درس‌های آموخته و بازخورد مشتری — بر پایهٔ معنا، نه فقط کلمه')}
       />
       <PageBody className="space-y-5">
-        <Card title="چه چیزی را به یاد بیاوریم؟">
+        <Card title={tr('چه چیزی را به یاد بیاوریم؟')}>
           <form
             className="flex flex-wrap items-end gap-2 px-4 py-3"
             onSubmit={(e) => { e.preventDefault(); setQuery(draft); }}
           >
             <label className="min-w-64 flex-1 text-xs text-ink-600">
-              <span className="mb-1 block">پرسش</span>
-              <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="مثلاً: برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟" aria-label="پرسش" />
+              <span className="mb-1 block">{tr('پرسش')}</span>
+              <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={tr('مثلاً: برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟')} aria-label={tr('پرسش')} />
             </label>
-            <Button type="submit" variant="primary" loading={isFetching} disabled={draft.trim().length < 2}>جستجو</Button>
+            <Button type="submit" variant="primary" loading={isFetching} disabled={draft.trim().length < 2}>{tr('جستجو')}</Button>
           </form>
           <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3">
             {(data?.kinds ?? status?.byKind ?? []).map((k) => (
               <Button key={k.key} size="sm" variant={kinds.includes(k.key) ? 'primary' : 'secondary'} onClick={() => toggle(k.key)}>
-                {k.labelFa}
+                {loc(k, 'label')}
               </Button>
             ))}
-            {kinds.length > 0 && <Button size="sm" variant="ghost" onClick={() => setKinds([])}>همه</Button>}
+            {kinds.length > 0 && <Button size="sm" variant="ghost" onClick={() => setKinds([])}>{tr('همه')}</Button>}
           </div>
           {!query && (
             <div className="flex flex-wrap gap-1.5 px-4 pb-4">
@@ -88,12 +89,12 @@ export default function Memory() {
 
         {status && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="سند در حافظه" value={toPersianDigits(status.total)} />
-            <StatTile label="سرویس embedding" value={status.serviceConfigured ? 'پیکربندی‌شده' : 'محلی'}
+            <StatTile label={tr('سند در حافظه')} value={localDigits(status.total)} />
+            <StatTile label={tr('سرویس embedding')} value={status.serviceConfigured ? tr('پیکربندی‌شده') : tr('محلی')}
               tone={status.serviceConfigured ? 'success' : 'warning'}
-              hint={status.serviceConfigured ? 'بردارها از سرویس می‌آیند' : `${status.localModel} — واژه‌محور`} />
-            <StatTile label="درس‌های آموخته" value={toPersianDigits(status.byKind.find((k) => k.key === 'lessonLearned')?.count ?? 0)} />
-            <StatTile label="آخرین نمایه‌سازی"
+              hint={status.serviceConfigured ? tr('بردارها از سرویس می‌آیند') : tr('{0} — واژه‌محور', status.localModel)} />
+            <StatTile label={tr('درس‌های آموخته')} value={localDigits(status.byKind.find((k) => k.key === 'lessonLearned')?.count ?? 0)} />
+            <StatTile label={tr('آخرین نمایه‌سازی')}
               value={status.byKind.map((k) => k.lastIndexedAt).filter(Boolean).sort().at(-1)
                 ? formatDateTime(status.byKind.map((k) => k.lastIndexedAt).filter(Boolean).sort().at(-1)!)
                 : '—'} />
@@ -102,27 +103,25 @@ export default function Memory() {
 
         {query && (isFetching && !data ? <LoadingBlock /> : (
           <Card
-            title={`نتایج برای «${query}»`}
-            subtitle={data ? `${toPersianDigits(data.hits.length)} یافته از ${toPersianDigits(data.candidates)} سند بررسی‌شده — ${data.basisFa}` : undefined}
+            title={tr('نتایج برای «{0}»', query)}
+            subtitle={data ? tr('{0} یافته از {1} سند بررسی‌شده — {2}', localDigits(data.hits.length), localDigits(data.candidates), data.basisFa) : undefined}
           >
             {!data?.hits.length ? (
-              <EmptyState title="چیزی پیدا نشد" description="شاید هنوز چنین چیزی ثبت نشده، یا با واژه‌های دیگری ثبت شده است." />
+              <EmptyState title={tr('چیزی پیدا نشد')} description={tr('شاید هنوز چنین چیزی ثبت نشده، یا با واژه‌های دیگری ثبت شده است.')} />
             ) : (
               <ul className="divide-y divide-ink-100" data-testid="memory-hits">
                 {data.hits.map((h) => (
                   <li key={`${h.entityType}:${h.entityId}`} className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone="neutral">{h.kindFa}</Badge>
-                      <Link to={h.href} className="text-sm font-medium text-brand-700 hover:underline">{h.titleFa}</Link>
+                      <Badge tone="neutral">{loc(h, 'kind')}</Badge>
+                      <Link to={h.href} className="text-sm font-medium text-brand-700 hover:underline">{loc(h, 'title')}</Link>
                       <span className="ms-auto flex items-center gap-2">
                         <span className="w-20"><ProgressBar value={h.score * 100} tone={h.score > 0.5 ? 'success' : h.score > 0.25 ? 'info' : 'neutral'} /></span>
-                        <span className="nums text-[11px] text-ink-500">{toPersianDigits(Math.round(h.score * 100))}٪</span>
+                        <span className="nums text-[11px] text-ink-500">{tr('{0}٪', localDigits(Math.round(h.score * 100)))}</span>
                       </span>
                     </div>
-                    <p className={cx('mt-1 text-xs leading-6 text-ink-600')}>{h.snippetFa}</p>
-                    <p className="mt-1 text-[11px] text-ink-400">
-                      شباهت معنایی {toPersianDigits(Math.round(h.semantic * 100))}٪ · شباهت متنی {toPersianDigits(Math.round(h.lexical * 100))}٪ · بردار: {h.model}
-                    </p>
+                    <p className={cx('mt-1 text-xs leading-6 text-ink-600')}>{loc(h, 'snippet')}</p>
+                    <p className="mt-1 text-[11px] text-ink-400">{tr('شباهت معنایی {0}٪ · شباهت متنی {1}٪ · بردار: {2}', localDigits(Math.round(h.semantic * 100)), localDigits(Math.round(h.lexical * 100)), h.model)}</p>
                   </li>
                 ))}
               </ul>

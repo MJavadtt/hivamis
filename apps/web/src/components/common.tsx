@@ -9,8 +9,9 @@ import {
   Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Modal, Pagination, Select,
   StateBadge, Table, Td, Textarea, Th, Tr, useToast, cx, Field, IconSearch, IconRefresh,
 } from './ui';
-import { formatRelative, toPersianDigits } from '../lib/format';
+import { formatRelative, localDigits } from '../lib/format';
 import { AssigneePicker } from './AssigneePicker';
+import { flow, loc, tr, trx } from '../i18n';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
 
@@ -62,8 +63,8 @@ export function WorkflowActions({
       );
       // Name the state it landed in, not just the action taken — the engine returns it.
       toast(result?.toState
-        ? `«${t.labelFa}» انجام شد — وضعیت: ${stateLabelFa(result.toState)}`
-        : `«${t.labelFa}» انجام شد.`);
+        ? tr('«{0}» انجام شد — وضعیت: {1}', t.labelFa, stateLabelFa(result.toState))
+        : tr('«{0}» انجام شد.', t.labelFa));
       setPending(null);
       setReason('');
       setExtra('');
@@ -71,7 +72,7 @@ export function WorkflowActions({
       onDone?.();
     } catch (e: any) {
       // A governance rejection names the Doc_H clause; show it rather than a generic failure.
-      toast(e?.rule ? `${e.message} (${e.rule})` : (e?.message ?? 'عملیات ناموفق بود.'), 'danger');
+      toast(e?.rule ? `${e.message} (${e.rule})` : (e?.message ?? tr('عملیات ناموفق بود.')), 'danger');
     } finally {
       setBusy(false);
     }
@@ -92,12 +93,12 @@ export function WorkflowActions({
               // Still clickable: the engine is the authority, and its 422 names the clause.
               // The marker just says the answer is already known.
               className={failing.length ? 'opacity-70' : undefined}
-              title={failing.length ? failing.map((c) => c.messageFa ?? c.labelFa).join('\n') : undefined}
+              title={failing.length ? failing.map((c) => trx(c.messageFa ?? c.labelFa)).join('\n') : undefined}
             >
-              {t.labelFa}
+              {loc(t, 'label')}
               {failing.length > 0 && (
-                <span className="ms-1.5 rounded-full bg-rose-100 px-1.5 text-[10px] font-semibold text-rose-700" aria-label={`${toPersianDigits(failing.length)} پیش‌نیاز برقرار نیست`}>
-                  {toPersianDigits(failing.length)}
+                <span className="ms-1.5 rounded-full bg-rose-100 px-1.5 text-[10px] font-semibold text-rose-700" aria-label={tr('{0} پیش‌نیاز برقرار نیست', localDigits(failing.length))}>
+                  {localDigits(failing.length)}
                 </span>
               )}
             </Button>
@@ -109,21 +110,19 @@ export function WorkflowActions({
         <div className="mt-2 space-y-2" data-testid="preflight">
           {blocked.map((t) => (
             <div key={t.action} className="rounded-lg bg-ink-50/60 px-3 py-2 text-xs">
-              <p className="mb-1 font-medium text-ink-700">پیش‌نیازهای «{t.labelFa}»</p>
+              <p className="mb-1 font-medium text-ink-700">{tr('پیش‌نیازهای «{0}»', t.labelFa)}</p>
               <ul className="space-y-0.5">
                 {[...checksFor(t.action)].sort((a, b) => Number(a.ok) - Number(b.ok)).map((c) => (
                   <li key={c.guard} className={cx('flex gap-1.5', c.ok ? 'text-emerald-700' : 'text-rose-700')}>
                     <span aria-hidden className="shrink-0">{c.ok ? '✓' : '✗'}</span>
                     <span className="min-w-0 flex-1">
-                      {c.labelFa}
-                      {!c.ok && c.messageFa && <span className="text-ink-500"> — {c.messageFa}</span>}
-                      {c.waived && <span className="text-amber-700"> — استثنا: {c.waived.reason}</span>}
+                      {loc(c, 'label')}
+                      {!c.ok && c.messageFa && <span className="text-ink-500"> — {loc(c, 'message')}</span>}
+                      {c.waived && <span className="text-amber-700">{' '}{tr('— استثنا: {0}', c.waived.reason)}</span>}
                     </span>
                     {!c.ok && can('governance.waive') && (
                       <button type="button" className="shrink-0 text-[11px] text-brand-700 underline"
-                        onClick={() => { setWaiving({ action: t.action, guard: c.guard, labelFa: c.labelFa }); setWaiverReason(''); }}>
-                        صدور استثنا
-                      </button>
+                        onClick={() => { setWaiving({ action: t.action, guard: c.guard, labelFa: c.labelFa }); setWaiverReason(''); }}>{tr('صدور استثنا')}</button>
                     )}
                   </li>
                 ))}
@@ -136,31 +135,29 @@ export function WorkflowActions({
       <Modal
         open={!!pending}
         onClose={() => { setPending(null); setReason(''); }}
-        title={pending?.labelFa ?? ''}
+        title={trx(pending?.labelFa ?? '')}
         footer={
           <>
-            <Button variant="ghost" onClick={() => { setPending(null); setReason(''); }}>انصراف</Button>
+            <Button variant="ghost" onClick={() => { setPending(null); setReason(''); }}>{tr('انصراف')}</Button>
             <Button
               variant={destructive(pending?.action ?? '') ? 'danger' : 'primary'}
               loading={busy}
               disabled={(!!pending?.requiresReason && reason.trim().length < 3) || (!!prompt?.required && extra.trim() === '')}
               onClick={() => pending && void run(pending, pending.requiresReason ? reason.trim() : undefined)}
-            >
-              ثبت و ادامه
-            </Button>
+            >{tr('ثبت و ادامه')}</Button>
           </>
         }
       >
         {pending?.requiresReason && (
-          <Field label="دلیل" required hint="ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.">
+          <Field label={tr('دلیل')} required hint={tr('ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.')}>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus />
           </Field>
         )}
         {prompt && (
-          <Field label={prompt.labelFa} hint={prompt.hintFa} required={prompt.required}>
+          <Field label={loc(prompt, 'label')} hint={loc(prompt, 'hint')} required={prompt.required}>
             {prompt.kind === 'assignee'
               ? <AssigneePicker taskId={id} value={extra} onChange={setExtra} />
-              : <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={prompt.labelFa} autoFocus={!pending?.requiresReason} />}
+              : <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={loc(prompt, 'label')} autoFocus={!pending?.requiresReason} />}
           </Field>
         )}
       </Modal>
@@ -169,33 +166,29 @@ export function WorkflowActions({
       <Modal
         open={!!waiving}
         onClose={() => setWaiving(null)}
-        title={`صدور استثنا — ${waiving?.labelFa ?? ''}`}
+        title={tr('صدور استثنا — {0}', waiving?.labelFa ?? '')}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setWaiving(null)}>انصراف</Button>
+            <Button variant="ghost" onClick={() => setWaiving(null)}>{tr('انصراف')}</Button>
             <Button variant="danger" loading={busy} disabled={waiverReason.trim().length < 10}
               onClick={async () => {
                 if (!waiving) return;
                 setBusy(true);
                 try {
                   await apiPost('/waivers', { entityType: entity, entityId: id, guard: waiving.guard, action: waiving.action, reason: waiverReason.trim() });
-                  toast('استثنا ثبت شد — یک بار، تا هفت روز، به نام شما.');
+                  toast(tr('استثنا ثبت شد — یک بار، تا هفت روز، به نام شما.'));
                   setWaiving(null);
                   await qc.invalidateQueries({ queryKey: [`/workflow/${entity}/${id}/preflight`] });
                 } catch (e: any) {
-                  toast(e?.message ?? 'ثبت استثنا ناموفق بود.', 'danger');
+                  toast(e?.message ?? tr('ثبت استثنا ناموفق بود.'), 'danger');
                 } finally { setBusy(false); }
-              }}>
-              ثبت استثنا با مسئولیت من
-            </Button>
+              }}>{tr('ثبت استثنا با مسئولیت من')}</Button>
           </>
         }
       >
-        <p className="mb-3 text-xs text-ink-600">
-          این قانون برای همین رکورد و فقط برای یک بار کنار گذاشته می‌شود، تا هفت روز اعتبار دارد، و در دفتر استثناها و گزارش کیفیت داده دیده می‌شود.
-        </p>
-        <Field label="دلیل" required hint="دست‌کم ده حرف — این متن در دفتر استثناها می‌ماند.">
-          <Textarea value={waiverReason} onChange={(e) => setWaiverReason(e.target.value)} rows={3} autoFocus aria-label="دلیل استثنا" />
+        <p className="mb-3 text-xs text-ink-600">{tr('این قانون برای همین رکورد و فقط برای یک بار کنار گذاشته می‌شود، تا هفت روز اعتبار دارد، و در دفتر استثناها و گزارش کیفیت داده دیده می‌شود.')}</p>
+        <Field label={tr('دلیل')} required hint={tr('دست‌کم ده حرف — این متن در دفتر استثناها می‌ماند.')}>
+          <Textarea value={waiverReason} onChange={(e) => setWaiverReason(e.target.value)} rows={3} autoFocus aria-label={tr('دلیل استثنا')} />
         </Field>
       </Modal>
     </>
@@ -209,8 +202,8 @@ export function WorkflowActions({
  * is not optional, and asks it beside each candidate's free capacity (roadmap #12).
  */
 const PAYLOAD_PROMPTS: Record<string, { key: string; labelFa: string; hintFa: string; kind?: 'number' | 'assignee'; required?: boolean }> = {
-  'task.submit': { key: 'hours', labelFa: 'ساعت‌های صرف‌شده', hintFa: 'یک عدد کافی است — به‌عنوان ثبت زمان روی وظیفه نگه داشته می‌شود. خالی یعنی بدون ثبت.' },
-  'task.assign': { key: 'assigneeId', labelFa: 'مسئول وظیفه', hintFa: 'رتبه‌بندی بر پایهٔ ظرفیت آزاد روی تقویم خود فرد و سابقهٔ تحویل او — انتخاب پرظرفیت مجاز است، فقط با عدد جلوی چشم.', kind: 'assignee', required: true },
+  'task.submit': { key: 'hours', labelFa: tr('ساعت‌های صرف‌شده'), hintFa: tr('یک عدد کافی است — به‌عنوان ثبت زمان روی وظیفه نگه داشته می‌شود. خالی یعنی بدون ثبت.') },
+  'task.assign': { key: 'assigneeId', labelFa: tr('مسئول وظیفه'), hintFa: tr('رتبه‌بندی بر پایهٔ ظرفیت آزاد روی تقویم خود فرد و سابقهٔ تحویل او — انتخاب پرظرفیت مجاز است، فقط با عدد جلوی چشم.'), kind: 'assignee', required: true },
 };
 
 interface PreflightEntry {
@@ -277,7 +270,7 @@ export function EntityList<T extends { id: string }>({
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={searchPlaceholder ?? 'جستجو…'}
+            placeholder={searchPlaceholder ?? tr('جستجو…')}
             className="ps-9"
           />
         </form>
@@ -292,14 +285,14 @@ export function EntityList<T extends { id: string }>({
               }}
               aria-label={f.label}
             >
-              <option value="">{f.label} — همه</option>
+              <option value="">{tr('{0} — همه', f.label)}</option>
               {f.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </Select>
           </div>
         ))}
-        <Button variant="ghost" size="sm" onClick={() => void refetch()} aria-label="به‌روزرسانی">
+        <Button variant="ghost" size="sm" onClick={() => void refetch()} aria-label={tr('به‌روزرسانی')}>
           <IconRefresh className={cx('size-4', isFetching && 'animate-spin')} />
         </Button>
         {actions}
@@ -310,7 +303,7 @@ export function EntityList<T extends { id: string }>({
       ) : error ? (
         <ErrorBlock error={error} onRetry={() => void refetch()} />
       ) : !data?.items.length ? (
-        <EmptyState title={emptyTitle ?? 'رکوردی یافت نشد'} description={emptyDescription} />
+        <EmptyState title={emptyTitle ?? tr('رکوردی یافت نشد')} description={emptyDescription} />
       ) : (
         <>
           <Table>
@@ -358,7 +351,7 @@ export function HealthDot({ status }: { status: string }) {
   const map: Record<string, string> = {
     GREEN: 'bg-emerald-500', AMBER: 'bg-amber-500', RED: 'bg-rose-500',
   };
-  const label: Record<string, string> = { GREEN: 'سالم', AMBER: 'نیازمند توجه', RED: 'بحرانی' };
+  const label: Record<string, string> = { GREEN: tr('سالم'), AMBER: tr('نیازمند توجه'), RED: tr('بحرانی') };
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-ink-600">
       <span className={cx('size-2 rounded-full', map[status] ?? 'bg-ink-300')} />
@@ -368,7 +361,7 @@ export function HealthDot({ status }: { status: string }) {
 }
 
 export const Count = ({ value }: { value: number | null | undefined }) => (
-  <span className="nums">{value == null ? '—' : toPersianDigits(value)}</span>
+  <span className="nums">{value == null ? '—' : localDigits(value)}</span>
 );
 
 /**
@@ -398,13 +391,13 @@ export function StateHistory({ entity, id }: { entity: string; id: string }) {
   if (isLoading || error || !data?.length) return null;
 
   return (
-    <Card title="تاریخچه وضعیت" subtitle={`${toPersianDigits(data.length)} تغییر`}>
+    <Card title={tr('تاریخچه وضعیت')} subtitle={tr('{0} تغییر', localDigits(data.length))}>
       <ol className="divide-y divide-ink-100">
         {data.map((t) => (
           <li key={t.id} className="px-4 py-2.5">
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <StateBadge state={t.fromState} />
-              <span className="text-ink-400">←</span>
+              <span className="text-ink-400">{flow()}</span>
               <StateBadge state={t.toState} />
               <span className="ms-auto text-ink-400">{formatRelative(t.createdAt)}</span>
             </div>

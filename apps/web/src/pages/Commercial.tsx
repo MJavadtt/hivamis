@@ -15,34 +15,35 @@ import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
   Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
-import { exactCurrency, formatCurrency, formatDate, toPersianDigits } from '../lib/format';
+import { exactCurrency, formatCurrency, formatDate, localDigits } from '../lib/format';
+import { tr } from '../i18n';
 
 export function ContractsList() {
   return (
     <>
-      <PageHeader title="قراردادها" subtitle="از درخواست انعقاد تا ثبت — قانون ۱۳ مبنای مجوز شروع پروژه" />
+      <PageHeader title={tr('قراردادها')} subtitle={tr('از درخواست انعقاد تا ثبت — قانون ۱۳ مبنای مجوز شروع پروژه')} />
       <PageBody>
         <EntityList<any>
           path="/contracts"
-          searchPlaceholder="جستجو در عنوان یا شماره قرارداد…"
+          searchPlaceholder={tr('جستجو در عنوان یا شماره قرارداد…')}
           rowHref={(r) => `/contracts/${r.id}`}
           filters={[{
-            key: 'state', label: 'وضعیت',
+            key: 'state', label: tr('وضعیت'),
             options: [
-              { value: 'REQUESTED', label: 'درخواست‌شده' }, { value: 'DRAFTING', label: 'در حال تنظیم' },
-              { value: 'LEGAL_REVIEW', label: 'بررسی حقوقی' }, { value: 'INTERNAL_APPROVED', label: 'تأیید داخلی' },
-              { value: 'PENDING_SIGNATURE', label: 'در انتظار امضا' }, { value: 'SIGNED', label: 'امضاشده' },
-              { value: 'REGISTERED', label: 'ثبت‌شده' }, { value: 'TERMINATED', label: 'فسخ‌شده' },
+              { value: 'REQUESTED', label: tr('درخواست‌شده') }, { value: 'DRAFTING', label: tr('در حال تنظیم') },
+              { value: 'LEGAL_REVIEW', label: tr('بررسی حقوقی') }, { value: 'INTERNAL_APPROVED', label: tr('تأیید داخلی') },
+              { value: 'PENDING_SIGNATURE', label: tr('در انتظار امضا') }, { value: 'SIGNED', label: tr('امضاشده') },
+              { value: 'REGISTERED', label: tr('ثبت‌شده') }, { value: 'TERMINATED', label: tr('فسخ‌شده') },
             ],
           }]}
-          emptyTitle="قراردادی ثبت نشده"
+          emptyTitle={tr('قراردادی ثبت نشده')}
           columns={[
-            { key: 'title', header: 'قرارداد', render: (r) => (<><p className="font-medium text-ink-800">{r.title}</p><Code>{r.code}</Code></>) },
-            { key: 'number', header: 'شماره', render: (r) => <span className="ltr text-xs">{r.contractNumber ?? '—'}</span> },
-            { key: 'company', header: 'مشتری', render: (r) => <span className="text-xs">{r.company?.legalName}</span> },
-            { key: 'value', header: 'مبلغ', render: (r) => <span className="text-xs" title={exactCurrency(r.contractValue)}><Amount base={r.contractValue} original={r.originalValue} currency={r.currency} /></span> },
-            { key: 'period', header: 'دوره', render: (r) => <span className="text-xs">{formatDate(r.startDate)} — {formatDate(r.endDate)}</span> },
-            { key: 'state', header: 'وضعیت', render: (r) => <StateBadge state={r.state} /> },
+            { key: 'title', header: tr('قرارداد'), render: (r) => (<><p className="font-medium text-ink-800">{r.title}</p><Code>{r.code}</Code></>) },
+            { key: 'number', header: tr('شماره'), render: (r) => <span className="ltr text-xs">{r.contractNumber ?? '—'}</span> },
+            { key: 'company', header: tr('مشتری'), render: (r) => <span className="text-xs">{r.company?.legalName}</span> },
+            { key: 'value', header: tr('مبلغ'), render: (r) => <span className="text-xs" title={exactCurrency(r.contractValue)}><Amount base={r.contractValue} original={r.originalValue} currency={r.currency} /></span> },
+            { key: 'period', header: tr('دوره'), render: (r) => <span className="text-xs">{formatDate(r.startDate)} — {formatDate(r.endDate)}</span> },
+            { key: 'state', header: tr('وضعیت'), render: (r) => <StateBadge state={r.state} /> },
           ]}
         />
       </PageBody>
@@ -79,36 +80,36 @@ export function ContractDetail() {
         }
       />
       <PageBody className="grid gap-5 lg:grid-cols-3">
-        <Card title="اطلاعات قرارداد" className="lg:col-span-1">
+        <Card title={tr('اطلاعات قرارداد')} className="lg:col-span-1">
           <dl className="px-4 py-1">
-            <DescRow label="مبلغ">
+            <DescRow label={tr('مبلغ')}>
               {data.currency && data.currency !== 'IRR' && data.originalValue != null
-                ? <>{money(data.originalValue, data.currency)} <span className="text-xs text-ink-500">— ثبت‌شده {exactCurrency(data.contractValue)} به نرخ {formatDate(data.fxRateDate)}</span></>
+                ? <>{money(data.originalValue, data.currency)} <span className="text-xs text-ink-500">{tr('— ثبت‌شده {0} به نرخ {1}', exactCurrency(data.contractValue), formatDate(data.fxRateDate))}</span></>
                 : exactCurrency(data.contractValue)}
             </DescRow>
-            <DescRow label="شروع">{formatDate(data.startDate)}</DescRow>
-            <DescRow label="پایان">{formatDate(data.endDate)}</DescRow>
-            <DescRow label="تاریخ امضا">{formatDate(data.signedDate)}</DescRow>
-            <DescRow label="تاریخ ثبت">{formatDate(data.registeredAt)}</DescRow>
-            <DescRow label="پروژه">
+            <DescRow label={tr('شروع')}>{formatDate(data.startDate)}</DescRow>
+            <DescRow label={tr('پایان')}>{formatDate(data.endDate)}</DescRow>
+            <DescRow label={tr('تاریخ امضا')}>{formatDate(data.signedDate)}</DescRow>
+            <DescRow label={tr('تاریخ ثبت')}>{formatDate(data.registeredAt)}</DescRow>
+            <DescRow label={tr('پروژه')}>
               {data.project ? <Link to={`/projects/${data.project.id}`} className="text-brand-600 hover:underline">{data.project.code}</Link> : '—'}
             </DescRow>
           </dl>
         </Card>
 
-        <Card title="Scope و شرایط" className="lg:col-span-2">
+        <Card title={tr('Scope و شرایط')} className="lg:col-span-2">
           <dl className="divide-y divide-ink-100">
             <div className="px-4 py-3">
-              <dt className="text-xs font-medium text-ink-500">خلاصه Scope</dt>
+              <dt className="text-xs font-medium text-ink-500">{tr('خلاصه Scope')}</dt>
               <dd className="mt-1 text-sm text-ink-800">{data.scopeSummary || '—'}</dd>
             </div>
             <div className="px-4 py-3">
-              <dt className="text-xs font-medium text-ink-500">شرایط پرداخت</dt>
+              <dt className="text-xs font-medium text-ink-500">{tr('شرایط پرداخت')}</dt>
               <dd className="mt-1 text-sm text-ink-800">{data.paymentTerms || '—'}</dd>
             </div>
             {data.legalReviewNote && (
               <div className="px-4 py-3">
-                <dt className="text-xs font-medium text-ink-500">یادداشت حقوقی</dt>
+                <dt className="text-xs font-medium text-ink-500">{tr('یادداشت حقوقی')}</dt>
                 <dd className="mt-1 text-sm text-ink-800">{data.legalReviewNote}</dd>
               </div>
             )}
@@ -118,9 +119,9 @@ export function ContractDetail() {
         <ESignCard contractId={data.id} />
 
         {!!data.amendments?.length && (
-          <Card title="الحاقیه‌ها" className="lg:col-span-3">
+          <Card title={tr('الحاقیه‌ها')} className="lg:col-span-3">
             <Table>
-              <thead className="bg-ink-50/60"><tr><Th>شماره</Th><Th>تاریخ اجرا</Th><Th>شرح</Th><Th>تغییر مبلغ</Th><Th>تمدید</Th></tr></thead>
+              <thead className="bg-ink-50/60"><tr><Th>{tr('شماره')}</Th><Th>{tr('تاریخ اجرا')}</Th><Th>{tr('شرح')}</Th><Th>{tr('تغییر مبلغ')}</Th><Th>{tr('تمدید')}</Th></tr></thead>
               <tbody>
                 {data.amendments.map((a: any) => (
                   <Tr key={a.id}>
@@ -128,7 +129,7 @@ export function ContractDetail() {
                     <Td className="text-xs">{formatDate(a.effectiveDate)}</Td>
                     <Td className="max-w-md text-xs">{a.changes}</Td>
                     <Td className="text-xs"><Amount base={a.valueDelta} original={a.originalValueDelta} currency={data.currency} /></Td>
-                    <Td className="nums text-xs">{toPersianDigits(a.durationDeltaDays)} روز</Td>
+                    <Td className="nums text-xs">{tr('{0} روز', localDigits(a.durationDeltaDays))}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -163,15 +164,15 @@ export function Finance() {
 
   return (
     <>
-      <PageHeader title="مالی" subtitle="اسناد مالی، دریافت‌ها و مطالبات — مبالغ ارزی با نرخ روز خودشان به ریال شمرده می‌شوند"
+      <PageHeader title={tr('مالی')} subtitle={tr('اسناد مالی، دریافت‌ها و مطالبات — مبالغ ارزی با نرخ روز خودشان به ریال شمرده می‌شوند')}
         actions={
           <div className="flex gap-2">
-            {can('finance.payment') && <Button variant="secondary" onClick={() => setReceiving(true)}>ثبت دریافت/پرداخت</Button>}
-            {can('finance.invoice') && <Button variant="primary" onClick={() => setIssuing(true)}>صدور سند مالی</Button>}
+            {can('finance.payment') && <Button variant="secondary" onClick={() => setReceiving(true)}>{tr('ثبت دریافت/پرداخت')}</Button>}
+            {can('finance.invoice') && <Button variant="primary" onClick={() => setIssuing(true)}>{tr('صدور سند مالی')}</Button>}
           </div>
         } />
       <div className="border-b border-ink-200 bg-surface px-2">
-        <Tabs tabs={[{ key: 'docs', label: 'اسناد و تراکنش‌ها' }, { key: 'moadian', label: 'سامانهٔ مؤدیان' }, { key: 'accounting', label: 'خروجی حسابداری' }, { key: 'rates', label: 'نرخ ارز' }, { key: 'fx', label: 'اثر نرخ ارز' }]} active={tab} onChange={setTab} />
+        <Tabs tabs={[{ key: 'docs', label: tr('اسناد و تراکنش‌ها') }, { key: 'moadian', label: tr('سامانهٔ مؤدیان') }, { key: 'accounting', label: tr('خروجی حسابداری') }, { key: 'rates', label: tr('نرخ ارز') }, { key: 'fx', label: tr('اثر نرخ ارز') }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
       {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
@@ -184,23 +185,23 @@ export function Finance() {
         {tab === 'docs' && (isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={() => void refetch()} /> : (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <StatTile label="مجموع فاکتورشده" value={formatCurrency(totals.invoiced)} />
-              <StatTile label="دریافت‌شده" value={formatCurrency(totals.received)} tone="success" />
-              <StatTile label="مانده مطالبات" value={formatCurrency(totals.invoiced - totals.received)}
+              <StatTile label={tr('مجموع فاکتورشده')} value={formatCurrency(totals.invoiced)} />
+              <StatTile label={tr('دریافت‌شده')} value={formatCurrency(totals.received)} tone="success" />
+              <StatTile label={tr('مانده مطالبات')} value={formatCurrency(totals.invoiced - totals.received)}
                 tone={totals.invoiced - totals.received > 0 ? 'warning' : 'success'} />
             </div>
 
-            <Card title="اسناد مالی">
-              {!invoices?.items.length ? <EmptyState title="سندی صادر نشده" /> : (
+            <Card title={tr('اسناد مالی')}>
+              {!invoices?.items.length ? <EmptyState title={tr('سندی صادر نشده')} /> : (
                 <Table>
                   <thead className="bg-ink-50/60">
-                    <tr><Th>شماره</Th><Th>نوع</Th><Th>مشتری</Th><Th>پروژه</Th><Th>صدور</Th><Th>سررسید</Th><Th>مبلغ</Th><Th>دریافتی</Th><Th>وضعیت</Th><Th>مؤدیان</Th></tr>
+                    <tr><Th>{tr('شماره')}</Th><Th>{tr('نوع')}</Th><Th>{tr('مشتری')}</Th><Th>{tr('پروژه')}</Th><Th>{tr('صدور')}</Th><Th>{tr('سررسید')}</Th><Th>{tr('مبلغ')}</Th><Th>{tr('دریافتی')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('مؤدیان')}</Th></tr>
                   </thead>
                   <tbody>
                     {invoices.items.map((i: any) => (
                       <Tr key={i.id}>
                         <Td className="ltr text-xs">{i.number}</Td>
-                        <Td><Badge tone="neutral">{i.kind === 'PROFORMA' ? 'پیش‌فاکتور' : 'فاکتور'}</Badge></Td>
+                        <Td><Badge tone="neutral">{i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')}</Badge></Td>
                         <Td className="text-xs">{i.company?.legalName}</Td>
                         <Td className="text-xs">{i.project?.name ?? '—'}</Td>
                         <Td className="text-xs">{formatDate(i.issueDate)}</Td>
@@ -209,7 +210,7 @@ export function Finance() {
                         <Td className="text-xs"><Amount base={i.paidAmount} original={i.originalPaidAmount} currency={i.currency} /></Td>
                         <Td><StateBadge state={i.state} /></Td>
                         <Td>{i.kind === 'INVOICE' && i.state !== 'DRAFT' && (
-                          <button type="button" onClick={() => setTaxFor(i.id)} aria-label={`مؤدیان ${i.number}`}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
+                          <button type="button" onClick={() => setTaxFor(i.id)} aria-label={tr('مؤدیان {0}', i.number)}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
                         )}</Td>
                       </Tr>
                     ))}
@@ -218,14 +219,14 @@ export function Finance() {
               )}
             </Card>
 
-            <Card title="دریافت‌ها و پرداخت‌ها">
-              {!payments?.items.length ? <EmptyState title="تراکنشی ثبت نشده" /> : (
+            <Card title={tr('دریافت‌ها و پرداخت‌ها')}>
+              {!payments?.items.length ? <EmptyState title={tr('تراکنشی ثبت نشده')} /> : (
                 <Table>
-                  <thead className="bg-ink-50/60"><tr><Th>جهت</Th><Th>مبلغ</Th><Th>تاریخ</Th><Th>روش</Th><Th>مرجع</Th></tr></thead>
+                  <thead className="bg-ink-50/60"><tr><Th>{tr('جهت')}</Th><Th>{tr('مبلغ')}</Th><Th>{tr('تاریخ')}</Th><Th>{tr('روش')}</Th><Th>{tr('مرجع')}</Th></tr></thead>
                   <tbody>
                     {payments.items.map((p: any) => (
                       <Tr key={p.id}>
-                        <Td><Badge tone={p.direction === 'IN' ? 'success' : 'warning'}>{p.direction === 'IN' ? 'دریافت' : 'پرداخت'}</Badge></Td>
+                        <Td><Badge tone={p.direction === 'IN' ? 'success' : 'warning'}>{p.direction === 'IN' ? tr('دریافتی') : tr('پرداخت')}</Badge></Td>
                         <Td className="text-xs" title={exactCurrency(p.amount)}><Amount base={p.amount} original={p.originalAmount} currency={p.currency} /></Td>
                         <Td className="text-xs">{formatDate(p.occurredAt)}</Td>
                         <Td className="text-xs">{p.method}</Td>

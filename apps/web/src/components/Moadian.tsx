@@ -3,18 +3,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, StatTile, Table, Td, Th, Tr, useToast } from './ui';
-import { formatCurrency, formatDate, formatDateTime, toPersianDigits } from '../lib/format';
+import { formatCurrency, formatDate, formatDateTime, localDigits } from '../lib/format';
+import { loc, tr, trx } from '../i18n';
 
 /* Roadmap #32 — reporting invoices to سامانهٔ مؤدیان. */
 
 export const TAX_STATUS: Record<string, [string, 'success' | 'warning' | 'danger' | 'neutral' | 'info']> = {
-  NOT_REPORTED: ['گزارش‌نشده', 'neutral'], QUEUED: ['در صف', 'info'], SENT: ['در انتظار پاسخ', 'warning'],
-  ACCEPTED: ['پذیرفته', 'success'], REJECTED: ['رد شده', 'danger'], FAILED: ['ارسال ناموفق', 'danger'],
+  NOT_REPORTED: [tr('گزارش‌نشده'), 'neutral'], QUEUED: [tr('در صف'), 'info'], SENT: [tr('در انتظار پاسخ'), 'warning'],
+  ACCEPTED: [tr('پذیرفته'), 'success'], REJECTED: [tr('رد شده'), 'danger'], FAILED: [tr('ارسال ناموفق'), 'danger'],
 };
-const SUBJECT_FA: Record<string, string> = { ORIGINAL: 'اصلی', CORRECTION: 'اصلاحی', CANCELLATION: 'ابطالی' };
+const SUBJECT_FA: Record<string, string> = { ORIGINAL: tr('اصلی'), CORRECTION: tr('اصلاحی'), CANCELLATION: tr('ابطالی') };
 
 export function TaxBadge({ submission }: { submission?: { status: string; subject: string } | null }) {
-  if (!submission) return <Badge tone="neutral">گزارش‌نشده</Badge>;
+  if (!submission) return <Badge tone="neutral">{tr('گزارش‌نشده')}</Badge>;
   const [fa, tone] = TAX_STATUS[submission.status] ?? [submission.status, 'neutral'];
   return <Badge tone={tone}>{submission.subject === 'ORIGINAL' ? fa : `${SUBJECT_FA[submission.subject]}: ${fa}`}</Badge>;
 }
@@ -31,39 +32,39 @@ export function MoadianTab() {
   return (
     <div className="space-y-5">
       <div className={`rounded-lg px-4 py-2 text-xs ${p.mode === 'live' ? 'bg-emerald-50 text-emerald-900' : p.mode === 'sandbox' ? 'bg-amber-50 text-amber-900' : 'bg-ink-50 text-ink-700'}`} data-testid="moadian-mode">
-        {p.modeFa}
+        {loc(p, 'mode')}
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="گزارش‌نشده" value={toPersianDigits(r.totals.notReported)} tone={r.totals.notReported ? 'warning' : 'success'} />
-        <StatTile label="در صف / در انتظار پاسخ" value={toPersianDigits(r.totals.queued + r.totals.sent)} />
-        <StatTile label="رد شده یا ناموفق" value={toPersianDigits(r.totals.rejected + r.totals.failed)} tone={r.totals.rejected + r.totals.failed ? 'danger' : 'neutral'} />
-        <StatTile label="پذیرفته" value={toPersianDigits(r.totals.accepted)} tone="success" />
+        <StatTile label={tr('گزارش‌نشده')} value={localDigits(r.totals.notReported)} tone={r.totals.notReported ? 'warning' : 'success'} />
+        <StatTile label={tr('در صف / در انتظار پاسخ')} value={localDigits(r.totals.queued + r.totals.sent)} />
+        <StatTile label={tr('رد شده یا ناموفق')} value={localDigits(r.totals.rejected + r.totals.failed)} tone={r.totals.rejected + r.totals.failed ? 'danger' : 'neutral'} />
+        <StatTile label={tr('پذیرفته')} value={localDigits(r.totals.accepted)} tone="success" />
       </div>
 
-      <Card title="مشخصات مؤدی" subtitle="حافظهٔ مالیاتی و شناسه‌هایی که هر صورت‌حساب الکترونیکی با آن صادر می‌شود."
-        action={can('finance.settle') ? <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>{p.profile ? 'ویرایش' : 'ثبت'}</Button> : undefined}>
-        {!p.profile ? <EmptyState title="مشخصات مؤدی ثبت نشده" description="تا ثبت نشود، هیچ فاکتوری به سامانه گزارش نمی‌شود." /> : (
+      <Card title={tr('مشخصات مؤدی')} subtitle={tr('حافظهٔ مالیاتی و شناسه‌هایی که هر صورت‌حساب الکترونیکی با آن صادر می‌شود.')}
+        action={can('finance.settle') ? <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>{p.profile ? tr('ویرایش') : tr('ثبت')}</Button> : undefined}>
+        {!p.profile ? <EmptyState title={tr('مشخصات مؤدی ثبت نشده')} description={tr('تا ثبت نشود، هیچ فاکتوری به سامانه گزارش نمی‌شود.')} /> : (
           <dl className="grid gap-x-6 gap-y-1 px-4 py-3 text-xs sm:grid-cols-3" data-testid="moadian-profile">
-            <div><dt className="text-ink-400">حافظهٔ مالیاتی</dt><dd className="ltr">{p.profile.memoryId}</dd></div>
-            <div><dt className="text-ink-400">شمارهٔ اقتصادی فروشنده</dt><dd className="ltr">{p.profile.sellerTaxId}</dd></div>
-            <div><dt className="text-ink-400">شناسهٔ کالا/خدمت پیش‌فرض</dt><dd className="ltr">{p.profile.defaultServiceCode}</dd></div>
+            <div><dt className="text-ink-400">{tr('حافظهٔ مالیاتی')}</dt><dd className="ltr">{p.profile.memoryId}</dd></div>
+            <div><dt className="text-ink-400">{tr('شمارهٔ اقتصادی فروشنده')}</dt><dd className="ltr">{p.profile.sellerTaxId}</dd></div>
+            <div><dt className="text-ink-400">{tr('شناسهٔ کالا/خدمت پیش‌فرض')}</dt><dd className="ltr">{p.profile.defaultServiceCode}</dd></div>
           </dl>
         )}
       </Card>
 
-      <Card title="فاکتورهایی که سامانه هنوز نپذیرفته" subtitle="قدیمی‌ترین نخست — هر ردیف را باز کنید تا ببینید چه کم است یا سامانه چه گفته.">
-        {!r.pending.length ? <EmptyState title="همهٔ فاکتورهای صادرشده پذیرفته شده‌اند" /> : (
+      <Card title={tr('فاکتورهایی که سامانه هنوز نپذیرفته')} subtitle={tr('قدیمی‌ترین نخست — هر ردیف را باز کنید تا ببینید چه کم است یا سامانه چه گفته.')}>
+        {!r.pending.length ? <EmptyState title={tr('همهٔ فاکتورهای صادرشده پذیرفته شده‌اند')} /> : (
           <Table>
-            <thead className="bg-ink-50/60"><tr><Th>فاکتور</Th><Th>مشتری</Th><Th>صدور</Th><Th>مبلغ</Th><Th>وضعیت</Th><Th /></tr></thead>
+            <thead className="bg-ink-50/60"><tr><Th>{tr('فاکتور')}</Th><Th>{tr('مشتری')}</Th><Th>{tr('صدور')}</Th><Th>{tr('مبلغ')}</Th><Th>{tr('وضعیت')}</Th><Th /></tr></thead>
             <tbody data-testid="moadian-pending">
               {r.pending.map((x: any) => (
                 <Tr key={x.id}>
                   <Td className="ltr text-xs">{x.number}</Td>
                   <Td className="text-xs">{x.client}</Td>
-                  <Td className="text-xs">{formatDate(x.issueDate)} <span className="text-ink-400">({toPersianDigits(x.ageDays)} روز پیش)</span></Td>
+                  <Td className="text-xs">{formatDate(x.issueDate)} <span className="text-ink-400">{tr('({0} روز پیش)', localDigits(x.ageDays))}</span></Td>
                   <Td className="text-xs">{formatCurrency(x.total)}</Td>
                   <Td><Badge tone={(TAX_STATUS[x.status] ?? ['', 'neutral'])[1]}>{(TAX_STATUS[x.status] ?? [x.status])[0]}</Badge></Td>
-                  <Td><Button size="sm" variant="ghost" onClick={() => setOpen(x.id)}>باز کردن</Button></Td>
+                  <Td><Button size="sm" variant="ghost" onClick={() => setOpen(x.id)}>{tr('باز کردن')}</Button></Td>
                 </Tr>
               ))}
             </tbody>
@@ -92,23 +93,23 @@ function ProfileModal({ profile, onClose }: { profile: Profile | null; onClose: 
     setBusy(true); setProblems([]);
     try {
       await apiPut('/tax/profile', { ...v, economicCode: v.economicCode || null, postalCode: v.postalCode || null, branchCode: v.branchCode || null });
-      toast('مشخصات مؤدی ذخیره شد.'); await qc.invalidateQueries(); onClose();
+      toast(tr('مشخصات مؤدی ذخیره شد.')); await qc.invalidateQueries(); onClose();
     } catch (e: any) {
-      setProblems(((e?.body?.details?.problems as { messageFa: string }[]) ?? []).map((x) => x.messageFa));
-      toast(e?.message ?? 'ذخیره ناموفق بود.', 'danger');
+      setProblems(((e?.body?.details?.problems as { messageFa: string }[]) ?? []).map((x) => trx(x.messageFa)));
+      toast(e?.message ?? tr('ذخیره ناموفق بود.'), 'danger');
     } finally { setBusy(false); }
   };
   return (
-    <Modal open title="مشخصات مؤدی در سامانهٔ مؤدیان" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} onClick={() => void save()}>ذخیره</Button></>}>
+    <Modal open title={tr('مشخصات مؤدی در سامانهٔ مؤدیان')} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} onClick={() => void save()}>{tr('ذخیره')}</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
-        {field('memoryId', 'شناسهٔ حافظهٔ مالیاتی', 'شش نویسه، از کارپوشهٔ سامانه')}
-        {field('sellerTaxId', 'شمارهٔ اقتصادی / شناسهٔ ملی فروشنده')}
-        {field('economicCode', 'کد اقتصادی')}
-        {field('postalCode', 'کد پستی')}
-        {field('branchCode', 'کد شعبه', 'اگر صورت‌حساب از شعبه صادر می‌شود')}
-        {field('defaultServiceCode', 'شناسهٔ کالا/خدمت پیش‌فرض', '۱۳ رقم')}
-        {field('defaultUnitCode', 'کد واحد اندازه‌گیری')}
+        {field('memoryId', tr('شناسهٔ حافظهٔ مالیاتی'), tr('شش نویسه، از کارپوشهٔ سامانه'))}
+        {field('sellerTaxId', tr('شمارهٔ اقتصادی / شناسهٔ ملی فروشنده'))}
+        {field('economicCode', tr('کد اقتصادی'))}
+        {field('postalCode', tr('کد پستی'))}
+        {field('branchCode', tr('کد شعبه'), tr('اگر صورت‌حساب از شعبه صادر می‌شود'))}
+        {field('defaultServiceCode', tr('شناسهٔ کالا/خدمت پیش‌فرض'), tr('۱۳ رقم'))}
+        {field('defaultUnitCode', tr('کد واحد اندازه‌گیری'))}
       </div>
       {problems.length > 0 && <ul className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{problems.map((x) => <li key={x}>· {x}</li>)}</ul>}
     </Modal>
@@ -127,19 +128,19 @@ export function InvoiceTax({ invoiceId, onClose }: { invoiceId: string; onClose:
     setBusy(true);
     try {
       const s = await apiPost<{ status: string; taxId: string }>(`/invoices/${invoiceId}/tax`, { subject });
-      toast(`گزارش ${SUBJECT_FA[subject]} با شمارهٔ مالیاتی ${s.taxId} — ${(TAX_STATUS[s.status] ?? [s.status])[0]}.`); await refresh();
-    } catch (e: any) { toast(e?.message ?? 'گزارش ناموفق بود.', 'danger'); } finally { setBusy(false); }
+      toast(tr('گزارش {0} با شمارهٔ مالیاتی {1} — {2}.', SUBJECT_FA[subject], s.taxId, (TAX_STATUS[s.status] ?? [s.status])[0])); await refresh();
+    } catch (e: any) { toast(e?.message ?? tr('گزارش ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   const inquire = async (id: string) => { await apiPost(`/tax/submissions/${id}/inquire`, {}); await refresh(); };
   return (
-    <Modal open wide title="سامانهٔ مؤدیان" onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>بستن</Button>}>
+    <Modal open wide title={tr('سامانهٔ مؤدیان')} onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>{tr('بستن')}</Button>}>
       {!data ? null : (
         <div className="space-y-4" data-testid="invoice-tax">
-          <p className="text-[11px] text-ink-500">{data.modeFa}</p>
+          <p className="text-[11px] text-ink-500">{loc(data, 'mode')}</p>
           {data.problems.length > 0 && (
             <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="tax-problems">
-              <p className="font-medium">پیش از گزارش باید درست شود:</p>
-              <ul className="mt-1 space-y-0.5">{data.problems.map((p: any) => <li key={p.field}>· {p.messageFa}</li>)}</ul>
+              <p className="font-medium">{tr('پیش از گزارش باید درست شود:')}</p>
+              <ul className="mt-1 space-y-0.5">{data.problems.map((p: any) => <li key={p.field}>· {loc(p, 'message')}</li>)}</ul>
               {data.problems.some((p: any) => ['bid', 'bpc'].includes(p.field)) && can('finance.invoice') && <BuyerIds invoiceId={invoiceId} onSaved={refresh} />}
             </div>
           )}
@@ -147,21 +148,18 @@ export function InvoiceTax({ invoiceId, onClose }: { invoiceId: string; onClose:
             <div className="flex flex-wrap gap-2">
               {data.subjects.map((s: string) => (
                 <Button key={s} variant={s === 'CANCELLATION' ? 'danger' : 'primary'} size="sm" loading={busy} disabled={data.problems.length > 0} onClick={() => void submit(s)}>
-                  {s === 'ORIGINAL' ? 'گزارش به سامانه' : s === 'CORRECTION' ? 'صورت‌حساب اصلاحی' : 'صورت‌حساب ابطالی'}
+                  {s === 'ORIGINAL' ? tr('گزارش به سامانه') : s === 'CORRECTION' ? tr('صورت‌حساب اصلاحی') : tr('صورت‌حساب ابطالی')}
                 </Button>
               ))}
             </div>
           )}
-          {data.cancelled && <p className="text-xs text-ink-600">این فاکتور در سامانه ابطال شده است.</p>}
+          {data.cancelled && <p className="text-xs text-ink-600">{tr('این فاکتور در سامانه ابطال شده است.')}</p>}
           {data.payload && (
-            <p className="text-xs text-ink-600">
-              مبلغ کل گزارش‌شونده: <strong>{toPersianDigits(Number(data.payload.header.tbill).toLocaleString('en-US'))} ریال</strong>
-              {' '}(بدون مالیات {toPersianDigits(Number(data.payload.header.tadis).toLocaleString('en-US'))} + ارزش افزوده {toPersianDigits(Number(data.payload.header.tvam).toLocaleString('en-US'))}) در {toPersianDigits(data.payload.body.length)} ردیف
-            </p>
+            <p className="text-xs text-ink-600">{tr('مبلغ کل گزارش‌شونده:')}{' '}<strong>{tr('{0} ریال', localDigits(Number(data.payload.header.tbill).toLocaleString('en-US')))}</strong>{tr('{0}(بدون مالیات {1} + ارزش افزوده {2}) در {3} ردیف', ' ', localDigits(Number(data.payload.header.tadis).toLocaleString('en-US')), localDigits(Number(data.payload.header.tvam).toLocaleString('en-US')), localDigits(data.payload.body.length))}</p>
           )}
           {data.submissions.length > 0 && (
             <Table>
-              <thead className="bg-ink-50/60"><tr><Th>گزارش</Th><Th>شمارهٔ مالیاتی</Th><Th>وضعیت</Th><Th>زمان</Th><Th /></tr></thead>
+              <thead className="bg-ink-50/60"><tr><Th>{tr('گزارش')}</Th><Th>{tr('شمارهٔ مالیاتی')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('زمان')}</Th><Th /></tr></thead>
               <tbody data-testid="tax-submissions">
                 {[...data.submissions].reverse().map((s: any) => (
                   <Tr key={s.id}>
@@ -169,11 +167,11 @@ export function InvoiceTax({ invoiceId, onClose }: { invoiceId: string; onClose:
                     <Td className="ltr text-[11px]">{s.taxId}{s.referenceTaxId && <span className="block text-ink-400">↩ {s.referenceTaxId}</span>}</Td>
                     <Td>
                       <Badge tone={(TAX_STATUS[s.status] ?? ['', 'neutral'])[1]}>{(TAX_STATUS[s.status] ?? [s.status])[0]}</Badge>
-                      {s.channel === 'sandbox' && <span className="ms-1 text-[10px] text-amber-700">آزمایشی</span>}
+                      {s.channel === 'sandbox' && <span className="ms-1 text-[10px] text-amber-700">{tr('آزمایشی')}</span>}
                       {s.errors && <pre className="ltr mt-1 max-w-xs whitespace-pre-wrap text-[10px] text-rose-700">{JSON.stringify(s.errors)}</pre>}
                     </Td>
                     <Td className="text-[11px]">{formatDateTime(s.respondedAt ?? s.submittedAt ?? s.createdAt)}</Td>
-                    <Td>{['QUEUED', 'SENT'].includes(s.status) && can('finance.invoice') && <Button size="sm" variant="ghost" onClick={() => void inquire(s.id)}>پیگیری</Button>}</Td>
+                    <Td>{['QUEUED', 'SENT'].includes(s.status) && can('finance.invoice') && <Button size="sm" variant="ghost" onClick={() => void inquire(s.id)}>{tr('پیگیری')}</Button>}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -193,12 +191,12 @@ function BuyerIds({ invoiceId, onSaved }: { invoiceId: string; onSaved: () => vo
   const cur = v ?? { nationalId: inv.company?.nationalId ?? '', postalCode: inv.company?.postalCode ?? '' };
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]" data-testid="buyer-ids">
-      <Input value={cur.nationalId} onChange={(e) => setV({ ...cur, nationalId: e.target.value })} className="ltr" aria-label="شناسهٔ ملی خریدار" placeholder="شناسهٔ ملی خریدار" />
-      <Input value={cur.postalCode} onChange={(e) => setV({ ...cur, postalCode: e.target.value })} className="ltr" aria-label="کد پستی خریدار" placeholder="کد پستی خریدار" />
+      <Input value={cur.nationalId} onChange={(e) => setV({ ...cur, nationalId: e.target.value })} className="ltr" aria-label={tr('شناسهٔ ملی خریدار')} placeholder={tr('شناسهٔ ملی خریدار')} />
+      <Input value={cur.postalCode} onChange={(e) => setV({ ...cur, postalCode: e.target.value })} className="ltr" aria-label={tr('کد پستی خریدار')} placeholder={tr('کد پستی خریدار')} />
       <Button size="sm" variant="secondary" onClick={async () => {
-        try { await apiPut(`/companies/${inv.companyId}/tax-identifiers`, cur); toast('شناسه‌های خریدار ذخیره شد.'); onSaved(); }
-        catch (e: any) { toast(e?.message ?? 'ذخیره ناموفق بود.', 'danger'); }
-      }}>ذخیره</Button>
+        try { await apiPut(`/companies/${inv.companyId}/tax-identifiers`, cur); toast(tr('شناسه‌های خریدار ذخیره شد.')); onSaved(); }
+        catch (e: any) { toast(e?.message ?? tr('ذخیره ناموفق بود.'), 'danger'); }
+      }}>{tr('ذخیره')}</Button>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
 } from './pages/Operations';
 import { ContractDetail, ContractsList, Finance } from './pages/Commercial';
+import { tr } from './i18n';
 
 // Reports pulls in the charting library; loading it on demand keeps first paint light.
 const Reports = lazy(() => import('./pages/Reports'));
@@ -43,7 +44,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <LoadingBlock label="در حال آماده‌سازی…" />
+        <LoadingBlock label={tr('در حال آماده‌سازی…')} />
       </div>
     );
   }

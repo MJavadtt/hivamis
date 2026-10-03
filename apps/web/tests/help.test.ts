@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HELP_SECTIONS, SECTION_TITLE_FA, findSection, sectionForRoles } from '../src/lib/help';
+import { HELP_SECTIONS, findSection, sectionForRoles, sectionTitle } from '../src/lib/help';
 
 /**
  * The drawer's content is imported from docs/user-guide.md at build time, so these assert the
@@ -37,7 +37,8 @@ describe('In-app help', () => {
   });
 
   it('has a Persian heading for every section', () => {
-    const missing = HELP_SECTIONS.filter((s) => !SECTION_TITLE_FA[s.title]).map((s) => s.title);
+    // In Persian, a section with no Persian heading would show its English one.
+    const missing = HELP_SECTIONS.filter((s) => sectionTitle(s.title) === s.title).map((s) => s.title);
     expect(missing, `sections without a Persian heading: ${missing.join(', ')}`).toEqual([]);
   });
 

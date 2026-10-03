@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { apiGet } from '../lib/api';
 import { Badge, Card, EmptyState, ProgressBar, StatTile, Table, Td, Th, Tr } from './ui';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
+import { loc, tr, trx } from '../i18n';
 
 interface Prediction {
   clockId: string; policyCode: string; policyFa: string; entityType: string; entityId: string;
@@ -13,7 +14,7 @@ interface Prediction {
   beatsWarnAt: boolean; becauseFa: string[];
 }
 const TONE = { CRITICAL: 'danger', LIKELY: 'warning', WATCH: 'info', LOW: 'neutral' } as const;
-const RISK_FA = { CRITICAL: 'بسیار محتمل', LIKELY: 'محتمل', WATCH: 'قابل پایش', LOW: 'کم' } as const;
+const RISK_FA = { CRITICAL: tr('بسیار محتمل'), LIKELY: tr('محتمل'), WATCH: tr('قابل پایش'), LOW: tr('کم') } as const;
 
 /**
  * Deadlines that are going to be missed, before the fixed threshold notices (roadmap #8).
@@ -30,24 +31,24 @@ export function BreachRisk({ mine }: { mine?: boolean }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="مهلت‌های در معرض خطر" value={toPersianDigits(data.counts.total)} tone={data.counts.total ? 'warning' : 'success'} />
-        <StatTile label="بسیار محتمل" value={toPersianDigits(data.counts.critical)} tone={data.counts.critical ? 'danger' : 'success'} hint="احتمال نقض ۷۵٪ یا بیشتر" />
-        <StatTile label="محتمل" value={toPersianDigits(data.counts.likely)} tone={data.counts.likely ? 'warning' : 'neutral'} />
-        <StatTile label="زودتر از آستانهٔ ثابت" value={toPersianDigits(data.counts.earlierThanThreshold)} tone="info"
-          hint="هشدار ثابت هنوز خاموش است — این‌ها را فقط پیش‌بینی می‌بیند" />
+        <StatTile label={tr('مهلت‌های در معرض خطر')} value={localDigits(data.counts.total)} tone={data.counts.total ? 'warning' : 'success'} />
+        <StatTile label={tr('بسیار محتمل')} value={localDigits(data.counts.critical)} tone={data.counts.critical ? 'danger' : 'success'} hint={tr('احتمال نقض ۷۵٪ یا بیشتر')} />
+        <StatTile label={tr('محتمل')} value={localDigits(data.counts.likely)} tone={data.counts.likely ? 'warning' : 'neutral'} />
+        <StatTile label={tr('زودتر از آستانهٔ ثابت')} value={localDigits(data.counts.earlierThanThreshold)} tone="info"
+          hint={tr('هشدار ثابت هنوز خاموش است — این‌ها را فقط پیش‌بینی می‌بیند')} />
       </div>
-      <Card title="پیش‌بینی نقض SLA" subtitle={data.model}>
-        {!data.predictions.length ? <EmptyState title="مهلتی در معرض خطر نیست" description="هر مهلت باز با مهلت‌های مشابه گذشته سنجیده می‌شود؛ هیچ‌کدام فعلاً نگران‌کننده نیست." /> : (
+      <Card title={tr('پیش‌بینی نقض SLA')} subtitle={trx(data.model)}>
+        {!data.predictions.length ? <EmptyState title={tr('مهلتی در معرض خطر نیست')} description={tr('هر مهلت باز با مهلت‌های مشابه گذشته سنجیده می‌شود؛ هیچ‌کدام فعلاً نگران‌کننده نیست.')} /> : (
           <Table>
             <thead className="bg-ink-50/60">
-              <tr><Th>سیاست</Th><Th>رکورد</Th><Th>احتمال نقض</Th><Th>مصرف‌شده</Th><Th>پایان محتمل</Th><Th>بر چه پایه‌ای</Th></tr>
+              <tr><Th>{tr('سیاست')}</Th><Th>{tr('رکورد')}</Th><Th>{tr('احتمال نقض')}</Th><Th>{tr('مصرف‌شده')}</Th><Th>{tr('پایان محتمل')}</Th><Th>{tr('بر چه پایه‌ای')}</Th></tr>
             </thead>
             <tbody>
               {data.predictions.map((p) => (
                 <Tr key={p.clockId}>
                   <Td>
-                    <p className="text-sm">{p.policyFa}</p>
-                    {p.departmentCode && <p className="text-[11px] text-ink-400">واحد {p.departmentCode}</p>}
+                    <p className="text-sm">{loc(p, 'policy')}</p>
+                    {p.departmentCode && <p className="text-[11px] text-ink-400">{tr('واحد {0}', p.departmentCode)}</p>}
                   </Td>
                   <Td className="text-xs">
                     <Link to={`/${p.entityType}s/${p.entityId}`} className="text-brand-600 hover:underline">
@@ -57,20 +58,16 @@ export function BreachRisk({ mine }: { mine?: boolean }) {
                   <Td>
                     <div className="w-24">
                       <ProgressBar value={p.probability * 100} tone={TONE[p.risk]} />
-                      <span className="nums text-[11px] text-ink-600">
-                        {toPersianDigits(Math.round(p.probability * 100))}٪ — {RISK_FA[p.risk]}
-                      </span>
+                      <span className="nums text-[11px] text-ink-600">{tr('{0}٪ — {1}', localDigits(Math.round(p.probability * 100)), RISK_FA[p.risk])}</span>
                     </div>
-                    {p.beatsWarnAt && <Badge tone="info" className="mt-1">پیش از آستانهٔ ثابت</Badge>}
+                    {p.beatsWarnAt && <Badge tone="info" className="mt-1">{tr('پیش از آستانهٔ ثابت')}</Badge>}
                   </Td>
-                  <Td className="nums text-xs">
-                    {toPersianDigits(p.consumedHours)} از {toPersianDigits(p.budgetHours)} س
-                    <span className="block text-[11px] text-ink-400">{toPersianDigits(Math.round(p.ratio * 100))}٪ مهلت</span>
+                  <Td className="nums text-xs">{tr('{0} از {1} س', localDigits(p.consumedHours), localDigits(p.budgetHours))}<span className="block text-[11px] text-ink-400">{tr('{0}٪ مهلت', localDigits(Math.round(p.ratio * 100)))}</span>
                   </Td>
                   <Td className="text-xs">
                     {p.expectedFinish ? formatDate(p.expectedFinish) : '—'}
                     {p.expectedOverrunHours != null && p.expectedOverrunHours > 0 && (
-                      <span className="block text-[11px] text-rose-600">{toPersianDigits(p.expectedOverrunHours)} س فراتر از مهلت</span>
+                      <span className="block text-[11px] text-rose-600">{tr('{0} س فراتر از مهلت', localDigits(p.expectedOverrunHours))}</span>
                     )}
                   </Td>
                   <Td className="max-w-xs text-[11px] text-ink-500">

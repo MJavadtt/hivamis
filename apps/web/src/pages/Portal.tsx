@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { PORTAL_DELIVERABLE_STATUS, CLIENT_APPROVAL_STATUS_LABELS, type ClientApprovalStatus } from '@hiva/contracts';
 import { Badge, Button, Field, Input, Textarea } from '../components/ui';
-import { formatDate, formatDateTime, formatNumber, toPersianDigits } from '../lib/format';
+import { formatDate, formatDateTime, formatNumber, localDigits } from '../lib/format';
 import { ApprovalDecision, type ApprovalApi, type Receipt, type View } from './ApprovePublic';
+import { loc, locale, tr, trx } from '../i18n';
 
 /*
  * Roadmap #34 — the client portal. A separate little app under /portal: its own sign-in, its own
@@ -20,7 +21,7 @@ async function raw(path: string, init: RequestInit = {}) {
   const token = tokenGet();
   const res = await fetch(`/api/v1${path}`, {
     ...init,
-    headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    headers: { 'accept-language': locale(), ...(init.body ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
   });
   if (res.status === 401 && token) { tokenSet(null); window.location.assign('/portal/login'); }
   return res;
@@ -28,12 +29,12 @@ async function raw(path: string, init: RequestInit = {}) {
 async function papi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await raw(path, init);
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new PortalError(body?.error?.message ?? `خطای ${res.status}`, res.status);
+  if (!res.ok) throw new PortalError(trx(body?.error?.message) || tr('خطای {0}', res.status), res.status);
   return body as T;
 }
 async function save(path: string, fallback: string) {
   const res = await raw(path);
-  if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error?.message ?? `خطای ${res.status}`); }
+  if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(trx(b?.error?.message) || tr('خطای {0}', res.status)); }
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
   const href = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
@@ -71,8 +72,8 @@ function Signed({ children }: { children: React.ReactNode }) {
     <>
       <header className="border-b border-ink-200 bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/portal" className="text-sm font-semibold text-brand-700">پورتال مشتری</Link>
-          <Button size="sm" variant="ghost" onClick={() => { tokenSet(null); window.location.assign('/portal/login'); }}>خروج</Button>
+          <Link to="/portal" className="text-sm font-semibold text-brand-700">{tr('پورتال مشتری')}</Link>
+          <Button size="sm" variant="ghost" onClick={() => { tokenSet(null); window.location.assign('/portal/login'); }}>{tr('خروج')}</Button>
         </div>
       </header>
       <main className="mx-auto max-w-4xl space-y-5 px-4 py-6">{children}</main>
@@ -112,12 +113,12 @@ function SignIn() {
     catch (e: any) { setError(e.message); } finally { setBusy(false); }
   };
   return (
-    <Centered title="ورود به پورتال مشتری">
-      <Field label="ایمیل"><Input value={email} onChange={(e) => setEmail(e.target.value)} className="ltr" type="email" autoComplete="username" aria-label="ایمیل" /></Field>
-      <Field label="رمز عبور"><Input value={password} onChange={(e) => setPassword(e.target.value)} className="ltr" type="password" autoComplete="current-password" aria-label="رمز عبور" /></Field>
+    <Centered title={tr('ورود به پورتال مشتری')}>
+      <Field label={tr('ایمیل')}><Input value={email} onChange={(e) => setEmail(e.target.value)} className="ltr" type="email" autoComplete="username" aria-label={tr('ایمیل')} /></Field>
+      <Field label={tr('رمز عبور')}><Input value={password} onChange={(e) => setPassword(e.target.value)} className="ltr" type="password" autoComplete="current-password" aria-label={tr('رمز عبور')} /></Field>
       {error && <p className="text-xs text-rose-700" data-testid="portal-error">{error}</p>}
-      <Button variant="primary" loading={busy} disabled={!email || !password} onClick={() => void go()}>ورود</Button>
-      <p className="text-[11px] text-ink-500">حساب پورتال را مدیر اکانت شما می‌سازد؛ اگر رمز را فراموش کرده‌اید، دعوت تازه بخواهید.</p>
+      <Button variant="primary" loading={busy} disabled={!email || !password} onClick={() => void go()}>{tr('ورود')}</Button>
+      <p className="text-[11px] text-ink-500">{tr('حساب پورتال را مدیر اکانت شما می‌سازد؛ اگر رمز را فراموش کرده‌اید، دعوت تازه بخواهید.')}</p>
     </Centered>
   );
 }
@@ -136,14 +137,14 @@ function AcceptInvite() {
     catch (e: any) { setError(e.message); } finally { setBusy(false); }
   };
   return (
-    <Centered title="تعیین رمز عبور پورتال">
-      <Field label="رمز عبور" hint="دست‌کم ۱۲ نویسه، با حرف کوچک و بزرگ لاتین و عدد">
-        <Input value={password} onChange={(e) => setPassword(e.target.value)} className="ltr" type="password" autoComplete="new-password" aria-label="رمز عبور" />
+    <Centered title={tr('تعیین رمز عبور پورتال')}>
+      <Field label={tr('رمز عبور')} hint={tr('دست‌کم ۱۲ نویسه، با حرف کوچک و بزرگ لاتین و عدد')}>
+        <Input value={password} onChange={(e) => setPassword(e.target.value)} className="ltr" type="password" autoComplete="new-password" aria-label={tr('رمز عبور')} />
       </Field>
-      <Field label="تکرار رمز عبور"><Input value={again} onChange={(e) => setAgain(e.target.value)} className="ltr" type="password" autoComplete="new-password" aria-label="تکرار رمز عبور" /></Field>
-      {again && again !== password && <p className="text-xs text-amber-800">دو رمز یکی نیستند.</p>}
+      <Field label={tr('تکرار رمز عبور')}><Input value={again} onChange={(e) => setAgain(e.target.value)} className="ltr" type="password" autoComplete="new-password" aria-label={tr('تکرار رمز عبور')} /></Field>
+      {again && again !== password && <p className="text-xs text-amber-800">{tr('دو رمز یکی نیستند.')}</p>}
       {error && <p className="text-xs text-rose-700" data-testid="portal-error">{error}</p>}
-      <Button variant="primary" loading={busy} disabled={!strong || password !== again} onClick={() => void go()}>ذخیره و ورود</Button>
+      <Button variant="primary" loading={busy} disabled={!strong || password !== again} onClick={() => void go()}>{tr('ذخیره و ورود')}</Button>
     </Centered>
   );
 }
@@ -158,7 +159,7 @@ interface HomeData {
 function Home() {
   const { data, error } = useLoad<HomeData>('/portal/home');
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
-  if (!data) return <p className="text-sm text-ink-500">در حال بارگذاری…</p>;
+  if (!data) return <p className="text-sm text-ink-500">{tr('در حال بارگذاری…')}</p>;
   return (
     <>
       <div>
@@ -166,26 +167,26 @@ function Home() {
         <p className="text-xs text-ink-500">{data.me.name} · <span className="ltr">{data.me.email}</span></p>
       </div>
       {data.approvals.length > 0 && (
-        <Box title="منتظر نظر شما" testid="portal-approvals">
+        <Box title={tr('منتظر نظر شما')} testid="portal-approvals">
           <ul className="space-y-2">
             {data.approvals.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="flex-1">{a.subjectType === 'DELIVERABLE' ? 'خروجی' : 'پروپوزال'} «{a.title}» <span className="text-xs text-ink-400">تا {formatDate(a.expiresAt)}</span></span>
-                <Link to={`/portal/approvals/${a.id}`}><Button size="sm" variant={a.forMe ? 'primary' : 'ghost'}>{a.forMe ? 'بررسی و تصمیم' : 'مشاهده'}</Button></Link>
+                <span className="flex-1">{a.subjectType === 'DELIVERABLE' ? tr('خروجی') : tr('پروپوزال')} «{a.title}» <span className="text-xs text-ink-400">{tr('تا {0}', formatDate(a.expiresAt))}</span></span>
+                <Link to={`/portal/approvals/${a.id}`}><Button size="sm" variant={a.forMe ? 'primary' : 'ghost'}>{a.forMe ? tr('بررسی و تصمیم') : tr('مشاهده')}</Button></Link>
               </li>
             ))}
           </ul>
         </Box>
       )}
-      <Box title="پروژه‌ها" testid="portal-projects">
-        {!data.projects.length ? <p className="text-sm text-ink-500">پروژهٔ فعالی نیست.</p> : (
+      <Box title={tr('پروژه‌ها')} testid="portal-projects">
+        {!data.projects.length ? <p className="text-sm text-ink-500">{tr('پروژهٔ فعالی نیست.')}</p> : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {data.projects.map((p) => (
               <li key={p.id}>
                 <Link to={`/portal/projects/${p.id}`} className="block rounded-lg border border-ink-200 p-3 hover:border-brand-300">
                   <p className="text-sm font-medium text-ink-900">{p.name}</p>
-                  <p className="mt-1 text-xs text-ink-500">{p.stateFa}{p.plannedEnd ? ` · پایان برنامه‌ریزی‌شده ${formatDate(p.plannedEnd)}` : ''}</p>
-                  {p.milestones.total > 0 && <Progress done={p.milestones.done} total={p.milestones.total} label="نقطه‌های عطف" />}
+                  <p className="mt-1 text-xs text-ink-500">{loc(p, 'state')}{p.plannedEnd ? tr(' · پایان برنامه‌ریزی‌شده {0}', formatDate(p.plannedEnd)) : ''}</p>
+                  {p.milestones.total > 0 && <Progress done={p.milestones.done} total={p.milestones.total} label={tr('نقطه‌های عطف')} />}
                 </Link>
               </li>
             ))}
@@ -193,15 +194,15 @@ function Home() {
         )}
       </Box>
       {data.invoices.length > 0 && (
-        <Box title="صورت‌حساب‌ها" testid="portal-invoices">
+        <Box title={tr('صورت‌حساب‌ها')} testid="portal-invoices">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="text-ink-500"><tr><th className="py-1 text-start">شماره</th><th className="text-start">تاریخ</th><th className="text-start">سررسید</th><th className="text-start">مبلغ</th><th className="text-start">پرداخت‌شده</th></tr></thead>
+              <thead className="text-ink-500"><tr><th className="py-1 text-start">{tr('شماره')}</th><th className="text-start">{tr('تاریخ')}</th><th className="text-start">{tr('سررسید')}</th><th className="text-start">{tr('مبلغ')}</th><th className="text-start">{tr('پرداخت‌شده')}</th></tr></thead>
               <tbody>
                 {data.invoices.map((i) => (
                   <tr key={i.id} className="border-t border-ink-100">
                     <td className="py-1.5"><span className="ltr">{i.number}</span></td><td>{formatDate(i.issueDate)}</td><td>{formatDate(i.dueDate)}</td>
-                    <td>{formatNumber(Number(i.total))} ریال</td><td>{formatNumber(Number(i.paidAmount))} ریال</td>
+                    <td>{tr('{0} ریال', formatNumber(Number(i.total)))}</td><td>{tr('{0} ریال', formatNumber(Number(i.paidAmount)))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -218,7 +219,7 @@ function Progress({ done, total, label }: { done: number; total: number; label: 
   return (
     <div className="mt-2">
       <div className="h-1.5 rounded-full bg-ink-100"><div className="h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} /></div>
-      <p className="mt-1 text-[11px] text-ink-500">{label}: {toPersianDigits(done)} از {toPersianDigits(total)}</p>
+      <p className="mt-1 text-[11px] text-ink-500">{tr('{0}: {1} از {2}', label, localDigits(done), localDigits(total))}</p>
     </div>
   );
 }
@@ -239,7 +240,7 @@ function ProjectPage() {
   const [text, setText] = useState('');
   const [note, setNote] = useState<string | null>(null);
   if (error) return <p className="text-sm text-rose-700">{error}</p>;
-  if (!data) return <p className="text-sm text-ink-500">در حال بارگذاری…</p>;
+  if (!data) return <p className="text-sm text-ink-500">{tr('در حال بارگذاری…')}</p>;
   const p = data.project;
   const approvalOf = (deliverableId: string) => data.approvals.find((a) => a.subjectId === deliverableId);
   const send = async () => {
@@ -250,38 +251,38 @@ function ProjectPage() {
   return (
     <>
       <div>
-        <Link to="/portal" className="text-xs text-brand-700">← پروژه‌ها</Link>
+        <Link to="/portal" className="text-xs text-brand-700">{tr('← پروژه‌ها')}</Link>
         <h1 className="mt-1 text-lg font-semibold text-ink-900">{p.name}</h1>
-        <p className="text-xs text-ink-500"><span className="ltr">{p.code}</span> · {p.stateFa}{p.plannedStart ? ` · ${formatDate(p.plannedStart)} تا ${formatDate(p.plannedEnd)}` : ''}</p>
+        <p className="text-xs text-ink-500"><span className="ltr">{p.code}</span> · {loc(p, 'state')}{p.plannedStart ? tr(' · {0} تا {1}', formatDate(p.plannedStart), formatDate(p.plannedEnd)) : ''}</p>
         {p.objective && <p className="mt-2 text-sm text-ink-700">{p.objective}</p>}
       </div>
       {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{note}</p>}
 
       {data.milestones.length > 0 && (
-        <Box title="نقطه‌های عطف" testid="portal-milestones">
-          <Progress done={data.milestones.filter((m) => m.completedAt).length} total={data.milestones.length} label="انجام‌شده" />
+        <Box title={tr('نقطه‌های عطف')} testid="portal-milestones">
+          <Progress done={data.milestones.filter((m) => m.completedAt).length} total={data.milestones.length} label={tr('انجام‌شده')} />
           <ul className="mt-3 space-y-1.5 text-sm">
             {data.milestones.map((m) => (
               <li key={m.id} className="flex items-center gap-2">
                 <span className={m.completedAt ? 'text-emerald-700' : 'text-ink-300'}>{m.completedAt ? '✓' : '○'}</span>
                 <span className="flex-1">{m.name}</span>
-                <span className="text-xs text-ink-500">{m.completedAt ? `انجام شد ${formatDate(m.completedAt)}` : formatDate(m.dueDate)}</span>
+                <span className="text-xs text-ink-500">{m.completedAt ? tr('انجام شد {0}', formatDate(m.completedAt)) : formatDate(m.dueDate)}</span>
               </li>
             ))}
           </ul>
         </Box>
       )}
 
-      <Box title="خروجی‌ها" testid="portal-deliverables">
-        {!data.deliverables.length ? <p className="text-sm text-ink-500">هنوز خروجی‌ای تعریف نشده است.</p> : (
+      <Box title={tr('خروجی‌ها')} testid="portal-deliverables">
+        {!data.deliverables.length ? <p className="text-sm text-ink-500">{tr('هنوز خروجی‌ای تعریف نشده است.')}</p> : (
           <ul className="space-y-2 text-sm">
             {data.deliverables.map((d) => {
               const a = approvalOf(d.id);
               return (
                 <li key={d.id} className="flex flex-wrap items-center gap-2 border-b border-ink-100 pb-2 last:border-0">
                   <span className="flex-1">{d.name} <span className="ltr text-xs text-ink-400">{d.version}</span></span>
-                  <Badge tone={d.clientState === 'ACCEPTED' ? 'success' : d.clientState === 'DELIVERED' ? 'info' : 'neutral'}>{PORTAL_DELIVERABLE_STATUS[d.clientState] ?? 'در حال تهیه'}</Badge>
-                  {a && <Link to={`/portal/approvals/${a.id}`}><Button size="sm" variant={a.status === 'PENDING' && a.forMe ? 'primary' : 'ghost'}>{a.status === 'PENDING' && a.forMe ? 'بررسی و تصمیم' : CLIENT_APPROVAL_STATUS_LABELS[a.status as ClientApprovalStatus] ?? a.status}</Button></Link>}
+                  <Badge tone={d.clientState === 'ACCEPTED' ? 'success' : d.clientState === 'DELIVERED' ? 'info' : 'neutral'}>{PORTAL_DELIVERABLE_STATUS[d.clientState] ?? tr('در حال تهیه')}</Badge>
+                  {a && <Link to={`/portal/approvals/${a.id}`}><Button size="sm" variant={a.status === 'PENDING' && a.forMe ? 'primary' : 'ghost'}>{trx(a.status === 'PENDING' && a.forMe ? tr('بررسی و تصمیم') : CLIENT_APPROVAL_STATUS_LABELS[a.status as ClientApprovalStatus] ?? a.status)}</Button></Link>}
                 </li>
               );
             })}
@@ -290,8 +291,8 @@ function ProjectPage() {
       </Box>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Box title="گزارش‌های وضعیت" testid="portal-reports">
-          {!data.reports.length ? <p className="text-sm text-ink-500">هنوز گزارشی نیست.</p> : (
+        <Box title={tr('گزارش‌های وضعیت')} testid="portal-reports">
+          {!data.reports.length ? <p className="text-sm text-ink-500">{tr('هنوز گزارشی نیست.')}</p> : (
             <ul className="space-y-1.5 text-sm">
               {data.reports.map((r) => (
                 <li key={r.id} className="flex items-center gap-2"><span className="flex-1">{r.period}</span>
@@ -300,19 +301,19 @@ function ProjectPage() {
             </ul>
           )}
         </Box>
-        <Box title="فایل‌ها" testid="portal-documents">
-          {!data.documents.length ? <p className="text-sm text-ink-500">فایلی به اشتراک گذاشته نشده است.</p> : (
+        <Box title={tr('فایل‌ها')} testid="portal-documents">
+          {!data.documents.length ? <p className="text-sm text-ink-500">{tr('فایلی به اشتراک گذاشته نشده است.')}</p> : (
             <ul className="space-y-1.5 text-sm">
               {data.documents.map((d) => (
-                <li key={d.id} className="flex items-center gap-2"><span className="flex-1 truncate">{d.fileName} <span className="text-xs text-ink-400">({toPersianDigits(Math.ceil(d.sizeBytes / 1024))} KB)</span></span>
-                  <Button size="sm" variant="ghost" onClick={() => download(`/portal/documents/${d.id}`, d.fileName)}>دریافت</Button></li>
+                <li key={d.id} className="flex items-center gap-2"><span className="flex-1 truncate">{d.fileName} <span className="text-xs text-ink-400">({localDigits(Math.ceil(d.sizeBytes / 1024))} KB)</span></span>
+                  <Button size="sm" variant="ghost" onClick={() => download(`/portal/documents/${d.id}`, d.fileName)}>{tr('دریافت')}</Button></li>
               ))}
             </ul>
           )}
         </Box>
       </div>
 
-      <Box title="گفت‌وگو با مدیر اکانت" testid="portal-messages">
+      <Box title={tr('گفت‌وگو با مدیر اکانت')} testid="portal-messages">
         <ul className="mb-3 space-y-2">
           {data.messages.map((m) => (
             <li key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.fromClient ? 'ms-auto bg-brand-50 text-ink-800' : 'bg-ink-50 text-ink-800'}`}>
@@ -321,8 +322,8 @@ function ProjectPage() {
             </li>
           ))}
         </ul>
-        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} aria-label="پیام شما" placeholder="پیام شما…" />
-        <Button size="sm" variant="primary" className="mt-2" disabled={!text.trim()} onClick={() => void send()}>فرستادن</Button>
+        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} aria-label={tr('پیام شما')} placeholder={tr('پیام شما…')} />
+        <Button size="sm" variant="primary" className="mt-2" disabled={!text.trim()} onClick={() => void send()}>{tr('فرستادن')}</Button>
       </Box>
     </>
   );
@@ -333,12 +334,12 @@ function ApprovalPage() {
   const api = useMemo<ApprovalApi>(() => ({
     load: () => papi<View>(`/portal/approvals/${id}`),
     file: (doc) => raw(`/portal/approvals/${id}/files/${doc}`),
-    code: () => Promise.reject(new Error('در پورتال کدی لازم نیست.')),
+    code: () => Promise.reject(new Error(tr('در پورتال کدی لازم نیست.'))),
     decide: (body) => papi<Receipt>(`/portal/approvals/${id}/decision`, { method: 'POST', body: JSON.stringify(body) }),
   }), [id]);
   return (
     <>
-      <Link to="/portal" className="text-xs text-brand-700">← بازگشت</Link>
+      <Link to="/portal" className="text-xs text-brand-700">{tr('← بازگشت')}</Link>
       <Box><ApprovalDecision api={api} embedded /></Box>
     </>
   );

@@ -6,6 +6,7 @@ import {
   Badge, Button, Card, EmptyState, Field, LoadingBlock, Select, Spinner,
   Textarea, IconSpark, IconAlert,
 } from '../components/ui';
+import { loc, tr } from '../i18n';
 
 interface AiStatus {
   enabled: boolean; model: string | null; canUse: boolean; ruleEngineAlwaysAvailable: boolean;
@@ -62,7 +63,7 @@ export default function Assistant() {
         question: question.trim() || undefined,
       }));
     } catch (e: any) {
-      setError(e?.message ?? 'اجرای تحلیل ناموفق بود.');
+      setError(e?.message ?? tr('اجرای تحلیل ناموفق بود.'));
     } finally {
       setBusy(false);
     }
@@ -73,40 +74,37 @@ export default function Assistant() {
   return (
     <>
       <PageHeader
-        title="دستیار هوشمند"
-        subtitle="تحلیل مبتنی بر داده‌های سیستم — در چارچوب دسترسی‌های شما و با ثبت کامل در گزارش حسابرسی"
+        title={tr('دستیار هوشمند')}
+        subtitle={tr('تحلیل مبتنی بر داده‌های سیستم — در چارچوب دسترسی‌های شما و با ثبت کامل در گزارش حسابرسی')}
         badge={status?.enabled
-          ? <Badge tone="success">مدل فعال: {status.model}</Badge>
-          : <Badge tone="warning">موتور قاعده‌محور</Badge>}
+          ? <Badge tone="success">{tr('مدل فعال: {0}', status.model)}</Badge>
+          : <Badge tone="warning">{tr('موتور قاعده‌محور')}</Badge>}
       />
       <PageBody className="space-y-5">
         {!status?.enabled && (
           <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">
-            <strong className="font-semibold">مدل زبانی پیکربندی نشده است. </strong>
-            تحلیل‌های قاعده‌محور (تشخیص نقض قوانین، بریف ناقص، ریسک تأخیر، ارزیابی ناقص تغییر) همچنان کار می‌کنند و
-            کاملاً قطعی و قابل استناد هستند. برای افزودن تحلیل متنی، کلید ANTHROPIC_API_KEY را در تنظیمات سرور قرار دهید.
-          </div>
+            <strong className="font-semibold">{tr('مدل زبانی پیکربندی نشده است.')}{' '}</strong>{tr('تحلیل‌های قاعده‌محور (تشخیص نقض قوانین، بریف ناقص، ریسک تأخیر، ارزیابی ناقص تغییر) همچنان کار می‌کنند و کاملاً قطعی و قابل استناد هستند. برای افزودن تحلیل متنی، کلید ANTHROPIC_API_KEY را در تنظیمات سرور قرار دهید.')}</div>
         )}
 
         <div className="grid gap-5 lg:grid-cols-3">
-          <Card title="تعریف تحلیل" className="lg:col-span-1">
+          <Card title={tr('تعریف تحلیل')} className="lg:col-span-1">
             <div className="space-y-4 p-4">
-              <Field label="نوع تحلیل" required>
+              <Field label={tr('نوع تحلیل')} required>
                 <Select value={capability} onChange={(e) => { setCapability(e.target.value); setEntityId(''); setResult(null); }}>
-                  {status?.capabilities.map((c) => <option key={c.code} value={c.code}>{c.labelFa}</option>)}
+                  {status?.capabilities.map((c) => <option key={c.code} value={c.code}>{loc(c, 'label')}</option>)}
                 </Select>
               </Field>
 
               {source && (
-                <Field label="موضوع تحلیل" required>
+                <Field label={tr('موضوع تحلیل')} required>
                   <Select value={entityId} onChange={(e) => setEntityId(e.target.value)}>
-                    <option value="">— انتخاب —</option>
+                    <option value="">{tr('— انتخاب —')}</option>
                     {entities?.items.map((r) => <option key={r.id} value={r.id}>{source.label(r)}</option>)}
                   </Select>
                 </Field>
               )}
 
-              <Field label="پرسش تکمیلی" hint="اختیاری — تنها در صورت فعال بودن مدل زبانی استفاده می‌شود.">
+              <Field label={tr('پرسش تکمیلی')} hint={tr('اختیاری — تنها در صورت فعال بودن مدل زبانی استفاده می‌شود.')}>
                 <Textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} />
               </Field>
 
@@ -115,14 +113,13 @@ export default function Assistant() {
                 disabled={!!source && !entityId}
                 onClick={() => void run()}
               >
-                <IconSpark className="size-4" /> اجرای تحلیل
-              </Button>
+                <IconSpark className="size-4" />{' '}{tr('اجرای تحلیل')}</Button>
             </div>
           </Card>
 
           <div className="space-y-5 lg:col-span-2">
             {busy && (
-              <Card><div className="flex items-center justify-center gap-2 py-12 text-sm text-ink-500"><Spinner className="size-4" /> در حال تحلیل…</div></Card>
+              <Card><div className="flex items-center justify-center gap-2 py-12 text-sm text-ink-500"><Spinner className="size-4" />{' '}{tr('در حال تحلیل…')}</div></Card>
             )}
 
             {error && (
@@ -133,8 +130,8 @@ export default function Assistant() {
               <Card>
                 <EmptyState
                   icon={<IconSpark className="size-10" />}
-                  title="تحلیلی اجرا نشده"
-                  description="یک نوع تحلیل و موضوع آن را انتخاب کنید. تمام یافته‌ها بر پایه داده‌های واقعی سیستم و در محدوده دسترسی شما تولید می‌شوند."
+                  title={tr('تحلیلی اجرا نشده')}
+                  description={tr('یک نوع تحلیل و موضوع آن را انتخاب کنید. تمام یافته‌ها بر پایه داده‌های واقعی سیستم و در محدوده دسترسی شما تولید می‌شوند.')}
                 />
               </Card>
             )}
@@ -142,12 +139,12 @@ export default function Assistant() {
             {result && (
               <>
                 <Card
-                  title="یافته‌های قاعده‌محور"
-                  subtitle="قطعی و مستقیماً از داده‌های سیستم استخراج شده — بدون اتکا به مدل زبانی"
-                  action={<Badge tone="neutral">{result.findings.length} یافته</Badge>}
+                  title={tr('یافته‌های قاعده‌محور')}
+                  subtitle={tr('قطعی و مستقیماً از داده‌های سیستم استخراج شده — بدون اتکا به مدل زبانی')}
+                  action={<Badge tone="neutral">{tr('{0} یافته', result.findings.length)}</Badge>}
                 >
                   {!result.findings.length ? (
-                    <EmptyState title="موردی یافت نشد" description="هیچ نقض قانون یا ریسک قابل تشخیصی وجود ندارد." />
+                    <EmptyState title={tr('موردی یافت نشد')} description={tr('هیچ نقض قانون یا ریسک قابل تشخیصی وجود ندارد.')} />
                   ) : (
                     <ul className="divide-y divide-ink-100">
                       {result.findings.map((f, i) => (
@@ -157,12 +154,12 @@ export default function Assistant() {
                             : f.severity === 'WARNING' ? 'text-amber-600' : 'text-sky-600'}`} />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium text-ink-800">{f.labelFa}</p>
+                              <p className="text-sm font-medium text-ink-800">{loc(f, 'label')}</p>
                               <Badge tone={f.severity === 'CRITICAL' ? 'danger' : f.severity === 'WARNING' ? 'warning' : 'info'}>
-                                {f.severity === 'CRITICAL' ? 'بحرانی' : f.severity === 'WARNING' ? 'هشدار' : 'اطلاع'}
+                                {f.severity === 'CRITICAL' ? tr('بحرانی') : f.severity === 'WARNING' ? tr('هشدار') : tr('اطلاع')}
                               </Badge>
                             </div>
-                            <p className="mt-1 text-sm text-ink-600">{f.detailFa}</p>
+                            <p className="mt-1 text-sm text-ink-600">{loc(f, 'detail')}</p>
                           </div>
                         </li>
                       ))}
@@ -171,7 +168,7 @@ export default function Assistant() {
                 </Card>
 
                 {result.narrative && (
-                  <Card title="تحلیل متنی" subtitle={`تولیدشده توسط ${result.model}`}>
+                  <Card title={tr('تحلیل متنی')} subtitle={tr('تولیدشده توسط {0}', result.model)}>
                     <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-7 text-ink-700">{result.narrative}</p>
                   </Card>
                 )}
@@ -181,7 +178,7 @@ export default function Assistant() {
                 )}
 
                 {!!result.grounding.length && (
-                  <Card title="مستندات پشتیبان" subtitle="داده‌هایی که تحلیل بر پایه آن‌ها انجام شده">
+                  <Card title={tr('مستندات پشتیبان')} subtitle={tr('داده‌هایی که تحلیل بر پایه آن‌ها انجام شده')}>
                     <ul className="flex flex-wrap gap-2 p-4">
                       {result.grounding.map((g) => (
                         <li key={g.id}>

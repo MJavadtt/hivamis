@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Button, Field, Input } from '../components/ui';
+import { tr } from '../i18n';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -16,7 +17,7 @@ export default function Login() {
     try {
       await signIn(email.trim().toLowerCase(), password);
     } catch (err: any) {
-      setError(err?.message ?? 'ورود ناموفق بود.');
+      setError(err?.message ?? tr('ورود ناموفق بود.'));
     } finally {
       setBusy(false);
     }
@@ -26,15 +27,13 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center bg-ink-100 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand-600 text-xl font-bold text-white">
-            ه
-          </span>
-          <h1 className="text-xl font-semibold text-ink-900">هیوامیس</h1>
-          <p className="mt-1 text-sm text-ink-500">سیستم‌عامل سازمانی — ورود به سامانه</p>
+          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand-600 text-xl font-bold text-white">{tr('ه')}</span>
+          <h1 className="text-xl font-semibold text-ink-900">{tr('هیوامیس')}</h1>
+          <p className="mt-1 text-sm text-ink-500">{tr('سیستم‌عامل سازمانی — ورود به سامانه')}</p>
         </div>
 
         <form onSubmit={submit} className="space-y-4 rounded-xl bg-surface p-6 shadow-sm ring-1 ring-ink-200">
-          <Field label="ایمیل سازمانی" required>
+          <Field label={tr('ایمیل سازمانی')} required>
             <Input
               type="email"
               value={email}
@@ -45,7 +44,7 @@ export default function Login() {
               placeholder="name@hiva.local"
             />
           </Field>
-          <Field label="رمز عبور" required>
+          <Field label={tr('رمز عبور')} required>
             <Input
               type="password"
               value={password}
@@ -62,14 +61,10 @@ export default function Login() {
             </p>
           )}
 
-          <Button type="submit" variant="primary" loading={busy} className="w-full">
-            ورود
-          </Button>
+          <Button type="submit" variant="primary" loading={busy} className="w-full">{tr('ورود')}</Button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-ink-400">
-          دسترسی شما بر اساس نقش سازمانی و قوانین حاکم بر فرآیند تعیین می‌شود.
-        </p>
+        <p className="mt-4 text-center text-xs text-ink-400">{tr('دسترسی شما بر اساس نقش سازمانی و قوانین حاکم بر فرآیند تعیین می‌شود.')}</p>
       </div>
     </div>
   );

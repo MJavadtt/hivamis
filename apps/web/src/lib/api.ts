@@ -1,3 +1,4 @@
+import { locale, tr, trx } from '../i18n';
 /**
  * API client. Holds the access token in memory (not localStorage, so an XSS cannot read it)
  * and keeps only the refresh token in storage, transparently rotating on 401.
@@ -22,15 +23,17 @@ export interface ApiErrorBody {
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly body: ApiErrorBody) {
-    super(body.message);
+    // The server answers in the language the request asked for; this covers one that did not.
+    super(trx(body.message));
     this.name = 'ApiError';
   }
   /** The Doc_H clause a governance rejection cites, when the server supplied one. */
   get rule(): string | undefined {
-    return this.body.details?.rule as string | undefined;
+    const rule = this.body.details?.rule as string | undefined;
+    return rule === undefined ? undefined : trx(rule);
   }
   get issues(): { path: string; message: string }[] {
-    return (this.body.details?.issues as { path: string; message: string }[]) ?? [];
+    return ((this.body.details?.issues as { path: string; message: string }[]) ?? []).map((i) => ({ ...i, message: trx(i.message) }));
   }
 }
 
@@ -80,6 +83,12 @@ export function tokenPermissions(token: string): string[] | null {
 /** For callers that hold a connection open themselves — the live stream (roadmap #39). */
 export const refreshSession = () => attemptRefresh();
 
+/** The bearer, and the language the answer — an error message above all — should come in. */
+const baseHeaders = (): Record<string, string> => ({
+  'accept-language': locale(),
+  ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+});
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
@@ -98,7 +107,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
       method: opts.method ?? 'GET',
       headers: {
         ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
-        ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+        ...baseHeaders(),
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
@@ -110,7 +119,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
 
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
     try {
       const parsed = await res.json();
       if (parsed?.error) body = parsed.error;
@@ -124,14 +133,14 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
 export async function apiUpload<T = unknown>(path: string, form: FormData): Promise<T> {
   const send = () => fetch(`/api/v1${path}`, {
     method: 'POST', body: form,
-    headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+    headers: baseHeaders(),
   });
   let res = await send();
   if (res.status === 401 && getRefreshToken()) {
     if (await attemptRefresh()) res = await send();
   }
   if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
     try {
       const parsed = await res.json();
       if (parsed?.error) body = parsed.error;
@@ -165,13 +174,13 @@ export interface Page<T> {
 export async function downloadPdf(kind: string, id: string): Promise<void> {
   const url = new URL(`/api/v1/pdf/${kind}/${id}`, window.location.origin);
 
-  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  const send = () => fetch(url, { headers: baseHeaders() });
 
   let res = await send();
   if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
 
   if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
     try {
       const parsed = await res.json();
       if (parsed?.error) body = parsed.error;
@@ -200,20 +209,20 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
 /** A file's bytes behind the session — for an <img>, a <video> or pdf.js to show (roadmap #38). */
 export async function apiBlob(path: string): Promise<Blob> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
-  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  const send = () => fetch(url, { headers: baseHeaders() });
   let res = await send();
   if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
-  if (!res.ok) throw new ApiError(res.status, { code: 'UNKNOWN', message: `خطای ${res.status}` });
+  if (!res.ok) throw new ApiError(res.status, { code: 'UNKNOWN', message: tr('خطای {0}', res.status) });
   return res.blob();
 }
 
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
-  const send = () => fetch(url, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  const send = () => fetch(url, { headers: baseHeaders() });
   let res = await send();
   if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
   if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
     try { const parsed = await res.json(); if (parsed?.error) body = parsed.error; } catch { /* not JSON */ }
     throw new ApiError(res.status, body);
   }
@@ -238,7 +247,7 @@ export async function downloadPdfBundle(
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+      ...baseHeaders(),
     },
     body: JSON.stringify(body),
   });
@@ -247,7 +256,7 @@ export async function downloadPdfBundle(
   if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
 
   if (!res.ok) {
-    let err: ApiErrorBody = { code: 'UNKNOWN', message: `خطای ${res.status}` };
+    let err: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
     try {
       const parsed = await res.json();
       if (parsed?.error) err = parsed.error;

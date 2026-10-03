@@ -71,6 +71,7 @@ If a module ever needs independent scaling, its boundary is already drawn.
 | Data fetching | TanStack Query | Cache invalidation after a workflow transition is one call |
 | Styling | Tailwind CSS 4 | Token-driven design system in CSS, no runtime cost, trivially RTL |
 | Charts | Recharts | Lazy-loaded on `/reports` only |
+| Language | Persian source, English catalogues (no library) | `tr()` over Persian keys; the English catalogues load only in English, and composed server text is read back against its template (ADR-056) |
 
 **Deliberately not used:** Kubernetes, a message broker, a separate search cluster, a vector
 database, microservices. Each was considered and rejected as unjustified at the target scale.

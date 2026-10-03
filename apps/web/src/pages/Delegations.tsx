@@ -7,7 +7,8 @@ import { useAction } from '../hooks/queries';
 import { PageBody, PageHeader } from '../components/Shell';
 import { JalaliDateInput } from '../components/JalaliDateInput';
 import { Badge, Button, Card, EmptyState, Field, Select, Textarea } from '../components/ui';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
+import { pair, tr, trx } from '../i18n';
 
 interface Delegation {
   id: string; fromUserId: string; toUserId: string; fromName: string; toName: string;
@@ -15,11 +16,11 @@ interface Delegation {
   status: 'ACTIVE' | 'SCHEDULED' | 'EXPIRED' | 'REVOKED';
 }
 const STATUS: Record<Delegation['status'], { fa: string; tone: 'success' | 'info' | 'neutral' | 'danger' }> = {
-  ACTIVE: { fa: 'فعال', tone: 'success' }, SCHEDULED: { fa: 'برنامه‌ریزی‌شده', tone: 'info' },
-  EXPIRED: { fa: 'پایان‌یافته', tone: 'neutral' }, REVOKED: { fa: 'لغوشده', tone: 'danger' },
+  ACTIVE: { fa: tr('فعال'), tone: 'success' }, SCHEDULED: { fa: tr('برنامه‌ریزی‌شده'), tone: 'info' },
+  EXPIRED: { fa: tr('پایان‌یافته'), tone: 'neutral' }, REVOKED: { fa: tr('لغوشده'), tone: 'danger' },
 };
-const permFa = (p: string) => (PERMISSIONS as Record<string, string>)[p] ?? p;
-const roleFa = (r: string) => (ROLE_LABELS as Record<string, { fa: string }>)[r]?.fa ?? r;
+const permFa = (p: string) => trx((PERMISSIONS as Record<string, string>)[p] ?? p);
+const roleFa = (r: string) => pair((ROLE_LABELS as Record<string, { fa: string; en: string }>)[r]) || r;
 
 /**
  * Lend your authority for a while, formally — instead of your password. What you can lend is
@@ -41,9 +42,9 @@ export default function Delegations() {
 
   const grant = useAction(
     () => apiPost('/delegations', { toUserId, permissions: perms, roles, startsAt: startsAt || undefined, endsAt, reason }),
-    'تفویض ثبت شد — با توکن بعدیِ گیرنده فعال می‌شود.',
+    tr('تفویض ثبت شد — با توکن بعدیِ گیرنده فعال می‌شود.'),
   );
-  const revoke = useAction((id: string) => apiPost(`/delegations/${id}/revoke`), 'تفویض لغو شد.');
+  const revoke = useAction((id: string) => apiPost(`/delegations/${id}/revoke`), tr('تفویض لغو شد.'));
 
   const own = (user?.permissions ?? []).filter((p) => !user?.delegated?.[p]);
   const ownRoles = (user?.roles ?? []).filter((r) => !user?.delegatedRoles?.[r]);
@@ -53,18 +54,18 @@ export default function Delegations() {
 
   return (
     <>
-      <PageHeader title="تفویض اختیار" subtitle="به‌جای رمز عبور: اختیار خود را برای مدتی مشخص، با دامنهٔ مشخص و دلیل، به کسی بسپارید — هر کاری که با آن انجام شود به نام شما ثبت می‌شود" />
+      <PageHeader title={tr('تفویض اختیار')} subtitle={tr('به‌جای رمز عبور: اختیار خود را برای مدتی مشخص، با دامنهٔ مشخص و دلیل، به کسی بسپارید — هر کاری که با آن انجام شود به نام شما ثبت می‌شود')} />
       <PageBody>
         <div className="grid gap-5 lg:grid-cols-2">
-          <Card title="تفویض جدید" subtitle="فقط آنچه خودتان دارید قابل تفویض است؛ حداکثر ۹۰ روز">
+          <Card title={tr('تفویض جدید')} subtitle={tr('فقط آنچه خودتان دارید قابل تفویض است؛ حداکثر ۹۰ روز')}>
             <form className="space-y-3 px-4 py-3" onSubmit={(e) => { e.preventDefault(); grant.mutate(undefined, { onSuccess: () => { setPerms([]); setRoles([]); setReason(''); setEnd(''); void refetch(); } }); }}>
-              <Field label="به" required>
-                <Select value={toUserId} onChange={(e) => setTo(e.target.value)} aria-label="گیرنده">
-                  <option value="">— انتخاب —</option>
-                  {users?.items.filter((u) => u.id !== user?.id).map((u) => <option key={u.id} value={u.id}>{u.fullName}{u.jobTitle ? ` — ${u.jobTitle}` : ''}</option>)}
+              <Field label={tr('به')} required>
+                <Select value={toUserId} onChange={(e) => setTo(e.target.value)} aria-label={tr('گیرنده')}>
+                  <option value="">{tr('— انتخاب —')}</option>
+                  {users?.items.filter((u) => u.id !== user?.id).map((u) => <option key={u.id} value={u.id}>{u.fullName}{u.jobTitle ? ` — ${trx(u.jobTitle)}` : ''}</option>)}
                 </Select>
               </Field>
-              <Field label="دسترسی‌ها" hint="آنچه گیرنده در این مدت می‌تواند انجام دهد">
+              <Field label={tr('دسترسی‌ها')} hint={tr('آنچه گیرنده در این مدت می‌تواند انجام دهد')}>
                 <div className="grid max-h-48 grid-cols-1 gap-1 overflow-auto rounded-lg bg-ink-50/60 p-2 text-xs sm:grid-cols-2" data-testid="permission-picker">
                   {own.map((p) => (
                     <label key={p} className="flex cursor-pointer items-center gap-2">
@@ -75,7 +76,7 @@ export default function Delegations() {
                 </div>
               </Field>
               {ownRoles.length > 0 && (
-                <Field label="نقش‌های تأییدکننده" hint="برای فرم‌هایی که تأییدکننده‌شان یک نقش است">
+                <Field label={tr('نقش‌های تأییدکننده')} hint={tr('برای فرم‌هایی که تأییدکننده‌شان یک نقش است')}>
                   <div className="flex flex-wrap gap-3 text-xs">
                     {ownRoles.map((r) => (
                       <label key={r} className="flex cursor-pointer items-center gap-2">
@@ -87,21 +88,19 @@ export default function Delegations() {
                 </Field>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <Field label="از" hint="خالی یعنی اکنون"><JalaliDateInput value={startsAt} onChange={setStart} mode="datetime" id="delegation-from" /></Field>
-                <Field label="تا" required><JalaliDateInput value={endsAt} onChange={setEnd} mode="datetime" id="delegation-to" /></Field>
+                <Field label={tr('از')} hint={tr('خالی یعنی اکنون')}><JalaliDateInput value={startsAt} onChange={setStart} mode="datetime" id="delegation-from" /></Field>
+                <Field label={tr('تا')} required><JalaliDateInput value={endsAt} onChange={setEnd} mode="datetime" id="delegation-to" /></Field>
               </div>
-              <Field label="دلیل" required>
-                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} aria-label="دلیل" />
+              <Field label={tr('دلیل')} required>
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} aria-label={tr('دلیل')} />
               </Field>
-              <Button type="submit" variant="primary" loading={grant.isPending} disabled={!toUserId || !endsAt || !reason.trim() || (perms.length === 0 && roles.length === 0)}>
-                ثبت تفویض
-              </Button>
+              <Button type="submit" variant="primary" loading={grant.isPending} disabled={!toUserId || !endsAt || !reason.trim() || (perms.length === 0 && roles.length === 0)}>{tr('ثبت تفویض')}</Button>
             </form>
           </Card>
 
           <div className="space-y-5">
-            <List title="تفویض‌های من به دیگران" items={given} who={(d) => d.toName} empty="چیزی تفویض نکرده‌اید" onRevoke={(id) => revoke.mutate(id, { onSuccess: () => void refetch() })} />
-            <List title="اختیاراتی که به من داده شده" items={received} who={(d) => `از طرف ${d.fromName}`} empty="اختیاری به شما تفویض نشده" onRevoke={(id) => revoke.mutate(id, { onSuccess: () => void refetch() })} />
+            <List title={tr('تفویض‌های من به دیگران')} items={given} who={(d) => d.toName} empty={tr('چیزی تفویض نکرده‌اید')} onRevoke={(id) => revoke.mutate(id, { onSuccess: () => void refetch() })} />
+            <List title={tr('اختیاراتی که به من داده شده')} items={received} who={(d) => tr('از طرف {0}', d.fromName)} empty={tr('اختیاری به شما تفویض نشده')} onRevoke={(id) => revoke.mutate(id, { onSuccess: () => void refetch() })} />
           </div>
         </div>
       </PageBody>
@@ -120,15 +119,15 @@ function List({ title, items, who, empty, onRevoke }: {
             <li key={d.id} className="px-4 py-2.5 text-xs">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-ink-800">{who(d)}</span>
-                <Badge tone={STATUS[d.status].tone}>{STATUS[d.status].fa}</Badge>
-                <span className="text-ink-500">{formatDate(d.startsAt)} تا {formatDate(d.endsAt)}</span>
+                <Badge tone={STATUS[d.status].tone}>{pair(STATUS[d.status])}</Badge>
+                <span className="text-ink-500">{tr('{0} تا {1}', formatDate(d.startsAt), formatDate(d.endsAt))}</span>
                 {(d.status === 'ACTIVE' || d.status === 'SCHEDULED') && (
-                  <Button size="sm" variant="ghost" className="ms-auto" onClick={() => onRevoke(d.id)}>لغو</Button>
+                  <Button size="sm" variant="ghost" className="ms-auto" onClick={() => onRevoke(d.id)}>{tr('لغو')}</Button>
                 )}
               </div>
               <p className="mt-1 text-ink-600">
-                {[...d.permissions.map(permFa), ...d.roles.map((r) => `نقش ${roleFa(r)}`)].join('، ')}
-                {' '}<span className="text-ink-400">({toPersianDigits(d.permissions.length + d.roles.length)})</span> — {d.reason}
+                {[...d.permissions.map(permFa), ...d.roles.map((r) => tr('نقش {0}', roleFa(r)))].join(tr('، '))}
+                {' '}<span className="text-ink-400">({localDigits(d.permissions.length + d.roles.length)})</span> — {d.reason}
               </p>
             </li>
           ))}

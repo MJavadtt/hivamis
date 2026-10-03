@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { Code } from './common';
 import { Badge, Card, EmptyState, ProgressBar, Table, Td, Th, Tr } from './ui';
-import { formatCurrency, toPersianDigits } from '../lib/format';
+import { formatCurrency, localDigits } from '../lib/format';
+import { pair, tr } from '../i18n';
 
 interface Row {
   workOrderId: string; code: string; title: string; departmentCode: string; state: string;
@@ -16,8 +17,8 @@ interface Budget {
 }
 
 const STATUS: Record<Row['status'], { fa: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = {
-  NO_BUDGET: { fa: 'بدون بودجه', tone: 'neutral' }, UNDER: { fa: 'در محدوده', tone: 'success' },
-  NEAR: { fa: 'نزدیک سقف', tone: 'warning' }, OVER: { fa: 'عبور کرده', tone: 'danger' },
+  NO_BUDGET: { fa: tr('بدون بودجه'), tone: 'neutral' }, UNDER: { fa: tr('در محدوده'), tone: 'success' },
+  NEAR: { fa: tr('نزدیک سقف'), tone: 'warning' }, OVER: { fa: tr('عبور کرده'), tone: 'danger' },
 };
 
 /**
@@ -31,12 +32,12 @@ export function BudgetByOrder({ projectId }: { projectId: string }) {
   if (!data) return null;
   const used = (r: { budget: number | null; declared: number }) => (r.budget ? Math.min(150, (r.declared / r.budget) * 100) : 0);
   return (
-    <Card title="بودجه در برابر واقعیت — به تفکیک سفارش کار"
-      subtitle={`تخصیص‌یافته ${formatCurrency(data.project.allocated)} · اعلام‌شده ${formatCurrency(data.project.declared)}${data.project.unallocated != null ? ` · تخصیص‌نیافته ${formatCurrency(data.project.unallocated)}` : ''}`}>
-      {!data.workOrders.length ? <EmptyState title="سفارش کاری صادر نشده" /> : (
+    <Card title={tr('بودجه در برابر واقعیت — به تفکیک سفارش کار')}
+      subtitle={tr('تخصیص‌یافته {0} · اعلام‌شده {1}{2}', formatCurrency(data.project.allocated), formatCurrency(data.project.declared), data.project.unallocated != null ? tr(' · تخصیص‌نیافته {0}', formatCurrency(data.project.unallocated)) : '')}>
+      {!data.workOrders.length ? <EmptyState title={tr('سفارش کاری صادر نشده')} /> : (
         <Table>
           <thead className="bg-ink-50/60">
-            <tr><Th>سفارش</Th><Th>واحد</Th><Th>بودجه</Th><Th>اعلام‌شده</Th><Th>انحراف</Th><Th>مصرف</Th><Th>وضعیت</Th></tr>
+            <tr><Th>{tr('سفارش')}</Th><Th>{tr('واحد')}</Th><Th>{tr('بودجه')}</Th><Th>{tr('اعلام‌شده')}</Th><Th>{tr('انحراف')}</Th><Th>{tr('مصرف')}</Th><Th>{tr('وضعیت')}</Th></tr>
           </thead>
           <tbody data-testid="budget-rows">
             {data.workOrders.map((w) => (
@@ -44,12 +45,12 @@ export function BudgetByOrder({ projectId }: { projectId: string }) {
                 <Td><p className="text-sm">{w.title}</p><Code>{w.code}</Code></Td>
                 <Td className="text-xs">{w.departmentCode}</Td>
                 <Td className="nums text-xs">{w.budget == null ? '—' : formatCurrency(w.budget)}</Td>
-                <Td className="nums text-xs">{formatCurrency(w.declared)} <span className="text-ink-400">({toPersianDigits(w.declarations)})</span></Td>
+                <Td className="nums text-xs">{formatCurrency(w.declared)} <span className="text-ink-400">({localDigits(w.declarations)})</span></Td>
                 <Td className={`nums text-xs ${w.variance != null && w.variance < 0 ? 'text-rose-700' : 'text-ink-600'}`}>
-                  {w.variance == null ? '—' : `${formatCurrency(w.variance)}${w.variancePercent != null ? ` (${toPersianDigits(w.variancePercent)}٪)` : ''}`}
+                  {w.variance == null ? '—' : `${formatCurrency(w.variance)}${w.variancePercent != null ? tr(' ({0}٪)', localDigits(w.variancePercent)) : ''}`}
                 </Td>
                 <Td><div className="w-24"><ProgressBar value={used(w)} tone={STATUS[w.status].tone === 'neutral' ? 'success' : STATUS[w.status].tone} /></div></Td>
-                <Td><Badge tone={STATUS[w.status].tone}>{STATUS[w.status].fa}</Badge></Td>
+                <Td><Badge tone={STATUS[w.status].tone}>{pair(STATUS[w.status])}</Badge></Td>
               </Tr>
             ))}
           </tbody>
@@ -57,13 +58,13 @@ export function BudgetByOrder({ projectId }: { projectId: string }) {
             <tfoot className="bg-ink-50/40 text-xs">
               {data.units.map((u) => (
                 <tr key={u.departmentCode}>
-                  <Td className="text-ink-500">جمع واحد</Td>
+                  <Td className="text-ink-500">{tr('جمع واحد')}</Td>
                   <Td>{u.departmentCode}</Td>
                   <Td className="nums">{formatCurrency(u.budget)}</Td>
                   <Td className="nums">{formatCurrency(u.declared)}</Td>
                   <Td className="nums">{formatCurrency(u.budget - u.declared)}</Td>
                   <Td />
-                  <Td><Badge tone={STATUS[u.status].tone}>{STATUS[u.status].fa}</Badge></Td>
+                  <Td><Badge tone={STATUS[u.status].tone}>{pair(STATUS[u.status])}</Badge></Td>
                 </tr>
               ))}
             </tfoot>

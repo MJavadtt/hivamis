@@ -20,6 +20,13 @@ everyone holding the role: what was taken away disappears from their screens on 
 Full access is not exemption: the process rules (a project without authorization, a delivery without
 QC) still stop everyone, and the managing director's governed exception remains the way past one.
 
+**Language.** The **EN** / **فا** button at the top switches the whole interface between Persian and
+English; the page reloads in the other language and remembers the choice, here and on your next
+device. In English, numbers use Latin digits, amounts read "Rials", dates are Gregorian and date
+fields use the browser's calendar; the stored dates are the same either way. Names of people,
+clients and projects stay as they were written, and documents — PDFs, emails, certificates — keep the
+language they were issued in.
+
 ---
 
 ## The dashboard — «داشبورد»

@@ -11,10 +11,11 @@ import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, LoadingBlock, Modal,
   Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, useToast,
 } from '../components/ui';
-import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
+import { formatDate, formatRelative, localDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { AnnotateButton, AnnotationsModal, timecodeFa, type AnnotationRow } from '../components/Annotations';
+import { tr, trx } from '../i18n';
 
 interface QcQueue {
   unit: any[]; account: any[]; final: any[]; revisions: any[];
@@ -24,30 +25,30 @@ interface QcQueue {
 /** Checklists mirror the Doc_H QC forms (E37 / E38 / E39) for each level. */
 const CHECKLISTS: Record<string, { key: string; label: string }[]> = {
   UNIT: [
-    { key: 'matchesBrief', label: 'مطابق بریف است' },
-    { key: 'technicallySound', label: 'از نظر فنی صحیح است' },
-    { key: 'brandCompliant', label: 'مطابق هویت بصری هیوا' },
-    { key: 'completeDeliverable', label: 'کامل است' },
+    { key: 'matchesBrief', label: tr('مطابق بریف است') },
+    { key: 'technicallySound', label: tr('از نظر فنی صحیح است') },
+    { key: 'brandCompliant', label: tr('مطابق هویت بصری هیوا') },
+    { key: 'completeDeliverable', label: tr('کامل است') },
   ],
   ACCOUNT: [
-    { key: 'matchesBrief', label: 'تطابق با Brief' },
-    { key: 'matchesScope', label: 'تطابق با Scope' },
-    { key: 'matchesKickoff', label: 'تطابق با تصمیمات Kick-off' },
-    { key: 'deliverablesComplete', label: 'کامل بودن Deliverableها' },
-    { key: 'costReviewed', label: 'قیمت تمام‌شده بررسی شد' },
+    { key: 'matchesBrief', label: tr('تطابق با Brief') },
+    { key: 'matchesScope', label: tr('تطابق با Scope') },
+    { key: 'matchesKickoff', label: tr('تطابق با تصمیمات Kick-off') },
+    { key: 'deliverablesComplete', label: tr('کامل بودن Deliverableها') },
+    { key: 'costReviewed', label: tr('قیمت تمام‌شده بررسی شد') },
   ],
   FINAL: [
-    { key: 'proposalComplete', label: 'پروپوزال کامل است' },
-    { key: 'pricingReviewed', label: 'قیمت بررسی شد' },
-    { key: 'qualityAcceptable', label: 'کیفیت قابل قبول است' },
-    { key: 'clientReady', label: 'قابل ارائه به مشتری است' },
+    { key: 'proposalComplete', label: tr('پروپوزال کامل است') },
+    { key: 'pricingReviewed', label: tr('قیمت بررسی شد') },
+    { key: 'qualityAcceptable', label: tr('کیفیت قابل قبول است') },
+    { key: 'clientReady', label: tr('قابل ارائه به مشتری است') },
   ],
 };
 
 const LEVEL_TITLES: Record<string, string> = {
-  UNIT: 'QC سطح ۱ — واحد اجرایی',
-  ACCOUNT: 'QC سطح ۲ — اکانت',
-  FINAL: 'QC سطح ۳ — نهایی',
+  UNIT: tr('QC سطح ۱ — واحد اجرایی'),
+  ACCOUNT: tr('QC سطح ۲ — اکانت'),
+  FINAL: tr('QC سطح ۳ — نهایی'),
 };
 
 export default function Quality() {
@@ -66,21 +67,21 @@ export default function Quality() {
   return (
     <>
       <PageHeader
-        title="کنترل کیفیت"
-        subtitle="قانون ۹ — کنترل کیفیت در سه سطح: واحد اجرایی، اکانت، و نهایی"
+        title={tr('کنترل کیفیت')}
+        subtitle={tr('قانون ۹ — کنترل کیفیت در سه سطح: واحد اجرایی، اکانت، و نهایی')}
       
         actions={<ContextualHelp />}
       />
       <PageBody className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="در انتظار QC واحد" value={toPersianDigits(data?.counts.unit ?? 0)} tone="info" />
-          <StatTile label="در انتظار QC اکانت" value={toPersianDigits(data?.counts.account ?? 0)} tone="warning" />
-          <StatTile label="در انتظار QC نهایی" value={toPersianDigits(data?.counts.final ?? 0)} tone="warning" />
+          <StatTile label={tr('در انتظار QC واحد')} value={localDigits(data?.counts.unit ?? 0)} tone="info" />
+          <StatTile label={tr('در انتظار QC اکانت')} value={localDigits(data?.counts.account ?? 0)} tone="warning" />
+          <StatTile label={tr('در انتظار QC نهایی')} value={localDigits(data?.counts.final ?? 0)} tone="warning" />
           <StatTile
-            label="اصلاحیه‌های باز"
-            value={toPersianDigits(data?.counts.revisions ?? 0)}
+            label={tr('اصلاحیه‌های باز')}
+            value={localDigits(data?.counts.revisions ?? 0)}
             tone={data?.counts.overdueRevisions ? 'danger' : 'neutral'}
-            hint={data?.counts.overdueRevisions ? `${toPersianDigits(data.counts.overdueRevisions)} مورد سررسید گذشته` : undefined}
+            hint={data?.counts.overdueRevisions ? tr('{0} مورد سررسید گذشته', localDigits(data.counts.overdueRevisions)) : undefined}
           />
         </div>
 
@@ -89,10 +90,10 @@ export default function Quality() {
             active={tab}
             onChange={setTab}
             tabs={[
-              { key: 'unit', label: 'QC واحد', count: data?.counts.unit },
-              { key: 'account', label: 'QC اکانت', count: data?.counts.account },
-              { key: 'final', label: 'QC نهایی', count: data?.counts.final },
-              { key: 'revisions', label: 'اصلاحیه‌ها', count: data?.counts.revisions },
+              { key: 'unit', label: tr('QC واحد'), count: data?.counts.unit },
+              { key: 'account', label: tr('QC اکانت'), count: data?.counts.account },
+              { key: 'final', label: tr('QC نهایی'), count: data?.counts.final },
+              { key: 'revisions', label: tr('اصلاحیه‌ها'), count: data?.counts.revisions },
             ]}
           />
 
@@ -126,17 +127,17 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
   onReview: (target: any, level: string) => void;
 }) {
   if (!rows.length) {
-    return <EmptyState title="موردی در این صف نیست" description="خروجی‌های آماده بررسی اینجا نمایش داده می‌شوند." />;
+    return <EmptyState title={tr('موردی در این صف نیست')} description={tr('خروجی‌های آماده بررسی اینجا نمایش داده می‌شوند.')} />;
   }
   return (
     <Table>
       <thead className="bg-ink-50/60">
         <tr>
-          <Th>{isProposal ? 'پروپوزال' : 'خروجی'}</Th>
-          {!isProposal && <Th>واحد</Th>}
-          <Th>{isProposal ? 'بریف' : 'پروژه'}</Th>
-          <Th>وضعیت</Th>
-          <Th>اقدام</Th>
+          <Th>{isProposal ? tr('پروپوزال') : tr('خروجی')}</Th>
+          {!isProposal && <Th>{tr('واحد')}</Th>}
+          <Th>{isProposal ? tr('بریف') : tr('پروژه')}</Th>
+          <Th>{tr('وضعیت')}</Th>
+          <Th>{tr('اقدام')}</Th>
         </tr>
       </thead>
       <tbody>
@@ -157,9 +158,7 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
             <Td>
               <div className="flex flex-wrap gap-1.5">
                 {canReview && (
-                  <Button size="sm" variant="primary" onClick={() => onReview(r, level)}>
-                    ثبت QC
-                  </Button>
+                  <Button size="sm" variant="primary" onClick={() => onReview(r, level)}>{tr('ثبت QC')}</Button>
                 )}
                 <WorkflowActions
                   entity={isProposal ? 'proposal' : 'deliverable'}
@@ -190,25 +189,23 @@ export function UnitQcNote({ review }: { review: UnitReview | undefined }) {
   };
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-500" data-testid="unit-qc-note">
-      <Badge tone={review.verdict === 'PASSED' ? 'success' : 'danger'}>QC سطح ۱: {review.verdict === 'PASSED' ? 'قبول' : 'رد'}</Badge>
+      <Badge tone={review.verdict === 'PASSED' ? 'success' : 'danger'}>{tr('QC سطح ۱: {0}', review.verdict === 'PASSED' ? tr('قبول') : tr('رد'))}</Badge>
       <span>{review.reviewer.fullName} — {formatRelative(review.reviewedAt)}</span>
       {review.documents.map((d, i) => (
-        <button key={d.id} className="text-brand-700 underline" onClick={() => void open(d.id)} title={d.fileName}>
-          عکس {toPersianDigits(i + 1)}
-        </button>
+        <button key={d.id} className="text-brand-700 underline" onClick={() => void open(d.id)} title={d.fileName}>{tr('عکس {0}', localDigits(i + 1))}</button>
       ))}
     </div>
   );
 }
 
 function RevisionsTable({ rows }: { rows: any[] }) {
-  if (!rows.length) return <EmptyState title="اصلاحیه بازی وجود ندارد" />;
+  if (!rows.length) return <EmptyState title={tr('اصلاحیه بازی وجود ندارد')} />;
   return (
     <Table>
       <thead className="bg-ink-50/60">
         <tr>
-          <Th>خروجی</Th><Th>علت</Th><Th>اصلاح مورد انتظار</Th>
-          <Th>واحد مسئول</Th><Th>مهلت</Th><Th>وضعیت</Th><Th>اقدام</Th>
+          <Th>{tr('خروجی')}</Th><Th>{tr('علت')}</Th><Th>{tr('اصلاح مورد انتظار')}</Th>
+          <Th>{tr('واحد مسئول')}</Th><Th>{tr('مهلت')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('اقدام')}</Th>
         </tr>
       </thead>
       <tbody>
@@ -220,7 +217,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
                 <p className="text-sm">{r.deliverable?.name ?? '—'}</p>
                 <Code>{r.code}</Code>
               </Td>
-              <Td><Badge tone="warning">{REVISION_REASON_LABELS[r.reason] ?? r.reason}</Badge></Td>
+              <Td><Badge tone="warning">{trx(REVISION_REASON_LABELS[r.reason] ?? r.reason)}</Badge></Td>
               <Td className="max-w-xs whitespace-pre-line text-xs">{r.requiredCorrection}</Td>
               <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
               <Td className="text-xs">
@@ -273,16 +270,16 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
       });
       toast(
         verdict === 'PASSED'
-          ? 'کنترل کیفیت با تأیید ثبت شد.'
+          ? tr('کنترل کیفیت با تأیید ثبت شد.')
           : result?.revision
-            ? `عدم تأیید ثبت و اصلاحیه ${result.revision.code} صادر شد.`
-            : 'عدم تأیید ثبت شد.',
+            ? tr('عدم تأیید ثبت و اصلاحیه {0} صادر شد.', result.revision.code)
+            : tr('عدم تأیید ثبت شد.'),
         verdict === 'PASSED' ? 'success' : 'warning',
       );
       await qc.invalidateQueries();
       onClose();
     } catch (e: any) {
-      toast(e?.message ?? 'ثبت QC ناموفق بود.', 'danger');
+      toast(e?.message ?? tr('ثبت QC ناموفق بود.'), 'danger');
     } finally {
       setBusy(false);
     }
@@ -295,15 +292,13 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
       title={LEVEL_TITLES[level]}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>انصراف</Button>
+          <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
           <Button
             variant={verdict === 'PASSED' ? 'primary' : 'danger'}
             loading={busy}
             disabled={verdict === 'FAILED' && findings.trim().length < 3 && carried.length === 0}
             onClick={() => void submit()}
-          >
-            ثبت نتیجه
-          </Button>
+          >{tr('ثبت نتیجه')}</Button>
         </>
       }
     >
@@ -324,21 +319,21 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
       </div>
 
       <div className="mt-4">
-        <Field label="نتیجه" required>
+        <Field label={tr('نتیجه')} required>
           <Select value={verdict} onChange={(e) => setVerdict(e.target.value as 'PASSED' | 'FAILED')}>
-            <option value="PASSED">تأیید</option>
-            <option value="FAILED">عدم تأیید</option>
+            <option value="PASSED">{tr('تأیید')}</option>
+            <option value="FAILED">{tr('عدم تأیید')}</option>
           </Select>
         </Field>
       </div>
 
       <div className="mt-3">
         <Field
-          label="یافته‌ها"
+          label={tr('یافته‌ها')}
           required={verdict === 'FAILED'}
           hint={
             verdict === 'FAILED'
-              ? 'در صورت عدم تأیید، ثبت یافته‌ها الزامی است و به‌صورت خودکار اصلاحیه صادر می‌شود (قانون ۱۰).'
+              ? tr('در صورت عدم تأیید، ثبت یافته‌ها الزامی است و به‌صورت خودکار اصلاحیه صادر می‌شود (قانون ۱۰).')
               : undefined
           }
         >
@@ -349,17 +344,17 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
       {!isProposal && (
         <div className="mt-3 rounded-lg border border-ink-200 p-3" data-testid="qc-annotations">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-ink-700">یادداشت‌های روی فایل‌ها</p>
-            <Button size="sm" variant="secondary" onClick={() => setAnnotating(true)}>یادداشت روی فایل‌ها</Button>
+            <p className="text-xs font-medium text-ink-700">{tr('یادداشت‌های روی فایل‌ها')}</p>
+            <Button size="sm" variant="secondary" onClick={() => setAnnotating(true)}>{tr('یادداشت روی فایل‌ها')}</Button>
           </div>
-          {!open.length ? <p className="mt-1 text-[11px] text-ink-500">یادداشت بازی نیست؛ برای نشان دادن جای دقیق اصلاح، روی خود فایل یادداشت بگذارید.</p> : (
+          {!open.length ? <p className="mt-1 text-[11px] text-ink-500">{tr('یادداشت بازی نیست؛ برای نشان دادن جای دقیق اصلاح، روی خود فایل یادداشت بگذارید.')}</p> : (
             <>
-              <p className="mt-1 text-[11px] text-ink-500">در صورت عدم تأیید، یادداشت‌های انتخاب‌شده سطر به سطر در «اصلاح مورد انتظار» اصلاحیه می‌آیند.</p>
+              <p className="mt-1 text-[11px] text-ink-500">{tr('در صورت عدم تأیید، یادداشت‌های انتخاب‌شده سطر به سطر در «اصلاح مورد انتظار» اصلاحیه می‌آیند.')}</p>
               <div className="mt-2 space-y-1">
                 {open.map((a) => (
                   <Checkbox key={a.id} checked={!unchecked.has(a.id)}
                     onChange={(e) => setUnchecked((u) => { const n = new Set(u); if (e.target.checked) n.delete(a.id); else n.add(a.id); return n; })}
-                    label={`${toPersianDigits(a.number)}. ${a.kind === 'TIMECODE' ? `[${timecodeFa(a.timeSec ?? 0)}] ` : a.kind === 'HIGHLIGHT' ? `[صفحهٔ ${toPersianDigits(a.page ?? 1)}] ` : ''}${a.note}`} />
+                    label={`${localDigits(a.number)}. ${a.kind === 'TIMECODE' ? `[${timecodeFa(a.timeSec ?? 0)}] ` : a.kind === 'HIGHLIGHT' ? tr('[صفحهٔ {0}] ', localDigits(a.page ?? 1)) : ''}${a.note}`} />
                 ))}
               </div>
             </>
@@ -381,9 +376,7 @@ function ContextualHelp() {
         onClick={() => setOpen(true)}
         className="text-xs text-brand-600 hover:underline
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-      >
-        راهنمای این بخش
-      </button>
+      >{tr('راهنمای این بخش')}</button>
       <HelpDrawer open={open} onClose={() => setOpen(false)} initialSection="When the system blocks you" />
     </>
   );

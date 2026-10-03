@@ -1,6 +1,7 @@
 // Imported at build time from the single source in docs/, so the in-app help and the written
 // guide cannot drift. Editing docs/user-guide.md updates both.
 import guideSource from '../../../../docs/user-guide.md?raw';
+import { isEnglish } from '../i18n';
 
 export interface HelpSection {
   /** The `##` heading, used as the section id and title. */
@@ -53,7 +54,7 @@ export function findSection(title: string | undefined): HelpSection | undefined 
 }
 
 /** Persian headings for the sections, since the guide itself is written in English. */
-export const SECTION_TITLE_FA: Record<string, string> = {
+const SECTION_TITLE_FA: Record<string, string> = {
   'Signing in': 'ورود به سامانه',
   'The dashboard — «داشبورد»': 'داشبورد',
   'Your queue — «کارهای من»': 'کارهای من',
@@ -72,3 +73,12 @@ export const SECTION_TITLE_FA: Record<string, string> = {
   'Getting the organisation started': 'راه‌اندازی سازمان',
   'When the system blocks you': 'وقتی سامانه مانع می‌شود',
 };
+
+/**
+ * A section's heading in the reader's language: the guide's own (English) heading in English, without
+ * the Persian screen name it quotes for Persian readers; the Persian heading in Persian.
+ */
+export function sectionTitle(title: string): string {
+  if (isEnglish()) return title.replace(/\s*—\s*«[^»]*»\s*$/, '');
+  return SECTION_TITLE_FA[title] ?? title;
+}

@@ -10,6 +10,7 @@ import { env, trustProxy } from './env.js';
 import { prisma } from './db.js';
 import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
+import { localizeError, requestLocale } from './lib/i18n.js';
 import { requestContext } from './lib/request-context.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
@@ -109,42 +110,28 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(authPlugin);
 
   app.setErrorHandler((error, req, reply) => {
+    // The error goes back in the language the request asked for; logs keep the Persian (Hivamis task 7).
+    const send = (status: number, body: { code: string; message: string; details?: unknown }) =>
+      reply.code(status).send({ error: { ...localizeError(body, requestLocale(req.headers['accept-language'])), requestId: req.id } });
     if (error instanceof AppError) {
-      return reply.code(error.statusCode).send({
-        error: {
-          code: error.code,
-          message: error.messageFa,
-          details: error.details ?? undefined,
-          requestId: req.id,
-        },
-      });
+      return send(error.statusCode, { code: error.code, message: error.messageFa, details: error.details ?? undefined });
     }
     if ((error as { statusCode?: number }).statusCode === 429) {
-      return reply.code(429).send({
-        error: { code: 'RATE_LIMITED', message: 'تعداد درخواست‌ها بیش از حد مجاز است.', requestId: req.id },
-      });
+      return send(429, { code: 'RATE_LIMITED', message: 'تعداد درخواست‌ها بیش از حد مجاز است.' });
     }
     // Prisma unique-constraint violation
     if ((error as { code?: string }).code === 'P2002') {
-      return reply.code(409).send({
-        error: { code: 'DUPLICATE', message: 'رکورد تکراری است.', requestId: req.id },
-      });
+      return send(409, { code: 'DUPLICATE', message: 'رکورد تکراری است.' });
     }
     if ((error as { code?: string }).code === 'P2025') {
-      return reply.code(404).send({
-        error: { code: 'NOT_FOUND', message: 'رکورد یافت نشد.', requestId: req.id },
-      });
+      return send(404, { code: 'NOT_FOUND', message: 'رکورد یافت نشد.' });
     }
     if ((error as { code?: string }).code === 'P2003') {
-      return reply.code(400).send({
-        error: { code: 'FK_VIOLATION', message: 'ارجاع نامعتبر به رکورد دیگر.', requestId: req.id },
-      });
+      return send(400, { code: 'FK_VIOLATION', message: 'ارجاع نامعتبر به رکورد دیگر.' });
     }
     req.log.error({ err: error }, 'unhandled error');
     // Internal details are logged, never returned.
-    return reply.code(500).send({
-      error: { code: 'INTERNAL_ERROR', message: 'خطای داخلی سرور رخ داد.', requestId: req.id },
-    });
+    return send(500, { code: 'INTERNAL_ERROR', message: 'خطای داخلی سرور رخ داد.' });
   });
 
   app.get('/health', async () => ({ status: 'ok', uptime: process.uptime() }));

@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, EmptyState, Input, Modal, ProgressBar, Select, StatTile, Table, Td, Th, Tr, useToast } from './ui';
-import { formatCurrency, formatPercent, toPersianDigits } from '../lib/format';
+import { formatCurrency, formatPercent, localDigits } from '../lib/format';
+import { loc, tr, trx } from '../i18n';
 
 /* Roadmap #29 — revenue as the work earns it, and the work in progress between earning and billing. */
 
@@ -22,10 +23,10 @@ interface ProjectRevenueData {
 /** Work in progress in words: earned and not billed, or billed ahead of the work. */
 export function WipLabel({ wip }: { wip: number | null }) {
   if (wip == null) return <span className="text-ink-400">—</span>;
-  if (Math.abs(wip) < 1) return <span className="text-ink-500">هم‌تراز</span>;
+  if (Math.abs(wip) < 1) return <span className="text-ink-500">{tr('هم‌تراز')}</span>;
   return wip > 0
-    ? <span className="text-amber-700">{formatCurrency(wip)} کار انجام‌شدهٔ صورت‌حساب‌نشده</span>
-    : <span className="text-sky-700">{formatCurrency(-wip)} پیش‌صورت‌حساب (درآمد انتقالی)</span>;
+    ? <span className="text-amber-700">{tr('{0} کار انجام‌شدهٔ صورت‌حساب‌نشده', formatCurrency(wip))}</span>
+    : <span className="text-sky-700">{tr('{0} پیش‌صورت‌حساب (درآمد انتقالی)', formatCurrency(-wip))}</span>;
 }
 
 export function ProjectRevenue({ projectId }: { projectId: string }) {
@@ -41,65 +42,65 @@ export function ProjectRevenue({ projectId }: { projectId: string }) {
   const save = async (body: unknown) => {
     try {
       const r = await apiPatch<{ noteFa: string | null }>(`/projects/${projectId}/revenue`, body);
-      toast(r.noteFa ?? 'شیوهٔ شناسایی درآمد به‌روز شد.');
+      toast(trx(r.noteFa ?? tr('شیوهٔ شناسایی درآمد به‌روز شد.')));
       setShares(null);
       await qc.invalidateQueries({ queryKey: ['/projects', projectId, 'revenue'] });
-    } catch (e: any) { toast(e?.message ?? 'ذخیره ناموفق بود.', 'danger'); }
+    } catch (e: any) { toast(e?.message ?? tr('ذخیره ناموفق بود.'), 'danger'); }
   };
 
   return (
-    <Card title="شناسایی درآمد"
-      subtitle="درآمد به نسبت کار انجام‌شده شناسایی می‌شود، نه هنگام امضای قرارداد و نه هنگام صدور فاکتور."
+    <Card title={tr('شناسایی درآمد')}
+      subtitle={tr('درآمد به نسبت کار انجام‌شده شناسایی می‌شود، نه هنگام امضای قرارداد و نه هنگام صدور فاکتور.')}
       action={editable ? (
-        <Select value={data.method} onChange={(e) => void save({ method: e.target.value })} aria-label="شیوهٔ شناسایی">
-          {data.methods.map((m) => <option key={m.key} value={m.key}>{m.labelFa}</option>)}
+        <Select value={data.method} onChange={(e) => void save({ method: e.target.value })} aria-label={tr('شیوهٔ شناسایی')}>
+          {data.methods.map((m) => <option key={m.key} value={m.key}>{loc(m, 'label')}</option>)}
         </Select>
-      ) : <Badge tone="neutral">{data.methodFa}</Badge>}>
+      ) : <Badge tone="neutral">{loc(data, 'method')}</Badge>}>
       <div className="space-y-4 p-4" data-testid="project-revenue">
         {p.reasonFa ? (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{p.reasonFa}</p>
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{loc(p, 'reason')}</p>
         ) : (
           <>
             <div>
               <div className="mb-1 flex justify-between text-xs text-ink-500">
-                <span>پیشرفت: {formatPercent((p.progress ?? 0) * 100)}</span>
-                <span>ارزش قرارداد: {formatCurrency(p.contractValue)}</span>
+                <span>{tr('پیشرفت: {0}', formatPercent((p.progress ?? 0) * 100))}</span>
+                <span>{tr('ارزش قرارداد: {0}', formatCurrency(p.contractValue))}</span>
               </div>
               <ProgressBar value={(p.progress ?? 0) * 100} tone="success" />
             </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <StatTile label="درآمد شناسایی‌شده تا امروز" value={formatCurrency(p.recognised)} />
-              <StatTile label="صورت‌حساب‌شده" value={formatCurrency(p.invoiced)} />
-              <StatTile label="کار در جریان" value={<span className="text-sm"><WipLabel wip={p.wip} /></span>} />
+              <StatTile label={tr('درآمد شناسایی‌شده تا امروز')} value={formatCurrency(p.recognised)} />
+              <StatTile label={tr('صورت‌حساب‌شده')} value={formatCurrency(p.invoiced)} />
+              <StatTile label={tr('کار در جریان')} value={<span className="text-sm"><WipLabel wip={p.wip} /></span>} />
             </div>
           </>
         )}
         {data.expectedLoss != null && (
-          <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">قرارداد زیان‌ده: هزینهٔ تمام‌شدهٔ اعلام‌شده {formatCurrency(data.expectedLoss)} بیش از ارزش قرارداد است.</p>
+          <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{tr('قرارداد زیان‌ده: هزینهٔ تمام‌شدهٔ اعلام‌شده {0} بیش از ارزش قرارداد است.', formatCurrency(data.expectedLoss))}</p>
         )}
         {p.notesFa.length > 0 && <ul className="space-y-0.5 text-xs text-ink-500">{p.notesFa.map((n) => <li key={n}>· {n}</li>)}</ul>}
 
         {data.method === 'MILESTONE' && (
           <div className="rounded-lg ring-1 ring-ink-200/70">
             <div className="flex items-center justify-between px-3 py-2 text-xs">
-              <span className="font-medium text-ink-700">سهم درآمد نقاط عطف</span>
-              {editable && !shares && <button className="text-brand-700 underline" onClick={() => setShares(Object.fromEntries(data.milestones.map((m) => [m.id, m.revenueShare == null ? '' : String(m.revenueShare)])))}>ویرایش</button>}
+              <span className="font-medium text-ink-700">{tr('سهم درآمد نقاط عطف')}</span>
+              {editable && !shares && <button className="text-brand-700 underline" onClick={() => setShares(Object.fromEntries(data.milestones.map((m) => [m.id, m.revenueShare == null ? '' : String(m.revenueShare)])))}>{tr('ویرایش')}</button>}
             </div>
             <ul className="divide-y divide-ink-100 text-xs" data-testid="milestone-shares">
               {data.milestones.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 px-3 py-1.5">
                   <span className="flex-1 text-ink-700">{m.name}</span>
-                  {m.completedAt ? <Badge tone="success">انجام‌شده</Badge> : <Badge tone="neutral">پیش رو</Badge>}
+                  {m.completedAt ? <Badge tone="success">{tr('انجام‌شده')}</Badge> : <Badge tone="neutral">{tr('پیش رو')}</Badge>}
                   {shares
-                    ? <Input type="number" className="ltr w-20" value={shares[m.id] ?? ''} aria-label={`سهم ${m.name}`} onChange={(e) => setShares({ ...shares, [m.id]: e.target.value })} />
-                    : <span className="w-16 text-left nums">{m.revenueShare == null ? '—' : `${toPersianDigits(m.revenueShare)}٪`}</span>}
+                    ? <Input type="number" className="ltr w-20" value={shares[m.id] ?? ''} aria-label={tr('سهم {0}', m.name)} onChange={(e) => setShares({ ...shares, [m.id]: e.target.value })} />
+                    : <span className="w-16 text-left nums">{m.revenueShare == null ? '—' : tr('{0}٪', localDigits(m.revenueShare))}</span>}
                 </li>
               ))}
             </ul>
             {shares && (
               <div className="flex justify-end gap-2 px-3 py-2">
-                <Button size="sm" variant="ghost" onClick={() => setShares(null)}>انصراف</Button>
-                <Button size="sm" variant="primary" onClick={() => void save({ shares: Object.entries(shares).map(([milestoneId, v]) => ({ milestoneId, revenueShare: v === '' ? null : Number(v) })) })}>ذخیره</Button>
+                <Button size="sm" variant="ghost" onClick={() => setShares(null)}>{tr('انصراف')}</Button>
+                <Button size="sm" variant="primary" onClick={() => void save({ shares: Object.entries(shares).map(([milestoneId, v]) => ({ milestoneId, revenueShare: v === '' ? null : Number(v) })) })}>{tr('ذخیره')}</Button>
               </div>
             )}
           </div>
@@ -107,14 +108,14 @@ export function ProjectRevenue({ projectId }: { projectId: string }) {
 
         {data.months.length > 0 && (
           <Table>
-            <thead className="bg-ink-50/60"><tr><Th>ماه</Th><Th>شناسایی‌شده</Th><Th>صورت‌حساب‌شده</Th><Th /></tr></thead>
+            <thead className="bg-ink-50/60"><tr><Th>{tr('ماه')}</Th><Th>{tr('شناسایی‌شده')}</Th><Th>{tr('صورت‌حساب‌شده')}</Th><Th /></tr></thead>
             <tbody>
               {data.months.map((m) => (
                 <Tr key={m.period}>
-                  <Td className="text-xs">{m.labelFa}</Td>
+                  <Td className="text-xs">{loc(m, 'label')}</Td>
                   <Td className="text-xs">{formatCurrency(m.recognised)}</Td>
                   <Td className="text-xs">{formatCurrency(m.invoiced)}</Td>
-                  <Td>{m.closed && <Badge tone="neutral">بسته‌شده</Badge>}</Td>
+                  <Td>{m.closed && <Badge tone="neutral">{tr('بسته‌شده')}</Badge>}</Td>
                 </Tr>
               ))}
             </tbody>
@@ -155,18 +156,18 @@ export function RevenueReport() {
   return (
     <div className="space-y-5" data-testid="revenue-report">
       <div className="grid grid-cols-2 gap-3">
-        <StatTile label="کار انجام‌شدهٔ صورت‌حساب‌نشده" value={formatCurrency(data.wip.unbilled)} hint="درآمدی که به‌دست آمده و هنوز فاکتور نشده" tone="warning" />
-        <StatTile label="پیش‌صورت‌حساب (درآمد انتقالی)" value={formatCurrency(data.wip.deferred)} hint="فاکتورشده پیش از انجام کار" />
+        <StatTile label={tr('کار انجام‌شدهٔ صورت‌حساب‌نشده')} value={formatCurrency(data.wip.unbilled)} hint={tr('درآمدی که به‌دست آمده و هنوز فاکتور نشده')} tone="warning" />
+        <StatTile label={tr('پیش‌صورت‌حساب (درآمد انتقالی)')} value={formatCurrency(data.wip.deferred)} hint={tr('فاکتورشده پیش از انجام کار')} />
       </div>
-      <Card title="سودآوری ماهانه — درآمد شناسایی‌شده در برابر صورت‌حساب"
-        subtitle="ستون «حاشیه» با درآمد به‌دست‌آمده حساب می‌شود؛ «حاشیه به روش فاکتور» همان ماه را آن‌طور نشان می‌دهد که پیش از شناسایی درآمد دیده می‌شد."
-        action={can('finance.settle') && closable[0] ? <Button size="sm" variant="secondary" onClick={() => setClosing(closable[0]!)}>بستن {closable[0].labelFa}</Button> : undefined}>
+      <Card title={tr('سودآوری ماهانه — درآمد شناسایی‌شده در برابر صورت‌حساب')}
+        subtitle={tr('ستون «حاشیه» با درآمد به‌دست‌آمده حساب می‌شود؛ «حاشیه به روش فاکتور» همان ماه را آن‌طور نشان می‌دهد که پیش از شناسایی درآمد دیده می‌شد.')}
+        action={can('finance.settle') && closable[0] ? <Button size="sm" variant="secondary" onClick={() => setClosing(closable[0]!)}>{tr('بستن {0}', closable[0].labelFa)}</Button> : undefined}>
         <Table>
-          <thead className="bg-ink-50/60"><tr><Th>ماه</Th><Th>درآمد شناسایی‌شده</Th><Th>صورت‌حساب‌شده</Th><Th>هزینهٔ کار</Th><Th>هزینهٔ بیرونی</Th><Th>حاشیه</Th><Th>حاشیه به روش فاکتور</Th></tr></thead>
+          <thead className="bg-ink-50/60"><tr><Th>{tr('ماه')}</Th><Th>{tr('درآمد شناسایی‌شده')}</Th><Th>{tr('صورت‌حساب‌شده')}</Th><Th>{tr('هزینهٔ کار')}</Th><Th>{tr('هزینهٔ بیرونی')}</Th><Th>{tr('حاشیه')}</Th><Th>{tr('حاشیه به روش فاکتور')}</Th></tr></thead>
           <tbody data-testid="revenue-months">
             {data.months.map((m) => (
               <Tr key={m.period}>
-                <Td className="text-xs">{m.labelFa} {m.closed && <Badge tone="neutral">بسته</Badge>}</Td>
+                <Td className="text-xs">{loc(m, 'label')} {m.closed && <Badge tone="neutral">{tr('بسته')}</Badge>}</Td>
                 <Td className="text-xs">{formatCurrency(m.recognised)}</Td>
                 <Td className="text-xs">{formatCurrency(m.invoiced)}</Td>
                 <Td className="text-xs">{formatCurrency(m.labourCost)}</Td>
@@ -177,19 +178,19 @@ export function RevenueReport() {
             ))}
           </tbody>
         </Table>
-        {unpriced > 0 && <p className="px-4 py-2 text-[11px] text-ink-500">{toPersianDigits(Math.round(unpriced))} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینهٔ کار نیامده است — نرخ واحدها را در «مدیریت» تعیین کنید.</p>}
+        {unpriced > 0 && <p className="px-4 py-2 text-[11px] text-ink-500">{tr('{0} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینهٔ کار نیامده است — نرخ واحدها را در «مدیریت» تعیین کنید.', localDigits(Math.round(unpriced)))}</p>}
       </Card>
-      <Card title="کار در جریان به تفکیک پروژه">
-        {!data.projects.length ? <EmptyState title="پروژه‌ای با ارزش قرارداد نیست" /> : (
+      <Card title={tr('کار در جریان به تفکیک پروژه')}>
+        {!data.projects.length ? <EmptyState title={tr('پروژه‌ای با ارزش قرارداد نیست')} /> : (
           <Table>
-            <thead className="bg-ink-50/60"><tr><Th>پروژه</Th><Th>شیوه</Th><Th>پیشرفت</Th><Th>شناسایی‌شده</Th><Th>صورت‌حساب‌شده</Th><Th>کار در جریان</Th></tr></thead>
+            <thead className="bg-ink-50/60"><tr><Th>{tr('پروژه')}</Th><Th>{tr('شیوه')}</Th><Th>{tr('پیشرفت')}</Th><Th>{tr('شناسایی‌شده')}</Th><Th>{tr('صورت‌حساب‌شده')}</Th><Th>{tr('کار در جریان')}</Th></tr></thead>
             <tbody>
               {data.projects.map((p) => (
                 <Tr key={p.id}>
                   <Td className="text-xs"><Link to={`/projects/${p.id}`} className="text-brand-700 hover:underline">{p.name}</Link> <span className="text-ink-400">{p.client}</span>
-                    {p.expectedLoss != null && <Badge tone="danger">زیان‌ده</Badge>}</Td>
-                  <Td className="text-[11px] text-ink-500">{p.methodFa}</Td>
-                  <Td className="text-xs">{p.progress == null ? <span className="text-amber-700" title={p.reasonFa ?? ''}>سنجیده نشد</span> : formatPercent(p.progress * 100)}</Td>
+                    {p.expectedLoss != null && <Badge tone="danger">{tr('زیان‌ده')}</Badge>}</Td>
+                  <Td className="text-[11px] text-ink-500">{loc(p, 'method')}</Td>
+                  <Td className="text-xs">{p.progress == null ? <span className="text-amber-700" title={trx(p.reasonFa ?? '')}>{tr('سنجیده نشد')}</span> : formatPercent(p.progress * 100)}</Td>
                   <Td className="text-xs">{formatCurrency(p.recognised)}</Td>
                   <Td className="text-xs">{formatCurrency(p.invoiced)}</Td>
                   <Td className="text-xs"><WipLabel wip={p.wip} /></Td>
@@ -212,15 +213,15 @@ function ClosePeriod({ month, onClose }: { month: ReportMonth; onClose: () => vo
     setBusy(true);
     try {
       const r = await apiPost<{ totals: { recognised: number; projects: number }; unmeasured: { code: string; reasonFa: string }[] }>('/revenue/periods/close', { period: month.period });
-      toast(`${month.labelFa} بسته شد: ${formatCurrency(r.totals.recognised)} درآمد در ${toPersianDigits(r.totals.projects)} پروژه${r.unmeasured.length ? `؛ ${toPersianDigits(r.unmeasured.length)} پروژه سنجیده نشد` : ''}.`);
+      toast(tr('{0} بسته شد: {1} درآمد در {2} پروژه{3}.', month.labelFa, formatCurrency(r.totals.recognised), localDigits(r.totals.projects), r.unmeasured.length ? tr('؛ {0} پروژه سنجیده نشد', localDigits(r.unmeasured.length)) : ''));
       await qc.invalidateQueries(); onClose();
-    } catch (e: any) { toast(e?.message ?? 'بستن دوره ناموفق بود.', 'danger'); } finally { setBusy(false); }
+    } catch (e: any) { toast(e?.message ?? tr('بستن دوره ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open title={`بستن ${month.labelFa}`} onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>انصراف</Button><Button variant="primary" loading={busy} onClick={() => void run()}>بستن دوره</Button></>}>
-      <p className="text-sm text-ink-700">درآمد شناسایی‌شدهٔ {month.labelFa} ({formatCurrency(month.recognised)}) برای هر پروژه ثابت می‌شود.</p>
-      <p className="mt-2 text-xs text-ink-500">دورهٔ بسته بازگشایی نمی‌شود. اگر بعداً ساعت، هزینه یا نقطهٔ عطفی با تاریخی در این ماه ثبت شود، اثرش در نخستین ماه باز به‌صورت اصلاحی می‌نشیند — این ماه همان می‌ماند که بسته شد.</p>
+    <Modal open title={tr('بستن {0}', month.labelFa)} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} onClick={() => void run()}>{tr('بستن دوره')}</Button></>}>
+      <p className="text-sm text-ink-700">{tr('درآمد شناسایی‌شدهٔ {0} ({1}) برای هر پروژه ثابت می‌شود.', month.labelFa, formatCurrency(month.recognised))}</p>
+      <p className="mt-2 text-xs text-ink-500">{tr('دورهٔ بسته بازگشایی نمی‌شود. اگر بعداً ساعت، هزینه یا نقطهٔ عطفی با تاریخی در این ماه ثبت شود، اثرش در نخستین ماه باز به‌صورت اصلاحی می‌نشیند — این ماه همان می‌ماند که بسته شد.')}</p>
     </Modal>
   );
 }
@@ -233,9 +234,9 @@ export function MilestoneDone({ projectId, milestoneId }: { projectId: string; m
     <button className="text-[11px] text-brand-700 underline" onClick={async () => {
       try {
         await apiPatch(`/projects/${projectId}/milestones/${milestoneId}`, { completedAt: new Date().toISOString() });
-        toast('نقطهٔ عطف انجام‌شده ثبت شد.');
+        toast(tr('نقطهٔ عطف انجام‌شده ثبت شد.'));
         await qc.invalidateQueries();
-      } catch (e: any) { toast(e?.message ?? 'ثبت ناموفق بود.', 'danger'); }
-    }}>انجام شد</button>
+      } catch (e: any) { toast(e?.message ?? tr('ثبت ناموفق بود.'), 'danger'); }
+    }}>{tr('انجام شد')}</button>
   );
 }

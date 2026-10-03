@@ -9,8 +9,9 @@ import {
   Badge, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
   Table, Tabs, Td, Th, Tr, IconAlert, IconCheckCircle, IconClock, IconFile,
 } from '../components/ui';
-import { formatCurrency, formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
+import { formatCurrency, formatDate, formatRelative, localDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
+import { loc, tr, trx } from '../i18n';
 
 interface MyDashboard {
   tasks: {
@@ -42,11 +43,11 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        title={`سلام، ${user?.fullName ?? ''}`}
+        title={tr('سلام، {0}', user?.fullName ?? '')}
         subtitle={
           <span>
-            {user?.department?.nameFa}
-            {user?.jobTitle && ` — ${user.jobTitle}`}
+            {loc(user?.department, 'name')}
+            {user?.jobTitle && ` — ${trx(user.jobTitle)}`}
           </span>
         }
       />
@@ -59,35 +60,35 @@ export default function Dashboard() {
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatTile
-                label="وظایف باز من"
+                label={tr('وظایف باز من')}
                 value={<Count value={data.tasks.total} />}
-                hint={data.tasks.dueThisWeek ? `${toPersianDigits(data.tasks.dueThisWeek)} مورد در این هفته` : 'مهلتی در این هفته نیست'}
+                hint={data.tasks.dueThisWeek ? tr('{0} مورد در این هفته', localDigits(data.tasks.dueThisWeek)) : tr('مهلتی در این هفته نیست')}
                 icon={<IconCheckCircle className="size-4" />}
               />
               <TileLink to="/my-work">
                 <StatTile
-                  label="وظایف تاخیردار"
+                  label={tr('وظایف تاخیردار')}
                   value={<Count value={data.tasks.overdue} />}
                   tone={data.tasks.overdue > 0 ? 'danger' : 'success'}
-                  hint={data.tasks.overdue > 0 ? 'نیازمند اقدام فوری' : 'همه در برنامه'}
+                  hint={data.tasks.overdue > 0 ? tr('نیازمند اقدام فوری') : tr('همه در برنامه')}
                   icon={<IconClock className="size-4" />}
                 />
               </TileLink>
               <TileLink to="/forms?tab=inbox">
                 <StatTile
-                  label="در انتظار تأیید"
+                  label={tr('در انتظار تأیید')}
                   value={<Count value={data.forms.awaitingMyApproval} />}
                   tone={data.forms.awaitingMyApproval > 0 ? 'warning' : 'neutral'}
-                  hint="فرم‌های ارجاع‌شده"
+                  hint={tr('فرم‌های ارجاع‌شده')}
                   icon={<IconFile className="size-4" />}
                 />
               </TileLink>
               <TileLink to="/my-work">
                 <StatTile
-                  label="نقض روند"
+                  label={tr('نقض روند')}
                   value={<Count value={data.sla.atRisk + data.sla.breached} />}
                   tone={data.sla.breached > 0 ? 'danger' : data.sla.atRisk > 0 ? 'warning' : 'success'}
-                  hint={`${toPersianDigits(data.sla.breached)} نقض‌شده — ${toPersianDigits(data.sla.atRisk)} در خطر`}
+                  hint={tr('{0} نقض‌شده — {1} در خطر', localDigits(data.sla.breached), localDigits(data.sla.atRisk))}
                   icon={<IconAlert className="size-4" />}
                 />
               </TileLink>
@@ -96,20 +97,20 @@ export default function Dashboard() {
             <div className="grid gap-5 xl:grid-cols-3">
               <Card
                 className="xl:col-span-2"
-                title="وظایف من"
-                subtitle="مرتب‌شده بر اساس نزدیک‌ترین مهلت"
-                action={<Link to="/tasks" className="text-xs text-brand-600 hover:underline">همه وظایف</Link>}
+                title={tr('وظایف من')}
+                subtitle={tr('مرتب‌شده بر اساس نزدیک‌ترین مهلت')}
+                action={<Link to="/tasks" className="text-xs text-brand-600 hover:underline">{tr('همه وظایف')}</Link>}
               >
                 {!data.tasks.items.length ? (
-                  <EmptyState title="وظیفه بازی ندارید" description="وظایف تخصیص‌یافته اینجا نمایش داده می‌شوند." />
+                  <EmptyState title={tr('وظیفه بازی ندارید')} description={tr('وظایف تخصیص‌یافته اینجا نمایش داده می‌شوند.')} />
                 ) : (
                   <Table>
                     <thead className="bg-ink-50/60">
                       <tr>
-                        <Th>وظیفه</Th>
-                        <Th>پروژه</Th>
-                        <Th>مهلت</Th>
-                        <Th>وضعیت</Th>
+                        <Th>{tr('وظیفه')}</Th>
+                        <Th>{tr('پروژه')}</Th>
+                        <Th>{tr('مهلت')}</Th>
+                        <Th>{tr('وضعیت')}</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -142,36 +143,34 @@ export default function Dashboard() {
               </Card>
 
               <div className="space-y-5">
-                <Card title="اصلاحیه‌ها" subtitle={data.revisions.overdue ? `${toPersianDigits(data.revisions.overdue)} مورد سررسید گذشته` : undefined}>
+                <Card title={tr('اصلاحیه‌ها')} subtitle={data.revisions.overdue ? tr('{0} مورد سررسید گذشته', localDigits(data.revisions.overdue)) : undefined}>
                   {!data.revisions.items.length ? (
-                    <EmptyState title="اصلاحیه بازی ندارید" />
+                    <EmptyState title={tr('اصلاحیه بازی ندارید')} />
                   ) : (
                     <ul className="divide-y divide-ink-100">
                       {data.revisions.items.slice(0, 5).map((r) => (
                         <li key={r.id} className="px-4 py-2.5">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm text-ink-800">{r.deliverable?.name ?? 'خروجی'}</p>
-                            {daysFromNow(r.dueDate)! < 0 && <Badge tone="danger">گذشته</Badge>}
+                            <p className="text-sm text-ink-800">{r.deliverable?.name ?? tr('خروجی')}</p>
+                            {daysFromNow(r.dueDate)! < 0 && <Badge tone="danger">{tr('گذشته')}</Badge>}
                           </div>
-                          <p className="mt-0.5 text-xs text-ink-500">
-                            {REVISION_REASON_LABELS[r.reason] ?? r.reason} — مهلت {formatDate(r.dueDate)}
-                          </p>
+                          <p className="mt-0.5 text-xs text-ink-500">{tr('{0} — مهلت {1}', REVISION_REASON_LABELS[r.reason] ?? r.reason, formatDate(r.dueDate))}</p>
                         </li>
                       ))}
                     </ul>
                   )}
                 </Card>
 
-                <Card title="روندهای من">
+                <Card title={tr('روندهای من')}>
                   {!data.sla.items.length ? (
-                    <EmptyState title="روند فعالی ندارید" />
+                    <EmptyState title={tr('روند فعالی ندارید')} />
                   ) : (
                     <ul className="divide-y divide-ink-100">
                       {data.sla.items.slice(0, 6).map((s) => (
                         <li key={s.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                           <div className="min-w-0">
-                            <p className="truncate text-sm text-ink-800">{s.policy.labelFa}</p>
-                            <p className="text-[11px] text-ink-400">مهلت {formatRelative(s.dueAt)}</p>
+                            <p className="truncate text-sm text-ink-800">{loc(s.policy, 'label')}</p>
+                            <p className="text-[11px] text-ink-400">{tr('مهلت {0}', formatRelative(s.dueAt))}</p>
                           </div>
                           <StateBadge state={s.state} />
                         </li>
@@ -182,29 +181,29 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Card title="پروژه‌های من" action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? 'همه فرصت‌ها' : 'همه پروژه‌ها'}</Link>}>
+            <Card title={tr('پروژه‌های من')} action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? tr('همه فرصت‌ها') : tr('همه پروژه‌ها')}</Link>}>
               {data.opportunities && (
                 <Tabs
                   active={projectsTab}
                   onChange={(k) => setProjectsTab(k as 'active' | 'sales')}
                   tabs={[
-                    { key: 'active', label: 'در حال اجرا (فعال)', count: data.projects.length },
-                    { key: 'sales', label: 'فروش (فرصت فروش)', count: data.opportunities.length },
+                    { key: 'active', label: tr('در حال اجرا (فعال)'), count: data.projects.length },
+                    { key: 'sales', label: tr('فروش (فرصت فروش)'), count: data.opportunities.length },
                   ]}
                 />
               )}
               {projectsTab === 'sales' && data.opportunities ? (
                 !data.opportunities.length ? (
-                  <EmptyState title="فرصت فروش بازی ندارید" description="فرصت‌هایی که مسئولشان هستید و هنوز برده یا باخته نشده‌اند، اینجا می‌آیند." />
+                  <EmptyState title={tr('فرصت فروش بازی ندارید')} description={tr('فرصت‌هایی که مسئولشان هستید و هنوز برده یا باخته نشده‌اند، اینجا می‌آیند.')} />
                 ) : (
                   <Table>
                     <thead className="bg-ink-50/60">
                       <tr>
-                        <Th>فرصت</Th>
-                        <Th>مشتری</Th>
-                        <Th>مرحله</Th>
-                        <Th>ارزش تخمینی</Th>
-                        <Th>بستن مورد انتظار</Th>
+                        <Th>{tr('فرصت')}</Th>
+                        <Th>{tr('مشتری')}</Th>
+                        <Th>{tr('مرحله')}</Th>
+                        <Th>{tr('ارزش تخمینی')}</Th>
+                        <Th>{tr('بستن مورد انتظار')}</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -224,16 +223,16 @@ export default function Dashboard() {
                   </Table>
                 )
               ) : !data.projects.length ? (
-                <EmptyState title="پروژه در حال اجرایی ندارید" />
+                <EmptyState title={tr('پروژه در حال اجرایی ندارید')} />
               ) : (
                 <Table>
                   <thead className="bg-ink-50/60">
                     <tr>
-                      <Th>پروژه</Th>
-                      <Th>مشتری</Th>
-                      <Th>وضعیت</Th>
-                      <Th>سلامت</Th>
-                      <Th>پایان برنامه‌ریزی‌شده</Th>
+                      <Th>{tr('پروژه')}</Th>
+                      <Th>{tr('مشتری')}</Th>
+                      <Th>{tr('وضعیت')}</Th>
+                      <Th>{tr('سلامت')}</Th>
+                      <Th>{tr('پایان برنامه‌ریزی‌شده')}</Th>
                     </tr>
                   </thead>
                   <tbody>

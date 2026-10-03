@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
-import { formatDate, toPersianDigits } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ErrorBlock, Field, Input, LoadingBlock, Table, Td, Th, Tr, cx, useToast } from './ui';
+import { loc, pair, tr } from '../i18n';
 
 /**
  * Where a lead came from, in two clicks (Hivamis task 2): the kind — sales team, marketers, company
@@ -61,7 +62,7 @@ function PersonPicker({ people, value, onChange, emptyFa }: { people: Person[]; 
   if (!people.length) return <p className="text-xs text-ink-500">{emptyFa}</p>;
   return (
     <div className="space-y-2">
-      {people.length > 8 && <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی نام یا واحد…" aria-label="جستجوی فرد" />}
+      {people.length > 8 && <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('جستجوی نام یا واحد…')} aria-label={tr('جستجوی فرد')} />}
       <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto">
         {shown.map((p) => (
           <Chip key={p.id} on={value === p.id} onClick={() => onChange(p.id)} title={[p.jobTitle, p.department].filter(Boolean).join(' — ')}>
@@ -87,21 +88,21 @@ export function LeadSourcePicker({ value, onChange }: { value: LeadSourceValue; 
 
   return (
     <div className="space-y-3" data-testid="lead-source">
-      <div role="group" aria-label="نوع منبع" className="flex flex-wrap gap-1.5">
-        {data.kinds.map((k) => <Chip key={k.value} on={value.source === k.value} onClick={() => pick(k.value)}>{k.fa}</Chip>)}
+      <div role="group" aria-label={tr('نوع منبع')} className="flex flex-wrap gap-1.5">
+        {data.kinds.map((k) => <Chip key={k.value} on={value.source === k.value} onClick={() => pick(k.value)}>{pair(k)}</Chip>)}
       </div>
       {kind && (
-        <div className="rounded-lg bg-ink-50/70 p-3" role="group" aria-label={kind.detailFa}>
-          <p className="mb-2 text-xs font-medium text-ink-700">{kind.detailFa}</p>
+        <div className="rounded-lg bg-ink-50/70 p-3" role="group" aria-label={loc(kind, 'detail')}>
+          <p className="mb-2 text-xs font-medium text-ink-700">{loc(kind, 'detail')}</p>
           {value.source === 'SALES_TEAM' && (
-            <PersonPicker people={data.salesTeam} value={value.sourceUserId} onChange={(id) => onChange({ source: 'SALES_TEAM', sourceUserId: id })} emptyFa="کسی در واحد فروش ثبت نشده است." />
+            <PersonPicker people={data.salesTeam} value={value.sourceUserId} onChange={(id) => onChange({ source: 'SALES_TEAM', sourceUserId: id })} emptyFa={tr('کسی در واحد فروش ثبت نشده است.')} />
           )}
           {value.source === 'STAFF' && (
-            <PersonPicker people={data.staff} value={value.sourceUserId} onChange={(id) => onChange({ source: 'STAFF', sourceUserId: id })} emptyFa="همکاری بیرون از تیم فروش ثبت نشده است." />
+            <PersonPicker people={data.staff} value={value.sourceUserId} onChange={(id) => onChange({ source: 'STAFF', sourceUserId: id })} emptyFa={tr('همکاری بیرون از تیم فروش ثبت نشده است.')} />
           )}
           {value.source === 'DIRECT' && (
             <div className="flex flex-wrap gap-1.5">
-              {data.channels.map((c) => <Chip key={c.value} on={value.sourceChannel === c.value} onClick={() => onChange({ source: 'DIRECT', sourceChannel: c.value })}>{c.fa}</Chip>)}
+              {data.channels.map((c) => <Chip key={c.value} on={value.sourceChannel === c.value} onClick={() => onChange({ source: 'DIRECT', sourceChannel: c.value })}>{pair(c)}</Chip>)}
             </div>
           )}
           {value.source === 'MARKETER' && (
@@ -110,15 +111,13 @@ export function LeadSourcePicker({ value, onChange }: { value: LeadSourceValue; 
                 {data.marketers.map((m) => <Chip key={m.id} on={value.sourceReferrerId === m.id} onClick={() => onChange({ source: 'MARKETER', sourceReferrerId: m.id })}>{m.name}</Chip>)}
               </div>
             ) : (
-              <p className="text-xs text-ink-500">
-                فهرست بازاریابان خالی است؛ آن را مدیر سیستم نگه می‌دارد.
-                {data.canManageMarketers && <> <Link to="/admin?tab=referrers" className="text-brand-700 underline">افزودن بازاریاب</Link></>}
+              <p className="text-xs text-ink-500">{tr('فهرست بازاریابان خالی است؛ آن را مدیر سیستم نگه می‌دارد.')}{data.canManageMarketers && <> <Link to="/admin?tab=referrers" className="text-brand-700 underline">{tr('افزودن بازاریاب')}</Link></>}
               </p>
             )
           )}
           {value.source === 'PARTNER' && (
             <div className="space-y-2">
-              <Input value={partnerText} placeholder="نام شرکت همکار…" aria-label="نام شرکت همکار"
+              <Input value={partnerText} placeholder={tr('نام شرکت همکار…')} aria-label={tr('نام شرکت همکار')}
                 onChange={(e) => {
                   setPartnerText(e.target.value);
                   const found = data.partners.find((p) => p.name === e.target.value.trim());
@@ -131,7 +130,7 @@ export function LeadSourcePicker({ value, onChange }: { value: LeadSourceValue; 
               </div>
               {typed && !exact && (
                 <p className="text-xs text-ink-600">
-                  {data.canAddPartners ? <>«{typed}» در فهرست نیست و با ثبت سرنخ به شرکت‌های همکار افزوده می‌شود.</> : 'این شرکت در فهرست نیست.'}
+                  {data.canAddPartners ? <>{tr('«{0}» در فهرست نیست و با ثبت سرنخ به شرکت‌های همکار افزوده می‌شود.', typed)}</> : tr('این شرکت در فهرست نیست.')}
                 </p>
               )}
             </div>
@@ -157,7 +156,7 @@ export function LeadReferrers() {
     setBusy(true);
     try {
       await apiPost('/lead-referrers', { kind: form.kind, name: form.name, phone: form.phone || undefined });
-      toast(form.kind === 'MARKETER' ? 'بازاریاب افزوده شد.' : 'شرکت همکار افزوده شد.');
+      toast(form.kind === 'MARKETER' ? tr('بازاریاب افزوده شد.') : tr('شرکت همکار افزوده شد.'));
       setForm((f) => ({ ...f, name: '', phone: '' }));
       await qc.invalidateQueries({ queryKey: ['/lead-referrers'] });
       await qc.invalidateQueries({ queryKey: ['/leads/source-options'] });
@@ -177,34 +176,34 @@ export function LeadReferrers() {
 
   return (
     <div className="space-y-5">
-      <Card title="افزودن به فهرست" subtitle="بازاریابان را فقط مدیر سیستم می‌افزاید؛ شرکت همکار را فروشنده هم هنگام ثبت سرنخ می‌تواند بیفزاید.">
+      <Card title={tr('افزودن به فهرست')} subtitle={tr('بازاریابان را فقط مدیر سیستم می‌افزاید؛ شرکت همکار را فروشنده هم هنگام ثبت سرنخ می‌تواند بیفزاید.')}>
         <div className="flex flex-wrap items-end gap-3 p-4">
-          <div className="flex gap-1.5" role="group" aria-label="نوع">
-            <Chip on={form.kind === 'MARKETER'} onClick={() => setForm((f) => ({ ...f, kind: 'MARKETER' }))}>بازاریاب</Chip>
-            <Chip on={form.kind === 'PARTNER'} onClick={() => setForm((f) => ({ ...f, kind: 'PARTNER' }))}>شرکت همکار</Chip>
+          <div className="flex gap-1.5" role="group" aria-label={tr('نوع')}>
+            <Chip on={form.kind === 'MARKETER'} onClick={() => setForm((f) => ({ ...f, kind: 'MARKETER' }))}>{tr('بازاریاب')}</Chip>
+            <Chip on={form.kind === 'PARTNER'} onClick={() => setForm((f) => ({ ...f, kind: 'PARTNER' }))}>{tr('شرکت همکار')}</Chip>
           </div>
-          <div className="min-w-48 flex-1"><Field label="نام"><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></Field></div>
-          <div className="w-44"><Field label="تلفن"><Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="ltr" /></Field></div>
-          <Button variant="primary" loading={busy} disabled={form.name.trim().length < 2} onClick={() => void add()}>افزودن</Button>
+          <div className="min-w-48 flex-1"><Field label={tr('نام')}><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></Field></div>
+          <div className="w-44"><Field label={tr('تلفن')}><Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="ltr" /></Field></div>
+          <Button variant="primary" loading={busy} disabled={form.name.trim().length < 2} onClick={() => void add()}>{tr('افزودن')}</Button>
         </div>
       </Card>
-      <Card title="منابع سرنخ" subtitle="آنچه کنار گذاشته شود در سرنخ‌های تازه انتخاب نمی‌شود؛ سرنخ‌های پیشین نامش را نگه می‌دارند.">
-        {!rows.length ? <EmptyState title="فهرست خالی است" /> : (
+      <Card title={tr('منابع سرنخ')} subtitle={tr('آنچه کنار گذاشته شود در سرنخ‌های تازه انتخاب نمی‌شود؛ سرنخ‌های پیشین نامش را نگه می‌دارند.')}>
+        {!rows.length ? <EmptyState title={tr('فهرست خالی است')} /> : (
           <Table>
-            <thead className="bg-ink-50/60"><tr><Th>نام</Th><Th>نوع</Th><Th>تلفن</Th><Th>سرنخ‌ها</Th><Th>افزوده شده</Th><Th>وضعیت</Th></tr></thead>
+            <thead className="bg-ink-50/60"><tr><Th>{tr('نام')}</Th><Th>{tr('نوع')}</Th><Th>{tr('تلفن')}</Th><Th>{tr('سرنخ‌ها')}</Th><Th>{tr('افزوده شده')}</Th><Th>{tr('وضعیت')}</Th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <Tr key={r.id}>
                   <Td className="font-medium">{r.name}</Td>
-                  <Td><Badge tone={r.kind === 'MARKETER' ? 'info' : 'neutral'}>{r.kind === 'MARKETER' ? 'بازاریاب' : 'شرکت همکار'}</Badge></Td>
+                  <Td><Badge tone={r.kind === 'MARKETER' ? 'info' : 'neutral'}>{r.kind === 'MARKETER' ? tr('بازاریاب') : tr('شرکت همکار')}</Badge></Td>
                   <Td className="ltr text-xs">{r.phone ?? '—'}</Td>
-                  <Td className="text-xs">{toPersianDigits(r.leads)}</Td>
+                  <Td className="text-xs">{localDigits(r.leads)}</Td>
                   <Td className="text-xs">{formatDate(r.createdAt)}</Td>
                   <Td>
                     <Button size="sm" variant={r.isActive ? 'ghost' : 'secondary'} onClick={() => void toggle(r)}>
-                      {r.isActive ? 'کنار گذاشتن' : 'بازگرداندن'}
+                      {r.isActive ? tr('کنار گذاشتن') : tr('بازگرداندن')}
                     </Button>
-                    {!r.isActive && <Badge tone="neutral" className="ms-1">کنار گذاشته</Badge>}
+                    {!r.isActive && <Badge tone="neutral" className="ms-1">{tr('کنار گذاشته')}</Badge>}
                   </Td>
                 </Tr>
               ))}

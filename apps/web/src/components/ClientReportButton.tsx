@@ -4,12 +4,13 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useAction } from '../hooks/queries';
 import { Badge, Button, Input, Modal } from './ui';
+import { tr } from '../i18n';
 
 interface Preview { html: string; omitted: string[]; to: string | null; contact: string | null }
 
 const OMITTED_FA: Record<string, string> = {
-  financialStatus: 'وضعیت مالی', decisionsNeeded: 'تصمیمات داخلی',
-  'redaction:cost': 'قیمت تمام‌شده', 'redaction:price': 'قیمت فروش', 'redaction:finance': 'اسناد مالی',
+  financialStatus: tr('وضعیت مالی'), decisionsNeeded: tr('تصمیمات داخلی'),
+  'redaction:cost': tr('قیمت تمام‌شده'), 'redaction:price': tr('قیمت فروش'), 'redaction:finance': tr('اسناد مالی'),
 };
 
 /**
@@ -28,35 +29,33 @@ export function ClientReportButton({ reportId }: { reportId: string }) {
   });
   const send = useAction(
     () => apiPost(`/status-reports/${reportId}/send-to-client`, to.trim() ? { to: to.trim() } : {}),
-    'گزارش برای مشتری ارسال شد.',
+    tr('گزارش برای مشتری ارسال شد.'),
   );
   if (!can('project.execute')) return null;
 
   const recipient = to.trim() || data?.to || '';
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>ارسال برای مشتری</Button>
+      <Button size="sm" onClick={() => setOpen(true)}>{tr('ارسال برای مشتری')}</Button>
       <Modal
-        open={open} onClose={() => setOpen(false)} title="گزارش وضعیت — نسخهٔ مشتری" wide
+        open={open} onClose={() => setOpen(false)} title={tr('گزارش وضعیت — نسخهٔ مشتری')} wide
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>انصراف</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{tr('انصراف')}</Button>
             <Button variant="primary" loading={send.isPending} disabled={!recipient}
-              onClick={() => send.mutate(undefined, { onSuccess: () => setOpen(false) })}>
-              ارسال به {recipient || '—'}
-            </Button>
+              onClick={() => send.mutate(undefined, { onSuccess: () => setOpen(false) })}>{tr('ارسال به {0}', recipient || '—')}</Button>
           </>
         }
       >
         {data && (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs" data-testid="client-report-omitted">
-              <span className="text-ink-500">در نسخهٔ مشتری نیست:</span>
+              <span className="text-ink-500">{tr('در نسخهٔ مشتری نیست:')}</span>
               {data.omitted.map((o) => <Badge key={o} tone="neutral">{OMITTED_FA[o] ?? o}</Badge>)}
             </div>
             <label className="mb-3 block text-xs text-ink-600">
-              <span className="mb-1 block">گیرنده {data.contact ? `— ${data.contact}` : ''}</span>
-              <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder={data.to ?? 'نشانی ایمیل مشتری ثبت نشده'} type="email" aria-label="گیرنده" />
+              <span className="mb-1 block">{tr('گیرنده {0}', data.contact ? `— ${data.contact}` : '')}</span>
+              <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder={data.to ?? tr('نشانی ایمیل مشتری ثبت نشده')} type="email" aria-label={tr('گیرنده')} />
             </label>
             {/* The server builds this HTML with the same escaping as the PDF; it is our own template. */}
             <div className="max-h-[50vh] overflow-auto rounded-lg ring-1 ring-ink-200/70 p-4 text-sm"
