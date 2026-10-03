@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { call, closeApp, get, login, post, patch, move, expectOk, upload, tinyPdf, zipOf } from './helpers.js';
+import { call, closeApp, get, login, post, patch, move, expectOk, upload, tinyPdf, zipOf, directLead, partnerLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { addBusinessHours, businessHoursBetween, DEFAULT_CALENDAR, hoursPerDay } from '../src/lib/business-calendar.js';
 import { tickSlaClocks, startSla, stopSla, pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../src/sla/engine.js';
@@ -110,7 +110,7 @@ describe('Form engine', () => {
   it('enforces the sender department declared by Doc_H', async () => {
     const res = await post('/forms/submissions', T.designer, {
       formCode: 'A01_LEAD',
-      data: { name: 'x', companyName: 'y', source: 'INBOUND' },
+      data: { name: 'x', companyName: 'y', ...directLead() },
     });
     expect(res.status).toBe(403);
     expect(res.body.error.message).toContain('فروش');
@@ -132,7 +132,7 @@ describe('Form engine', () => {
       formCode: 'A01_LEAD',
       data: {
         name: 'سرنخ از طریق فرم', companyName: 'شرکت آزمون فرم',
-        source: 'CAMPAIGN', estimatedValue: 750_000_000, need: 'برندینگ',
+        ...directLead('CAMPAIGN'), estimatedValue: 750_000_000, need: 'برندینگ',
       },
     }), 'submit lead form');
 
@@ -146,7 +146,7 @@ describe('Form engine', () => {
   it('starts the SLA clock the form declares', async () => {
     const submission = expectOk(await post('/forms/submissions', T.sales, {
       formCode: 'A01_LEAD',
-      data: { name: 'سرنخ SLA', companyName: 'شرکت SLA', source: 'INBOUND' },
+      data: { name: 'سرنخ SLA', companyName: 'شرکت SLA', ...directLead() },
     }), 'submit');
     const clock = await prisma.slaClock.findFirst({
       where: { entityType: 'formSubmission', entityId: submission.id },
@@ -160,7 +160,7 @@ describe('Form engine', () => {
   it('routes to approvers and refuses self-approval', async () => {
     const submission = expectOk(await post('/forms/submissions', T.sales, {
       formCode: 'A01_LEAD',
-      data: { name: 'سرنخ تأیید', companyName: 'شرکت تأیید', source: 'REFERRAL' },
+      data: { name: 'سرنخ تأیید', companyName: 'شرکت تأیید', ...partnerLead() },
     }), 'submit');
     expect(submission.state).toBe('PENDING_APPROVAL');
 
@@ -185,7 +185,7 @@ describe('Form engine', () => {
   it('requires a reason to reject or return a form', async () => {
     const submission = expectOk(await post('/forms/submissions', T.sales, {
       formCode: 'A01_LEAD',
-      data: { name: 'سرنخ رد', companyName: 'شرکت رد', source: 'OUTBOUND' },
+      data: { name: 'سرنخ رد', companyName: 'شرکت رد', ...directLead() },
     }), 'submit');
     const salesManager = await login('sales.manager@hiva.local');
     const noReason = await post(`/forms/submissions/${submission.id}/decision`, salesManager, {

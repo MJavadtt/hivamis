@@ -5,6 +5,7 @@ import {
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
   BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS,
 } from './enums.js';
+import { DIRECT_CHANNELS, LEAD_REFERRER_KINDS, LEAD_SOURCE_KINDS, normalizeIranMobile } from './crm.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
 
@@ -17,6 +18,16 @@ export const paginationSchema = z.object({
   q: z.string().trim().max(200).optional(),
 });
 export type Pagination = z.infer<typeof paginationSchema>;
+
+/** An Iranian mobile number, however typed, stored as 09xxxxxxxxx (Hivamis task 2). */
+export const iranMobileSchema = z.string().trim().max(40).transform((v, ctx) => {
+  const n = normalizeIranMobile(v);
+  if (!n) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'شمارهٔ همراه معتبر نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷' });
+    return z.NEVER;
+  }
+  return n;
+});
 
 export const transitionSchema = z.object({
   action: z.string().min(1).max(64),
@@ -80,18 +91,63 @@ export const createContactSchema = z.object({
 });
 export const updateContactSchema = createContactSchema.partial().omit({ companyId: true });
 
-export const createLeadSchema = z.object({
+const leadFields = z.object({
   name: z.string().trim().min(2).max(160),
   companyName: z.string().trim().min(2).max(200),
   contactName: z.string().trim().max(120).optional(),
-  phone: z.string().trim().max(40).optional(),
+  /** «تلفن همراه»: required, one written form, and how a repeated lead is recognised. */
+  phone: iranMobileSchema,
   email: z.string().email().max(160).optional().or(z.literal('')),
-  source: z.enum(['REFERRAL', 'INBOUND', 'OUTBOUND', 'EVENT', 'CAMPAIGN', 'OTHER']),
+  /** Where it came from, in two steps: the kind, then exactly who or what (see crm.ts). */
+  source: z.enum(LEAD_SOURCE_KINDS),
+  /** SALES_TEAM: a member of the sales unit; STAFF: a colleague outside it. */
+  sourceUserId: idSchema.nullish(),
+  /** MARKETER or PARTNER: one of the organisation's list. */
+  sourceReferrerId: idSchema.nullish(),
+  /** DIRECT: by which channel. */
+  sourceChannel: z.enum(DIRECT_CHANNELS).nullish(),
+  /** PARTNER: a partner company not on the list yet — added as it is named. */
+  sourcePartnerName: z.string().trim().min(2).max(160).optional(),
   estimatedValue: z.coerce.number().min(0).optional(),
   need: z.string().trim().max(2000).optional(),
   ownerId: idSchema.optional(),
+  /** Register it although its mobile number already belongs to another lead or contact. */
+  confirmDuplicate: z.boolean().optional(),
 });
-export const updateLeadSchema = createLeadSchema.partial();
+
+/** The second step each kind of source needs. Who it names is checked against the data by the API. */
+export function leadSourceIssues(v: {
+  source?: string; sourceUserId?: string | null; sourceReferrerId?: string | null; sourceChannel?: string | null; sourcePartnerName?: string;
+}): { path: string; message: string }[] {
+  switch (v.source) {
+    case 'SALES_TEAM': return v.sourceUserId ? [] : [{ path: 'sourceUserId', message: 'عضو تیم فروش را انتخاب کنید' }];
+    case 'STAFF': return v.sourceUserId ? [] : [{ path: 'sourceUserId', message: 'همکاری را که سرنخ را آورده انتخاب کنید' }];
+    case 'MARKETER': return v.sourceReferrerId ? [] : [{ path: 'sourceReferrerId', message: 'بازاریاب را انتخاب کنید' }];
+    case 'PARTNER': return v.sourceReferrerId || v.sourcePartnerName ? [] : [{ path: 'sourceReferrerId', message: 'شرکت همکار را انتخاب کنید یا نامش را بنویسید' }];
+    case 'DIRECT': return v.sourceChannel ? [] : [{ path: 'sourceChannel', message: 'کانال تماس را انتخاب کنید' }];
+    default: return [];
+  }
+}
+
+export const createLeadSchema = leadFields.superRefine((v, ctx) => {
+  for (const i of leadSourceIssues(v)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i.path], message: i.message });
+});
+/** A change to the source is checked whole, against what the lead already has (apps/api/src/crm). */
+export const updateLeadSchema = leadFields.partial();
+
+/** Marketers (kept by the system admin) and partner companies a lead may name. */
+export const createLeadReferrerSchema = z.object({
+  kind: z.enum(LEAD_REFERRER_KINDS),
+  name: z.string().trim().min(2).max(160),
+  phone: z.string().trim().max(40).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+export const updateLeadReferrerSchema = z.object({
+  name: z.string().trim().min(2).max(160).optional(),
+  phone: z.string().trim().max(40).nullish(),
+  note: z.string().trim().max(500).nullish(),
+  isActive: z.boolean().optional(),
+});
 
 export const createOpportunitySchema = z.object({
   title: z.string().trim().min(2).max(200),
@@ -918,7 +974,7 @@ export const updateApprovalChainSchema = z.object({
  */
 const FIELD_TYPES = [
   'text', 'textarea', 'number', 'currency', 'percent', 'date', 'datetime',
-  'select', 'multiselect', 'checkbox', 'user', 'department', 'entityRef', 'attachment', 'table',
+  'select', 'multiselect', 'checkbox', 'user', 'department', 'entityRef', 'attachment', 'table', 'mobile',
 ] as const;
 
 const fieldOptionSchema = z.object({

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { closeApp, get, login, move, patch, post, expectOk } from './helpers.js';
+import { closeApp, get, login, move, patch, post, expectOk, directLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { KEY_PATTERN } from '../src/integrations/keys.js';
@@ -130,7 +130,7 @@ describe('Webhooks: thin, signed events from the transition log', () => {
       const listed = expectOk(await get('/admin/webhooks', T.admin), 'list').find((w: any) => w.id === sub.id);
       expect(listed.secret).not.toBe(sub.secret);
 
-      const lead = expectOk(await post('/leads', T.sales, { name: 'درخواست کمپین پاییز', companyName: 'شرکت نمونهٔ بیرونی', contactName: 'مخاطب محرمانه', source: 'INBOUND' }), 'lead');
+      const lead = expectOk(await post('/leads', T.sales, { name: 'درخواست کمپین پاییز', companyName: 'شرکت نمونهٔ بیرونی', contactName: 'مخاطب محرمانه', ...directLead() }), 'lead');
       expectOk(await move('lead', lead.id, 'contact', T.sales), 'contact');
 
       const first = await dispatchWebhooks();
@@ -148,7 +148,7 @@ describe('Webhooks: thin, signed events from the transition log', () => {
     it('retries with backoff, gives up after the last attempt, and disables a receiver that keeps failing', async () => {
       status = 500;
       const sub = expectOk(await post('/admin/webhooks', T.admin, { name: 'گیرندهٔ از کار افتاده', url, events: ['lead.*'] }), 'webhook');
-      const lead = expectOk(await post('/leads', T.sales, { name: 'سرنخ دوم', companyName: 'شرکت دوم', source: 'INBOUND' }), 'lead');
+      const lead = expectOk(await post('/leads', T.sales, { name: 'سرنخ دوم', companyName: 'شرکت دوم', ...directLead() }), 'lead');
       expectOk(await move('lead', lead.id, 'contact', T.sales), 'contact');
       await dispatchWebhooks();
       let d = await prisma.webhookDelivery.findFirstOrThrow({ where: { subscriptionId: sub.id } });

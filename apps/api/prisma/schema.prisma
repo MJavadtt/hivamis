@@ -255,6 +255,7 @@ model User {
   roles                UserRole[]
   sessions             Session[]
   ownedLeads           Lead[]              @relation("LeadOwner")
+  sourcedLeads         Lead[]              @relation("LeadSourceUser")
   ownedOpportunities   Opportunity[]       @relation("OpportunityOwner")
   accountCompanies     Company[]           @relation("CompanyAccountOwner")
   salesCompanies       Company[]           @relation("CompanySalesOwner")
@@ -390,9 +391,19 @@ model Lead {
   companyId      String?
   company        Company?  @relation(fields: [companyId], references: [id])
   contactName    String?
+  /// «تلفن همراه» — 09xxxxxxxxx for anything entered since Hivamis task 2; how a repeated lead is found.
   phone          String?
   email          String?
+  /// SALES_TEAM | MARKETER | STAFF | DIRECT | PARTNER — then exactly who or what, below.
   source         String
+  /// SALES_TEAM: a member of the sales unit; STAFF: a colleague outside it.
+  sourceUserId     String?
+  sourceUser       User?         @relation("LeadSourceUser", fields: [sourceUserId], references: [id])
+  /// MARKETER or PARTNER: one of the organisation's list.
+  sourceReferrerId String?
+  sourceReferrer   LeadReferrer? @relation(fields: [sourceReferrerId], references: [id])
+  /// DIRECT: PHONE | EXHIBITION | EVENT | CAMPAIGN
+  sourceChannel    String?
   estimatedValue Decimal?  @db.Decimal(20, 2)
   need           String?
   state          String    @default("NEW")
@@ -406,6 +417,7 @@ model Lead {
   opportunities Opportunity[]
 
   @@index([organizationId, state])
+  @@index([organizationId, phone])
   @@map("leads")
 }
 
@@ -2677,4 +2689,25 @@ model ServerKey {
   createdAt  DateTime @default(now())
 
   @@map("server_keys")
+}
+
+/// Who outside the system a lead can name as its source (Hivamis task 2): marketers, whom the system
+/// admin keeps, and partner companies, which a seller may add as they name one.
+model LeadReferrer {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// MARKETER | PARTNER
+  kind           String
+  name           String
+  phone          String?
+  note           String?
+  isActive       Boolean   @default(true)
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  leads Lead[]
+
+  @@unique([organizationId, kind, name])
+  @@map("lead_referrers")
 }

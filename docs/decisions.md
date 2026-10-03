@@ -1380,3 +1380,29 @@ organisation that uses the product, not the product. Package names (`@hiva/*`), 
 **Rationale.** The name is what people read; the identifiers are what installations depend on. A
 renamed storage key signs everyone out; a renamed database or package breaks every deployment script
 and integration that names it, for nothing a person would see.
+
+## ADR-054 — A lead is its mobile number, and its source has two steps
+
+**Decision.** (Hivamis task 2.) A lead's **تلفن همراه** is required and stored in one written form,
+`09xxxxxxxxx`, whatever digits, spaces or prefix it was typed with (`normalizeIranMobile`, shared by
+the web, the API and the form engine's new `mobile` field type). A number already on a lead, or on a
+client's contact, stops the save and says who has it, unless the person ticks that the lead is new;
+stored numbers are compared by their last ten digits, so ones typed before the single form are still
+found. The source is a kind — sales team, marketers, company staff, direct contact, partner companies —
+and exactly one detail: a member of the sales unit, a colleague outside it, a marketer or partner on
+the organisation's list, or a channel. The database holds the kinds, the channels, and that only the
+kind's own detail is set. Marketers are a list the system admin keeps; a partner company joins the list
+the first time a seller names it. Existing leads were migrated: a cold call became the seller's,
+events and campaigns direct channels, a referral a partner (unnamed), the rest direct contact.
+
+**Rationale.** In an Iranian agency the mobile number is how a client is known, and two sellers
+chasing one client is the usual way a lead is lost; the duplicate check is where that is caught.
+A source is what a commission, a campaign's return or a partner's worth is later read from — "referral"
+with no name answers none of those. Marketers may be owed money, so who counts as one is the admin's
+decision; a partner company is only a name, and making a seller wait for an admin to write it down
+would push the lead back into a spreadsheet.
+
+**Limits.** Only Iranian mobile numbers are accepted as a lead's number; a lead reachable only on a
+landline or abroad keeps it in «نیاز اولیه». Leads migrated from «REFERRAL» have no partner named,
+and those from «INBOUND»/«OTHER» no channel — they show their kind alone. The duplicate check covers
+leads and contacts, not suppliers or users.

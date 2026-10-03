@@ -2,12 +2,14 @@ import type { FastifyPluginAsync } from 'fastify';
 import {
   createActivitySchema, createCompanySchema, createContactSchema, createLeadSchema,
   createOpportunitySchema, updateCompanySchema, updateContactSchema, updateLeadSchema,
-  updateOpportunitySchema, paginationSchema,
+  updateOpportunitySchema, paginationSchema, createLeadReferrerSchema, updateLeadReferrerSchema,
+  DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, SALES_DEPARTMENT, normalizeIranMobile,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
-import { notFound, badRequest } from '../lib/errors.js';
+import { AppError, forbidden, notFound, badRequest } from '../lib/errors.js';
+import { findDuplicates, referrerName, refuseDuplicate, resolveLeadSource } from '../crm/lead-sources.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
 import { transitionWithin } from '../workflow/engine.js';
@@ -50,14 +52,122 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
     permissions: { read: 'crm.lead.read', write: 'crm.lead.write' },
     createSchema: createLeadSchema, updateSchema: updateLeadSchema,
     sortable: ['createdAt', 'estimatedValue', 'name'],
-    searchable: ['name', 'companyName', 'contactName'],
+    searchable: ['name', 'companyName', 'contactName', 'phone'],
     filter: (req) => {
-      const { state, ownerId } = req.query as { state?: string; ownerId?: string };
-      return { ...(state ? { state } : {}), ...(ownerId ? { ownerId } : {}) };
+      const { state, ownerId, source } = req.query as { state?: string; ownerId?: string; source?: string };
+      return { ...(state ? { state } : {}), ...(ownerId ? { ownerId } : {}), ...(source ? { source } : {}) };
     },
-    listInclude: { owner: { select: { id: true, fullName: true } } },
-    toCreate: (input, actor) => ({ ...input, ownerId: input.ownerId ?? actor.id }),
+    listInclude: {
+      owner: { select: { id: true, fullName: true } },
+      sourceUser: { select: { id: true, fullName: true } },
+      sourceReferrer: { select: { id: true, name: true, kind: true } },
+    },
+    detailInclude: {
+      owner: { select: { id: true, fullName: true } },
+      sourceUser: { select: { id: true, fullName: true } },
+      sourceReferrer: { select: { id: true, name: true, kind: true } },
+    },
+    // Hivamis task 2: one mobile number is one lead unless someone says otherwise, and the source
+    // names who or what exactly.
+    toCreate: async (input, actor) => {
+      const { confirmDuplicate, sourcePartnerName, ...rest } = input;
+      await refuseDuplicate(actor.organizationId, input.phone, confirmDuplicate);
+      const source = await resolveLeadSource(prisma, actor.organizationId, actor.id, { ...input, sourcePartnerName });
+      return { ...rest, ...source, ownerId: input.ownerId ?? actor.id };
+    },
+    toUpdate: async (input, before, actor) => {
+      const { confirmDuplicate, sourcePartnerName, source, sourceUserId, sourceReferrerId, sourceChannel, ...rest } = input as Record<string, any>;
+      if (rest.phone && rest.phone !== before.phone) await refuseDuplicate(actor.organizationId, rest.phone, confirmDuplicate, before.id);
+      const touched = [source, sourceUserId, sourceReferrerId, sourceChannel, sourcePartnerName].some((v) => v !== undefined);
+      if (!touched) return rest;
+      // A new kind brings its own second step; the same kind may change only its detail.
+      const resolved = await resolveLeadSource(prisma, actor.organizationId, actor.id, source && source !== before.source
+        ? { source, sourceUserId, sourceReferrerId, sourceChannel, sourcePartnerName }
+        : {
+            source: before.source,
+            sourceUserId: sourceUserId !== undefined ? sourceUserId : before.sourceUserId,
+            sourceReferrerId: sourceReferrerId !== undefined ? sourceReferrerId : before.sourceReferrerId,
+            sourceChannel: sourceChannel !== undefined ? sourceChannel : before.sourceChannel,
+            sourcePartnerName,
+          });
+      return { ...rest, ...resolved };
+    },
     softDelete: true,
+  });
+
+  /** "Is this number already someone?" — asked while the lead is being typed. */
+  app.get('/leads/duplicates', { preHandler: [app.authenticate, app.requirePermissions('crm.lead.read')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { phone, exclude } = req.query as { phone?: string; exclude?: string };
+    const normalized = normalizeIranMobile(phone);
+    return { phone: normalized, ...(normalized ? await findDuplicates(actor.organizationId, normalized, exclude) : { leads: [], contacts: [] }) };
+  });
+
+  /** Everything the two-step source picker offers, in one request. */
+  app.get('/leads/source-options', { preHandler: [app.authenticate, app.requirePermissions('crm.lead.read')] }, async (req) => {
+    const actor = actorFrom(req);
+    const [people, referrers] = await Promise.all([
+      prisma.user.findMany({
+        where: { organizationId: actor.organizationId, isActive: true, deletedAt: null },
+        select: { id: true, fullName: true, jobTitle: true, department: { select: { code: true, nameFa: true } } },
+        orderBy: { fullName: 'asc' },
+      }),
+      prisma.leadReferrer.findMany({ where: { organizationId: actor.organizationId, isActive: true }, select: { id: true, kind: true, name: true }, orderBy: { name: 'asc' } }),
+    ]);
+    const person = (u: (typeof people)[number]) => ({ id: u.id, fullName: u.fullName, jobTitle: u.jobTitle, department: u.department?.nameFa ?? null });
+    return {
+      kinds: LEAD_SOURCE_KINDS.map((k) => ({ value: k, ...LEAD_SOURCE_LABELS[k] })),
+      channels: DIRECT_CHANNELS.map((c) => ({ value: c, ...DIRECT_CHANNEL_LABELS[c] })),
+      salesTeam: people.filter((u) => u.department?.code === SALES_DEPARTMENT).map(person),
+      staff: people.filter((u) => u.department?.code !== SALES_DEPARTMENT).map(person),
+      marketers: referrers.filter((r) => r.kind === 'MARKETER').map(({ id, name }) => ({ id, name })),
+      partners: referrers.filter((r) => r.kind === 'PARTNER').map(({ id, name }) => ({ id, name })),
+      canManageMarketers: actor.permissions.includes('admin.settings'),
+      canAddPartners: actor.permissions.includes('crm.lead.write'),
+    };
+  });
+
+  /* ── Marketers and partner companies a lead may name ── */
+  app.get('/lead-referrers', { preHandler: [app.authenticate, app.requirePermissions('crm.lead.read')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { kind, all } = req.query as { kind?: string; all?: string };
+    const rows = await prisma.leadReferrer.findMany({
+      where: { organizationId: actor.organizationId, ...(kind ? { kind } : {}), ...(all === 'true' ? {} : { isActive: true }) },
+      include: { _count: { select: { leads: true } } }, orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+    return { items: rows.map(({ _count, ...r }) => ({ ...r, leads: _count.leads })), total: rows.length };
+  });
+
+  app.post('/lead-referrers', { preHandler: [app.authenticate] }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const input = parse(createLeadReferrerSchema, req.body);
+    // Marketers may be owed a commission, so the admin keeps their list; a partner company is a name.
+    const needed = input.kind === 'MARKETER' ? 'admin.settings' : 'crm.lead.write';
+    if (!actor.permissions.includes(needed as never)) throw forbidden(`افزودن ${input.kind === 'MARKETER' ? 'بازاریاب' : 'شرکت همکار'} به دسترسی «${needed}» نیاز دارد.`);
+    const name = referrerName(input.name);
+    const exists = await prisma.leadReferrer.findFirst({ where: { organizationId: actor.organizationId, kind: input.kind, name } });
+    if (exists) throw new AppError(409, 'REFERRER_EXISTS', `«${name}» پیش‌تر در فهرست هست${exists.isActive ? '' : ' (کنار گذاشته شده)'}.`, { id: exists.id });
+    const row = await prisma.leadReferrer.create({ data: { organizationId: actor.organizationId, kind: input.kind, name, phone: input.phone || null, note: input.note || null, createdById: actor.id } });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'leadReferrer', entityId: row.id, after: row, ipAddress: actor.ipAddress, requestId: actor.requestId });
+    return reply.code(201).send(row);
+  });
+
+  app.patch('/lead-referrers/:id', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const input = parse(updateLeadReferrerSchema, req.body);
+    const before = await prisma.leadReferrer.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!before) throw notFound('منبع');
+    const name = input.name ? referrerName(input.name) : undefined;
+    if (name && name !== before.name && await prisma.leadReferrer.findFirst({ where: { organizationId: actor.organizationId, kind: before.kind, name } })) {
+      throw new AppError(409, 'REFERRER_EXISTS', `«${name}» پیش‌تر در فهرست هست.`);
+    }
+    const row = await prisma.leadReferrer.update({
+      where: { id },
+      data: { ...(name ? { name } : {}), ...(input.phone !== undefined ? { phone: input.phone || null } : {}), ...(input.note !== undefined ? { note: input.note || null } : {}), ...(input.isActive !== undefined ? { isActive: input.isActive } : {}) },
+    });
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'leadReferrer', entityId: id, before, after: row, ipAddress: actor.ipAddress, requestId: actor.requestId });
+    return row;
   });
 
   registerCrud(app, {

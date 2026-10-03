@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD } from './helpers.js';
+import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD, directLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { findActiveDemoAccounts } from '../src/lib/demo-accounts.js';
 import { env, parseTrustProxy, trustProxy } from '../src/env.js';
@@ -632,7 +632,7 @@ describe('Record history is evidence', () => {
 
   async function leadWithHistory() {
     const lead = expectOk(await post('/leads', T.sales, {
-      name: 'سرنخ تاریخچه', companyName: 'شرکت تاریخچه', source: 'INBOUND', estimatedValue: 1_000_000,
+      name: 'سرنخ تاریخچه', companyName: 'شرکت تاریخچه', ...directLead(), estimatedValue: 1_000_000,
     }), 'create');
     await pause(15);
     const afterCreate = new Date();

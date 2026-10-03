@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { closeApp, get, login, move, patch, post, expectOk } from './helpers.js';
+import { closeApp, get, login, move, patch, post, expectOk, directLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 
 /**
@@ -437,7 +437,7 @@ describe('Effective-dated rule sets', () => {
     expect(again.workflows).toBe(first.workflows);
     resetRulesCache();
 
-    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ قوانین', companyName: 'شرکت', source: 'INBOUND' }), 'lead');
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ قوانین', companyName: 'شرکت', ...directLead() }), 'lead');
     expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'contact');
     const row = await prisma.stateTransition.findFirstOrThrow({ where: { entityType: 'lead', entityId: lead.id, action: 'contact' } });
     expect(row.rulesVersionId).toBe(first.workflows);
@@ -488,7 +488,7 @@ describe('Effective-dated rule sets', () => {
     expect(detail.note).toContain('relaxed final QC');
 
     // A transition made now carries v2; the one from before still carries v1.
-    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ نسخه دو', companyName: 'شرکت', source: 'INBOUND' }), 'lead');
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ نسخه دو', companyName: 'شرکت', ...directLead() }), 'lead');
     expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'contact');
     const row = await prisma.stateTransition.findFirstOrThrow({ where: { entityType: 'lead', entityId: lead.id, action: 'contact' } });
     expect(row.rulesVersionId).toBe(after.workflows);
@@ -516,7 +516,7 @@ describe('Process mining and conformance', () => {
 
   it('discovers the paths cases take, counts them, and names the declared ones nobody walks', async () => {
     // Three leads: two converted the straight way, one disqualified from CONTACTED.
-    const mk = async (name: string) => expectOk(await post('/leads', tokens.sales, { name, companyName: `شرکت ${name}`, source: 'INBOUND' }), name);
+    const mk = async (name: string) => expectOk(await post('/leads', tokens.sales, { name, companyName: `شرکت ${name}`, ...directLead() }), name);
     const a = await mk('سرنخ الف'); const b = await mk('سرنخ ب'); const c = await mk('سرنخ ج');
     for (const l of [a, b]) {
       expectOk(await move('lead', l.id, 'contact', tokens.sales), 'contact');
@@ -549,7 +549,7 @@ describe('Process mining and conformance', () => {
 
   it('finds the loops — where the process eats its own tail', async () => {
     // A brief returned as incomplete, completed, resubmitted and approved: one backward edge.
-    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ حلقه', companyName: 'شرکت حلقه', source: 'INBOUND' }), 'lead');
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ حلقه', companyName: 'شرکت حلقه', ...directLead() }), 'lead');
     expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'c'); expectOk(await move('lead', lead.id, 'qualify', tokens.sales), 'q');
     const conv = expectOk(await post(`/leads/${lead.id}/convert`, tokens.sales, {}), 'convert');
     const opportunityId = conv.opportunity?.id ?? conv.opportunityId ?? conv.id;
@@ -601,7 +601,7 @@ describe('The rule lab', () => {
 
   it('replays history under a tightened rule and names what would now be blocked — writing nothing', async () => {
     // Leads that were converted by Sales.
-    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ آزمایشگاه', companyName: 'شرکت آزمایشگاه', source: 'INBOUND' }), 'lead');
+    const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ آزمایشگاه', companyName: 'شرکت آزمایشگاه', ...directLead() }), 'lead');
     expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'c');
     expectOk(await move('lead', lead.id, 'qualify', tokens.sales), 'q');
     expectOk(await move('lead', lead.id, 'convert', tokens.sales), 'v');
@@ -722,7 +722,7 @@ describe('State is written only through the engine', () => {
     const lead = await prisma.lead.create({
       data: {
         organizationId: ORG, code: `LEAD-T${Date.now() % 100000}`,
-        name: 'تست تبدیل', companyName: 'شرکت آزمایشی', source: 'INBOUND', state: 'NEW',
+        name: 'تست تبدیل', companyName: 'شرکت آزمایشی', source: 'DIRECT', state: 'NEW',
       },
     });
     const res = await post(`/leads/${lead.id}/convert`, tokens.sales, { title: 'فرصت آزمایشی' });
@@ -739,7 +739,7 @@ describe('State is written only through the engine', () => {
     const lead = await prisma.lead.create({
       data: {
         organizationId: ORG, code: `LEAD-T${(Date.now() + 1) % 100000}`,
-        name: 'تست تبدیل ۲', companyName: 'شرکت آزمایشی ۲', source: 'REFERRAL', state: 'QUALIFIED',
+        name: 'تست تبدیل ۲', companyName: 'شرکت آزمایشی ۲', source: 'PARTNER', state: 'QUALIFIED',
       },
     });
     const res = await post(`/leads/${lead.id}/convert`, tokens.sales, { title: 'فرصت معتبر' });

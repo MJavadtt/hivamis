@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { createContext, useContext, useEffect, useId, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { toPersianDigits } from '../lib/format';
 import { STATE_LABELS } from '@hiva/contracts';
 
@@ -383,8 +383,15 @@ export function Tabs({ tabs, active, onChange }: {
   active: string;
   onChange: (k: string) => void;
 }) {
+  // A link can open a tab that sits beyond the visible strip; bring it into view so the page
+  // says where it is.
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = strip.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1" role="tablist">
+    <div ref={strip} className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.key}

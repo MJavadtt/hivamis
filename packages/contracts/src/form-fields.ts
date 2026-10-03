@@ -5,7 +5,9 @@ import type { ApprovalStage, RoutingRule } from './routing.js';
 export type FieldType =
   | 'text' | 'textarea' | 'number' | 'currency' | 'percent'
   | 'date' | 'datetime' | 'select' | 'multiselect' | 'checkbox'
-  | 'user' | 'department' | 'entityRef' | 'attachment' | 'table';
+  | 'user' | 'department' | 'entityRef' | 'attachment' | 'table'
+  /** An Iranian mobile number, stored as 09xxxxxxxxx (Hivamis task 2). */
+  | 'mobile';
 
 export interface FieldOption {
   readonly value: string;
@@ -80,6 +82,7 @@ export const f = {
   ref: (key: string, fa: string, en: string, entity: string, required = false): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'entityRef', entity, required }),
   files: (key = 'attachments', fa = 'پیوست‌ها', en = 'Attachments'): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'attachment' }),
   check: (key: string, fa: string, en: string): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'checkbox' }),
+  mobile: (key: string, fa: string, en: string, required = false): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'mobile', required }),
   sel: (key: string, fa: string, en: string, options: readonly FieldOption[], required = false): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'select', options, required }),
   multi: (key: string, fa: string, en: string, options: readonly FieldOption[], required = false): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'multiselect', options, required }),
   table: (key: string, fa: string, en: string, columns: readonly FieldDef[]): FieldDef => ({ key, labelFa: fa, labelEn: en, type: 'table', columns }),

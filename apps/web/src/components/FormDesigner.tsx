@@ -35,6 +35,7 @@ const TYPES: { value: string; labelFa: string }[] = [
   { value: 'multiselect', labelFa: 'انتخاب چند' }, { value: 'checkbox', labelFa: 'تیک' },
   { value: 'user', labelFa: 'کاربر' }, { value: 'department', labelFa: 'واحد' },
   { value: 'entityRef', labelFa: 'ارجاع به رکورد' }, { value: 'attachment', labelFa: 'پیوست' },
+  { value: 'mobile', labelFa: 'تلفن همراه' },
 ];
 const typeFa = (t: string) => TYPES.find((x) => x.value === t)?.labelFa ?? t;
 const deptFa = (c: string) => DEPARTMENT_LABELS[c as keyof typeof DEPARTMENT_LABELS]?.fa ?? c;

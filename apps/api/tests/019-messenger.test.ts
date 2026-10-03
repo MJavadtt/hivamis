@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { app, call, closeApp, get, login, post, expectOk } from './helpers.js';
+import { app, call, closeApp, get, login, post, expectOk, directLead, partnerLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { botApiProvider, keyboard } from '../src/messenger/provider.js';
@@ -66,7 +66,7 @@ describe('Approving from the messenger', () => {
   });
 
   it('brings an approval request with «تأیید / رد / باز کردن», and approving goes through decideForm as that person', async () => {
-    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ پیام‌رسان', companyName: 'شرکت پیام‌رسان', source: 'REFERRAL' } }), 'submit');
+    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ پیام‌رسان', companyName: 'شرکت پیام‌رسان', ...partnerLead() } }), 'submit');
     const m = await lastButtons(T.manager);
     expect(m.text).toContain('فرم در انتظار تأیید');
     expect(m.buttons[0].map((b: any) => b.text)).toEqual(['تأیید', 'رد']);
@@ -90,7 +90,7 @@ describe('Approving from the messenger', () => {
   });
 
   it('asks for the reason before rejecting, as the app does', async () => {
-    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ رد', companyName: 'شرکت رد', source: 'OUTBOUND' } }), 'submit');
+    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ رد', companyName: 'شرکت رد', ...directLead() } }), 'submit');
     const m = await lastButtons(T.manager);
     expect(expectOk(await post('/messenger/sandbox/press', T.manager, { action: m.buttons[0][1].action }), 'reject').answer).toBe('دلیل رد را بنویسید.');
     expect((await prisma.formSubmission.findUniqueOrThrow({ where: { id: s.id } })).state).toBe('PENDING_APPROVAL');
@@ -102,7 +102,7 @@ describe('Approving from the messenger', () => {
   it('keeps the engine’s rules: the submitter cannot approve their own form from the messenger either', async () => {
     const link = expectOk(await post('/messenger/link', T.sales), 'link');
     expectOk(await post('/messenger/sandbox/send', T.sales, { text: link.code }), 'linked');
-    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ خودتأیید', companyName: 'شرکت خود', source: 'EVENT' } }), 'submit');
+    const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ خودتأیید', companyName: 'شرکت خود', ...directLead('EVENT') } }), 'submit');
     // An approval button addressed to the submitter — as if a rule had put them in the loop.
     const org = (await prisma.organization.findFirstOrThrow()).id;
     await prisma.messengerAction.createMany({ data: [
@@ -135,7 +135,7 @@ describe('Approving from the messenger', () => {
       expect(await prisma.messengerLink.findUniqueOrThrow({ where: { userId: managerId } })).toMatchObject({ provider: 'bale', chatId: '900', username: 'mgr' });
       expect(calls.find((c) => c.method === 'sendMessage')!.body).toMatchObject({ chat_id: '900', text: expect.stringContaining('اتصال برقرار شد') });
 
-      const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ بله', companyName: 'شرکت بله', source: 'REFERRAL' } }), 'submit');
+      const s = expectOk(await post('/forms/submissions', T.sales, { formCode: 'A01_LEAD', data: { name: 'سرنخ بله', companyName: 'شرکت بله', ...partnerLead() } }), 'submit');
       let sent: any;
       for (let i = 0; i < 40 && !sent; i++) { sent = calls.find((c) => c.method === 'sendMessage' && c.body.reply_markup); if (!sent) await sleep(50); }
       const approve = sent.body.reply_markup.inline_keyboard[0][0].callback_data;

@@ -149,3 +149,12 @@ export function zipOf(entries: { name: string; content: Buffer | string }[]): Bu
   end.writeUInt32LE(cdBuf.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, cdBuf, end]);
 }
+
+let mobileSeq = 0;
+/** A lead's required mobile number (Hivamis task 2), distinct per call so the duplicate check never trips by accident. */
+export const mobile = () => `0901${String(++mobileSeq).padStart(7, '0')}`;
+/** The plainest two-step source: a direct phone call — with its own mobile number. */
+export const directLead = (channel: 'PHONE' | 'EXHIBITION' | 'EVENT' | 'CAMPAIGN' = 'PHONE') =>
+  ({ source: 'DIRECT', sourceChannel: channel, phone: mobile() });
+/** A lead a partner company sent, named for the first time or again. */
+export const partnerLead = (name = 'شرکت معرف آزمون') => ({ source: 'PARTNER', sourcePartnerName: name, phone: mobile() });

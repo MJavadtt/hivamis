@@ -47,7 +47,14 @@ disconnects the chat. On an installation without a bot, the same window shows a 
 **Your loop: acquire → qualify → brief → present → close.**
 
 1. **Leads** — record a new lead, then move it Contact → Qualify. Converting creates the
-   opportunity and, if needed, the customer record.
+   opportunity and, if needed, the customer record. A lead needs its **تلفن همراه**; type it any
+   way (۰۹۱۲…, +98…, with spaces) and it is kept as 09xxxxxxxxx. If the number is already a lead or
+   a client's contact, the form says who has it before you save — tick that it is a new lead to
+   register it anyway. Its **منبع ورودی** takes two clicks: the kind — **تیم فروش**, **بازاریابان**,
+   **پرسنل شرکت**, **تماس مستقیم**, **شرکت‌های همکار** — then who or what: the seller, the marketer,
+   the colleague outside sales, the channel (تلفن، نمایشگاه، رویداد، کمپین) or the partner company.
+   A partner not on the list yet is added as you type its name; marketers are added by the system
+   administrator under **مدیریت سیستم ← منابع سرنخ**.
 2. **Briefs** — write the sales brief and submit it to Account. The brief shows a completeness
    score; anything below 100% will be returned to you, so fill in objective, audience, scope,
    deliverables, budget and deadline before submitting.

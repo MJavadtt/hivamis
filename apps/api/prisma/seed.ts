@@ -290,8 +290,23 @@ async function seedDemo(
     companies.push(c);
   }
 
+  // ── Who a lead can name as its source (Hivamis task 2) ─────────────────────
+  const referrer = (kind: 'MARKETER' | 'PARTNER', name: string, phone: string | null) =>
+    prisma.leadReferrer.create({ data: { organizationId: orgId, kind, name, phone, createdById: users.get('admin@hiva.local')!.id } });
+  const marketer = await referrer('MARKETER', 'مهسا یزدانی', '09121110001');
+  await referrer('MARKETER', 'پویا شاکری', '09121110002');
+  const partner = await referrer('PARTNER', 'چاپخانهٔ نقش‌آفرین', '021-88001122');
+  await referrer('PARTNER', 'رویدادساز پارسه', null);
+
   // ── Leads in various states ────────────────────────────────────────────────
   const leadStates = ['NEW', 'CONTACTED', 'QUALIFIED', 'NEW', 'CONTACTED'];
+  const leadSources = [
+    { source: 'PARTNER', sourceReferrerId: partner.id },
+    { source: 'DIRECT', sourceChannel: 'PHONE' },
+    { source: 'DIRECT', sourceChannel: 'EXHIBITION' },
+    { source: 'MARKETER', sourceReferrerId: marketer.id },
+    { source: 'SALES_TEAM', sourceUserId: salesRep },
+  ];
   for (let i = 0; i < 5; i++) {
     await prisma.lead.create({
       data: {
@@ -300,8 +315,8 @@ async function seedDemo(
         name: `سرنخ ${i + 1}`,
         companyName: ['هلدینگ ماد', 'صنایع غذایی دلتا', 'بیمه پارس', 'استارتاپ رهیاب', 'گروه ساختمانی آبان'][i],
         contactName: 'واحد بازاریابی',
-        phone: '021-2200' + (1000 + i),
-        source: ['REFERRAL', 'INBOUND', 'EVENT', 'CAMPAIGN', 'OUTBOUND'][i],
+        phone: '0935220' + (1000 + i),
+        ...leadSources[i]!,
         estimatedValue: [1_500_000_000, 900_000_000, 3_200_000_000, 450_000_000, 2_100_000_000][i],
         need: 'نیاز به کمپین برندینگ و رسانه',
         state: leadStates[i],

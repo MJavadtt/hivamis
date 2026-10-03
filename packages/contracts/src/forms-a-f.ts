@@ -1,4 +1,5 @@
 import { f, OPT, UNIT_ORDER_FIELDS, MEETING_FIELDS, type FormDef } from './form-fields.js';
+import { DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS } from './crm.js';
 
 /**
  * Form catalogue — categories A to F (Doc_H forms 1–52).
@@ -15,15 +16,18 @@ export const FORMS_A_F: readonly FormDef[] = [
       f.text('name', 'نام سرنخ', 'Lead name', true),
       f.text('companyName', 'نام شرکت', 'Company name', true),
       f.text('contactName', 'نام تماس', 'Contact name'),
-      f.text('phone', 'تلفن', 'Phone'),
+      f.mobile('phone', 'تلفن همراه', 'Mobile', true),
       f.text('email', 'ایمیل', 'Email'),
-      f.sel('source', 'منبع', 'Source', [
-        { value: 'REFERRAL', labelFa: 'معرفی' }, { value: 'INBOUND', labelFa: 'ورودی' },
-        { value: 'OUTBOUND', labelFa: 'تماس سرد' }, { value: 'EVENT', labelFa: 'رویداد' },
-        { value: 'CAMPAIGN', labelFa: 'کمپین' }, { value: 'OTHER', labelFa: 'سایر' },
-      ], true),
+      // Hivamis task 2: where it came from, in two steps — the kind, then exactly who or what.
+      f.sel('source', 'منبع ورودی', 'Source', LEAD_SOURCE_KINDS.map((k) => ({ value: k, labelFa: LEAD_SOURCE_LABELS[k].fa })), true),
+      { ...f.user('sourceUserId', 'آورندهٔ سرنخ', 'Brought in by', true), visibleWhen: { field: 'source', equals: ['SALES_TEAM', 'STAFF'] } },
+      { ...f.ref('sourceReferrerId', 'بازاریاب', 'Marketer', 'marketer', true), visibleWhen: { field: 'source', equals: ['MARKETER'] } },
+      { ...f.ref('sourcePartnerId', 'شرکت همکار', 'Partner company', 'partner'), visibleWhen: { field: 'source', equals: ['PARTNER'] }, helpFa: 'اگر در فهرست نیست، نامش را در فیلد بعد بنویسید.' },
+      { ...f.text('sourcePartnerName', 'نام شرکت همکار تازه', 'New partner company'), visibleWhen: { field: 'source', equals: ['PARTNER'] } },
+      { ...f.sel('sourceChannel', 'کانال تماس', 'Channel', DIRECT_CHANNELS.map((c) => ({ value: c, labelFa: DIRECT_CHANNEL_LABELS[c].fa })), true), visibleWhen: { field: 'source', equals: ['DIRECT'] } },
       f.money('estimatedValue', 'ارزش تخمینی', 'Estimated value'),
       f.area('need', 'نیاز اولیه', 'Initial need'),
+      { ...f.check('confirmDuplicate', 'ثبت با وجود شمارهٔ تکراری', 'Register despite a repeated number'), helpFa: 'فقط وقتی تیک بزنید که بدانید این شماره در سرنخ یا مخاطب دیگری هست.' },
       f.files(),
     ],
   },

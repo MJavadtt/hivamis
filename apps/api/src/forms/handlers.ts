@@ -1,4 +1,5 @@
 import type { Tx } from '../db.js';
+import { refuseDuplicate, resolveLeadSource } from '../crm/lead-sources.js';
 import { nextCode } from '../lib/codes.js';
 import { scoreBrief } from '../briefs/quality.js';
 import { briefCompleteness } from '../workflow/guards.js';
@@ -30,6 +31,14 @@ const date = (v: unknown) => (v == null || v === '' ? null : new Date(String(v))
  */
 export const FORM_HANDLERS: Record<string, (c: HandlerContext) => Promise<HandlerResult>> = {
   lead: async ({ tx, data, actorId, organizationId }) => {
+    // The same rules as the CRM's own form (Hivamis task 2): one mobile number is one lead unless
+    // the person ticked that they mean it, and the source names who or what exactly.
+    const phone = str(data.phone);
+    if (phone) await refuseDuplicate(organizationId, phone, data.confirmDuplicate === true);
+    const source = await resolveLeadSource(tx, organizationId, actorId, {
+      source: str(data.source), sourceUserId: str(data.sourceUserId), sourceChannel: str(data.sourceChannel),
+      sourceReferrerId: str(data.sourceReferrerId) ?? str(data.sourcePartnerId), sourcePartnerName: str(data.sourcePartnerName),
+    });
     const lead = await tx.lead.create({
       data: {
         organizationId,
@@ -37,9 +46,9 @@ export const FORM_HANDLERS: Record<string, (c: HandlerContext) => Promise<Handle
         name: String(data.name),
         companyName: String(data.companyName),
         contactName: str(data.contactName),
-        phone: str(data.phone),
+        phone,
         email: str(data.email),
-        source: String(data.source),
+        ...source,
         estimatedValue: num(data.estimatedValue),
         need: str(data.need),
         ownerId: actorId,

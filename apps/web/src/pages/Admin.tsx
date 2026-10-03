@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
@@ -17,10 +18,13 @@ import { FormDesigner } from '../components/FormDesigner';
 import { SecurityAlerts } from '../components/SecurityAlerts';
 import { ApiKeys, Webhooks } from '../components/Integrations';
 import { MessengerAdmin } from '../components/Messenger';
+import { LeadReferrers } from '../components/LeadSource';
 
 export default function Admin() {
-  const [tab, setTab] = useState('users');
   const { can } = useAuth();
+  // A link may open one tab — the lead form's «افزودن بازاریاب» opens the lead sources.
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(params.get('tab') ?? 'users');
   return (
     <>
       <PageHeader title="مدیریت سیستم" subtitle="کاربران، نقش‌ها، سیاست‌های SLA و رهگیری حسابرسی" />
@@ -39,6 +43,7 @@ export default function Admin() {
             { key: 'audit', label: 'رهگیری حسابرسی' },
             { key: 'security', label: 'هشدارهای امنیتی' },
             ...(can('admin.keys') ? [{ key: 'integrations', label: 'یکپارچه‌سازی' }] : []),
+            ...(can('admin.settings') ? [{ key: 'referrers', label: 'منابع سرنخ' }] : []),
             { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
           ]}
         />
@@ -55,6 +60,7 @@ export default function Admin() {
         {tab === 'audit' && <AuditTrail />}
         {tab === 'security' && <SecurityAlerts />}
         {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /><MessengerAdmin /></div>}
+        {tab === 'referrers' && can('admin.settings') && <LeadReferrers />}
         {tab === 'ai' && <AiLog />}
       </PageBody>
     </>

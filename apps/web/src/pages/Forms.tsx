@@ -433,6 +433,12 @@ export function FormField({ field, value, onChange, error }: {
           <EntitySelect entity={field.entity!} value={(value as string) ?? ''} onChange={onChange} />
         </Field>
       );
+    case 'mobile':
+      return (
+        <Field label={t(field, "label")} {...common} hint={common.hint ?? 'مانند ۰۹۱۲۱۲۳۴۵۶۷'}>
+          <Input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" inputMode="tel" placeholder="09xx xxx xxxx" />
+        </Field>
+      );
     case 'attachment':
       return (
         <Field label={t(field, "label")} hint="پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند." error={error}>
@@ -570,6 +576,9 @@ const ENTITY_PATHS: Record<string, { path: string; label: (r: any) => string }> 
   supplier: { path: '/suppliers', label: (r) => r.name },
   revision: { path: '/revisions', label: (r) => r.code },
   task: { path: '/tasks', label: (r) => `${r.title} (${r.code})` },
+  // A lead's source (Hivamis task 2): the organisation's marketers and partner companies.
+  marketer: { path: '/lead-referrers?kind=MARKETER', label: (r) => r.name },
+  partner: { path: '/lead-referrers?kind=PARTNER', label: (r) => r.name },
 };
 
 /** Exported for the finance dialogs (roadmap #28). */

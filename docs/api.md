@@ -85,7 +85,10 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 |---|---|---|
 | Companies | `/companies` (+ `/:id/360`) | `crm.company.read` |
 | Contacts | `/contacts` | `crm.contact.read` |
-| Leads | `/leads` (+ `POST /:id/convert`) | `crm.lead.read` |
+| Leads | `/leads` (+ `POST /:id/convert`). `phone` («تلفن همراه») is required and stored as `09xxxxxxxxx` whatever way it was typed. `source` is `SALES_TEAM` \| `MARKETER` \| `STAFF` \| `DIRECT` \| `PARTNER` with its second step: `sourceUserId` (a member of the sales unit, or a colleague outside it), `sourceReferrerId` (a marketer or partner on the list), `sourceChannel` (`PHONE` \| `EXHIBITION` \| `EVENT` \| `CAMPAIGN`), or `sourcePartnerName` (a partner named for the first time, added to the list). Only the kind's own detail is kept; a wrong person is `400 LEAD_SOURCE`. A number already on a lead or a client's contact is `409 DUPLICATE_LEAD` with `details: { leads, contacts }`, unless `confirmDuplicate: true`. List filter `?source=`; `q` also searches the mobile | `crm.lead.read` |
+| Lead duplicates | `GET /leads/duplicates?phone=&exclude=` — `{ phone (normalised or null), leads, contacts }` for a number, compared by its last ten digits | `crm.lead.read` |
+| Lead source options | `GET /leads/source-options` — kinds, channels, `salesTeam`, `staff`, active `marketers` and `partners`, `canManageMarketers`, `canAddPartners` | `crm.lead.read` |
+| Lead sources list | `GET /lead-referrers?kind=&all=` (with each one's `leads` count); `POST { kind, name, phone?, note? }` — a `MARKETER` needs `admin.settings`, a `PARTNER` `crm.lead.write`; `PATCH /:id { name?, phone?, note?, isActive? }` (`admin.settings`). Names are compared with Arabic letters read as Persian; a repeat is `409 REFERRER_EXISTS` | `crm.lead.read` |
 | Opportunities | `/opportunities` | `crm.opportunity.read` |
 | Activities | `/activities` | `crm.activity.read` |
 | Briefs | `/briefs` (+ `POST /:id/recalculate`) | `brief.read` |

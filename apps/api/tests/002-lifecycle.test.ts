@@ -41,8 +41,8 @@ describe('Scenario 1 — acquisition: Lead → Opportunity → Brief → Account
   it('Sales registers and qualifies a lead', async () => {
     const lead = expectOk(await post('/leads', T.sales, {
       name: 'سرنخ کمپین نوروزی', companyName: 'گروه صنعتی سپهر',
-      contactName: 'واحد بازاریابی', phone: '021-44556677',
-      source: 'REFERRAL', estimatedValue: 5_000_000_000,
+      contactName: 'واحد بازاریابی', phone: '۰۹۱۲ ۴۴۵ ۵۶۶۷',
+      source: 'PARTNER', sourcePartnerName: 'چاپخانهٔ نقش‌آفرین', estimatedValue: 5_000_000_000,
       need: 'کمپین نوروزی برند',
     }), 'create lead');
     ctx.leadId = lead.id;

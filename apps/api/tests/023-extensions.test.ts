@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { matchesCondition, describeCondition } from '@hiva/contracts';
 import { Prisma } from '@prisma/client';
-import { call, closeApp, get, login, move, post, put, expectOk } from './helpers.js';
+import { call, closeApp, get, login, move, post, put, expectOk, directLead } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { nextCode } from '../src/lib/codes.js';
 import {
@@ -12,7 +12,7 @@ import { registerRuleSets, resetRulesCache } from '../src/workflow/rules.js';
 import { factsOf, fieldsOf } from '../src/workflow/custom.js';
 
 const lead = async (token: string, extra: Record<string, unknown> = {}) =>
-  expectOk(await post('/leads', token, { name: `سرنخ ${Math.random().toString(36).slice(2, 7)}`, companyName: 'شرکت آزمون', source: 'INBOUND', ...extra }), 'lead');
+  expectOk(await post('/leads', token, { name: `سرنخ ${Math.random().toString(36).slice(2, 7)}`, companyName: 'شرکت آزمون', ...directLead(), ...extra }), 'lead');
 
 describe('The engine’s rules come from a registry', () => {
   it('holds Doc_H’s guards and effects as core entries, and refuses to have one replaced', () => {
@@ -56,32 +56,32 @@ describe('An extension, installed without forking', () => {
     name: 'testx', version: '0.1.0',
     register(api) {
       api.registerGuard({
-        key: 'testx.needsPhone', labelFa: 'شمارهٔ تماس سرنخ ثبت شده باشد',
-        async run({ record }) { return record.phone ? { ok: true } : { ok: false, rule: 'testx', messageFa: 'پیش از تماس، شمارهٔ سرنخ را ثبت کنید.' }; },
+        key: 'testx.needsContact', labelFa: 'نام تماس سرنخ ثبت شده باشد',
+        async run({ record }) { return record.contactName ? { ok: true } : { ok: false, rule: 'testx', messageFa: 'پیش از تماس، نام فرد تماس را ثبت کنید.' }; },
       });
-      api.attachGuard('lead', 'contact', 'testx.needsPhone');
+      api.attachGuard('lead', 'contact', 'testx.needsContact');
       api.registerEffect({ key: 'testx.noteNeed', entity: 'lead', action: 'contact', labelFa: 'نیاز پیش‌فرض', async run({ record }) { return record.need ? {} : { need: 'در تماس اول پرسیده شود' }; } });
     },
   };
 
   it('adds its guard on top of Doc_H’s, enforced, explained in preflight, and waivable like any other', async () => {
     await installExtension(testx);
-    expect(guardsFor('lead', 'contact', [])).toEqual(['testx.needsPhone']);
+    expect(guardsFor('lead', 'contact', [])).toEqual(['testx.needsContact']);
     const bare = await lead(T.sales);
     const pre = expectOk(await get(`/workflow/lead/${bare.id}/preflight`, T.sales), 'preflight');
     const contact = pre.transitions.find((t: any) => t.action === 'contact');
-    expect(contact).toMatchObject({ ready: false, checks: [{ guard: 'testx.needsPhone', labelFa: 'شمارهٔ تماس سرنخ ثبت شده باشد', ok: false }] });
+    expect(contact).toMatchObject({ ready: false, checks: [{ guard: 'testx.needsContact', labelFa: 'نام تماس سرنخ ثبت شده باشد', ok: false }] });
     const refused = await move('lead', bare.id, 'contact', T.sales);
-    expect([refused.status, refused.body.error.message]).toEqual([422, 'پیش از تماس، شمارهٔ سرنخ را ثبت کنید.']);
+    expect([refused.status, refused.body.error.message]).toEqual([422, 'پیش از تماس، نام فرد تماس را ثبت کنید.']);
     const blocked = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'TRANSITION_BLOCKED', entityId: bare.id } });
-    expect((blocked.after as any).guard).toBe('testx.needsPhone');
+    expect((blocked.after as any).guard).toBe('testx.needsContact');
 
     // The governed exception of #7 covers an extension's guard too.
-    expectOk(await post('/waivers', T.ceo, { entityType: 'lead', entityId: bare.id, guard: 'testx.needsPhone', reason: 'مشتری فقط ایمیل دارد؛ تماس از ایمیل' }), 'waiver');
+    expectOk(await post('/waivers', T.ceo, { entityType: 'lead', entityId: bare.id, guard: 'testx.needsContact', reason: 'شمارهٔ دفتر مرکزی؛ نام فرد را در تماس می‌پرسیم' }), 'waiver');
     expectOk(await move('lead', bare.id, 'contact', T.sales), 'contact under waiver');
 
     // Its effect runs after the core effect and adds to the update.
-    const withPhone = await lead(T.sales, { phone: '09120000000' });
+    const withPhone = await lead(T.sales, { contactName: 'خانم رضایی' });
     expectOk(await move('lead', withPhone.id, 'contact', T.sales), 'contact');
     expect((await prisma.lead.findUniqueOrThrow({ where: { id: withPhone.id } })).need).toBe('در تماس اول پرسیده شود');
   });
@@ -94,7 +94,7 @@ describe('An extension, installed without forking', () => {
         api.registerEffect({ key: 'testbad.reason', entity: 'lead', action: 'disqualify', labelFa: 'x', async run() { return { disqualifyReason: 'بازنویسی' }; } });
       },
     });
-    const l = await lead(T.sales, { phone: '0912' });
+    const l = await lead(T.sales);
     expectOk(await move('lead', l.id, 'contact', T.sales), 'contact');
     const jump = await move('lead', l.id, 'qualify', T.sales);
     expect([jump.status, jump.body.error.code]).toEqual([500, 'EFFECT_REFUSED']);
@@ -142,8 +142,8 @@ describe('An extension, installed without forking', () => {
     expect(withIt.registered).toEqual(['workflows']);
     const diff = expectOk(await get('/rules/diff', T.admin, { kind: 'workflows' }), 'diff');
     expect(diff.changes).toEqual(expect.arrayContaining([
-      'افزونه: قانون «testx:testx.needsPhone» اضافه شد',
-      'افزونه: قانون روی انتقال «lead.contact+testx.needsPhone» اضافه شد',
+      'افزونه: قانون «testx:testx.needsContact» اضافه شد',
+      'افزونه: قانون روی انتقال «lead.contact+testx.needsContact» اضافه شد',
       'افزونه: اثر «lead.contact+testx.noteNeed» اضافه شد',
     ]));
     uninstallExtension('testx');
@@ -157,8 +157,8 @@ describe('An extension, installed without forking', () => {
     await installExtension(testx);
     const r = expectOk(await get('/rules/registry', T.sales), 'registry');
     expect(r.extensions.map((e: any) => e.name)).toEqual(['testx']);
-    expect(r.guards.find((g: any) => g.key === 'testx.needsPhone')).toMatchObject({ source: 'extension', extension: 'testx' });
-    expect(r.attachments).toEqual([expect.objectContaining({ entity: 'lead', action: 'contact', guard: 'testx.needsPhone', transitionFa: expect.any(String) })]);
+    expect(r.guards.find((g: any) => g.key === 'testx.needsContact')).toMatchObject({ source: 'extension', extension: 'testx' });
+    expect(r.attachments).toEqual([expect.objectContaining({ entity: 'lead', action: 'contact', guard: 'testx.needsContact', transitionFa: expect.any(String) })]);
     expect(r.effects.map((e: any) => e.key)).toEqual(['testx.noteNeed']);
   });
 });

@@ -9,3 +9,4 @@ export { FORMS_A_F } from './forms-a-f.js';
 export { FORMS_G_N } from './forms-g-n.js';
 export * from './labels.js';
 export * from './schemas.js';
+export * from './crm.js';

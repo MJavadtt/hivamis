@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
@@ -10,17 +10,15 @@ import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
-  Modal, Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
+  Modal, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatRelative, toPersianDigits } from '../lib/format';
+import { LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, leadSourceFa, normalizeIranMobile } from '@hiva/contracts';
+import { ApiError } from '../lib/api';
+import { LeadSourcePicker, sourceComplete, type LeadSourceValue } from '../components/LeadSource';
 import { PortalUsersCard } from '../components/PortalAdmin';
 import { BrandLibraryCard } from '../components/BrandLibrary';
 
-const SOURCES = [
-  { value: 'REFERRAL', label: 'معرفی' }, { value: 'INBOUND', label: 'ورودی' },
-  { value: 'OUTBOUND', label: 'تماس سرد' }, { value: 'EVENT', label: 'رویداد' },
-  { value: 'CAMPAIGN', label: 'کمپین' }, { value: 'OTHER', label: 'سایر' },
-];
 
 /* ── Leads ─────────────────────────────────────────────────────────────── */
 
@@ -42,7 +40,7 @@ export function LeadsList() {
       <PageBody>
         <EntityList<any>
           path="/leads"
-          searchPlaceholder="جستجو در نام سرنخ یا شرکت…"
+          searchPlaceholder="جستجو در نام سرنخ، شرکت یا تلفن همراه…"
           filters={[{
             key: 'state', label: 'وضعیت',
             options: [
@@ -50,12 +48,16 @@ export function LeadsList() {
               { value: 'QUALIFIED', label: 'واجد شرایط' }, { value: 'CONVERTED', label: 'تبدیل‌شده' },
               { value: 'DISQUALIFIED', label: 'رد شده' },
             ],
+          }, {
+            key: 'source', label: 'منبع ورودی',
+            options: LEAD_SOURCE_KINDS.map((k) => ({ value: k, label: LEAD_SOURCE_LABELS[k].fa })),
           }]}
           emptyTitle="سرنخی ثبت نشده"
           columns={[
             { key: 'name', header: 'سرنخ', render: (r) => (<><p className="font-medium text-ink-800">{r.name}</p><Code>{r.code}</Code></>) },
             { key: 'company', header: 'شرکت', render: (r) => <span className="text-xs">{r.companyName}</span> },
-            { key: 'source', header: 'منبع', render: (r) => <Badge tone="neutral">{SOURCES.find((s) => s.value === r.source)?.label ?? r.source}</Badge> },
+            { key: 'phone', header: 'تلفن همراه', render: (r) => <span className="ltr text-xs">{r.phone ?? '—'}</span> },
+            { key: 'source', header: 'منبع ورودی', render: (r) => <Badge tone="neutral">{leadSourceFa(r)}</Badge> },
             { key: 'value', header: 'ارزش تخمینی', render: (r) => <span className="text-xs" title={exactCurrency(r.estimatedValue)}>{formatCurrency(r.estimatedValue)}</span> },
             { key: 'owner', header: 'مالک', render: (r) => <span className="text-xs">{r.owner?.fullName ?? '—'}</span> },
             { key: 'state', header: 'وضعیت', render: (r) => <StateBadge state={r.state} /> },
@@ -86,28 +88,60 @@ function LeadActions({ lead }: { lead: any }) {
   );
 }
 
+interface Duplicates {
+  phone: string | null;
+  leads: { id: string; code: string; name: string; companyName: string; state: string; owner: string | null }[];
+  contacts: { id: string; fullName: string; company: string; companyId: string }[];
+}
+
+/**
+ * A new lead (Hivamis task 2): its mobile number checked while it is typed — a number that is
+ * already a lead or a client's contact is shown before anything is saved — and its source in two
+ * clicks. Nothing is sent until the second step of the source has been taken.
+ */
 function LeadModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState<Record<string, string>>({ source: 'INBOUND' });
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [source, setSource] = useState<LeadSourceValue>({});
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const create = useAction((body: unknown) => apiPost('/leads', body), 'سرنخ ثبت شد.');
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const mobile = normalizeIranMobile(form.phone);
+  const [asked, setAsked] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mobile) return;
+    const t = setTimeout(() => setAsked(mobile), 350);
+    return () => clearTimeout(t);
+  }, [mobile]);
+  const { data: dup, refetch: recheck } = useQuery<Duplicates>({
+    queryKey: ['/leads/duplicates', asked], queryFn: () => apiGet('/leads/duplicates', { phone: asked! }), enabled: !!asked,
+  });
+  const repeated = !!mobile && dup?.phone === mobile && (dup.leads.length > 0 || dup.contacts.length > 0);
+  useEffect(() => { setConfirmDuplicate(false); }, [mobile]);
+
+  const ready = !!form.name && !!form.companyName && !!mobile && sourceComplete(source) && (!repeated || confirmDuplicate);
   const submit = async () => {
-    await create.mutateAsync({
-      name: form.name, companyName: form.companyName, contactName: form.contactName || undefined,
-      phone: form.phone || undefined, email: form.email || undefined, source: form.source,
-      estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : undefined,
-      need: form.need || undefined,
-    });
-    onClose();
+    try {
+      await create.mutateAsync({
+        name: form.name, companyName: form.companyName, contactName: form.contactName || undefined,
+        phone: mobile, email: form.email || undefined, ...source,
+        estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : undefined,
+        need: form.need || undefined, confirmDuplicate: confirmDuplicate || undefined,
+      });
+      onClose();
+    } catch (e) {
+      // Someone registered the same number between the check and the save: the panel shows who.
+      if (e instanceof ApiError && e.body.code === 'DUPLICATE_LEAD') void recheck();
+    }
   };
 
   return (
     <Modal
-      open onClose={onClose} title="ثبت سرنخ جدید"
+      open wide onClose={onClose} title="ثبت سرنخ جدید"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>انصراف</Button>
-          <Button variant="primary" loading={create.isPending} disabled={!form.name || !form.companyName} onClick={() => void submit()}>
+          <Button variant="primary" loading={create.isPending} disabled={!ready} onClick={() => void submit()}>
             ثبت
           </Button>
         </>
@@ -117,14 +151,30 @@ function LeadModal({ onClose }: { onClose: () => void }) {
         <Field label="نام سرنخ" required><Input value={form.name ?? ''} onChange={(e) => set('name', e.target.value)} /></Field>
         <Field label="نام شرکت" required><Input value={form.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} /></Field>
         <Field label="نام تماس"><Input value={form.contactName ?? ''} onChange={(e) => set('contactName', e.target.value)} /></Field>
-        <Field label="تلفن"><Input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} className="ltr" /></Field>
-        <Field label="ایمیل"><Input type="email" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} className="ltr" /></Field>
-        <Field label="منبع" required>
-          <Select value={form.source} onChange={(e) => set('source', e.target.value)}>
-            {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </Select>
+        <Field label="تلفن همراه" required
+          error={form.phone && !mobile ? 'شمارهٔ همراه معتبر نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷' : undefined}
+          hint={mobile && mobile !== form.phone ? `ثبت می‌شود: ${mobile}` : undefined}>
+          <Input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} className="ltr" inputMode="tel" placeholder="09xx xxx xxxx" />
         </Field>
+        {repeated && dup && (
+          <div className="sm:col-span-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200" role="alert" data-testid="lead-duplicate">
+            <p className="font-medium">این شماره پیش‌تر ثبت شده است:</p>
+            <ul className="mt-1 space-y-0.5">
+              {dup.leads.map((l) => <li key={l.id}>سرنخ <span className="ltr">{l.code}</span> «{l.name}» — {l.companyName}{l.owner ? ` (مالک: ${l.owner})` : ''}</li>)}
+              {dup.contacts.map((c) => <li key={c.id}>مخاطب «{c.fullName}» از <Link to={`/companies/${c.companyId}`} className="underline">{c.company}</Link></li>)}
+            </ul>
+            <label className="mt-2 flex items-center gap-2">
+              <input type="checkbox" checked={confirmDuplicate} onChange={(e) => setConfirmDuplicate(e.target.checked)} />
+              سرنخ تازه‌ای است؛ با وجود تکرار ثبت شود
+            </label>
+          </div>
+        )}
+        <Field label="ایمیل"><Input type="email" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} className="ltr" /></Field>
         <Field label="ارزش تخمینی (ریال)"><Input type="number" value={form.estimatedValue ?? ''} onChange={(e) => set('estimatedValue', e.target.value)} className="ltr" /></Field>
+        <div className="sm:col-span-2">
+          <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ink-700">منبع ورودی <span className="text-rose-500">*</span></span>
+          <LeadSourcePicker value={source} onChange={setSource} />
+        </div>
         <div className="sm:col-span-2">
           <Field label="نیاز اولیه"><Textarea value={form.need ?? ''} onChange={(e) => set('need', e.target.value)} /></Field>
         </div>
