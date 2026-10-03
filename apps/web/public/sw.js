@@ -89,3 +89,56 @@ self.addEventListener('fetch', (event) => {
     })());
   }
 });
+
+/* ── Web Push (roadmap #49) ──────────────────────────────────────────────────────────────────
+ * The server encrypts each notice to this browser's key; the browser decrypts it before this
+ * handler sees it. Only the three short-deadline loops arrive here — see apps/api/src/push. */
+
+/** Where a notice may open: a page of this app, never an address carried in a message. */
+const ownPage = (raw) => {
+  try {
+    const url = new URL(raw || '/m', self.location.origin);
+    return url.origin === self.location.origin ? url.pathname + url.search : '/m';
+  } catch {
+    return '/m';
+  }
+};
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : '' }; }
+  event.waitUntil((async () => {
+    await self.registration.showNotification(data.title || 'هیوا', {
+      body: data.body || '',
+      tag: data.tag || undefined,
+      // The same record again (a warning after the first notice) replaces it — and says so.
+      renotify: Boolean(data.tag),
+      requireInteraction: Boolean(data.urgent),
+      dir: 'rtl',
+      lang: 'fa',
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      data: { url: ownPage(data.url) },
+    });
+    // An open app re-reads its queue at once, rather than at its next poll.
+    for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+      client.postMessage({ type: 'hiva:push', kind: data.kind || null });
+    }
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const path = ownPage(event.notification.data && event.notification.data.url);
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const open = windows.find((c) => new URL(c.url).pathname.startsWith('/m')) || windows[0];
+    if (open) {
+      await open.focus();
+      // The page moves itself: navigating a client from here works only for pages this worker controls.
+      open.postMessage({ type: 'hiva:open', url: path });
+      return;
+    }
+    await self.clients.openWindow(path);
+  })());
+});

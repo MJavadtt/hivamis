@@ -107,6 +107,11 @@ load record → find declared transition → check permission → check mandator
   the transition. A rule is added, never replaced: keys are unique, attached guards stand beside
   Doc_H's, and an extension effect may not write the state or rewrite what the core set.
 
+- **Notices after the commit** (`src/workflow/notices.ts`, roadmap #49): once `transition()`
+  has committed, a move that hands someone short-deadline work tells them — an issued (or
+  clarified) work order its owner, a submitted deliverable its unit's manager (or their delegate in
+  the unit). Never inside the transaction, so a move that rolls back tells nobody.
+
 An undeclared transition returns 409 with the list of legal actions.
 
 ### 2. Form engine — `src/forms/`
@@ -136,6 +141,17 @@ Clocks start and stop from workflow transitions and form submissions. A schedule
 clocks to `AT_RISK` at the warning threshold and `BREACHED` past due, notifying the owner.
 All 30 policies are transcribed from Doc_H slide 33 and the RACI matrix, each carrying its
 `docRef` back to the source.
+
+Every notice leaves through `notify()` (`src/mail/notify.ts`): the in-app row, the messenger (#40),
+email for the kinds that warrant it, and — for the three loops whose deadlines are hours — **Web
+Push to the phone** (`src/push/`, roadmap #49). Push is implemented without a library: the payload
+is encrypted to the browser's key (RFC 8291, aes128gcm) and the request signed with the
+installation's VAPID key (RFC 8292), so the browser's push service carries it unread. Each notice is
+an outbox row per browser (`push_messages`), sent at once and retried by the `push:send` job; the
+service's answer decides what follows (410 switches the browser off). Endpoints are held to the
+browsers' own push services (`PUSH_SERVICE_HOSTS`), and the connection refuses internal addresses —
+a subscription is an address the server will call, supplied by whoever is signed in. The phone's
+screen, `/m`, is part of the web app, not a separate one: the same endpoints, the same engine.
 
 ### 4. AI subsystem — `src/ai/`
 

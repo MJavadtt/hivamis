@@ -375,13 +375,13 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
             kind: 'SLA_BREACH',
             title: `نقض SLA — ${clock.policy.labelFa}`,
             body: `مهلت «${clock.policy.labelFa}» برای ${clock.entityType} گذشته است.`,
-            entityType: clock.entityType, entityId: clock.entityId, severity: 'CRITICAL',
+            entityType: clock.entityType, entityId: clock.entityId, severity: 'CRITICAL', policyCode: clock.policy.code,
           }
         : {
             kind: 'SLA_WARNING',
             title: `هشدار SLA — ${clock.policy.labelFa}`,
             body: `مهلت «${clock.policy.labelFa}» رو به اتمام است.`,
-            entityType: clock.entityType, entityId: clock.entityId, severity: 'WARNING',
+            entityType: clock.entityType, entityId: clock.entityId, severity: 'WARNING', policyCode: clock.policy.code,
           },
       kind === 'SLA_BREACH'
         ? slaBreachMail({
@@ -405,7 +405,7 @@ export async function tickSlaClocks(now = new Date()): Promise<SlaTickResult> {
  */
 async function notifyOwner(
   userId: string | null,
-  n: { kind: string; title: string; body: string; entityType: string; entityId: string; severity: string },
+  n: { kind: string; title: string; body: string; entityType: string; entityId: string; severity: string; policyCode: string },
   mail?: MailBody,
 ): Promise<void> {
   await notify({ userId, ...n, mail });

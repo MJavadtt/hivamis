@@ -10,6 +10,7 @@ import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { runMoadian } from '../tax/submit.js';
 import { runESign } from '../esign/service.js';
 import { retryQueued as retryMessenger } from '../messenger/service.js';
+import { retryQueued as retryPush } from '../push/service.js';
 import { backfillMetadata } from '../documents/backfill.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
@@ -34,7 +35,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'documents:metadata']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -138,6 +139,12 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.retried) logger.info({ ...result }, 'messenger');
   });
 
+  await boss.work('push:send', async () => {
+    // Pushes to phones the push service was too busy for, or could not be reached for (roadmap #49).
+    const result = await retryPush();
+    if (result.retried || result.expired) logger.info({ ...result }, 'push');
+  });
+
   await boss.work('documents:metadata', async () => {
     // What files uploaded before roadmap #42 say about themselves, a few at a time.
     const result = await backfillMetadata();
@@ -154,8 +161,9 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('moadian:run', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('esign:run', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('messenger:send', '* * * * *', {}, { tz: 'Asia/Tehran' });
+  await boss.schedule('push:send', '* * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('documents:metadata', '37 * * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, documents:metadata hourly)');
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly)');
   return boss;
 }
 

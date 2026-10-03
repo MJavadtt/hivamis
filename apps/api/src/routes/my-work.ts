@@ -70,11 +70,12 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
             where: { organizationId: org, state: 'CLARIFICATION_REQUESTED' }, include: { project: proj },
           })
         : Promise.resolve([]),
-      // Unit QC: deliverables of my own department, submitted and not yet reviewed.
+      // Unit QC: deliverables of my own department, submitted and not yet reviewed since.
       can('qc.unit') && actor.departmentCode
         ? prisma.deliverable.findMany({
-            where: { organizationId: org, state: 'SUBMITTED', departmentCode: actor.departmentCode }, include: { project: proj },
-          })
+            where: { organizationId: org, state: 'SUBMITTED', departmentCode: actor.departmentCode },
+            include: { project: proj, qcReviews: { where: { level: 'UNIT' }, select: { reviewedAt: true }, orderBy: { reviewedAt: 'desc' }, take: 1 } },
+          }).then((ds) => ds.filter((d) => !d.qcReviews[0] || (d.submittedAt && d.qcReviews[0].reviewedAt < d.submittedAt)))
         : Promise.resolve([]),
       can('qc.account')
         ? prisma.deliverable.findMany({ where: { organizationId: org, state: 'IN_QC' }, include: { project: proj } })

@@ -1333,3 +1333,38 @@ added in the system. Opening states cover projects only. The unit map is by name
 with the same name cannot be told apart. The activation link, when mail is off, has to be passed on
 by hand.
 
+
+## ADR-052 — The phone does three things, and Web Push is built on the RFCs, not a vendor
+
+**Decision.** The mobile experience is one screen of the web app, `/m`, installable to the home
+screen, that does only the three things whose deadlines are hours: accepting a work order
+(`SLA_TASK_ACCEPTANCE`), deciding a form, and recording a unit's level-1 QC with photos from the
+camera. It acts through the same endpoints and the same engine as the full interface. The phone is
+reached by Web Push, implemented in the API without a library: RFC 8291 payload encryption and RFC 8292
+VAPID signing, with Node's own crypto, checked against the RFC's worked example. Only those loops'
+notices, and warnings on their own clocks, are pushed. Two moves that hand over short-deadline work
+now notify after the commit — an issued work order its owner, a submitted deliverable its unit's
+manager (or their delegate in the unit). A photo taken at a QC review is the review's evidence, filed
+on the review and not on the deliverable, not versioned, and removable only by its reviewer the same
+day.
+
+**Rationale.** A four-working-hour deadline is kept by someone who hears about the work while away
+from a desk; the whole interface on a phone would be slower at the three things that matter and would
+buzz for everything else, which is how people learn to switch notices off. A native app would be a
+second codebase and a store process for three screens. A push library would be a dependency for what
+is under a hundred lines of well-specified cryptography, and a hosted notification vendor would put every
+notice's content through a third party — Web Push's encryption means the browser vendor's push service
+carries it unread. A subscription is an address the server will POST to, supplied by whoever is signed
+in, so it is held to the browsers' push services and the connection refuses internal addresses. The
+level-1 QC notice goes to the manager, not to every member holding `qc.unit`, because every member
+holds it to see the queue. QC evidence is kept apart from the deliverable's files because Account would
+otherwise read a photo of the set as part of the work.
+
+**Limits.** Delivery depends on the browser vendor's push service being reachable from both the server
+and the phone; where it is not (common for FCM on some Iranian networks), `PUSH_DELIVERY=off` and the
+messenger remain. iPhone receives notices only from the app added to the home screen (iOS 16.4+). The
+three actions need a connection: unlike the form outbox (#19), a decision on the phone is not queued
+offline, because it must meet the record's current state. The payload carries titles such as a work
+order's name — encrypted, but its length and timing are visible to the push service. What this
+installation can observe ends at the push service's `201`; that a phone showed the notice is checked
+by a person with the test button.

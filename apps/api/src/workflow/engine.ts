@@ -76,8 +76,9 @@ export interface TransitionOutcome {
  * than merely documented.
  */
 export async function transition(input: TransitionInput): Promise<TransitionOutcome> {
+  let out: TransitionOutcome;
   try {
-    return await prisma.$transaction((tx) => transitionWithin(tx, input), { timeout: 20_000 });
+    out = await prisma.$transaction((tx) => transitionWithin(tx, input), { timeout: 20_000 });
   } catch (e) {
     // A guard saying no is a fact about the process — where people push against the rules —
     // and the rule lab (#5) needs it to say what a relaxed rule would have let through. The
@@ -92,6 +93,10 @@ export async function transition(input: TransitionInput): Promise<TransitionOutc
     }
     throw e;
   }
+  // Committed: whoever the move hands short-deadline work to hears about it (roadmap #49).
+  // Imported late — the notifier reaches the job runner, which reaches back into the engine.
+  await import('./notices.js').then((m) => m.noticesAfter(out, input.actor)).catch(() => undefined);
+  return out;
 }
 
 /**

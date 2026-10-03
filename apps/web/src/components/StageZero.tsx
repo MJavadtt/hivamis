@@ -14,6 +14,8 @@ interface Result {
 }
 const TONE = { PASS: 'success', WARN: 'warning', FAIL: 'danger' } as const;
 const VERDICT_FA = { PASS: 'بدون ایراد مکانیکی', WARN: 'با هشدار', FAIL: 'ایراد قطعی' } as const;
+/** The verdict as a badge says it, for screens that show only the verdict (the phone, #49). */
+export const STAGE_ZERO_VERDICT = { tone: TONE, fa: VERDICT_FA };
 const SEV = { FAIL: 'text-rose-700', WARN: 'text-amber-700', INFO: 'text-ink-500' } as const;
 
 /**

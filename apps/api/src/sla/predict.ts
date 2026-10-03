@@ -255,7 +255,7 @@ async function tellTheOwner(p: Prediction): Promise<void> {
     kind: 'SLA_PREDICTED_BREACH',
     title: `پیش‌بینی نقض SLA — ${p.policyFa}`,
     body: `احتمال نقض «${p.policyFa}» ${percent}٪ برآورد می‌شود. ${p.becauseFa[0] ?? ''}`,
-    entityType: p.entityType, entityId: p.entityId, severity: 'WARNING',
+    entityType: p.entityType, entityId: p.entityId, severity: 'WARNING', policyCode: p.policyCode,
     mail: slaWarningMail({
       policyFa: p.policyFa, entityFa: p.entityType, code: p.entityId.slice(0, 8),
       remainingFa: `احتمال نقض ${percent}٪ — ${p.becauseFa[0] ?? ''}`, url,

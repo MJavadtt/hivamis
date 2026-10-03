@@ -280,6 +280,7 @@ model User {
   annotations          Annotation[]      @relation("AnnotationAuthor")
   messengerLink        MessengerLink?
   messengerActions     MessengerAction[]
+  pushSubscriptions    PushSubscription[]
   signatureEnvelopes   SignatureEnvelope[]
   portalInvites        PortalUser[]
   portalReplies        PortalMessage[]
@@ -910,6 +911,8 @@ model QcReview {
 
   revisions Revision[]
   annotations Annotation[]
+  /// Photos taken at the review (roadmap #49) — evidence of the check, not part of the deliverable.
+  documents   Document[]
 
   @@index([organizationId, level, verdict])
   @@index([deliverableId])
@@ -1670,6 +1673,9 @@ model Document {
   /// Roadmap #35: a file presented with a proposal — the deck the client is asked to approve.
   proposalId     String?
   proposal       Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  /// Evidence of a QC review (roadmap #49): a photo from the set is the review's, not the deliverable's.
+  qcReviewId     String?
+  qcReview       QcReview?       @relation(fields: [qcReviewId], references: [id], onDelete: Cascade)
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
   clientVisible  Boolean         @default(false)
   /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
@@ -1694,6 +1700,7 @@ model Document {
   @@index([organizationId])
   @@index([projectId])
   @@index([lineageId])
+  @@index([qcReviewId])
   @@map("documents")
 }
 
@@ -2604,4 +2611,70 @@ model AccountActivation {
 
   @@index([userId])
   @@map("account_activations")
+}
+
+/// A browser that asked to be told (roadmap #49): Web Push to the phone, for the three loops whose
+/// deadlines are hours. The endpoint is the push service's address for this one browser; p256dh and
+/// auth are the browser's keys, which each payload is encrypted to — the service carries it unread.
+model PushSubscription {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String    @unique
+  p256dh         String
+  auth           String
+  /// What the browser said it was, for the person to tell their devices apart.
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  lastSuccessAt  DateTime?
+  /// Failures in a row; a delivery resets it.
+  failures       Int       @default(0)
+  disabledAt     DateTime?
+  /// GONE (the service forgot it) | REJECTED (the service refused our key) | FAILING (failed too often)
+  /// | NOT_ALLOWED (its service is no longer in PUSH_SERVICE_HOSTS)
+  disabledReason String?
+
+  messages PushMessage[]
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// One notice to one browser: the outbox that retries, and the record of what the push service said.
+model PushMessage {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String
+  subscriptionId String
+  subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  kind           String
+  title          String
+  body           String?
+  /// Where tapping the notice opens — always a path in this app.
+  url            String
+  tag            String?
+  /// QUEUED | SENT | FAILED | GONE
+  status         String           @default("QUEUED")
+  attempts       Int              @default(0)
+  statusCode     Int?
+  error          String?
+  createdAt      DateTime         @default(now())
+  sentAt         DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("push_messages")
+}
+
+/// Keys an installation makes for itself when none are configured: the VAPID pair that names this
+/// server to push services (roadmap #49). Configured keys (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) win.
+model ServerKey {
+  name       String   @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime @default(now())
+
+  @@map("server_keys")
 }

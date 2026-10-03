@@ -38,6 +38,8 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
           reviewer: { select: { id: true, fullName: true } },
           deliverable: { select: { id: true, code: true, name: true, projectId: true } },
           proposal: { select: { id: true, code: true, title: true } },
+          // The photos taken at the review (roadmap #49).
+          documents: { where: { deletedAt: null }, select: { id: true, fileName: true, mimeType: true }, orderBy: { createdAt: 'asc' } },
         },
         orderBy: { reviewedAt: 'desc' },
         skip: (q.page - 1) * q.pageSize, take: q.pageSize,
@@ -273,14 +275,24 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('qc.read')],
   }, async (req) => {
     const actor = actorFrom(req);
+    // The unit's last level-1 review, with the photos taken at it (roadmap #49): Account sees what
+    // the unit checked, and on what, before opening a file.
+    const unitReview = {
+      where: { level: 'UNIT' }, orderBy: { reviewedAt: 'desc' as const }, take: 1,
+      select: {
+        id: true, code: true, verdict: true, findings: true, reviewedAt: true,
+        reviewer: { select: { fullName: true } },
+        documents: { where: { deletedAt: null }, select: { id: true, fileName: true, mimeType: true }, orderBy: { createdAt: 'asc' as const } },
+      },
+    };
     const [awaitingUnit, awaitingAccount, awaitingFinal, openRevisions] = await Promise.all([
       prisma.deliverable.findMany({
         where: { organizationId: actor.organizationId, state: 'SUBMITTED' },
-        include: { project: { select: { id: true, code: true, name: true } } },
+        include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
       }),
       prisma.deliverable.findMany({
         where: { organizationId: actor.organizationId, state: 'IN_QC' },
-        include: { project: { select: { id: true, code: true, name: true } } },
+        include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
       }),
       prisma.proposal.findMany({
         where: { organizationId: actor.organizationId, state: 'FINAL_QC' },

@@ -550,6 +550,15 @@ export const activateAccountSchema = z.object({ password: z.string().min(12).max
   .regex(/[A-Z]/, 'باید شامل حرف بزرگ باشد')
   .regex(/[0-9]/, 'باید شامل عدد باشد') });
 
+/** A browser's Web Push subscription as PushSubscription.toJSON() gives it (roadmap #49). */
+const base64url = (max: number) => z.string().trim().min(1).max(max).regex(/^[A-Za-z0-9_-]+=*$/, 'باید base64url باشد');
+export const pushSubscribeSchema = z.object({
+  endpoint: z.string().trim().url().max(1000),
+  keys: z.object({ p256dh: base64url(120), auth: base64url(40) }),
+  userAgent: z.string().trim().max(300).nullish(),
+});
+export const pushUnsubscribeSchema = z.object({ endpoint: z.string().trim().url().max(1000) });
+
 /** The organisation's own unit names, each mapped to one of Doc_H's ten units (roadmap #48). */
 export const unitMapSchema = z.object({
   map: z.record(z.string().trim().min(1).max(120), z.enum(DEPARTMENT_CODES)).refine((m) => Object.keys(m).length <= 200, 'حداکثر ۲۰۰ نام واحد'),

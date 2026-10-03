@@ -81,6 +81,10 @@ on first sign-in), then deactivate the demo users.
 | `MESSENGER_WEBHOOK_SECRET` | for `bale`/`telegram` | — | Path segment of the webhook and the Bot API secret token; without it no update is accepted |
 | `MOADIAN_URL` | no | `https://tp.tax.gov.ir/requestsmanager/api/v2/` | The authority's API base. Point it at the authority's test environment for the first live submissions |
 | `MOADIAN_PRIVATE_KEY_PATH` / `MOADIAN_CERTIFICATE_PATH` | for `live` | — | The taxpayer's private key (PEM) registered in the authority's portal, and its certificate (PEM, sent as `x5c`). Keep them out of the repository and readable only by the API process |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | no | made on first use | Web Push (roadmap #49): the key pair that names this server to the browsers' push services, base64url (65-byte public point, 32-byte private scalar). Unset, one pair is generated and kept in `server_keys`. Set it once in production — changing it silences every phone until its owner opens `/m` again. A mismatched pair is refused on first use |
+| `VAPID_SUBJECT` | no | the app's https address, else `mailto:admin@<host>` | A `mailto:` or `https:` contact for the push services (Apple requires one) |
+| `PUSH_DELIVERY` | no | `on` | `off` records pushes and sends none — for an installation with no route to the push services, and for tests. `/m` then says notices are off |
+| `PUSH_SERVICE_HOSTS` | no | FCM, Mozilla, Apple, WNS | The push services a browser subscription may point at (each host and its subdomains). Anything else is refused on subscribe and at send; the connection also refuses internal addresses |
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required. Also enables the model fallback of «پرسش از داده‌ها» (roadmap #27): a question the rules cannot map is sent — the question text and the metric list only, never data — to the model, which may only fill the same plan |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
@@ -415,6 +419,31 @@ Roadmap #40. To connect a bot:
 transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a
 stand-in, not against either service — link one person and approve one form end to end before
 announcing it. Eitaa, Slack and Teams are not connected.
+
+## Notices on the phone
+
+Roadmap #49. `/m` is the phone's screen for the three short-deadline loops; its bell turns on Web
+Push for that browser. Nothing needs registering with Google, Apple or Mozilla: the browser names its
+own push service, and the service trusts the VAPID key the subscription was made with.
+
+1. For production, generate a key pair once and set it:
+   `pnpm --filter @hiva/api exec tsx -e "import('./src/push/crypto.js').then(m=>console.log(m.generateVapidKeys()))"`
+   → `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and a `VAPID_SUBJECT` (`mailto:` or `https:`).
+2. The web app must be served over https (a service worker and the Push API need a secure origin;
+   `localhost` counts as one for development).
+3. The API needs outbound https to the push services: `fcm.googleapis.com` (Chrome, Edge, Android),
+   `updates.push.services.mozilla.com` (Firefox), `web.push.apple.com` (Safari, iPhone from the home
+   screen). Where those are unreachable — an installation with no internet, or a network that blocks
+   them — set `PUSH_DELIVERY=off`; the messenger (#40) and email remain the ways to reach a phone.
+   A phone's own browser also needs to reach its push service to receive anything.
+
+`push:send` runs every minute and retries what the service was too busy for (four attempts); a
+notice older than eight hours is dropped rather than sent late. A browser the service reports gone
+(`404`/`410`) is switched off; one whose service refuses the key (`401`/`403`, usually after the key
+changed) is switched off until its owner opens `/m`, which subscribes it again. What each service
+answered is in `push_messages`. This has been verified against the RFC 8291 test vector and a push
+service of the test suite's own; delivery through a real phone's service is the step to check with
+**ارسال اعلان آزمایشی** on a phone before announcing it.
 
 ## Contract e-signature
 

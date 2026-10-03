@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, apiGet, apiPost, getRefreshToken, setAccessToken, setRefreshToken } from './api';
+import { forgetPushOnSignOut } from './push';
 
 export interface CurrentUser {
   id: string;
@@ -74,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadUser]);
 
   const signOut = useCallback(async () => {
+    // While the session still stands: this browser stops receiving this person's notices (#49).
+    await forgetPushOnSignOut();
     try {
       await apiPost('/auth/logout', { refreshToken: getRefreshToken() });
     } catch { /* the local session is cleared regardless */ }

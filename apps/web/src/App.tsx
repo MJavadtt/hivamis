@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Shell } from './components/Shell';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -26,6 +26,8 @@ const MyWork = lazy(() => import('./pages/MyWork'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Delegations = lazy(() => import('./pages/Delegations'));
 const Memory = lazy(() => import('./pages/Memory'));
+// The phone's three loops (roadmap #49): a screen of its own, without the desktop shell.
+const Mobile = lazy(() => import('./pages/Mobile'));
 
 /** Renders `element` only when the user holds `permission`; otherwise sends them home. */
 function Guarded({ permission, element }: { permission: string; element: React.ReactNode }) {
@@ -35,6 +37,7 @@ function Guarded({ permission, element }: { permission: string; element: React.R
 
 export default function App() {
   const { user, loading } = useAuth();
+  const { pathname } = useLocation();
 
   if (loading) {
     return (
@@ -45,6 +48,14 @@ export default function App() {
   }
 
   if (!user) return <Login />;
+
+  if (/^\/m(\/|$)/.test(pathname)) {
+    return (
+      <Suspense fallback={<LoadingBlock />}>
+        <ErrorBoundary><Mobile /></ErrorBoundary>
+      </Suspense>
+    );
+  }
 
   return (
     <Shell>

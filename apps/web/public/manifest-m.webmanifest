@@ -1,0 +1,17 @@
+{
+  "name": "هیوا همراه — پذیرش، تأیید، QC",
+  "short_name": "هیوا همراه",
+  "description": "سه کار با مهلت چندساعته، روی گوشی: پذیرش سفارش کار، تأیید فرم و QC سطح ۱ — با اعلان",
+  "id": "/m",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/m",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

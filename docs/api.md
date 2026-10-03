@@ -343,6 +343,32 @@ The client (portal token; 120 requests a minute per address, sign-in at the logi
 | `GET /portal/status-reports/:id` | The weekly report as PDF, built for the client (#37). Audited as `EXPORT` |
 | `GET /portal/approvals/:id` · `…/files/:documentId` · `POST …/decision` | An approval request (#35) of the company. Only its addressee downloads its files and decides; the decision is sealed with `verification: PORTAL` and the portal account's id |
 
+## Notices on the phone (Web Push)
+
+Roadmap #49. Each person's own browsers only; every endpoint needs sign-in and nothing else.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /push/key` | `{ publicKey, delivery }` — the VAPID public key a browser subscribes with (base64url, 65 bytes), and whether this installation sends (`PUSH_DELIVERY`) |
+| `GET /push/subscriptions` | My browsers: push-service host, user agent, last delivery, and why one is off (`GONE`, `REJECTED`, `FAILING`, `NOT_ALLOWED`) |
+| `POST /push/subscriptions` `{ endpoint, keys: { p256dh, auth }, userAgent? }` | `PushSubscription.toJSON()` as the browser gives it. `201` new, `200` known. The endpoint must be https on a push service in `PUSH_SERVICE_HOSTS` (`400 PUSH_ENDPOINT`); `p256dh` a P-256 point and `auth` 16 bytes (`400 PUSH_KEYS`). A browser already registered to someone else moves to the caller, audited with `tookOverFrom`. 20 a minute |
+| `DELETE /push/subscriptions` `{ endpoint }` | This browser stops — used on sign-out. Only the caller's own is removed |
+| `DELETE /push/subscriptions/:id` | One of my browsers, from the list |
+| `POST /push/test` | A test notice to each of my browsers, sent before answering: `{ delivery, results: [{ subscriptionId, host, status: SENT \| QUEUED \| FAILED \| GONE \| OFF, error }] }`. 5 a minute |
+
+What is pushed: `WORK_ORDER_ISSUED` and `WORK_ORDER_CLARIFIED` (to the order's owner),
+`QC_UNIT_REQUIRED` (to the deliverable's unit manager, or their delegate in the unit holding
+`qc.unit`), `FORM_APPROVAL_REQUIRED`, and `SLA_WARNING` / `SLA_BREACH` / `SLA_PREDICTED_BREACH` only on
+a form submission's clock or a work order's `SLA_TASK_ACCEPTANCE`. The payload, encrypted to the
+browser (RFC 8291), is `{ id, kind, title, body, url, tag, urgent }`; `url` is `/m?open=<entity>:<id>`.
+
+QC evidence: `POST /documents` takes **`qcReviewId`** — an image, from the review's reviewer, within
+24 hours of the review, filed on nothing else (`QC_EVIDENCE_ALONE`, `QC_EVIDENCE_IMAGE`,
+`409 QC_EVIDENCE_LATE`, `403` for anyone else). It is not versioned and only its uploader takes it back,
+the same day (`409 QC_EVIDENCE_FIXED`). `GET /qc-reviews` lists each review's `documents`, and `GET /qc/queue` gives each deliverable
+awaiting QC its last unit-level review (`qcReviews[0]`: verdict, reviewer, photos). The unit-QC
+queue in `GET /me/work` leaves out a deliverable reviewed at unit level since it was submitted.
+
 ## Contract e-signature
 
 Roadmap #36. A contract awaiting signature (`PENDING_SIGNATURE`) is sent as one of its own PDFs

@@ -38,6 +38,8 @@ export interface NotifyInput {
   entityType?: string | null;
   entityId?: string | null;
   severity?: string;
+  /** For an SLA notice, whose clock — the phone hears only the three short loops' own (roadmap #49). */
+  policyCode?: string | null;
   /** Supplies the email body when the kind is emailed; omitted kinds stay in-app only. */
   mail?: MailBody;
 }
@@ -60,6 +62,10 @@ export async function notify(input: NotifyInput): Promise<void> {
   // The messenger (roadmap #40) for what matters away from the app. Imported late: the messenger
   // decides forms through the forms engine, which itself notifies.
   await import('../messenger/service.js')
+    .then((m) => m.pushNotification({ ...input, userId: input.userId! }))
+    .catch(() => undefined);
+  // The phone (roadmap #49), for the loops whose deadlines are hours.
+  await import('../push/service.js')
     .then((m) => m.pushNotification({ ...input, userId: input.userId! }))
     .catch(() => undefined);
 

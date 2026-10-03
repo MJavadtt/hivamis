@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from '../lib/api';
+import { apiBlob, apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { StageZero } from '../components/StageZero';
@@ -146,6 +146,7 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
               <p className="text-sm">{r.name ?? r.title}</p><Code>{r.code}</Code>
               {/* What the machine already checked, before a person opens a file (roadmap #22). */}
               {!isProposal && <div className="mt-1"><StageZero deliverable={r} /></div>}
+              {!isProposal && <UnitQcNote review={r.qcReviews?.[0]} />}
             </Td>
             {!isProposal && <Td className="text-xs">{r.departmentCode}</Td>}
             <Td className="text-xs">
@@ -171,6 +172,32 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
         ))}
       </tbody>
     </Table>
+  );
+}
+
+interface UnitReview {
+  id: string; code: string; verdict: string; findings: string | null; reviewedAt: string;
+  reviewer: { fullName: string }; documents: { id: string; fileName: string; mimeType: string }[];
+}
+
+/** What the unit's level-1 QC said, and the photos taken at it — often on set (roadmap #49). */
+export function UnitQcNote({ review }: { review: UnitReview | undefined }) {
+  if (!review) return null;
+  const open = async (id: string) => {
+    const url = URL.createObjectURL(await apiBlob(`/documents/${id}/preview`));
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-500" data-testid="unit-qc-note">
+      <Badge tone={review.verdict === 'PASSED' ? 'success' : 'danger'}>QC سطح ۱: {review.verdict === 'PASSED' ? 'قبول' : 'رد'}</Badge>
+      <span>{review.reviewer.fullName} — {formatRelative(review.reviewedAt)}</span>
+      {review.documents.map((d, i) => (
+        <button key={d.id} className="text-brand-700 underline" onClick={() => void open(d.id)} title={d.fileName}>
+          عکس {toPersianDigits(i + 1)}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -280,9 +307,10 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         </>
       }
     >
-      <p className="mb-4 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
+      <div className="mb-4 rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">
         {target.name ?? target.title} <Code>{target.code}</Code>
-      </p>
+        {level !== 'UNIT' && <UnitQcNote review={target.qcReviews?.[0]} />}
+      </div>
 
       <div className="space-y-2.5">
         {items.map((i) => (

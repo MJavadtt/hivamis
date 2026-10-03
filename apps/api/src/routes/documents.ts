@@ -132,6 +132,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       : null;
     if (replacesId && !replaced) return fail('UNKNOWN_REFERENCE', 'فایلی که نسخهٔ تازه‌اش را می‌فرستید پیدا نشد.');
     if (replaced?.supersededAt) return fail('DOCUMENT_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل پیش‌تر بارگذاری شده است؛ روی آخرین نسخه کار کنید.', 409);
+    if (replaced?.qcReviewId) return fail('QC_EVIDENCE_FIXED', 'عکس شاهد بررسی کیفیت نسخهٔ تازه نمی‌گیرد؛ آنچه آن روز دیده شد همان می‌ماند.', 409);
 
     const links = replaced
       ? { projectId: replaced.projectId, companyId: replaced.companyId, contractId: replaced.contractId, deliverableId: replaced.deliverableId, submissionId: replaced.submissionId, proposalId: replaced.proposalId }
@@ -146,6 +147,20 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!BRAND_ROLES.includes(brandRole as BrandRole)) return fail('BAD_BRAND_ROLE', 'نقش فایل در کتابخانهٔ برند نامعتبر است.');
       if (!links.companyId) return fail('BRAND_NEEDS_CLIENT', 'فایل کتابخانهٔ برند باید به یک مشتری وصل باشد.');
       if (!actor.permissions.includes('brand.manage')) return fail('FORBIDDEN', 'برای افزودن به کتابخانهٔ برند به دسترسی «brand.manage» نیاز دارید.', 403);
+    }
+    /**
+     * Evidence of a QC review (roadmap #49) — the photo from the set. It is the review's, not the
+     * deliverable's, whose files are the work itself; so it is filed on nothing else, is an image,
+     * and is added by the reviewer on the day of the review, not amended into it later.
+     */
+    const qcReviewId = replaced ? replaced.qcReviewId : val('qcReviewId');
+    if (qcReviewId && !replaced) {
+      const review = await prisma.qcReview.findFirst({ where: { id: qcReviewId, organizationId: actor.organizationId }, select: { reviewerId: true, reviewedAt: true } });
+      if (!review) return fail('UNKNOWN_REFERENCE', 'بررسی کیفیتی که عکس برایش است پیدا نشد.');
+      if (review.reviewerId !== actor.id) return fail('FORBIDDEN', 'عکس شاهد را فقط کسی می‌افزاید که بررسی را ثبت کرده است.', 403);
+      if (Date.now() - review.reviewedAt.getTime() > 24 * 3_600_000) return fail('QC_EVIDENCE_LATE', 'عکس شاهد تا یک روز پس از ثبت بررسی پذیرفته می‌شود.', 409);
+      if (!mimeType.startsWith('image/')) return fail('QC_EVIDENCE_IMAGE', 'شاهد بررسی کیفیت باید عکس باشد.');
+      if (Object.values(links).some(Boolean) || brandRole) return fail('QC_EVIDENCE_ALONE', 'عکس شاهد فقط به بررسی کیفیت وصل می‌شود، نه به پرونده‌ای دیگر.');
     }
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
@@ -174,7 +189,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
           checksum: hash.digest('hex'),
           projectId: links.projectId, companyId: links.companyId,
           contractId: links.contractId, deliverableId: links.deliverableId,
-          submissionId: links.submissionId, proposalId: links.proposalId,
+          submissionId: links.submissionId, proposalId: links.proposalId, qcReviewId,
           tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? replaced?.tags ?? [],
           uploadedById: actor.id,
           lineageId: replaced ? replaced.lineageId ?? replaced.id : id,
@@ -194,7 +209,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_UPLOAD',
       entityType: 'document', entityId: document.id,
-      after: { fileName: document.fileName, sizeBytes: size, ...(replaced ? { replaces: replaced.id, version: document.version } : {}), ...(brandRole ? { brandRole } : {}) },
+      after: { fileName: document.fileName, sizeBytes: size, ...(replaced ? { replaces: replaced.id, version: document.version } : {}), ...(brandRole ? { brandRole } : {}), ...(qcReviewId ? { qcReviewId } : {}) },
       ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     return reply.code(201).send(document);
@@ -290,6 +305,11 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc || doc.organizationId !== actor.organizationId) throw notFound('سند');
+    // A QC review's evidence (roadmap #49) is taken back only by its reviewer, the same day — a
+    // wrong photo corrected, not a record of what was seen edited afterwards.
+    if (doc.qcReviewId && (doc.uploadedById !== actor.id || Date.now() - doc.createdAt.getTime() > 24 * 3_600_000)) {
+      throw new AppError(409, 'QC_EVIDENCE_FIXED', 'عکس شاهد بررسی کیفیت را فقط بررسی‌کننده و همان روز می‌تواند بردارد.');
+    }
     // Soft delete: the audit trail must keep pointing at a real row. Taking back the current
     // version makes the one it replaced current again (roadmap #42).
     await prisma.$transaction([

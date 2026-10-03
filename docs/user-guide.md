@@ -526,6 +526,27 @@ A change is **نسخهٔ تازه**: the old version is kept, and every move rec
 **کنار گذاشتن** stops a rule, with a reason; its history stays. A rule can only add a requirement or
 a notice — it never switches off one of Doc_H's.
 
+## On the phone
+
+**هیوا همراه** (open `/m` on the phone, and **Add to Home Screen** to keep it there) does three
+things, the three whose deadlines are hours, and nothing else:
+
+1. **پذیرش سفارش** — a work order issued to you: read the brief, then **پذیرش سفارش**, or
+   **اعلام ابهام** with what is unclear (the acceptance clock waits for Account's answer).
+2. **تأیید فرم** — a form waiting for your decision, shown as it was filled: **تأیید**, or **رد** /
+   **بازگشت** with a reason.
+3. **QC واحد** — your unit's deliverable, handed over and waiting for level-1 QC: the checklist, the
+   verdict, what was found (required for a rejection, and the revision is raised from it) and up to
+   four photos from the camera. The photos are the review's evidence, not files of the deliverable;
+   once recorded they are not replaced, and only you can take one back, the same day.
+
+Each item shows the working hours left on its clock. The bell at the top turns on **notices on
+this phone**: the work order issued to you, the form waiting for you, the deliverable waiting for
+your unit's check — and the warning when one of their clocks is running out. Tapping a notice opens
+that item. **ارسال اعلان آزمایشی** checks that notices reach the phone. On an iPhone, notices work
+only in the app added to the home screen. Signing out stops the notices on that phone. Everything
+else stays in the full interface (**نسخهٔ کامل هیوا**).
+
 ## When the system blocks you
 
 A refusal names the rule. For example:

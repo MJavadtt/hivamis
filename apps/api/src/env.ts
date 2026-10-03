@@ -123,6 +123,27 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   SMTP_FROM: z.string().default(''),
+
+  /**
+   * Web Push (roadmap #49). The VAPID pair names this server to the browsers' push services; left
+   * empty, the installation makes one and keeps it in `server_keys`. Changing it later silences
+   * every phone until its owner opens the app again, so a production installation sets it once.
+   * VAPID_SUBJECT is a mailto: or https: contact the push services may use (Apple requires one).
+   */
+  VAPID_PUBLIC_KEY: z.string().default(''),
+  VAPID_PRIVATE_KEY: z.string().default(''),
+  VAPID_SUBJECT: z.string().default(''),
+  /**
+   * The push services a subscription may point at — host names, each matching itself and its
+   * subdomains. A subscription's endpoint is an address the server will POST to, so it is held to
+   * the browsers' own services rather than trusted: anything else is where SSRF would land.
+   */
+  PUSH_SERVICE_HOSTS: z.string().default('fcm.googleapis.com,android.googleapis.com,push.services.mozilla.com,web.push.apple.com,notify.windows.com'),
+  /**
+   * `on` sends each push as it is made and retries what failed; `off` records them and sends
+   * nothing — for an installation with no route to the browsers' push services, and for tests.
+   */
+  PUSH_DELIVERY: z.enum(['on', 'off']).default('on'),
 });
 
 const parsed = envSchema.safeParse(process.env);
