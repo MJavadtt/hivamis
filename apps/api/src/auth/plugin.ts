@@ -2,7 +2,8 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import type { Permission } from '@hiva/contracts';
 import { verifyAccessToken, type AccessTokenClaims } from './tokens.js';
-import { forbidden, unauthorized } from '../lib/errors.js';
+import { AppError, forbidden, unauthorized } from '../lib/errors.js';
+import { grantsOf, staleFor } from './grants.js';
 import { audit } from '../lib/audit.js';
 import { requestContext } from '../lib/request-context.js';
 import { authenticateKey, HUMAN_ONLY_PREFIXES } from '../integrations/keys.js';
@@ -52,11 +53,19 @@ const authPlugin: FastifyPluginAsync = async (app) => {
       req.user = user;
       return;
     }
+    let claims: AccessTokenClaims;
     try {
-      req.user = await verifyAccessToken(token);
+      claims = await verifyAccessToken(token);
     } catch {
       throw unauthorized('توکن نامعتبر یا منقضی شده است');
     }
+    // One of the holder's roles was granted anew since this token was issued (Hivamis task 6): it no
+    // longer says what its holder may do. Refused, so the client takes a fresh one at once — a permission taken
+    // away stops working now, not when the token would have expired.
+    if (staleFor(await grantsOf(claims.organizationId), claims.roles, claims.gv)) {
+      throw new AppError(401, 'GRANTS_CHANGED', 'دسترسی‌های نقش شما تغییر کرده است؛ دوباره بارگیری می‌شود.');
+    }
+    req.user = claims;
   });
 
   app.decorate('requirePermissions', (...perms: Permission[]) => async (req: FastifyRequest) => {

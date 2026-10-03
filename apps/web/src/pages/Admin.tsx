@@ -19,38 +19,43 @@ import { SecurityAlerts } from '../components/SecurityAlerts';
 import { ApiKeys, Webhooks } from '../components/Integrations';
 import { MessengerAdmin } from '../components/Messenger';
 import { LeadReferrers } from '../components/LeadSource';
+import { RoleGrants } from '../components/RoleGrants';
+
+/** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
+const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
+  { key: 'users', label: 'کاربران', anyOf: ['admin.users'] },
+  { key: 'roles', label: 'نقش‌ها و دسترسی‌ها', anyOf: ['admin.roles', 'admin.audit'] },
+  { key: 'sla', label: 'سیاست‌های SLA', anyOf: ['admin.settings'] },
+  { key: 'calendar', label: 'تقویم کاری', anyOf: ['admin.settings'] },
+  { key: 'rules', label: 'نسخه‌های قوانین', anyOf: ['admin.audit'] },
+  { key: 'lab', label: 'آزمایشگاه قانون', anyOf: ['admin.audit'] },
+  { key: 'designer', label: 'طراح فرم', anyOf: ['admin.settings'] },
+  { key: 'routing', label: 'مسیریابی فرم‌ها', anyOf: ['admin.settings'] },
+  { key: 'audit', label: 'رهگیری حسابرسی', anyOf: ['admin.audit'] },
+  { key: 'security', label: 'هشدارهای امنیتی', anyOf: ['admin.audit'] },
+  { key: 'integrations', label: 'یکپارچه‌سازی', anyOf: ['admin.keys'] },
+  { key: 'referrers', label: 'منابع سرنخ', anyOf: ['admin.settings'] },
+  { key: 'ai', label: 'گزارش عملیات هوش مصنوعی', anyOf: ['admin.audit'] },
+];
 
 export default function Admin() {
-  const { can } = useAuth();
+  const { canAny } = useAuth();
+  const tabs = ADMIN_TABS.filter((t) => canAny(...t.anyOf));
   // A link may open one tab — the lead form's «افزودن بازاریاب» opens the lead sources.
   const [params] = useSearchParams();
-  const [tab, setTab] = useState(params.get('tab') ?? 'users');
+  const asked = params.get('tab');
+  const [chosen, setTab] = useState(asked ?? '');
+  // What was asked for, if this person may see it; otherwise the first part they may.
+  const tab = tabs.some((t) => t.key === chosen) ? chosen : tabs[0]?.key ?? '';
   return (
     <>
       <PageHeader title="مدیریت سیستم" subtitle="کاربران، نقش‌ها، سیاست‌های SLA و رهگیری حسابرسی" />
       <div className="border-b border-ink-200 bg-surface px-2">
-        <Tabs
-          active={tab} onChange={setTab}
-          tabs={[
-            { key: 'users', label: 'کاربران' },
-            { key: 'roles', label: 'نقش‌ها و دسترسی‌ها' },
-            { key: 'sla', label: 'سیاست‌های SLA' },
-            { key: 'calendar', label: 'تقویم کاری' },
-            { key: 'rules', label: 'نسخه‌های قوانین' },
-            { key: 'lab', label: 'آزمایشگاه قانون' },
-            { key: 'designer', label: 'طراح فرم' },
-            { key: 'routing', label: 'مسیریابی فرم‌ها' },
-            { key: 'audit', label: 'رهگیری حسابرسی' },
-            { key: 'security', label: 'هشدارهای امنیتی' },
-            ...(can('admin.keys') ? [{ key: 'integrations', label: 'یکپارچه‌سازی' }] : []),
-            ...(can('admin.settings') ? [{ key: 'referrers', label: 'منابع سرنخ' }] : []),
-            { key: 'ai', label: 'گزارش عملیات هوش مصنوعی' },
-          ]}
-        />
+        <Tabs active={tab} onChange={setTab} tabs={tabs.map(({ key, label }) => ({ key, label }))} />
       </div>
       <PageBody>
         {tab === 'users' && <Users />}
-        {tab === 'roles' && <Roles />}
+        {tab === 'roles' && <RoleGrants />}
         {tab === 'sla' && <SlaPolicies />}
         {tab === 'calendar' && <WorkCalendars />}
         {tab === 'rules' && <RuleVersions />}
@@ -60,7 +65,7 @@ export default function Admin() {
         {tab === 'audit' && <AuditTrail />}
         {tab === 'security' && <SecurityAlerts />}
         {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /><MessengerAdmin /></div>}
-        {tab === 'referrers' && can('admin.settings') && <LeadReferrers />}
+        {tab === 'referrers' && <LeadReferrers />}
         {tab === 'ai' && <AiLog />}
       </PageBody>
     </>
@@ -115,40 +120,6 @@ function Users() {
         </tbody>
       </Table>
     </Card>
-  );
-}
-
-function Roles() {
-  const { data, isLoading, error, refetch } = useQuery<any[]>({
-    queryKey: ['/roles'], queryFn: () => apiGet('/roles'),
-  });
-  if (isLoading) return <LoadingBlock />;
-  if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
-
-  return (
-    <div className="space-y-4">
-      <p className="rounded-lg bg-ink-50 px-4 py-3 text-xs text-ink-600">
-        دسترسی‌ها شکل ماشین‌خوانِ قوانین حاکم بر فرآیند هستند. برای مثال هیچ نقش فروشی مجوز
-        <Code>pricing.set_price</Code> یا <Code>project.authorize</Code> ندارد — این تفکیک، قانون ۲ را در سطح دسترسی تضمین می‌کند.
-      </p>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {data?.map((r) => (
-          <Card key={r.id} title={r.nameFa} subtitle={r.code}
-            action={<Badge tone="neutral">{toPersianDigits(r.userCount)} کاربر</Badge>}>
-            <div className="max-h-56 overflow-y-auto p-3">
-              <div className="flex flex-wrap gap-1">
-                {r.permissions.slice(0, 60).map((p: string) => (
-                  <span key={p} className="ltr rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] text-ink-600">{p}</span>
-                ))}
-              </div>
-              {r.permissions.length > 60 && (
-                <p className="mt-2 text-xs text-ink-400">و {toPersianDigits(r.permissions.length - 60)} دسترسی دیگر…</p>
-              )}
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
   );
 }
 

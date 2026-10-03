@@ -25,12 +25,13 @@ import dns from 'node:dns';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
-import { permissionsForRoles, WORKFLOW_READ_PERMISSION, WORKFLOWS, type RoleCode } from '@hiva/contracts';
+import { WORKFLOW_READ_PERMISSION, WORKFLOWS } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { AppError } from '../lib/errors.js';
 import { notify } from '../mail/notify.js';
 import { delegate } from '../workflow/engine.js';
+import { permissionsFor } from '../auth/grants.js';
 
 export const BACKOFF_MINUTES = [1, 5, 30, 120, 720];
 export const MAX_ATTEMPTS = BACKOFF_MINUTES.length + 1;
@@ -154,7 +155,7 @@ export async function enqueueDeliveries(limitPerSubscription = 500): Promise<num
   for (const sub of subs) {
     // The creator's own authority, read now: a webhook cannot outlive or outgrow its creator.
     if (!sub.createdBy.isActive || sub.createdBy.deletedAt) continue;
-    const perms = permissionsForRoles(sub.createdBy.roles.map((r) => r.role.code as RoleCode));
+    const perms = await permissionsFor(sub.organizationId, sub.createdBy.roles.map((r) => r.role.code));
     const rows = await prisma.stateTransition.findMany({
       where: {
         // A state recorded on migration (#48) is not news to anyone outside.

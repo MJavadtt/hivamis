@@ -13,6 +13,7 @@ import { ROLE_PERMISSIONS, SLA_POLICIES, WORKFLOWS } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { extensionSnapshot } from './registry.js';
+import { grantSnapshot } from '../auth/grants.js';
 
 export type RuleKind = 'workflows' | 'permissions' | 'sla';
 export const RULE_KINDS: readonly RuleKind[] = ['workflows', 'permissions', 'sla'];
@@ -41,10 +42,32 @@ export const fingerprint = (snapshot: unknown) => createHash('sha256').update(ca
  */
 export const EXTENSIONS_KEY = '~extensions';
 
-/** The rule sets as the running code declares them. Injectable so a change can be simulated. */
-export function currentSnapshots(): Record<RuleKind, unknown> {
+/**
+ * What organisations' administrators granted their roles (Hivamis task 6) rides in the permissions
+ * snapshot under this key, by organisation: a grant changes the rules a transition is judged by, so
+ * it is a new version. Shown to a reader only for their own organisation (`scopeSnapshot`).
+ */
+export const ORGANISATIONS_KEY = '~organisations';
+
+/** The rule sets as the running code declares them, with what organisations granted. Injectable so a change can be simulated. */
+export async function currentSnapshots(tx: Tx = prisma): Promise<Record<RuleKind, unknown>> {
   const ext = extensionSnapshot();
-  return { workflows: ext ? { ...WORKFLOWS, [EXTENSIONS_KEY]: ext } : WORKFLOWS, permissions: ROLE_PERMISSIONS, sla: SLA_POLICIES };
+  const grants = await grantSnapshot(tx);
+  return {
+    workflows: ext ? { ...WORKFLOWS, [EXTENSIONS_KEY]: ext } : WORKFLOWS,
+    permissions: Object.keys(grants).length ? { ...ROLE_PERMISSIONS, [ORGANISATIONS_KEY]: grants } : ROLE_PERMISSIONS,
+    sla: SLA_POLICIES,
+  };
+}
+
+/** A snapshot as one organisation may read it: its own grants, not another's. */
+export function scopeSnapshot(kind: string, snapshot: unknown, organizationId: string): unknown {
+  if (kind !== 'permissions' || !snapshot || typeof snapshot !== 'object') return snapshot;
+  const s = snapshot as Record<string, unknown>;
+  const orgs = s[ORGANISATIONS_KEY] as Record<string, unknown> | undefined;
+  if (!orgs) return snapshot;
+  const { [ORGANISATIONS_KEY]: _all, ...rest } = s;
+  return orgs[organizationId] ? { ...rest, [ORGANISATIONS_KEY]: { [organizationId]: orgs[organizationId] } } : rest;
 }
 
 export interface CurrentRules { workflows: string; permissions: string; sla: string }
@@ -56,8 +79,9 @@ let current: CurrentRules | null = null;
  * a changed one becomes the next version, effective from now. Returns the ids in force.
  */
 export async function registerRuleSets(
-  tx: Tx = prisma, snapshots: Record<RuleKind, unknown> = currentSnapshots(), note?: string,
+  tx: Tx = prisma, given?: Record<RuleKind, unknown>, note?: string,
 ): Promise<CurrentRules & { registered: RuleKind[] }> {
+  const snapshots = given ?? await currentSnapshots(tx);
   const ids: Partial<CurrentRules> = {};
   const registered: RuleKind[] = [];
   for (const kind of RULE_KINDS) {
@@ -141,7 +165,18 @@ export function diffRuleSets(kind: RuleKind, from: unknown, to: unknown): string
     }
   } else if (kind === 'permissions') {
     const a = from as Record<string, string[]>; const b = to as Record<string, string[]>;
+    // What an organisation's administrator granted, in words (Hivamis task 6).
+    const ga = (a as Record<string, unknown>)[ORGANISATIONS_KEY] as Record<string, Record<string, string[]>> | undefined ?? {};
+    const gb = (b as Record<string, unknown>)[ORGANISATIONS_KEY] as Record<string, Record<string, string[]>> | undefined ?? {};
+    for (const org of new Set([...Object.keys(ga), ...Object.keys(gb)])) {
+      for (const role of new Set([...Object.keys(ga[org] ?? {}), ...Object.keys(gb[org] ?? {})])) {
+        const was = ga[org]?.[role] ?? a[role] ?? [], now = gb[org]?.[role] ?? b[role] ?? [];
+        for (const p of now.filter((x) => !was.includes(x))) changes.push(`${role}: دسترسی «${p}» را مدیر سیستم داد`);
+        for (const p of was.filter((x) => !now.includes(x))) changes.push(`${role}: دسترسی «${p}» را مدیر سیستم گرفت`);
+      }
+    }
     for (const role of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (role === ORGANISATIONS_KEY) continue;
       if (!a[role]) { changes.push(`نقش «${role}» اضافه شد`); continue; }
       if (!b[role]) { changes.push(`نقش «${role}» حذف شد`); continue; }
       for (const p of b[role].filter((x) => !a[role]!.includes(x))) changes.push(`${role}: دسترسی «${p}» اضافه شد`);

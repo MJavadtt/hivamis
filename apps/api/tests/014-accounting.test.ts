@@ -98,7 +98,7 @@ describe('Batches — each record posted once, reversals after cancellation', ()
   let companyId: string, projectId: string;
   const ids: Record<string, string> = {};
   beforeAll(async () => {
-    T = { finance: await login('finance@hiva.local'), am: await login('account.manager@hiva.local'), designer: await login('designer@hiva.local') };
+    T = { finance: await login('finance@hiva.local'), am: await login('account.manager@hiva.local'), ae: await login('account@hiva.local'), designer: await login('designer@hiva.local') };
     for (const [offset, rate] of [[-20, 1_000_000], [-10, 1_100_000]] as const) {
       expectOk(await post('/fx/rates', T.finance, { currency: 'USD', rate, effectiveDate: day(offset) }), `rate ${offset}`);
     }
@@ -127,9 +127,9 @@ describe('Batches — each record posted once, reversals after cancellation', ()
 
   it('is read by finance, set and posted only by who may settle', async () => {
     expect((await get('/accounting/settings', T.designer)).status).toBe(403);
-    expect((await get('/accounting/preview', T.am, { to: day(0) })).status).toBe(200);
-    expect((await put('/accounting/settings', T.am, { accounts: CODES, layout: DEFAULT_LAYOUT })).status).toBe(403);
-    expect((await post('/accounting/exports', T.am, { to: day(0) })).status).toBe(403);
+    expect((await get('/accounting/preview', T.ae, { to: day(0) })).status).toBe(200);
+    expect((await put('/accounting/settings', T.ae, { accounts: CODES, layout: DEFAULT_LAYOUT })).status).toBe(403);
+    expect((await post('/accounting/exports', T.ae, { to: day(0) })).status).toBe(403);
   });
 
   it('will not post before every account used has a code, and names the ones missing', async () => {

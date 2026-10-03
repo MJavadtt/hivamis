@@ -10,7 +10,6 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
@@ -25,6 +24,7 @@ import { hashToken } from '../auth/tokens.js';
 import { transition } from '../workflow/engine.js';
 import { esignMode, httpProvider, type ESignProvider, type SignerState } from './provider.js';
 import { SANDBOX_ISSUER, sandboxProvider } from './sandbox.js';
+import { permissionsFor } from '../auth/grants.js';
 
 const DAY = 86_400_000;
 const storageRoot = () => path.resolve(env.STORAGE_DIR);
@@ -45,8 +45,14 @@ async function signatories(organizationId: string) {
     select: { id: true, fullName: true, email: true, roles: { select: { role: { select: { code: true } } } } },
     orderBy: { fullName: 'asc' },
   });
-  return users.filter((u) => permissionsForRoles(u.roles.map((r) => r.role.code as RoleCode)).includes('contract.sign'))
-    .map(({ roles: _r, ...u }) => u);
+  const out = [];
+  for (const u of users) {
+    if ((await permissionsFor(organizationId, u.roles.map((r) => r.role.code))).includes('contract.sign')) {
+      const { roles: _r, ...rest } = u;
+      out.push(rest);
+    }
+  }
+  return out;
 }
 
 async function event(tx: Tx, envelopeId: string, kind: string, detail?: object) {
@@ -208,8 +214,8 @@ async function complete(envelopeId: string, provider: ESignProvider, providerRef
   });
   if (!done) { await unlink(path.join(storageRoot(), storedName)).catch(() => undefined); return { status: 'COMPLETED' }; }
 
-  const creator = await prisma.user.findUnique({ where: { id: done.createdById }, select: { isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
-  const permissions = creator?.isActive && !creator.deletedAt ? permissionsForRoles(creator.roles.map((r) => r.role.code as RoleCode)) : [];
+  const creator = await prisma.user.findUnique({ where: { id: done.createdById }, select: { organizationId: true, isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
+  const permissions = creator?.isActive && !creator.deletedAt ? await permissionsFor(creator.organizationId, creator.roles.map((r) => r.role.code)) : [];
   let error: string | null = null;
   try {
     await transition({

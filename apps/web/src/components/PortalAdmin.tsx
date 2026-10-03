@@ -79,8 +79,9 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
   const toast = useToast();
   const input = useRef<HTMLInputElement>(null);
   const key = [`/projects/${projectId}/client-files`];
-  const { data: files } = useQuery<any[]>({ queryKey: key, queryFn: () => apiGet(`/projects/${projectId}/client-files`) });
-  if (!files) return null;
+  // Files are document.read's (Hivamis task 6): without it, the card is not there at all.
+  const { data: files } = useQuery<any[]>({ queryKey: key, queryFn: () => apiGet(`/projects/${projectId}/client-files`), enabled: can('document.read') });
+  if (!files || !can('document.read')) return null;
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   const toggle = async (id: string, clientVisible: boolean) => {
     try { await apiPatch(`/documents/${id}/client-visibility`, { clientVisible }); await qc.invalidateQueries({ queryKey: key }); }

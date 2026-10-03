@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
-import { Shell } from './components/Shell';
+import { ADMIN_PERMISSIONS, Shell } from './components/Shell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingBlock } from './components/ui';
 import Login from './pages/Login';
@@ -29,10 +29,11 @@ const Memory = lazy(() => import('./pages/Memory'));
 // The phone's three loops (roadmap #49): a screen of its own, without the desktop shell.
 const Mobile = lazy(() => import('./pages/Mobile'));
 
-/** Renders `element` only when the user holds `permission`; otherwise sends them home. */
-function Guarded({ permission, element }: { permission: string; element: React.ReactNode }) {
-  const { can } = useAuth();
-  return can(permission) ? <>{element}</> : <Navigate to="/" replace />;
+/** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
+function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
+  const { can, canAny } = useAuth();
+  const allowed = (!permission || can(permission)) && (!anyOf || canAny(...anyOf));
+  return allowed ? <>{element}</> : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -101,7 +102,7 @@ export default function App() {
         <Route path="/rules" element={<Rules />} />
         <Route path="/onboarding" element={<Guarded permission="admin.settings" element={<Onboarding />} />} />
         <Route path="/ai" element={<Guarded permission="ai.use" element={<Assistant />} />} />
-        <Route path="/admin" element={<Guarded permission="admin.audit" element={<Admin />} />} />
+        <Route path="/admin" element={<Guarded anyOf={ADMIN_PERMISSIONS} element={<Admin />} />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

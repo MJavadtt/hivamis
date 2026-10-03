@@ -11,7 +11,6 @@
  * as the staff member who asked, so the Doc_H rules still decide whether it may move.
  */
 import { randomBytes, randomInt } from 'node:crypto';
-import { permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
@@ -27,6 +26,7 @@ import {
   checkEvidence, GENESIS, hashOf, hashStoredFile, sha256,
   type Evidence, type EvidenceEvent, type Manifest, type ManifestFile, type Problem,
 } from './evidence.js';
+import { permissionsFor } from '../auth/grants.js';
 
 /** Where mail to the client goes, and whether it is on — shared with the portal (#34). */
 export const approvalMail = clientMail;
@@ -366,8 +366,8 @@ export async function decide(
  */
 async function applyDecision(a: NonNullable<Approval>) {
   const kind = SUBJECT[a.subjectType as SubjectType];
-  const requester = await prisma.user.findUnique({ where: { id: a.requestedById }, select: { isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
-  const permissions = requester?.isActive && !requester.deletedAt ? permissionsForRoles(requester.roles.map((r) => r.role.code as RoleCode)) : [];
+  const requester = await prisma.user.findUnique({ where: { id: a.requestedById }, select: { organizationId: true, isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
+  const permissions = requester?.isActive && !requester.deletedAt ? await permissionsFor(requester.organizationId, requester.roles.map((r) => r.role.code)) : [];
   const approve = a.decision === 'APPROVE';
   try {
     await transition({

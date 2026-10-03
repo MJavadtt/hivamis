@@ -7,7 +7,18 @@ familiar — and it will stop you when a step is skipped.
 
 Use your organisational email. What you see is decided by your role: navigation, buttons and
 report tabs all appear only where you hold the permission. If a screen seems missing, it is
-because the process assigns that step to someone else.
+because the process assigns that step to someone else — or because the system administrator has
+not granted it to your role.
+
+**Who may do what («مدیریت سیستم ← نقش‌ها و دسترسی‌ها»).** The managing director, the deputy, the
+system administrator and the account manager hold the whole system. Every other role holds exactly
+what the system administrator ticks for it, grouped by area — sales, projects, finance and so on.
+A role nobody has reviewed yet shows **پیش‌فرض — بازبینی نشده** and keeps Doc_H's default until the
+administrator approves or changes it; **تأیید** records the approval under their name, with an
+optional note, and **سابقه** shows who granted what and when. A change takes effect at once for
+everyone holding the role: what was taken away disappears from their screens on their next click.
+Full access is not exemption: the process rules (a project without authorization, a delivery without
+QC) still stop everyone, and the managing director's governed exception remains the way past one.
 
 ---
 

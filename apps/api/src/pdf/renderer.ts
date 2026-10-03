@@ -21,7 +21,7 @@ let browserPromise: Promise<Browser> | null = null;
  * an explicit override wins, then Playwright's browser cache, then a system Chrome.
  * Keeps dev (cached Chromium) and production (image-provided Chrome) on the same code path.
  */
-function resolveExecutable(): string | undefined {
+export function resolveExecutable(): string | undefined {
   const override = process.env.PDF_BROWSER_PATH;
   if (override) {
     if (!existsSync(override)) {

@@ -49,6 +49,9 @@ async function attemptRefresh(): Promise<boolean> {
       const data = await res.json();
       setAccessToken(data.accessToken);
       setRefreshToken(data.refreshToken);
+      // Whatever asked for it — a page, the live stream, an expiring token — the new token says what
+      // its holder may now do; the app compares and re-reads the user when that changed (Hivamis task 6).
+      window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { permissions: tokenPermissions(data.accessToken) } }));
       return true;
     } catch {
       return false;
@@ -57,6 +60,21 @@ async function attemptRefresh(): Promise<boolean> {
     }
   })();
   return refreshing;
+}
+
+/** Fired after every token refresh, with the permissions the new token carries. */
+export const TOKEN_REFRESHED_EVENT = 'hiva:token-refreshed';
+
+/** The permissions an access token carries — read from its payload, which the server signed. */
+export function tokenPermissions(token: string): string[] | null {
+  try {
+    const part = token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(part + '='.repeat((4 - (part.length % 4)) % 4)), (c) => c.charCodeAt(0));
+    const json = JSON.parse(new TextDecoder().decode(bytes));
+    return Array.isArray(json.permissions) ? json.permissions : null;
+  } catch {
+    return null;
+  }
 }
 
 /** For callers that hold a connection open themselves — the live stream (roadmap #39). */

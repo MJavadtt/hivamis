@@ -97,7 +97,7 @@ describe('Bringing an organisation in', () => {
   });
 
   it('checks every row before anything is written, and says why a row cannot go', async () => {
-    expect((await send('/onboarding/import/users/preview', T.ceo, people)).status).toBe(403);   // people are admin.users
+    expect((await send('/onboarding/import/users/preview', T.sales, people)).status).toBe(403);   // people are admin.users
     const p = (await send('/onboarding/import/users/preview', T.admin, people)).body;
     expect(p.summary).toEqual({ create: 2, skip: 1, invalid: 4 });
     const byLine = Object.fromEntries(p.rows.map((r: any) => [r.line, r]));

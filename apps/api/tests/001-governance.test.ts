@@ -58,7 +58,8 @@ describe('Rule 2 — Sales / Account separation', () => {
 
   it('gives Account no lead-acquisition permission and Sales no execution permission', async () => {
     const salesMe = expectOk(await get('/auth/me', tokens.sales), 'sales me');
-    const accountMe = expectOk(await get('/auth/me', tokens.accountManager), 'account me');
+    // The account executive: the account manager holds the whole system (Hivamis task 6).
+    const accountMe = expectOk(await get('/auth/me', tokens.account), 'account me');
     expect(salesMe.permissions).not.toContain('pricing.set_price');
     expect(salesMe.permissions).not.toContain('project.authorize');
     expect(salesMe.permissions).not.toContain('qc.account');
@@ -387,7 +388,7 @@ describe('Governed waivers', () => {
   it('is only for the executive, only for a real guard on this entity, only with a real reason, only for days', async () => {
     const project = await blockedProject();
     const base = { entityType: 'project', entityId: project.id, guard: GUARD, reason: 'دلیل کافی برای ثبت در دفتر استثناها' };
-    expect((await post('/waivers', tokens.accountManager, base)).status).toBe(403);
+    expect((await post('/waivers', tokens.account, base)).status).toBe(403);
     expect((await post('/waivers', tokens.pmo, base)).status).toBe(403);
     expect((await post('/waivers', tokens.deputy, { ...base, guard: 'no.such.guard' })).body.error.code).toBe('UNKNOWN_GUARD');
     expect((await post('/waivers', tokens.deputy, { ...base, guard: 'brief.isComplete' })).body.error.code).toBe('GUARD_NOT_ON_ENTITY');
@@ -463,7 +464,7 @@ describe('Effective-dated rule sets', () => {
 
     // Simulate the change a developer would make in contracts: QC of Account no longer required
     // to approve a proposal, and a longer acceptance SLA.
-    const snap = JSON.parse(JSON.stringify(currentSnapshots())) as any;
+    const snap = JSON.parse(JSON.stringify(await currentSnapshots())) as any;
     const approve = snap.workflows.proposal.transitions.find((t: any) => t.action === 'approve');
     approve.guards = approve.guards.filter((g: string) => g !== 'proposal.finalQcPassed');
     snap.sla.find((p: any) => p.code === 'SLA_TASK_ACCEPTANCE').hours = 8;

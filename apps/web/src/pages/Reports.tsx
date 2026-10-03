@@ -34,8 +34,9 @@ export default function Reports() {
     { key: 'units', label: 'عملکرد واحدها' },
     { key: 'sla', label: 'پایبندی به SLA' },
     { key: 'quality', label: 'کیفیت داده' },
-    { key: 'mining', label: 'کشف فرآیند' },
-    { key: 'cost', label: 'دقت برآورد' },
+    // Each tab only for who may read what it shows (Hivamis task 6).
+    ...(can('report.executive') ? [{ key: 'mining', label: 'کشف فرآیند' }] : []),
+    ...(can('pricing.read') ? [{ key: 'cost', label: 'دقت برآورد' }] : []),
     ...(can('finance.read') ? [{ key: 'revenue', label: 'درآمد و کار در جریان' }] : []),
     ...(can('pricing.read') ? [{ key: 'media', label: 'رسانه' }] : []),
   ];
@@ -398,6 +399,7 @@ function SlaReport() {
 }
 
 function DataQuality() {
+  const { can } = useAuth();
   const { data, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/reports/data-quality'], queryFn: () => apiGet('/reports/data-quality'),
   });
@@ -407,7 +409,7 @@ function DataQuality() {
 
   return (
     <div className="space-y-5">
-      <WaiverRegister />
+      {can('governance.read') && <WaiverRegister />}
       <Card title="امتیاز کیفیت داده" subtitle="رکوردهایی که فرآیند را بی‌سروصدا مختل می‌کنند">
         <div className="p-4">
           <div className="mb-2 flex items-baseline justify-between">

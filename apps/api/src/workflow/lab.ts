@@ -20,6 +20,7 @@ import type { Tx } from '../db.js';
 import { runAllGuards } from './guards.js';
 import { allGuards, hasGuard } from './registry.js';
 import { delegate } from './engine.js';
+import { grantsOf } from '../auth/grants.js';
 
 export type LabEdit =
   | { kind: 'transition'; entity: string; action: string; guards?: string[]; permission?: string | null; requiresReason?: boolean }
@@ -58,10 +59,10 @@ export interface LabResult {
 }
 
 /** The candidate rule sets: the running ones, with the edits applied. */
-export function applyEdits(edits: LabEdit[]): { workflows: typeof WORKFLOWS; permissions: Record<string, string[]>; invalid: string[] } {
+export function applyEdits(edits: LabEdit[], base: Record<string, readonly string[]> = ROLE_PERMISSIONS): { workflows: typeof WORKFLOWS; permissions: Record<string, string[]>; invalid: string[] } {
   // A deep copy, typed loosely: the edits write fields the declared types hold readonly.
   const workflows = JSON.parse(JSON.stringify(WORKFLOWS)) as unknown as Record<string, { transitions: Array<Record<string, unknown>> }>;
-  const permissions = JSON.parse(JSON.stringify(ROLE_PERMISSIONS)) as Record<string, string[]>;
+  const permissions = JSON.parse(JSON.stringify(base)) as Record<string, string[]>;
   const invalid: string[] = [];
   for (const e of edits) {
     if (e.kind === 'transition') {
@@ -87,7 +88,8 @@ export function applyEdits(edits: LabEdit[]): { workflows: typeof WORKFLOWS; per
 }
 
 export async function runLab(tx: Tx, organizationId: string, input: LabInput): Promise<LabResult> {
-  const { workflows, permissions, invalid } = applyEdits(input.edits);
+  // Against the roles as this organisation has granted them (Hivamis task 6), not the defaults.
+  const { workflows, permissions, invalid } = applyEdits(input.edits, (await grantsOf(organizationId, tx)).map);
   const limit = Math.min(input.limit ?? 2000, 5000);
   const touched = new Set(input.edits.filter((e): e is Extract<LabEdit, { kind: 'transition' }> => e.kind === 'transition').map((e) => e.entity));
   const roleEdits = input.edits.filter((e) => e.kind === 'role');

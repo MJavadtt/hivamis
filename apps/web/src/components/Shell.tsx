@@ -24,6 +24,8 @@ interface NavItem {
   icon: (p: { className?: string }) => ReactNode;
   /** The permission that makes this destination meaningful for the signed-in user. */
   permission?: string;
+  /** Or any one of these — a page whose parts are each someone's (Hivamis task 6). */
+  anyOf?: string[];
 }
 
 interface NavGroup { label: string; items: NavItem[] }
@@ -32,6 +34,9 @@ interface NavGroup { label: string; items: NavItem[] }
  * Navigation mirrors the ten Doc_H ERP modules rather than the database tables,
  * so the sidebar reads as the organisation's own operating model.
  */
+/** Any part of the administration page is a reason to see it; each tab shows only to its holders. */
+export const ADMIN_PERMISSIONS = ['admin.audit', 'admin.users', 'admin.roles', 'admin.settings', 'admin.keys'];
+
 const NAV: NavGroup[] = [
   {
     label: 'کار من',
@@ -85,13 +90,13 @@ const NAV: NavGroup[] = [
       // No permission of its own: the rules are for everyone they bind to read (roadmap #47).
       { to: '/rules', label: 'قوانین سازمان', icon: IconShield },
       { to: '/onboarding', label: 'راه‌اندازی سازمان', icon: IconClipboard, permission: 'admin.settings' },
-      { to: '/admin', label: 'مدیریت سیستم', icon: IconSettings, permission: 'admin.audit' },
+      { to: '/admin', label: 'مدیریت سیستم', icon: IconSettings, anyOf: ADMIN_PERMISSIONS },
     ],
   },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { user, signOut, can } = useAuth();
+  const { user, signOut, can, canAny } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   // One live stream for the signed-in tab (roadmap #39).
   useLiveUpdates(useQueryClient());
@@ -121,7 +126,7 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => setMobileOpen(false), [location.pathname]);
 
   const visibleGroups = NAV
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || can(i.permission)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }))
     .filter((g) => g.items.length > 0);
 
   return (

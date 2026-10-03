@@ -2711,3 +2711,20 @@ model LeadReferrer {
   @@unique([organizationId, kind, name])
   @@map("lead_referrers")
 }
+
+/// What an organisation's system administrator granted a role (Hivamis task 6). The newest row per
+/// role is in force; earlier ones stay, superseded, as the record of who granted what and when. The
+/// full-access roles never appear here: they hold everything, always.
+model RoleGrant {
+  id             String    @id @default(uuid())
+  organizationId String
+  roleCode       String
+  permissions    String[]
+  note           String?
+  grantedById    String
+  createdAt      DateTime  @default(now())
+  supersededAt   DateTime?
+
+  @@index([organizationId, roleCode])
+  @@map("role_grants")
+}

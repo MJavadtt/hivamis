@@ -1406,3 +1406,33 @@ would push the lead back into a spreadsheet.
 landline or abroad keeps it in «نیاز اولیه». Leads migrated from «REFERRAL» have no partner named,
 and those from «INBOUND»/«OTHER» no channel — they show their kind alone. The duplicate check covers
 leads and contacts, not suppliers or users.
+
+## ADR-055 — Four roles hold everything; the administrator grants the rest, at once and on the record
+
+**Decision.** (Hivamis task 6.) The managing director, deputy, system administrator and account
+manager hold every permission, in code, not something an administrator can take back. Every other
+role holds what the organisation's administrator granted: a grant is a row in `role_grants`, the
+previous one kept and marked superseded, a new version of the permissions rule set (roadmap #4) and
+an audit event; until a role is reviewed it keeps its Doc_H default and says so. Permissions are no
+longer read from the code constant at sign-in but from the organisation's map, cached a few seconds.
+An access token is stamped with each of its roles' grant counts; a request with a token whose role
+was granted anew since is refused `401 GRANTS_CHANGED`, the client refreshes and the app re-reads the
+user, so a permission taken away stops working — and its screen disappears — on the next click, not
+fifteen minutes later. Every page part is shown only to who may use it: the administration page is
+open to anyone holding one of its permissions, each of its tabs only to its own. A development
+script (`apps/api/scripts/visibility-audit.ts`) signs in as each demo role, opens every page, record
+and tab its navigation offers, and lists every call the screen made that the server refused.
+
+**Rationale.** The organisation's people, not the product's authors, decide who does what; the
+product's defaults are a starting point the administrator approves. Taking a permission away is
+usually urgent — someone moved, someone left a role — so it must not wait for a token to expire;
+per-role counts invalidate exactly the tokens a grant affects, with no clock comparisons to get wrong.
+Full access is not exemption: Doc_H's guards are rules of the process, and the waiver remains the
+governed, recorded way past one. Hiding is checked rather than assumed, because a tab that renders
+and then fails is exactly what "they should not even see it" forbids.
+
+**Limits.** Delegated permissions are re-checked against the delegator's role at the delegate's next
+token, not instantly. Open live-update streams keep the permissions they opened with until the token
+behind them ends. Roles themselves are the sixteen Doc_H roles; an organisation cannot yet define a
+new one. Form approver routing names roles (`approverRoles`), not permissions, so a full-access role
+decides only the forms routed to it.

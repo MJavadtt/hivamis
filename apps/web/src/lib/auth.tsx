@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, apiGet, apiPost, getRefreshToken, setAccessToken, setRefreshToken } from './api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { TOKEN_REFRESHED_EVENT, api, apiGet, apiPost, getRefreshToken, setAccessToken, setRefreshToken } from './api';
 import { forgetPushOnSignOut } from './push';
 
 export interface CurrentUser {
@@ -44,6 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
     }
   }, []);
+
+  // A fresh token carries what the user may do now; when that is not what the screen shows — the
+  // administrator changed a role, a delegation began or ended — re-read who the user is (Hivamis task 6).
+  const shown = useRef<CurrentUser | null>(null);
+  shown.current = user;
+  useEffect(() => {
+    const onRefresh = (e: Event) => {
+      const now = (e as CustomEvent<{ permissions: string[] | null }>).detail?.permissions;
+      const u = shown.current;
+      if (u && now && (now.length !== u.permissions.length || now.some((p) => !u.permissions.includes(p)))) void loadUser();
+    };
+    window.addEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
+    return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
+  }, [loadUser]);
 
   // Restore the session from the stored refresh token on first paint.
   useEffect(() => {

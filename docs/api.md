@@ -76,6 +76,24 @@ revision · changeRequest · contract · invoice · outsourceRequest`
 List and detail responses also embed `availableTransitions`, so the UI never offers an
 action the engine would reject on authority.
 
+## Roles and grants
+
+Hivamis task 6. `SUPER_ADMIN`, `CEO`, `DEPUTY` and `ACCOUNT_MANAGER` hold every permission, fixed.
+Every other role holds what the organisation's administrator granted, or its default until then.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /roles` | Each role here: `fullAccess`, `permissions` (in force), `defaults`, `differsFromDefault`, `userCount` (in this organisation), and `review: { at, note, grantedBy } \| null` (null = default, not yet reviewed). Any signed-in user |
+| `PUT /roles/:code/permissions` `{ permissions, note? }` | Grant exactly these. `admin.roles`. `400 FULL_ACCESS_ROLE` for the four full-access roles, `400 UNKNOWN_PERMISSION` for a code that does not exist. Returns `{ added, removed, permissions }`. A new grant row (the previous one kept, superseded), a new version of the permissions rule set, and an audit event |
+| `GET /roles/:code/grants` | Who granted what and when, newest first. `admin.roles` |
+| `GET /permissions` | Every permission with the roles that hold it here |
+
+An access token carries `gv`, the grant count of each of its roles at issue. When a role has been
+granted anew since, every request with that token is refused with `401 GRANTS_CHANGED`; refresh
+and continue — the new token carries the role's permissions as they now are. `GET /rules/versions/:id`
+and `/rules/diff` show an organisation only its own grants (under `~organisations` in the
+permissions snapshot).
+
 ## Domain endpoints
 
 Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.

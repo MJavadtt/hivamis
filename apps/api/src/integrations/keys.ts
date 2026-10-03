@@ -8,10 +8,11 @@
  * and a deactivated creator's keys stop. Each key has its own per-minute budget.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { NON_KEY_PERMISSIONS, permissionsForRoles, type RoleCode } from '@hiva/contracts';
+import { NON_KEY_PERMISSIONS } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { AppError, unauthorized } from '../lib/errors.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
+import { permissionsFor } from '../auth/grants.js';
 
 export const KEY_PATTERN = /^hiva_([a-z0-9]{10})_([A-Za-z0-9_-]{43})$/;
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -60,7 +61,7 @@ export async function authenticateKey(presented: string, ip: string | null): Pro
   if (!budget.ok) {
     throw new AppError(429, 'API_KEY_RATE_LIMITED', `سهمیهٔ این کلید (${key.rateLimitPerMinute} درخواست در دقیقه) تمام شده است؛ ${budget.retryAfter} ثانیهٔ دیگر.`, { retryAfter: budget.retryAfter });
   }
-  const own = grantable(permissionsForRoles(creator.roles.map((r) => r.role.code as RoleCode)));
+  const own = grantable(await permissionsFor(key.organizationId, creator.roles.map((r) => r.role.code)));
   const permissions = key.permissions.filter((p) => own.includes(p));
 
   // Last use, at most once a minute: enough to answer "is this key still in use?", without a write per request.

@@ -38,7 +38,7 @@ describe('Asking the client, and the client deciding', () => {
   const original = { ...approvalMail };
 
   beforeAll(async () => {
-    T = { am: await login('account.manager@hiva.local'), sales: await login('sales.manager@hiva.local'), designer: await login('designer@hiva.local') };
+    T = { am: await login('account.manager@hiva.local'), ae: await login('account@hiva.local'), sales: await login('sales.manager@hiva.local'), designer: await login('designer@hiva.local') };
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { deletedAt: null } });
     const mk = async (name: string) => (await prisma.deliverable.create({
@@ -168,7 +168,7 @@ describe('Asking the client, and the client deciding', () => {
     approvalMail.deliver = async (job) => { mails.push(job); };
     const deck = expectOk(await upload(T.sales, { name: 'deck.pdf', type: 'application/pdf', content: tinyPdf('deck') }, { proposalId }), 'deck').id;
     const contact = await prisma.contact.findFirstOrThrow({ where: { email: 'maryam@client.example', company: { opportunities: { some: { briefs: { some: { proposals: { some: { id: proposalId } } } } } } } } });
-    expect((await post('/client-approvals', T.am, { subjectType: 'PROPOSAL', subjectId: proposalId, contactId: contact.id })).status).toBe(403);
+    expect((await post('/client-approvals', T.ae, { subjectType: 'PROPOSAL', subjectId: proposalId, contactId: contact.id })).status).toBe(403);
     second = expectOk(await post('/client-approvals', T.sales, { subjectType: 'PROPOSAL', subjectId: proposalId, contactId: contact.id }), 'proposal request');
     expect(second).toMatchObject({ channel: 'EMAIL', link: null });
     expect(second.manifest.content).toMatchObject({ executiveSummary: 'سه موج رسانه‌ای', salePrice: '2500000000' });

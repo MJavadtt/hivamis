@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { ALL_PERMISSIONS, ROLE_CODES, permissionsForRoles, type RoleCode } from '@hiva/contracts';
+import { ALL_PERMISSIONS, ROLE_CODES, type RoleCode } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { permissionsFor } from '../auth/grants.js';
 
 /** A delegation may not run longer than this; a longer absence is a role change, not a delegation. */
 export const MAX_DELEGATION_DAYS = 90;
@@ -26,10 +27,10 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
   /** Everything a user may delegate: what their own roles grant them, right now. */
   async function grantsOf(userId: string) {
     const user = await prisma.user.findUnique({
-      where: { id: userId }, select: { isActive: true, roles: { select: { role: { select: { code: true } } } } },
+      where: { id: userId }, select: { organizationId: true, isActive: true, roles: { select: { role: { select: { code: true } } } } },
     });
     const roles = (user?.roles ?? []).map((r) => r.role.code as RoleCode);
-    return { active: user?.isActive ?? false, roles, permissions: new Set<string>(permissionsForRoles(roles)) };
+    return { active: user?.isActive ?? false, roles, permissions: new Set<string>(user ? await permissionsFor(user.organizationId, roles) : []) };
   }
 
   app.post('/delegations', { preHandler: [app.authenticate] }, async (req, reply) => {

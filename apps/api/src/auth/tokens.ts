@@ -19,6 +19,8 @@ export interface AccessTokenClaims {
   delegatedRoles?: Record<string, string>;
   /** Set when the request came through an API key (roadmap #46); `sub` is then the key's creator. */
   apiKeyId?: string;
+  /** How many grants each of the holder's roles had had when this token was issued (Hivamis task 6). */
+  gv?: Record<string, number>;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {

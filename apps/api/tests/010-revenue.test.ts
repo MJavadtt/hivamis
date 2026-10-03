@@ -133,7 +133,7 @@ describe('Revenue earned as the work is done', () => {
 
 describe('Closing a month', () => {
   it('freezes a month, keeps it frozen, and lands a later correction in the next open month', async () => {
-    expect((await post('/revenue/periods/close', T.accountManager, { period: m2!.period })).status).toBe(403);
+    expect((await post('/revenue/periods/close', T.designer, { period: m2!.period })).status).toBe(403);
     expect((await post('/revenue/periods/close', T.finance, { period: cur!.period })).body.error.code).toBe('PERIOD_NOT_ENDED');
 
     const first = expectOk(await post('/revenue/periods/close', T.finance, { period: m2!.period }), 'close m2');

@@ -220,7 +220,7 @@ reshaping the schema.
 | Password storage | Argon2id, 19 MiB / 2 iterations / 1 lane (OWASP) |
 | Session | 15-minute access JWT; opaque refresh token stored only as SHA-256 digest; rotated single-use. Refresh re-checks that the account is still active, so a deactivated user cannot keep minting access tokens. Replaying a spent token is treated as theft: every session for that user is revoked and a `REFRESH_TOKEN_REUSE` audit event is written. Changing a user's roles revokes their sessions, because permissions are carried in the access token |
 | Brute force | Login and refresh rate limits plus account lock after 5 failures. `TRUST_PROXY` defaults to trusting no proxy, so a forged `X-Forwarded-For` cannot move a client between rate-limit buckets |
-| Authorization | 110 permissions across 16 roles, checked per route and again inside the workflow engine |
+| Authorization | 110 permissions across 16 roles, checked per route and again inside the workflow engine. The managing director, deputy, system administrator and account manager hold every permission, fixed; every other role holds what the organisation's administrator granted (`role_grants`, with history), or its default until reviewed (Hivamis task 6). A grant is a new version of the permissions rule set, and an access token is stamped with each of its roles' grant counts: a token whose role was granted anew since is refused with `401 GRANTS_CHANGED`, and the client takes a fresh one at once — a permission taken away stops working on the next request. Doc_H's guards bind every role, full access included |
 | Audit | Every consequential mutation writes who / what / when / before / after / why; sensitive fields redacted |
 | Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list. Path parameters naming an entity are validated against the declared workflow list before any dynamic delegate lookup |
 | State integrity | Each workflow table carries a CHECK constraint pinning `state` to its declared vocabulary, generated from `packages/contracts` by `prisma/generate-state-constraints.mts`. The engine remains the only sanctioned writer; the constraint means a direct UPDATE or a data import cannot introduce an undeclared state either |
@@ -266,3 +266,9 @@ Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../app
 - `HIVA_TEST_ISOLATION=shared` puts every file back on one database, sequentially, and keeps
   what a run creates. Faster for iterating on one file; not what CI runs.
 - The frontend suite needs neither a database nor a server: pure logic and small components.
+- **What each role sees** (Hivamis task 6) is checked on a running stack by
+  `apps/api/scripts/visibility-audit.ts`: it signs in as each demo account, opens every page, first
+  record and tab its navigation offers, and lists every call the screen made that the server refused —
+  a part shown to someone who may not use it. Run it against a copy of the database with jobs off
+  (`AUDIT_API`), since it makes refused requests on purpose; it exits non-zero on any finding or on an
+  account it could not check.

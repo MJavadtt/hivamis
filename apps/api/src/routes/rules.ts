@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
-import { RULE_KINDS, RULE_KIND_LABEL, diffRuleSets, rulesAt, type RuleKind } from '../workflow/rules.js';
+import { RULE_KINDS, RULE_KIND_LABEL, diffRuleSets, rulesAt, scopeSnapshot, type RuleKind } from '../workflow/rules.js';
 import { runLab, allGuardIds, type LabEdit } from '../workflow/lab.js';
 import { guardLabel } from '../workflow/registry.js';
 
@@ -27,11 +27,13 @@ const ruleRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/rules/versions/:id', gate, async (req) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const row = await prisma.ruleSetVersion.findUnique({ where: { id } });
     if (!row) throw notFound('نسخهٔ قوانین');
-    const transitions = await prisma.stateTransition.count({ where: { OR: [{ rulesVersionId: id }, { permissionsVersionId: id }] } });
-    return { ...row, labelFa: RULE_KIND_LABEL[row.kind as RuleKind], transitionsUnder: transitions };
+    const transitions = await prisma.stateTransition.count({ where: { organizationId: actor.organizationId, OR: [{ rulesVersionId: id }, { permissionsVersionId: id }] } });
+    // Another organisation's grants are not this reader's to see (Hivamis task 6).
+    return { ...row, snapshot: scopeSnapshot(row.kind, row.snapshot, actor.organizationId), labelFa: RULE_KIND_LABEL[row.kind as RuleKind], transitionsUnder: transitions };
   });
 
   /** Which versions were effective at an instant — the auditor's first question. */
@@ -44,6 +46,7 @@ const ruleRoutes: FastifyPluginAsync = async (app) => {
 
   /** What changed between two versions of a kind, in words. Defaults to the last two. */
   app.get('/rules/diff', gate, async (req) => {
+    const actor = actorFrom(req);
     const { kind, from, to } = req.query as { kind?: string; from?: string; to?: string };
     if (!kind || !(RULE_KINDS as readonly string[]).includes(kind)) throw badRequest('INVALID_KIND', 'نوع قوانین باید workflows، permissions یا sla باشد');
     const rows = await prisma.ruleSetVersion.findMany({ where: { kind }, orderBy: { version: 'desc' }, take: 2 });
@@ -51,7 +54,8 @@ const ruleRoutes: FastifyPluginAsync = async (app) => {
     const a = from ? await prisma.ruleSetVersion.findFirst({ where: { kind, version: Number(from) } }) : rows[1];
     if (!b) throw notFound('نسخهٔ قوانین');
     if (!a) return { kind, from: null, to: b.version, changes: [], note: 'تنها یک نسخه ثبت شده است' };
-    return { kind, from: a.version, to: b.version, effectiveFrom: b.effectiveFrom, changes: diffRuleSets(kind as RuleKind, a.snapshot, b.snapshot) };
+    const scoped = (v: unknown) => scopeSnapshot(kind, v, actor.organizationId);
+    return { kind, from: a.version, to: b.version, effectiveFrom: b.effectiveFrom, changes: diffRuleSets(kind as RuleKind, scoped(a.snapshot), scoped(b.snapshot)) };
   });
 
   /**

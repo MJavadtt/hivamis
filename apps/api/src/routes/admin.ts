@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  createUserSchema, updateUserSchema, paginationSchema,
-  ALL_PERMISSIONS, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
+  createUserSchema, updateUserSchema, paginationSchema, roleGrantSchema,
+  ALL_PERMISSIONS, FULL_ACCESS_ROLES, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
 } from '@hiva/contracts';
+import { forgetGrants, grantsOf, setRoleGrant } from '../auth/grants.js';
+import { registerRuleSets, resetRulesCache } from '../workflow/rules.js';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
@@ -340,24 +342,80 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     return { ...cal, holidays: [...cal.holidays].sort() };
   });
 
-  app.get('/roles', { preHandler: [app.authenticate] }, async () => {
-    const roles = await prisma.role.findMany({
-      include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
-      orderBy: { code: 'asc' },
+  /**
+   * The roles as this organisation has them (Hivamis task 6): the four full-access roles holding
+   * everything, the rest holding what the system administrator granted — or their default, marked
+   * as not yet reviewed — with who granted it, when, and how many people hold the role here.
+   */
+  app.get('/roles', { preHandler: [app.authenticate] }, async (req) => {
+    const actor = actorFrom(req);
+    const [roles, holders, grants] = await Promise.all([
+      prisma.role.findMany({ orderBy: { code: 'asc' } }),
+      prisma.userRole.groupBy({ by: ['roleId'], where: { user: { organizationId: actor.organizationId, deletedAt: null } }, _count: { _all: true } }),
+      grantsOf(actor.organizationId),
+    ]);
+    const granters = await prisma.user.findMany({ where: { id: { in: [...grants.current.values()].map((g) => g.grantedById) } }, select: { id: true, fullName: true } });
+    return roles.map((r) => {
+      const code = r.code as RoleCode;
+      const grant = grants.current.get(code);
+      const permissions = [...(grants.map[code] ?? [])];
+      const defaults = ROLE_PERMISSIONS[code] ?? [];
+      return {
+        id: r.id, code, nameFa: r.nameFa, nameEn: r.nameEn,
+        userCount: holders.find((h) => h.roleId === r.id)?._count._all ?? 0,
+        fullAccess: FULL_ACCESS_ROLES.includes(code),
+        permissions, defaults,
+        review: grant ? { at: grant.createdAt, note: grant.note, grantedBy: granters.find((g) => g.id === grant.grantedById) ?? null } : null,
+        differsFromDefault: permissions.length !== defaults.length || permissions.some((p) => !defaults.includes(p)),
+      };
     });
-    return roles.map((r) => ({
-      id: r.id, code: r.code, nameFa: r.nameFa, nameEn: r.nameEn,
-      userCount: r._count.users,
-      permissions: r.permissions.map((p) => p.permission.code),
-    }));
   });
 
-  app.get('/permissions', { preHandler: [app.authenticate] }, async () =>
-    ALL_PERMISSIONS.map((code) => ({
+  /** Grant a role exactly these permissions here. A new version of the permissions rule set; takes effect at once. */
+  app.put('/roles/:code/permissions', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(roleGrantSchema, req.body);
+    const role = await prisma.role.findUnique({ where: { code } });
+    if (!role) throw notFound('نقش');
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const r = await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions: input.permissions, note: input.note, actorId: actor.id });
+        // The rules a transition is judged by changed: a new version of the permissions set (roadmap #4).
+        await registerRuleSets(tx, undefined, `دسترسی نقش «${role.nameFa}»: ${r.added.length} داده، ${r.removed.length} گرفته${input.note ? ` — ${input.note}` : ''}`);
+        await audit({
+          organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'role', entityId: code,
+          before: { removed: r.removed }, after: { added: r.added, permissions: r.row.permissions }, reason: input.note ?? null,
+          ipAddress: actor.ipAddress, requestId: actor.requestId,
+        }, tx);
+        return r;
+      });
+      return { code, added: result.added, removed: result.removed, permissions: result.row.permissions };
+    } catch (e) {
+      // A version registered inside a transaction that then rolled back must not stay cached.
+      resetRulesCache();
+      throw e;
+    } finally {
+      forgetGrants(actor.organizationId);
+    }
+  });
+
+  /** Who granted a role what, and when — newest first. */
+  app.get('/roles/:code/grants', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const rows = await prisma.roleGrant.findMany({ where: { organizationId: actor.organizationId, roleCode: code }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const people = await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.grantedById) } }, select: { id: true, fullName: true } });
+    return rows.map((r) => ({ ...r, grantedBy: people.find((p) => p.id === r.grantedById) ?? null }));
+  });
+
+  app.get('/permissions', { preHandler: [app.authenticate] }, async (req) => {
+    const { map } = await grantsOf(actorFrom(req).organizationId);
+    return ALL_PERMISSIONS.map((code) => ({
       code, nameFa: PERMISSIONS[code],
-      grantedTo: (Object.keys(ROLE_PERMISSIONS) as RoleCode[]).filter((r) =>
-        ROLE_PERMISSIONS[r].includes(code)),
-    })));
+      grantedTo: (Object.keys(map) as RoleCode[]).filter((r) => map[r].includes(code)),
+    }));
+  });
 
   app.get('/sla-policies', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);

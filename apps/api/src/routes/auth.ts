@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword } from '../auth/password.js';
 import { generateRefreshToken, hashToken, signAccessToken, ttlToMs } from '../auth/tokens.js';
 import { audit } from '../lib/audit.js';
 import { env } from '../env.js';
+import { grantsOf, permissionsFor, versionsFor } from '../auth/grants.js';
 
 const MAX_FAILED = 5;
 const LOCK_MS = 15 * 60_000;
@@ -21,8 +22,10 @@ export async function claimsFor(userId: string) {
   });
   if (!user) throw unauthorized();
   const roles = user.roles.map((r) => r.role.code as RoleCode);
-  const native = permissionsForRoles(roles);
-  const { permissions, delegated, delegatedRoles, roles: allRoles } = await withDelegations(user.id, roles, native);
+  // As the organisation's administrator granted them (Hivamis task 6); `gv` dates the grants.
+  const grants = await grantsOf(user.organizationId);
+  const native = permissionsForRoles(roles, grants.map);
+  const { permissions, delegated, delegatedRoles, roles: allRoles } = await withDelegations(user.id, user.organizationId, roles, native);
   return {
     user,
     claims: {
@@ -31,6 +34,7 @@ export async function claimsFor(userId: string) {
       departmentCode: user.department?.code ?? null,
       roles: allRoles,
       permissions,
+      gv: versionsFor(grants, allRoles),
       ...(Object.keys(delegated).length ? { delegated } : {}),
       ...(Object.keys(delegatedRoles).length ? { delegatedRoles } : {}),
     },
@@ -43,7 +47,7 @@ export async function claimsFor(userId: string) {
  * not outlive a demotion — and never overrides what the delegate already has natively, so the
  * attribution map names only what came from someone else.
  */
-async function withDelegations(userId: string, roles: RoleCode[], native: readonly string[]) {
+async function withDelegations(userId: string, organizationId: string, roles: RoleCode[], native: readonly string[]) {
   const now = new Date();
   const active = await prisma.delegation.findMany({
     where: { toUserId: userId, revokedAt: null, startsAt: { lte: now }, endsAt: { gt: now } },
@@ -59,7 +63,7 @@ async function withDelegations(userId: string, roles: RoleCode[], native: readon
     });
     if (!from?.isActive) continue;
     const fromRoles = from.roles.map((r) => r.role.code as RoleCode);
-    const fromPerms = new Set<string>(permissionsForRoles(fromRoles));
+    const fromPerms = new Set<string>(await permissionsFor(organizationId, fromRoles));
     for (const p of d.permissions) {
       if (!fromPerms.has(p) || permissions.has(p)) continue;
       permissions.add(p); delegated[p] = d.fromUserId;

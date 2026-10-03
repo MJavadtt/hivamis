@@ -12,9 +12,9 @@ import type { RoleCode } from './enums.js';
  */
 export const PERMISSIONS = {
   // CRM & Sales
-  'crm.lead.read': 'مشاهده Lead',
-  'crm.lead.write': 'ایجاد/ویرایش Lead',
-  'crm.lead.convert': 'تبدیل Lead به Opportunity',
+  'crm.lead.read': 'مشاهده سرنخ',
+  'crm.lead.write': 'ایجاد/ویرایش سرنخ',
+  'crm.lead.convert': 'تبدیل سرنخ به فرصت فروش',
   'crm.opportunity.read': 'مشاهده فرصت فروش',
   'crm.opportunity.write': 'ایجاد/ویرایش فرصت فروش',
   'crm.company.read': 'مشاهده مشتری',
@@ -46,7 +46,7 @@ export const PERMISSIONS = {
   'proposal.record_feedback': 'ثبت بازخورد مشتری',
   'pricing.read': 'مشاهده قیمت‌گذاری',
   'pricing.declare_cost': 'اعلام قیمت تمام‌شده',
-  'pricing.set_price': 'تعیین قیمت فروش و Margin',
+  'pricing.set_price': 'تعیین قیمت فروش و حاشیهٔ سود',
   'pricing.approve': 'تأیید نهایی قیمت‌گذاری',
 
   // Project & PMO
@@ -84,7 +84,7 @@ export const PERMISSIONS = {
   // Change control — Doc_H §8
   'change.read': 'مشاهده درخواست تغییر',
   'change.create': 'ثبت درخواست تغییر',
-  'change.scope_review': 'بررسی Scope تغییر',
+  'change.scope_review': 'بررسی دامنهٔ تغییر',
   'change.commercial_review': 'بررسی اثر تجاری تغییر',
   'change.approve': 'تأیید نهایی تغییر',
 
@@ -121,7 +121,7 @@ export const PERMISSIONS = {
   // Governance registers
   'governance.read': 'مشاهده ریسک/مسئله/تصمیم',
   'governance.write': 'ثبت ریسک/مسئله/تصمیم',
-  'governance.waive': 'صدور استثنا بر قوانین حاکم (فقط مدیرعامل و قائم‌مقام)',
+  'governance.waive': 'صدور استثنا بر قوانین حاکم',
   'meeting.read': 'مشاهده جلسات',
   'meeting.write': 'ثبت جلسه و صورتجلسه',
 
@@ -247,27 +247,27 @@ const PMO_CORE: Permission[] = [
  */
 export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage', 'rules.manage'];
 
+/**
+ * Hivamis task 6: the managing director, the deputy, the system administrator and the account
+ * manager hold the whole system — every permission, fixed, not something an administrator can take
+ * back. The process rules (Doc_H's guards) still bind them as they bind everyone; a governed
+ * exception (waiver) remains the way past one.
+ */
+export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY', 'ACCOUNT_MANAGER'];
+
+/**
+ * Every other role's permissions are what the organisation's system administrator grants. These are
+ * the defaults a role starts with — Doc_H's separation of duties — until the administrator reviews it.
+ */
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
-  CEO: [
-    ...ALL_PERMISSIONS.filter(
-      (p) => !['admin.users', 'admin.roles', 'form.define'].includes(p),
-    ),
-  ],
-  DEPUTY: [
-    ...READ_ONLY, 'report.executive', 'admin.audit', 'governance.waive',
-    'project.authorize', 'pricing.read', 'pricing.approve', 'qc.final',
-    'change.approve', 'contract.approve', 'contract.sign',
-    'supplier.approve', 'finance.read', 'finance.settle',
-    'form.approve', 'form.submit', 'meeting.write', 'governance.write', 'ai.use',
-  ],
+  CEO: ALL_PERMISSIONS,
+  DEPUTY: ALL_PERMISSIONS,
   SALES_MANAGER: [
     ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read',
   ],
   SALES_REP: SALES_CORE,
-  // `change.approve` records the CUSTOMER's decision on a change request (Doc_H RACI #36,
-  // approver «Account/Customer»). It does not alter the contract — that needs contract.amend.
-  ACCOUNT_MANAGER: [...ACCOUNT_CORE, 'qc.final', 'change.approve', 'report.executive', 'traffic.manage'],
+  ACCOUNT_MANAGER: ALL_PERMISSIONS,
   ACCOUNT_EXEC: ACCOUNT_CORE.filter((p) => p !== 'project.close'),
   UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage'],
   UNIT_MEMBER: UNIT_CORE,
@@ -282,9 +282,59 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   VIEWER: READ_ONLY,
 };
 
-/** Deduplicated grants for a set of roles. */
-export function permissionsForRoles(roles: RoleCode[]): Permission[] {
+export type RoleMap = Record<RoleCode, readonly Permission[]>;
+
+/**
+ * The roles as an organisation has them: the full-access roles hold everything whatever is stored;
+ * the rest hold what the administrator granted, or the default until one has been.
+ */
+export function effectiveRoleMap(granted: Partial<Record<string, readonly string[]>> = {}): RoleMap {
+  const out = {} as Record<RoleCode, readonly Permission[]>;
+  for (const role of Object.keys(ROLE_PERMISSIONS) as RoleCode[]) {
+    out[role] = FULL_ACCESS_ROLES.includes(role)
+      ? ALL_PERMISSIONS
+      : (granted[role]?.filter((p): p is Permission => p in PERMISSIONS) ?? ROLE_PERMISSIONS[role]);
+  }
+  return out;
+}
+
+/** Deduplicated grants for a set of roles — under an organisation's map, or the defaults. */
+export function permissionsForRoles(roles: readonly RoleCode[], map: RoleMap = ROLE_PERMISSIONS): Permission[] {
   const set = new Set<Permission>();
-  for (const r of roles) for (const p of ROLE_PERMISSIONS[r] ?? []) set.add(p);
+  for (const r of roles) for (const p of map[r] ?? []) set.add(p);
   return [...set];
 }
+
+/** The areas permissions belong to, by their prefix — how the administrator reads them (Hivamis task 6). */
+export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }[] = [
+  { key: 'crm', fa: 'مشتریان و فروش', en: 'Clients and sales' },
+  { key: 'brief', fa: 'بریف', en: 'Briefs' },
+  { key: 'handoff', fa: 'تحویل به اکانت', en: 'Handoff to Account' },
+  { key: 'proposal', fa: 'پروپوزال', en: 'Proposals' },
+  { key: 'pricing', fa: 'قیمت‌گذاری', en: 'Pricing' },
+  { key: 'project', fa: 'پروژه', en: 'Projects' },
+  { key: 'workorder', fa: 'سفارش کار', en: 'Work orders' },
+  { key: 'task', fa: 'وظیفه', en: 'Tasks' },
+  { key: 'deliverable', fa: 'خروجی', en: 'Deliverables' },
+  { key: 'qc', fa: 'کنترل کیفیت', en: 'Quality control' },
+  { key: 'revision', fa: 'اصلاحیه', en: 'Revisions' },
+  { key: 'change', fa: 'درخواست تغییر', en: 'Change requests' },
+  { key: 'contract', fa: 'قرارداد', en: 'Contracts' },
+  { key: 'finance', fa: 'مالی', en: 'Finance' },
+  { key: 'media', fa: 'رسانه', en: 'Media' },
+  { key: 'traffic', fa: 'ترافیک و ظرفیت', en: 'Traffic and capacity' },
+  { key: 'resource', fa: 'منابع', en: 'Resources' },
+  { key: 'supplier', fa: 'تأمین‌کنندگان', en: 'Suppliers' },
+  { key: 'governance', fa: 'حاکمیت، ریسک و استثنا', en: 'Governance, risk and waivers' },
+  { key: 'meeting', fa: 'جلسه', en: 'Meetings' },
+  { key: 'document', fa: 'اسناد', en: 'Documents' },
+  { key: 'form', fa: 'فرم‌ها', en: 'Forms' },
+  { key: 'report', fa: 'گزارش‌ها', en: 'Reports' },
+  { key: 'customer_success', fa: 'موفقیت مشتری', en: 'Customer success' },
+  { key: 'ai', fa: 'دستیار هوشمند', en: 'AI assistant' },
+  { key: 'admin', fa: 'مدیریت سیستم', en: 'Administration' },
+  { key: 'rules', fa: 'قوانین سازمان', en: "Organisation's rules" },
+  { key: 'portal', fa: 'پورتال مشتری', en: 'Client portal' },
+  { key: 'brand', fa: 'کتابخانهٔ برند', en: 'Brand library' },
+];
+export const permissionGroup = (p: string) => p.split('.')[0]!;

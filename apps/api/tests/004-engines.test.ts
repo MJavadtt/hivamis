@@ -981,7 +981,7 @@ describe('Conditional approval routing', () => {
     expect(untouched.definitionVersion).toBe(before.version);
 
     // Rules are validated, and only an administrator may change them.
-    expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, { token: T.accountManager, payload: { rules: [] } })).status).toBe(403);
+    expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, { token: T.sales, payload: { rules: [] } })).status).toBe(403);
     expect((await call('PUT', `/forms/definitions/${CONTRACT}/routing`, {
       token: T.admin, payload: { rules: [{ id: 'x!', whenFa: 'بدون شناسهٔ معتبر', when: { field: 'a', op: 'gt', value: 1 } }] },
     })).status).toBe(400);
@@ -2069,7 +2069,7 @@ describe('The form designer', () => {
     expect(messy.problems.join(' ')).toContain('گزینه');
 
     // And only an administrator may design at all.
-    expect((await call('PUT', `/forms/definitions/${CODE}/design`, { token: T.accountManager, payload: { fields } })).status).toBe(403);
+    expect((await call('PUT', `/forms/definitions/${CODE}/design`, { token: T.sales, payload: { fields } })).status).toBe(403);
   });
 
   it('lets an organisation add a form of its own, and keeps the catalogue out of it', async () => {
