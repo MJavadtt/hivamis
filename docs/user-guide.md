@@ -11,6 +11,16 @@ because the process assigns that step to someone else.
 
 ---
 
+## The dashboard — «داشبورد»
+
+The first page after signing in. Four tiles count what is yours, and each opens the list behind it:
+**وظایف باز من**, **وظایف تاخیردار** (past their due date), **در انتظار تأیید** (forms waiting for your
+decision) and **نقض روند** (your deadlines broken or about to be). Beside your tasks are
+**اصلاحیه‌ها** — revisions assigned to you or your unit — and **روندهای من**, the deadline clocks you
+own. **پروژه‌های من** has two halves: **در حال اجرا (فعال)**, the projects you run or work on, and
+**فروش (فرصت فروش)**, the opportunities you own that are not yet won or lost (for those who see the
+sales pipeline).
+
 ## Your queue — «کارهای من»
 
 Everything that sits with you, in one list: tasks assigned to you, work orders you own, QC

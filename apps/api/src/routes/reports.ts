@@ -234,7 +234,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const org = actor.organizationId;
     const now = new Date();
 
-    const [myTasks, myProjects, myForms, awaitingMe, myRevisions, mySlas, notifications] = await Promise.all([
+    const [myTasks, myProjects, myOpportunities, myForms, awaitingMe, myRevisions, mySlas, notifications] = await Promise.all([
       prisma.task.findMany({
         where: { organizationId: org, assigneeId: actor.id, state: { notIn: ['CLOSED', 'CANCELLED'] } },
         include: { project: { select: { id: true, code: true, name: true } } },
@@ -253,6 +253,18 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         include: { company: { select: { legalName: true } } },
         take: 30,
       }),
+      // "My projects" in two halves: what is being executed, and what is still being sold — the
+      // opportunities I own, for whoever may read the pipeline.
+      actor.permissions.includes('crm.opportunity.read')
+        ? prisma.opportunity.findMany({
+            where: { organizationId: org, deletedAt: null, ownerId: actor.id, state: { notIn: ['WON', 'LOST'] } },
+            select: {
+              id: true, code: true, title: true, state: true, estimatedValue: true, expectedCloseDate: true,
+              company: { select: { legalName: true } },
+            },
+            orderBy: [{ expectedCloseDate: { sort: 'asc', nulls: 'last' } }], take: 30,
+          })
+        : Promise.resolve(null),
       prisma.formSubmission.count({ where: { organizationId: org, submittedById: actor.id, state: 'PENDING_APPROVAL' } }),
       prisma.formSubmission.count({
         where: {
@@ -290,6 +302,8 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         awaitingAcceptance: myTasks.filter((t) => t.state === 'ASSIGNED').length,
       },
       projects: myProjects,
+      // null when the pipeline is not the reader's to see; the dashboard then shows no sales half.
+      opportunities: myOpportunities,
       forms: { mySubmissionsPending: myForms, awaitingMyApproval: awaitingMe },
       revisions: { items: myRevisions, overdue: myRevisions.filter((r) => r.dueDate < now).length },
       sla: {

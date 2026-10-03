@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
@@ -6,9 +7,9 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Count, HealthDot } from '../components/common';
 import {
   Badge, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
-  Table, Td, Th, Tr, IconAlert, IconCheckCircle, IconClock, IconFile,
+  Table, Tabs, Td, Th, Tr, IconAlert, IconCheckCircle, IconClock, IconFile,
 } from '../components/ui';
-import { formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
+import { formatCurrency, formatDate, formatRelative, toPersianDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 
 interface MyDashboard {
@@ -17,14 +18,22 @@ interface MyDashboard {
     total: number; overdue: number; dueThisWeek: number; awaitingAcceptance: number;
   };
   projects: { id: string; code: string; name: string; state: string; healthStatus: string; plannedEnd: string | null; company: { legalName: string } }[];
+  /** The opportunities I own and have not yet won or lost; null when the pipeline is not mine to see. */
+  opportunities: { id: string; code: string; title: string; state: string; estimatedValue: string; expectedCloseDate: string | null; company: { legalName: string } }[] | null;
   forms: { mySubmissionsPending: number; awaitingMyApproval: number };
   revisions: { items: { id: string; code: string; reason: string; dueDate: string; deliverable: { name: string } | null }[]; overdue: number };
   sla: { items: { id: string; state: string; dueAt: string; policy: { labelFa: string } }[]; breached: number; atRisk: number };
   unreadNotifications: number;
 }
 
+/** A tile is a way in: it opens the list it counts. */
+const TileLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
+  <Link to={to} className="block rounded-xl transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">{children}</Link>
+);
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const [projectsTab, setProjectsTab] = useState<'active' | 'sales'>('active');
   const { data, isLoading, error, refetch } = useQuery<MyDashboard>({
     queryKey: ['/reports/my-dashboard'],
     queryFn: () => apiGet('/reports/my-dashboard'),
@@ -55,27 +64,33 @@ export default function Dashboard() {
                 hint={data.tasks.dueThisWeek ? `${toPersianDigits(data.tasks.dueThisWeek)} مورد در این هفته` : 'مهلتی در این هفته نیست'}
                 icon={<IconCheckCircle className="size-4" />}
               />
-              <StatTile
-                label="سررسید گذشته"
-                value={<Count value={data.tasks.overdue} />}
-                tone={data.tasks.overdue > 0 ? 'danger' : 'success'}
-                hint={data.tasks.overdue > 0 ? 'نیازمند اقدام فوری' : 'همه در برنامه'}
-                icon={<IconClock className="size-4" />}
-              />
-              <StatTile
-                label="در انتظار تأیید من"
-                value={<Count value={data.forms.awaitingMyApproval} />}
-                tone={data.forms.awaitingMyApproval > 0 ? 'warning' : 'neutral'}
-                hint="فرم‌های ارجاع‌شده"
-                icon={<IconFile className="size-4" />}
-              />
-              <StatTile
-                label="SLA در خطر / نقض‌شده"
-                value={<Count value={data.sla.atRisk + data.sla.breached} />}
-                tone={data.sla.breached > 0 ? 'danger' : data.sla.atRisk > 0 ? 'warning' : 'success'}
-                hint={`${toPersianDigits(data.sla.breached)} نقض‌شده`}
-                icon={<IconAlert className="size-4" />}
-              />
+              <TileLink to="/my-work">
+                <StatTile
+                  label="وظایف تاخیردار"
+                  value={<Count value={data.tasks.overdue} />}
+                  tone={data.tasks.overdue > 0 ? 'danger' : 'success'}
+                  hint={data.tasks.overdue > 0 ? 'نیازمند اقدام فوری' : 'همه در برنامه'}
+                  icon={<IconClock className="size-4" />}
+                />
+              </TileLink>
+              <TileLink to="/forms?tab=inbox">
+                <StatTile
+                  label="در انتظار تأیید"
+                  value={<Count value={data.forms.awaitingMyApproval} />}
+                  tone={data.forms.awaitingMyApproval > 0 ? 'warning' : 'neutral'}
+                  hint="فرم‌های ارجاع‌شده"
+                  icon={<IconFile className="size-4" />}
+                />
+              </TileLink>
+              <TileLink to="/my-work">
+                <StatTile
+                  label="نقض روند"
+                  value={<Count value={data.sla.atRisk + data.sla.breached} />}
+                  tone={data.sla.breached > 0 ? 'danger' : data.sla.atRisk > 0 ? 'warning' : 'success'}
+                  hint={`${toPersianDigits(data.sla.breached)} نقض‌شده — ${toPersianDigits(data.sla.atRisk)} در خطر`}
+                  icon={<IconAlert className="size-4" />}
+                />
+              </TileLink>
             </div>
 
             <div className="grid gap-5 xl:grid-cols-3">
@@ -127,7 +142,7 @@ export default function Dashboard() {
               </Card>
 
               <div className="space-y-5">
-                <Card title="اصلاحیه‌های من" subtitle={data.revisions.overdue ? `${toPersianDigits(data.revisions.overdue)} مورد سررسید گذشته` : undefined}>
+                <Card title="اصلاحیه‌ها" subtitle={data.revisions.overdue ? `${toPersianDigits(data.revisions.overdue)} مورد سررسید گذشته` : undefined}>
                   {!data.revisions.items.length ? (
                     <EmptyState title="اصلاحیه بازی ندارید" />
                   ) : (
@@ -147,9 +162,9 @@ export default function Dashboard() {
                   )}
                 </Card>
 
-                <Card title="SLAهای من">
+                <Card title="روندهای من">
                   {!data.sla.items.length ? (
-                    <EmptyState title="SLA فعالی ندارید" />
+                    <EmptyState title="روند فعالی ندارید" />
                   ) : (
                     <ul className="divide-y divide-ink-100">
                       {data.sla.items.slice(0, 6).map((s) => (
@@ -167,9 +182,49 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Card title="پروژه‌های من" action={<Link to="/projects" className="text-xs text-brand-600 hover:underline">همه پروژه‌ها</Link>}>
-              {!data.projects.length ? (
-                <EmptyState title="پروژه فعالی ندارید" />
+            <Card title="پروژه‌های من" action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? 'همه فرصت‌ها' : 'همه پروژه‌ها'}</Link>}>
+              {data.opportunities && (
+                <Tabs
+                  active={projectsTab}
+                  onChange={(k) => setProjectsTab(k as 'active' | 'sales')}
+                  tabs={[
+                    { key: 'active', label: 'در حال اجرا (فعال)', count: data.projects.length },
+                    { key: 'sales', label: 'فروش (فرصت فروش)', count: data.opportunities.length },
+                  ]}
+                />
+              )}
+              {projectsTab === 'sales' && data.opportunities ? (
+                !data.opportunities.length ? (
+                  <EmptyState title="فرصت فروش بازی ندارید" description="فرصت‌هایی که مسئولشان هستید و هنوز برده یا باخته نشده‌اند، اینجا می‌آیند." />
+                ) : (
+                  <Table>
+                    <thead className="bg-ink-50/60">
+                      <tr>
+                        <Th>فرصت</Th>
+                        <Th>مشتری</Th>
+                        <Th>مرحله</Th>
+                        <Th>ارزش تخمینی</Th>
+                        <Th>بستن مورد انتظار</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.opportunities.map((o) => (
+                        <Tr key={o.id}>
+                          <Td>
+                            <Link to={`/opportunities/${o.id}`} className="font-medium text-brand-600 hover:underline">{o.title}</Link>
+                            <p className="ltr text-[11px] text-ink-400">{o.code}</p>
+                          </Td>
+                          <Td className="text-xs">{o.company?.legalName}</Td>
+                          <Td><StateBadge state={o.state} /></Td>
+                          <Td className="text-xs">{formatCurrency(o.estimatedValue)}</Td>
+                          <Td className="text-xs">{o.expectedCloseDate ? formatDate(o.expectedCloseDate) : '—'}</Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                )
+              ) : !data.projects.length ? (
+                <EmptyState title="پروژه در حال اجرایی ندارید" />
               ) : (
                 <Table>
                   <thead className="bg-ink-50/60">

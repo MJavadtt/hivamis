@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
@@ -60,8 +61,15 @@ interface Submission {
   project: { id: string; code: string; name: string } | null;
 }
 
+const FORM_TABS = ['catalogue', 'inbox', 'mine'] as const;
+
 export default function Forms() {
-  const [tab, setTab] = useState('catalogue');
+  // A link may name the tab (the dashboard's tiles) or one submission (approval emails, the phone):
+  // the latter opens it for a decision in the inbox.
+  const [params] = useSearchParams();
+  const linked = params.get('submission');
+  const asked = params.get('tab');
+  const [tab, setTab] = useState<string>(linked ? 'inbox' : FORM_TABS.includes(asked as never) ? asked! : 'catalogue');
   return (
     <>
       <PageHeader
@@ -85,7 +93,7 @@ export default function Forms() {
         {/* Whatever this device is still carrying, before anything else on the page. */}
         <Outbox />
         {tab === 'catalogue' && <Catalogue />}
-        {tab === 'inbox' && <Submissions awaitingMe />}
+        {tab === 'inbox' && <Submissions awaitingMe openId={linked} />}
         {tab === 'mine' && <Submissions mine />}
       </PageBody>
     </>
@@ -587,8 +595,9 @@ export function EntitySelect({ entity, value, onChange }: { entity: string; valu
 
 /* ── Submissions ───────────────────────────────────────────────────────── */
 
-function Submissions({ awaitingMe, mine }: { awaitingMe?: boolean; mine?: boolean }) {
+function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?: boolean; openId?: string | null }) {
   const [decide, setDecide] = useState<Submission | null>(null);
+  const toast = useToast();
   const { data, isLoading, error, refetch } = useQuery<{ items: Submission[]; total: number }>({
     queryKey: ['/forms/submissions', { awaitingMe, mine }],
     queryFn: () => apiGet('/forms/submissions', {
@@ -597,6 +606,16 @@ function Submissions({ awaitingMe, mine }: { awaitingMe?: boolean; mine?: boolea
       pageSize: 50,
     }),
   });
+
+  // Opened once from a link; a form no longer waiting for this person says so instead.
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    if (!openId || opened || !data) return;
+    setOpened(true);
+    const found = data.items.find((s) => s.id === openId);
+    if (found) setDecide(found);
+    else toast('این فرم دیگر در انتظار تصمیم شما نیست.', 'warning');
+  }, [openId, opened, data, toast]);
 
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
