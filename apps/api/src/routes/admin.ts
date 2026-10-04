@@ -14,7 +14,7 @@ import { audit } from '../lib/audit.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
-import { SLA_PAUSE_KINDS, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
+import { SLA_PAUSE_KINDS, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
 
 const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── Users (read is broad; write is admin-only) ──────────────────────── */
@@ -189,11 +189,33 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── Reference data ──────────────────────────────────────────────────── */
   app.get('/departments', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
-    return prisma.department.findMany({
+    const units = await prisma.department.findMany({
       where: { organizationId: actor.organizationId },
       include: { _count: { select: { users: true } } },
       orderBy: { sortOrder: 'asc' },
     });
+    // `color` is what every screen shows the unit in; `tagColor` is the administrator's choice, if any.
+    return units.map((u) => ({ ...u, color: unitColor(u.code, u.tagColor) }));
+  });
+
+  /**
+   * A unit's tag colour (Hivamis task 9): the colour its tag has on every screen. The system
+   * administrator chooses it; null returns the unit to its default. Recorded in the audit trail.
+   */
+  app.patch('/departments/:code/color', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const { color } = parse(unitColorSchema, req.body ?? {});
+    const dept = await prisma.department.findFirst({ where: { code, organizationId: actor.organizationId } });
+    if (!dept) throw notFound('واحد');
+    const updated = await prisma.department.update({ where: { id: dept.id }, data: { tagColor: color } });
+    if (dept.tagColor !== updated.tagColor) {
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'department', entityId: dept.id,
+        before: { tagColor: dept.tagColor }, after: { tagColor: updated.tagColor }, reason: 'tag colour', ipAddress: actor.ipAddress,
+      });
+    }
+    return { code: updated.code, tagColor: updated.tagColor, color: unitColor(updated.code, updated.tagColor) };
   });
 
   /* ── Calendars per unit and per person (roadmap #13) ────────────────── */

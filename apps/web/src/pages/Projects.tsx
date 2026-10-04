@@ -30,6 +30,7 @@ import { AnnotateButton } from '../components/Annotations';
 import { BrandLibraryCard } from '../components/BrandLibrary';
 import { ClientFilesCard, PortalMessagesCard } from '../components/PortalAdmin';
 import { loc, tr, trx } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 const PROJECT_STATES = [
   'DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE',
@@ -301,7 +302,7 @@ function Overview({ data }: { data: Project360 }) {
                 {p.raciAssignments.map((r: any) => (
                   <Tr key={r.id}>
                     <Td className="text-xs">{r.activity}</Td>
-                    <Td className="text-xs">{r.departmentCode}</Td>
+                    <Td><UnitTag code={r.departmentCode} /></Td>
                     <Td>
                       <Badge tone={r.raciRole === 'A' ? 'progress' : r.raciRole === 'R' ? 'success' : 'neutral'}>
                         {r.raciRole}
@@ -373,7 +374,7 @@ function WorkTab({ data }: { data: Project360 }) {
               {data.workOrders.map((w) => (
                 <Tr key={w.id}>
                   <Td><p className="text-sm">{w.title}</p><Code>{w.code}</Code></Td>
-                  <Td className="text-xs">{w.targetDepartmentCode}</Td>
+                  <Td><UnitTag code={w.targetDepartmentCode} /></Td>
                   <Td className="text-xs">{w.owner?.fullName}</Td>
                   <Td className="text-xs">{formatDate(w.deadline)}</Td>
                   <Td><StateBadge state={w.state} /></Td>
@@ -396,7 +397,7 @@ function WorkTab({ data }: { data: Project360 }) {
                 return (
                   <Tr key={t.id}>
                     <Td><p className="text-sm">{t.title}</p><Code>{t.code}</Code></Td>
-                    <Td className="text-xs">{t.departmentCode}</Td>
+                    <Td><UnitTag code={t.departmentCode} /></Td>
                     <Td className="text-xs">{t.assignee?.fullName ?? '—'}</Td>
                     <Td><Code>{t.sourceRef}</Code></Td>
                     <Td className={cx('text-xs', d !== null && d < 0 && !['APPROVED', 'CLOSED'].includes(t.state) && 'font-medium text-rose-600')}>
@@ -421,7 +422,7 @@ function WorkTab({ data }: { data: Project360 }) {
               {data.deliverables.map((d) => (
                 <Tr key={d.id}>
                   <Td><p className="text-sm">{d.name}</p><Code>{d.code}</Code></Td>
-                  <Td className="text-xs">{d.departmentCode}</Td>
+                  <Td><UnitTag code={d.departmentCode} /></Td>
                   <Td className="ltr text-xs">{d.version}</Td>
                   <Td className="text-xs">{formatDate(d.dueDate)}</Td>
                   <Td><StateBadge state={d.state} /></Td>
@@ -452,7 +453,7 @@ function QualityTab({ data }: { data: Project360 }) {
                 <Td><Code>{r.code}</Code></Td>
                 <Td><Badge tone="warning">{trx(REVISION_REASON_LABELS[r.reason] ?? r.reason)}</Badge></Td>
                 <Td className="max-w-sm text-xs">{r.requiredCorrection}</Td>
-                <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
+                <Td><UnitTag code={r.responsibleDepartmentCode} /></Td>
                 <Td className="text-xs">{formatDate(r.dueDate)}</Td>
                 <Td><StateBadge state={r.state} /></Td>
               </Tr>

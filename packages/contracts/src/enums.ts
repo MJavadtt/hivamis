@@ -22,6 +22,46 @@ export const DEPARTMENT_LABELS: Record<DepartmentCode, { fa: string; en: string 
   M: { fa: 'مدیریت', en: 'Management' },
 };
 
+/**
+ * Each unit's tag colour until the organisation's system administrator chooses another (Hivamis
+ * task 9): ten distinct hues, so two units side by side never read as one.
+ */
+export const DEFAULT_UNIT_COLORS: Record<DepartmentCode, string> = {
+  S: '#2563eb', A: '#7c3aed', ST: '#0d9488', CR: '#db2777', ME: '#ea580c',
+  DM: '#0891b2', FI: '#16a34a', LG: '#475569', OP: '#ca8a04', M: '#334155',
+};
+/** A colour as stored: `#rrggbb`, lower case. */
+export const UNIT_COLOR_RE = /^#[0-9a-f]{6}$/;
+/** For a unit outside the ten Doc_H codes. */
+const NEUTRAL_UNIT_COLOR = '#64748b';
+
+/** The colour a unit is shown in: the organisation's choice, else its default. */
+export function unitColor(code: string, chosen?: string | null): string {
+  return chosen ?? DEFAULT_UNIT_COLORS[code as DepartmentCode] ?? NEUTRAL_UNIT_COLOR;
+}
+
+const luminance = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** WCAG 2 contrast ratio between two `#rrggbb` colours. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Black or white, whichever reads better on `background`. One of the two always reaches at least
+ * 4.58:1, so any colour an administrator picks still gives a legible tag.
+ */
+export function textOn(background: string): '#000000' | '#ffffff' {
+  return contrastRatio(background, '#000000') >= contrastRatio(background, '#ffffff') ? '#000000' : '#ffffff';
+}
+
 /** Departments that execute specialist work and receive Project Orders (Doc_H §4, forms C.20–C.26). */
 export const EXECUTION_DEPARTMENTS: DepartmentCode[] = ['ST', 'CR', 'ME', 'DM'];
 

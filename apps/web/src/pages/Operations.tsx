@@ -17,7 +17,8 @@ import {
 } from '../components/ui';
 import { daysFromNow, formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
 import { TaskTime } from '../components/TaskTime';
-import { loc, tr, trx } from '../i18n';
+import { tr, trx } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 const UNITS = [
   { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
@@ -118,7 +119,7 @@ export function TaskDetail() {
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             <Code>{data.code}</Code>
-            <span>{tr('واحد')}{' '}{data.departmentCode}</span>
+            <UnitTag code={data.departmentCode} />
             {data.project && (
               <Link to={`/projects/${data.project.id}`} className="text-brand-600 hover:underline">
                 {data.project.name}
@@ -254,7 +255,7 @@ export function WorkOrdersList() {
           emptyTitle={tr('سفارشی صادر نشده')}
           columns={[
             { key: 'title', header: tr('سفارش'), render: (r) => (<><p className="font-medium text-ink-800">{r.title}</p><Code>{r.code}</Code></>) },
-            { key: 'unit', header: tr('واحد مقصد'), render: (r) => <span className="text-xs">{r.targetDepartmentCode}</span> },
+            { key: 'unit', header: tr('واحد مقصد'), render: (r) => <UnitTag code={r.targetDepartmentCode} /> },
             { key: 'project', header: tr('پروژه'), render: (r) => <span className="text-xs">{r.project?.name}</span> },
             { key: 'owner', header: tr('مسئول'), render: (r) => <span className="text-xs">{r.owner?.fullName}</span> },
             { key: 'deadline', header: tr('مهلت'), render: (r) => <span className="text-xs">{formatDate(r.deadline)}</span> },
@@ -285,7 +286,7 @@ export function WorkOrderDetail() {
         title={data.title}
         badge={<StateBadge state={data.state} />}
         subtitle={<span className="flex items-center gap-2"><Code>{data.code}</Code>
-          <span>{tr('واحد')}{' '}{data.targetDepartmentCode}</span>
+          <UnitTag code={data.targetDepartmentCode} />
           {data.project && <Link to={`/projects/${data.project.id}`} className="text-brand-600 hover:underline">{data.project.name}</Link>}</span>}
         actions={
           <>
@@ -694,7 +695,7 @@ export function Traffic() {
                   {data.rows.map((r: any) => (
                     <Tr key={r.user.id}>
                       <Td><p className="text-sm">{r.user.fullName}</p><p className="text-[11px] text-ink-400">{trx(r.user.jobTitle)}</p></Td>
-                      <Td className="text-xs">{loc(r.department, 'name') || '—'}</Td>
+                      <Td><UnitTag code={r.department?.code} /></Td>
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.capacityHours))}{r.leaveHours > 0 && <Badge tone="info" className="ms-1">{tr('{0} س مرخصی', localDigits(r.leaveHours))}</Badge>}
                       </Td>
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.committedHours))}</Td>

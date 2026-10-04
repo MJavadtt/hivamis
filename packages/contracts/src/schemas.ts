@@ -1066,3 +1066,10 @@ export const updateFormDefinitionSchema = z.object({
   nextProcessFa: z.string().trim().max(200).nullish(),
   isActive: z.boolean().optional(),
 });
+
+/* ── unit tag colours (Hivamis task 9) ─────────────────────────────────────── */
+
+/** A unit's tag colour; null returns it to the default. Stored lower case. */
+export const unitColorSchema = z.object({
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'رنگ باید به شکل #RRGGBB باشد').transform((v) => v.toLowerCase()).nullable(),
+});

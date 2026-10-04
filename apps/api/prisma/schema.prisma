@@ -179,6 +179,8 @@ model Department {
   isExecutionalUnit Boolean   @default(false)
   managerId      String?
   sortOrder      Int          @default(0)
+  /// The unit's tag colour, `#rrggbb` (Hivamis task 9); null shows the default from @hiva/contracts.
+  tagColor       String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

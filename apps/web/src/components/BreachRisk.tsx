@@ -4,6 +4,7 @@ import { apiGet } from '../lib/api';
 import { Badge, Card, EmptyState, ProgressBar, StatTile, Table, Td, Th, Tr } from './ui';
 import { formatDate, localDigits } from '../lib/format';
 import { loc, tr, trx } from '../i18n';
+import { UnitTag } from './UnitTag';
 
 interface Prediction {
   clockId: string; policyCode: string; policyFa: string; entityType: string; entityId: string;
@@ -48,7 +49,7 @@ export function BreachRisk({ mine }: { mine?: boolean }) {
                 <Tr key={p.clockId}>
                   <Td>
                     <p className="text-sm">{loc(p, 'policy')}</p>
-                    {p.departmentCode && <p className="text-[11px] text-ink-400">{tr('واحد {0}', p.departmentCode)}</p>}
+                    {p.departmentCode && <p className="mt-0.5"><UnitTag code={p.departmentCode} /></p>}
                   </Td>
                   <Td className="text-xs">
                     <Link to={`/${p.entityType}s/${p.entityId}`} className="text-brand-600 hover:underline">

@@ -11,6 +11,7 @@ import {
 import { formatDateTime, localDigits } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import { WorkCalendars } from '../components/WorkCalendars';
+import { UnitColors } from '../components/UnitColors';
 import { RuleVersions } from '../components/RuleVersions';
 import { RuleLab } from '../components/RuleLab';
 import { FormRouting } from '../components/FormRouting';
@@ -21,6 +22,7 @@ import { MessengerAdmin } from '../components/Messenger';
 import { LeadReferrers } from '../components/LeadSource';
 import { RoleGrants } from '../components/RoleGrants';
 import { loc, tr, trx } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
@@ -28,6 +30,7 @@ const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
   { key: 'roles', label: tr('نقش‌ها و دسترسی‌ها'), anyOf: ['admin.roles', 'admin.audit'] },
   { key: 'sla', label: tr('سیاست‌های SLA'), anyOf: ['admin.settings'] },
   { key: 'calendar', label: tr('تقویم کاری'), anyOf: ['admin.settings'] },
+  { key: 'units', label: tr('رنگ واحدها'), anyOf: ['admin.settings'] },
   { key: 'rules', label: tr('نسخه‌های قوانین'), anyOf: ['admin.audit'] },
   { key: 'lab', label: tr('آزمایشگاه قانون'), anyOf: ['admin.audit'] },
   { key: 'designer', label: tr('طراح فرم'), anyOf: ['admin.settings'] },
@@ -59,6 +62,7 @@ export default function Admin() {
         {tab === 'roles' && <RoleGrants />}
         {tab === 'sla' && <SlaPolicies />}
         {tab === 'calendar' && <WorkCalendars />}
+        {tab === 'units' && <UnitColors />}
         {tab === 'rules' && <RuleVersions />}
         {tab === 'lab' && <RuleLab />}
         {tab === 'designer' && <FormDesigner />}
@@ -103,7 +107,7 @@ function Users() {
             <Tr key={u.id}>
               <Td><p className="text-sm font-medium">{u.fullName}</p><p className="text-[11px] text-ink-400">{trx(u.jobTitle)}</p></Td>
               <Td className="ltr text-xs">{u.email}</Td>
-              <Td className="text-xs">{trx(u.department?.nameFa ?? '—')}</Td>
+              <Td><UnitTag code={u.department?.code} /></Td>
               {detailed && (
                 <>
                   <Td>

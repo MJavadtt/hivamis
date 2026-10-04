@@ -388,6 +388,13 @@ hours — a production unit that works Thursdays, a shift unit with different ho
 person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in
 the hours of whoever holds them: a clock owned by someone on leave does not run.
 
+**Unit colours («رنگ واحدها» under Admin).** Every unit appears as a coloured tag — in work-order,
+task, deliverable and revision tables, the traffic board, the unit reports and the user list. Each
+unit starts in a colour of its own; the system administrator changes it with one click on a swatch,
+or picks any colour by hand, and **پیش‌فرض** returns it to the default. The tag's text turns black or
+white by itself, so every colour stays legible. The change is recorded in the audit trail, and
+everyone sees it the next time their page loads its units (at most five minutes).
+
 
 **Asking the numbers («پرسش از داده‌ها» under Reports).** Type the question as you would ask it —
 «حاشیه سود پروژه‌های واحد رسانه در سه ماه گذشته چقدر بوده؟», «کدام واحد بیشترین اصلاحیه را

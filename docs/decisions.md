@@ -1482,3 +1482,26 @@ questions only. The user guide is written in English and shown as it is in both 
 Persian word with two meanings in two places has one English; where that read wrong («ورود» as both
 "Sign in" and "Import") the Persian source was made specific. Text an organisation types itself —
 a department's name, a rule's label — is English only where they gave an English side.
+
+---
+
+## ADR-057 — A unit is a coloured tag, in a colour the system administrator chooses
+
+**Decision.** (Hivamis task 9.) Each unit has a tag colour: `departments.tagColor`, `#rrggbb` lower
+case (a database CHECK refuses anything else), null meaning the unit's default from
+`DEFAULT_UNIT_COLORS` in `@hiva/contracts` — ten distinct hues, so a fresh installation already tells
+its units apart. The system administrator (`admin.settings`) sets it from Administration → Unit
+colours (`PATCH /departments/:code/color`), one click per swatch or any colour by hand, and the change
+is audited. Wherever the web showed a unit as a bare code it now shows `<UnitTag>`: the unit's name on
+its colour, with black or white text chosen by contrast (`textOn`), the code in the tooltip.
+
+**Rationale.** The person who asked wanted units recognisable at a glance across the system, and the
+organisation, not the product, to decide what each unit looks like. Choosing the text colour instead
+of restricting the palette means no colour the administrator likes is refused: for any background one
+of black or white reaches at least 4.58:1, above WCAG AA for small text. The tag reads the units list
+the calendar and form pages already share (`GET /departments`, kept five minutes), so it costs no new
+request.
+
+**Limits.** A colour change reaches other people's open pages when their units list is next fetched
+— within five minutes, or on reload — not instantly. Charts keep their own series colours; PDFs and
+emails do not show unit colours.

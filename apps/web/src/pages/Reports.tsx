@@ -21,6 +21,7 @@ import { AskReports } from '../components/AskReports';
 import { RevenueReport } from '../components/Revenue';
 import { MediaReport } from '../components/Media';
 import { loc, tr, trx } from '../i18n';
+import { UnitTag, useUnits } from '../components/UnitTag';
 
 const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -271,21 +272,19 @@ function SalesReport() {
   );
 }
 
-const UNIT_NAMES: Record<string, string> = {
-  ST: tr('استراتژی'), CR: tr('خلاقیت / گرافیک / تولید'), ME: tr('رسانه'), DM: tr('دیجیتال مارکتینگ'),
-};
-
 function UnitsReport() {
   const { data, isLoading, error, refetch } = useQuery<any[]>({
     queryKey: ['/reports/units'], queryFn: () => apiGet('/reports/units'),
   });
+  const { data: units } = useUnits();
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
 
+  // Keys are stable; the bars carry the words, in the reader's language.
   const chart = (data ?? []).map((u) => ({
-    name: UNIT_NAMES[u.unit] ?? u.unit,
-    'تحویل به‌موقع': u.onTimeDeliveryRate ?? 0,
-    'First Pass Yield': u.firstPassYield ?? 0,
+    name: loc(units?.find((x) => x.code === u.unit), 'name') || u.unit,
+    onTime: u.onTimeDeliveryRate ?? 0,
+    firstPass: u.firstPassYield ?? 0,
   }));
 
   return (
@@ -299,8 +298,8 @@ function UnitsReport() {
               <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
               <Tooltip formatter={(v: number) => tr('{0}٪', localDigits(v))} />
               <Legend wrapperStyle={{ fontFamily: 'Vazirmatn', fontSize: 12 }} />
-              <Bar dataKey={tr('تحویل به‌موقع')} fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="First Pass Yield" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="onTime" name={tr('تحویل به‌موقع')} fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="firstPass" name="First Pass Yield" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -315,7 +314,7 @@ function UnitsReport() {
           <tbody>
             {(data ?? []).map((u) => (
               <Tr key={u.unit}>
-                <Td className="text-sm font-medium">{UNIT_NAMES[u.unit] ?? u.unit}</Td>
+                <Td><UnitTag code={u.unit} /></Td>
                 <Td className="nums text-xs">{localDigits(u.openTasks)}</Td>
                 <Td className="nums text-xs">{localDigits(u.completedTasks)}</Td>
                 <Td className="nums text-xs">
@@ -504,7 +503,7 @@ function CostAccuracy() {
             <tbody data-testid="cost-accuracy">
               {data.units.map((u: any) => (
                 <Tr key={u.departmentCode}>
-                  <Td className="text-xs">{u.departmentCode}</Td>
+                  <Td><UnitTag code={u.departmentCode} /></Td>
                   <Td className="nums text-xs">{localDigits(u.workOrders)}</Td>
                   <Td className="nums text-xs">{formatCurrency(u.declared)}</Td>
                   <Td className="nums text-xs">{localDigits(u.hours)}{u.unpricedHours > 0 && <span className="text-ink-400">{' '}{tr('({0} بدون نرخ)', localDigits(u.unpricedHours))}</span>}</Td>

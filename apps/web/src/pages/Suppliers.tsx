@@ -8,6 +8,7 @@ import { Code, EntityList } from '../components/common';
 import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, Select, StatTile, StateBadge, cx } from '../components/ui';
 import { formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
 import { tr, trx } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 const UNITS = [
   { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
@@ -48,7 +49,7 @@ export default function Suppliers() {
             columns={[
               { key: 'name', header: tr('نام'), render: (r) => (<><p className="font-medium text-ink-800">{r.name}</p><span className="text-xs text-ink-500">{r.specialty}</span></>) },
               { key: 'kind', header: tr('نوع'), render: (r) => <Badge tone="neutral">{trx(stateLabelFa(r.kind))}</Badge> },
-              { key: 'unit', header: tr('واحد'), render: (r) => <span className="text-xs">{r.departmentCode ?? '—'}</span> },
+              { key: 'unit', header: tr('واحد'), render: (r) => <UnitTag code={r.departmentCode} /> },
               { key: 'rating', header: tr('امتیاز'), render: (r) => <span className="nums text-xs">{r.averageRating == null ? '—' : localDigits(Math.round(Number(r.averageRating) * 10) / 10)}</span> },
               { key: 'rate', header: tr('نرخ روزانه'), render: (r) => <span className="nums text-xs">{r.dayRate ? formatCurrency(Number(r.dayRate)) : '—'}</span> },
               { key: 'active', header: tr('وضعیت'), render: (r) => <Badge tone={r.isActive ? 'success' : 'neutral'}>{r.isActive ? tr('فعال') : tr('غیرفعال')}</Badge> },

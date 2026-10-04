@@ -16,6 +16,7 @@ import {
 import { exactCurrency, formatCurrency, formatDate, formatPercent, localDigits } from '../lib/format';
 import { ProposalApprovalCard } from '../components/ClientApprovals';
 import { tr } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 /* ── Briefs ────────────────────────────────────────────────────────────── */
 
@@ -266,7 +267,7 @@ export function ProposalDetail() {
                   {data.workOrders.map((w: any) => (
                     <Tr key={w.id}>
                       <Td><p className="text-sm">{w.title}</p><Code>{w.code}</Code></Td>
-                      <Td className="text-xs">{w.targetDepartmentCode}</Td>
+                      <Td><UnitTag code={w.targetDepartmentCode} /></Td>
                       <Td className="text-xs">{formatDate(w.deadline)}</Td>
                       <Td><StateBadge state={w.state} /></Td>
                     </Tr>
@@ -283,7 +284,7 @@ export function ProposalDetail() {
               <ul className="divide-y divide-ink-100">
                 {data.costDeclarations.map((c: any) => (
                   <li key={c.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
-                    <span className="text-sm text-ink-700">{c.departmentCode}</span>
+                    <UnitTag code={c.departmentCode} />
                     <span className="text-sm nums" title={exactCurrency(Number(c.internalCost) + Number(c.externalCost))}>
                       {formatCurrency(Number(c.internalCost) + Number(c.externalCost))}
                     </span>

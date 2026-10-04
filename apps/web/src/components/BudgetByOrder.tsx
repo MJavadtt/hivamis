@@ -4,6 +4,7 @@ import { Code } from './common';
 import { Badge, Card, EmptyState, ProgressBar, Table, Td, Th, Tr } from './ui';
 import { formatCurrency, localDigits } from '../lib/format';
 import { pair, tr } from '../i18n';
+import { UnitTag } from './UnitTag';
 
 interface Row {
   workOrderId: string; code: string; title: string; departmentCode: string; state: string;
@@ -43,7 +44,7 @@ export function BudgetByOrder({ projectId }: { projectId: string }) {
             {data.workOrders.map((w) => (
               <Tr key={w.workOrderId}>
                 <Td><p className="text-sm">{w.title}</p><Code>{w.code}</Code></Td>
-                <Td className="text-xs">{w.departmentCode}</Td>
+                <Td><UnitTag code={w.departmentCode} /></Td>
                 <Td className="nums text-xs">{w.budget == null ? '—' : formatCurrency(w.budget)}</Td>
                 <Td className="nums text-xs">{formatCurrency(w.declared)} <span className="text-ink-400">({localDigits(w.declarations)})</span></Td>
                 <Td className={`nums text-xs ${w.variance != null && w.variance < 0 ? 'text-rose-700' : 'text-ink-600'}`}>
@@ -59,7 +60,7 @@ export function BudgetByOrder({ projectId }: { projectId: string }) {
               {data.units.map((u) => (
                 <tr key={u.departmentCode}>
                   <Td className="text-ink-500">{tr('جمع واحد')}</Td>
-                  <Td>{u.departmentCode}</Td>
+                  <Td><UnitTag code={u.departmentCode} /></Td>
                   <Td className="nums">{formatCurrency(u.budget)}</Td>
                   <Td className="nums">{formatCurrency(u.declared)}</Td>
                   <Td className="nums">{formatCurrency(u.budget - u.declared)}</Td>

@@ -16,6 +16,7 @@ import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { AnnotateButton, AnnotationsModal, timecodeFa, type AnnotationRow } from '../components/Annotations';
 import { tr, trx } from '../i18n';
+import { UnitTag } from '../components/UnitTag';
 
 interface QcQueue {
   unit: any[]; account: any[]; final: any[]; revisions: any[];
@@ -149,7 +150,7 @@ function QueueTable({ rows, level, isProposal, canReview, onReview }: {
               {!isProposal && <div className="mt-1"><StageZero deliverable={r} /></div>}
               {!isProposal && <UnitQcNote review={r.qcReviews?.[0]} />}
             </Td>
-            {!isProposal && <Td className="text-xs">{r.departmentCode}</Td>}
+            {!isProposal && <Td><UnitTag code={r.departmentCode} /></Td>}
             <Td className="text-xs">
               {isProposal ? r.brief?.title
                 : r.project ? <Link to={`/projects/${r.project.id}`} className="text-brand-600 hover:underline">{r.project.name}</Link> : '—'}
@@ -219,7 +220,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
               </Td>
               <Td><Badge tone="warning">{trx(REVISION_REASON_LABELS[r.reason] ?? r.reason)}</Badge></Td>
               <Td className="max-w-xs whitespace-pre-line text-xs">{r.requiredCorrection}</Td>
-              <Td className="text-xs">{r.responsibleDepartmentCode}</Td>
+              <Td><UnitTag code={r.responsibleDepartmentCode} /></Td>
               <Td className="text-xs">
                 <span className={overdue ? 'font-medium text-rose-600' : ''}>{formatDate(r.dueDate)}</span>
                 <p className="text-[11px] text-ink-400">{formatRelative(r.dueDate)}</p>
