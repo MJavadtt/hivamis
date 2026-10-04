@@ -11,6 +11,8 @@ import ApprovePublic from './pages/ApprovePublic';
 import Activate from './pages/Activate';
 import PortalApp from './pages/Portal';
 import ESignSandbox from './pages/ESignSandbox';
+import Signup from './pages/Signup';
+import GoogleReturn from './pages/GoogleReturn';
 import { AuthProvider } from './lib/auth';
 import { ThemeProvider } from './lib/theme';
 import { LocaleProvider } from './lib/locale';
@@ -52,6 +54,9 @@ const esignToken = /^\/esign-sandbox\/([\w-]{20,100})\/?$/.exec(window.location.
 const activationToken = /^\/activate\/([\w-]{20,100})\/?$/.exec(window.location.pathname)?.[1] ?? null;
 /** The client portal (roadmap #34): its own sign-in, never the staff session. */
 const isPortal = /^\/portal(\/|$)/.test(window.location.pathname);
+/** Asking to join, and the way back from Google (Hivamis task 4) — before there is any session. */
+const isSignup = /^\/signup\/?$/.test(window.location.pathname);
+const isGoogleReturn = /^\/auth\/google\/?$/.test(window.location.pathname);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -59,7 +64,7 @@ createRoot(document.getElementById('root')!).render(
       <ToastProvider>
         <LocaleProvider>
           <ThemeProvider>
-          {approvalToken ? <ApprovePublic token={approvalToken} /> : activationToken ? <Activate token={activationToken} /> : esignToken ? <ESignSandbox token={esignToken} /> : isPortal ? <BrowserRouter><PortalApp /></BrowserRouter> : (
+          {approvalToken ? <ApprovePublic token={approvalToken} /> : activationToken ? <Activate token={activationToken} /> : esignToken ? <ESignSandbox token={esignToken} /> : isSignup ? <Signup /> : isGoogleReturn ? <GoogleReturn /> : isPortal ? <BrowserRouter><PortalApp /></BrowserRouter> : (
           <AuthProvider>
           <BrowserRouter>
             <App />

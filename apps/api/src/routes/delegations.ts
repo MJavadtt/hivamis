@@ -125,7 +125,7 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
       const row = await tx.delegation.update({ where: { id }, data: { revokedAt: new Date(), revokedById: actor.id } });
       // The borrowed permissions live in the delegate's token until it expires; end the
       // sessions so the revocation is immediate — the precedent set by role changes.
-      await tx.session.updateMany({ where: { userId: d.toUserId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.session.updateMany({ where: { userId: d.toUserId, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DELEGATION_REVOKED' } });
       return row;
     });
     await audit({

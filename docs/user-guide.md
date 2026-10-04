@@ -20,6 +20,20 @@ everyone holding the role: what was taken away disappears from their screens on 
 Full access is not exemption: the process rules (a project without authorization, a delivery without
 QC) still stop everyone, and the managing director's governed exception remains the way past one.
 
+**Other ways in.** Where the installation offers them, the sign-in page also takes a **mobile
+number** — a six-digit code is texted to it — and **Google** («ورود با حساب گوگل»). The mobile must
+first be verified on your own page; a Google account whose address is your work email is linked the
+first time you use it. Someone who has no account yet can **ask to join** («درخواست عضویت») with a
+mobile or a Google account; the system administrator approves the request under Admin → Users,
+choosing the unit and roles, and nothing is granted before that.
+
+**Your page («صفحهٔ من»)** — click your name at the bottom of the menu. It lists your ways in: a
+password (set a first one if you joined with a mobile or Google, or change it), a verified mobile, a
+linked Google account — at least one always stays — and the devices you are signed in on, each of
+which you can sign out. **Colleagues («همکاران»)** lists everyone; each person has a page with their
+unit, roles, email and, where you may see them, their open tasks and projects. Mobile numbers and last
+sign-ins are shown only to the person themselves and to the administrators of users.
+
 **Language.** The **EN** / **فا** button at the top switches the whole interface between Persian and
 English; the page reloads in the other language and remembers the choice, here and on your next
 device. In English, numbers use Latin digits, amounts read "Rials", dates are Gregorian and date

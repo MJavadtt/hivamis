@@ -27,6 +27,9 @@ const MyWork = lazy(() => import('./pages/MyWork'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const Delegations = lazy(() => import('./pages/Delegations'));
 const Memory = lazy(() => import('./pages/Memory'));
+const Me = lazy(() => import('./pages/Me'));
+const PeopleDirectory = lazy(() => import('./pages/People').then((m) => ({ default: m.PeopleDirectory })));
+const PersonPage = lazy(() => import('./pages/People').then((m) => ({ default: m.PersonPage })));
 // The phone's three loops (roadmap #49): a screen of its own, without the desktop shell.
 const Mobile = lazy(() => import('./pages/Mobile'));
 
@@ -67,6 +70,9 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/delegations" element={<Delegations />} />
+        <Route path="/me" element={<Me />} />
+        <Route path="/people" element={<PeopleDirectory />} />
+        <Route path="/people/:id" element={<PersonPage />} />
 
         <Route path="/leads" element={<Guarded permission="crm.lead.read" element={<LeadsList />} />} />
         <Route path="/opportunities" element={<Guarded permission="crm.opportunity.read" element={<OpportunitiesList />} />} />

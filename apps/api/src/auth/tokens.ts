@@ -21,6 +21,8 @@ export interface AccessTokenClaims {
   apiKeyId?: string;
   /** How many grants each of the holder's roles had had when this token was issued (Hivamis task 6). */
   gv?: Record<string, number>;
+  /** The session this token was issued for, so a person can tell this device from their others (Hivamis task 4). */
+  sid?: string;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {

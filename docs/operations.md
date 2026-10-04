@@ -75,6 +75,10 @@ on first sign-in), then deactivate the demo users.
 | `ESIGN_URL` · `ESIGN_API_KEY` | for `http` | — | The provider bridge's base URL and bearer key |
 | `ESIGN_WEBHOOK_SECRET` | for `http` | — | HMAC key for the provider's callbacks; without it every callback is refused |
 | `MESSENGER_MODE` | no | `sandbox` outside production, `off` in production | Messenger (roadmap #40): `sandbox` — an in-app chat; `bale` / `telegram` — a bot on the Bot API; `off` |
+| `SMS_MODE` | no | `sandbox` outside production, `off` in production | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages for an administrator to read (Admin → Users); `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
+| `SMS_API_KEY`, `SMS_TEMPLATE`, `SMS_URL` | with `kavenegar` / `http` | — | The provider's key; Kavenegar's verify template (one token, the code); the `http` endpoint |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for Google sign-in | — | An OAuth client of type "Web application"; register `PUBLIC_APP_URL` (or the first `CORS_ORIGIN`) + `/api/v1/auth/google/callback` as its redirect URI. Unset: no Google button |
+| `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains allowed to ask to join with Google; signing in with an already-linked account is unaffected |
 | `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
 | `MESSENGER_API_URL` | no | the provider's | Bot API base, e.g. a proxy in front of it |
 | `MESSENGER_BOT_USERNAME` | no | — | Shown to people linking, and used for Telegram deep links |
@@ -419,6 +423,26 @@ Roadmap #40. To connect a bot:
 transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a
 stand-in, not against either service — link one person and approve one form end to end before
 announcing it. Eitaa, Slack and Teams are not connected.
+
+## Signing in with a mobile or Google, and asking to join
+
+Hivamis task 4. Besides email and password, people can sign in with a six-digit code texted to a
+mobile they verified (on their own page, «صفحهٔ من»), or with a Google account linked to them. Both
+only prove who someone is; their roles still decide what they may do.
+
+- **SMS.** Out of the box (outside production) codes go to the sandbox: Admin → Users shows them, so
+  a developer can sign in without a provider. For real use set `SMS_MODE=kavenegar` with
+  `SMS_API_KEY` and a verify template (`SMS_TEMPLATE`) whose single token is the code, or `http` with
+  `SMS_URL` behind a small adapter for another provider. Outside the sandbox the code is never stored —
+  only an HMAC of it in `otp_codes`, and the text with the code masked in `sms_outbox`.
+- **Google.** Create an OAuth client (Google Cloud Console → APIs & Services → Credentials → Web
+  application), add the redirect URI above, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. A
+  verified Google address equal to someone's work email signs that person in and links the account;
+  anyone else can only ask to join.
+- **Asking to join** (`/signup`) is open while at least one of the two is available; the administrator
+  can close it (Admin → Users → «پذیرش درخواست عضویت»). A request grants nothing: the administrator
+  of users approves it and chooses the unit and roles (never system administration), or rejects it
+  with a reason. The account has no password until its owner sets one on their own page.
 
 ## Notices on the phone
 

@@ -1,7 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import {
-  changePasswordSchema, loginSchema, permissionsForRoles, updateLocaleSchema, type RoleCode,
-} from '@hiva/contracts';
+import { changePasswordSchema, loginSchema, updateLocaleSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { parse, actorFrom } from '../lib/http.js';
 import { badRequest, unauthorized } from '../lib/errors.js';
@@ -9,72 +7,11 @@ import { hashPassword, verifyPassword } from '../auth/password.js';
 import { generateRefreshToken, hashToken, signAccessToken, ttlToMs } from '../auth/tokens.js';
 import { audit } from '../lib/audit.js';
 import { env } from '../env.js';
-import { grantsOf, permissionsFor, versionsFor } from '../auth/grants.js';
+import { claimsFor } from '../auth/claims.js';
+import { issueSession, countFailure } from '../auth/session.js';
 
-const MAX_FAILED = 5;
-const LOCK_MS = 15 * 60_000;
-
-/** The claims a user signs in with — roles, permissions, delegations as of now. Also used by the messenger (#40). */
-export async function claimsFor(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { department: true, roles: { include: { role: true } } },
-  });
-  if (!user) throw unauthorized();
-  const roles = user.roles.map((r) => r.role.code as RoleCode);
-  // As the organisation's administrator granted them (Hivamis task 6); `gv` dates the grants.
-  const grants = await grantsOf(user.organizationId);
-  const native = permissionsForRoles(roles, grants.map);
-  const { permissions, delegated, delegatedRoles, roles: allRoles } = await withDelegations(user.id, user.organizationId, roles, native);
-  return {
-    user,
-    claims: {
-      sub: user.id,
-      organizationId: user.organizationId,
-      departmentCode: user.department?.code ?? null,
-      roles: allRoles,
-      permissions,
-      gv: versionsFor(grants, allRoles),
-      ...(Object.keys(delegated).length ? { delegated } : {}),
-      ...(Object.keys(delegatedRoles).length ? { delegatedRoles } : {}),
-    },
-  };
-}
-
-/**
- * Fold the user's active delegations into their grants (roadmap #6). A delegated permission is
- * only granted if the delegator still holds it themselves at this moment — a delegation must
- * not outlive a demotion — and never overrides what the delegate already has natively, so the
- * attribution map names only what came from someone else.
- */
-async function withDelegations(userId: string, organizationId: string, roles: RoleCode[], native: readonly string[]) {
-  const now = new Date();
-  const active = await prisma.delegation.findMany({
-    where: { toUserId: userId, revokedAt: null, startsAt: { lte: now }, endsAt: { gt: now } },
-    orderBy: { createdAt: 'asc' },
-  });
-  const permissions = new Set<string>(native);
-  const allRoles = new Set<string>(roles);
-  const delegated: Record<string, string> = {};
-  const delegatedRoles: Record<string, string> = {};
-  for (const d of active) {
-    const from = await prisma.user.findUnique({
-      where: { id: d.fromUserId }, select: { isActive: true, roles: { select: { role: { select: { code: true } } } } },
-    });
-    if (!from?.isActive) continue;
-    const fromRoles = from.roles.map((r) => r.role.code as RoleCode);
-    const fromPerms = new Set<string>(await permissionsFor(organizationId, fromRoles));
-    for (const p of d.permissions) {
-      if (!fromPerms.has(p) || permissions.has(p)) continue;
-      permissions.add(p); delegated[p] = d.fromUserId;
-    }
-    for (const r of d.roles) {
-      if (!fromRoles.includes(r as RoleCode) || allRoles.has(r)) continue;
-      allRoles.add(r); delegatedRoles[r] = d.fromUserId;
-    }
-  }
-  return { permissions: [...permissions], roles: [...allRoles], delegated, delegatedRoles };
-}
+/** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
+export { claimsFor };
 
 const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/auth/login', {
@@ -85,21 +22,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
 
     // Uniform failure response — never reveal whether the address exists.
     const fail = async (reason: string) => {
-      if (user) {
-        const failed = user.failedLoginCount + 1;
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            failedLoginCount: failed,
-            lockedUntil: failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MS) : user.lockedUntil,
-          },
-        });
-        await audit({
-          organizationId: user.organizationId, actorId: user.id, action: 'LOGIN_FAILED',
-          entityType: 'user', entityId: user.id, reason,
-          ipAddress: req.ip, userAgent: req.headers['user-agent'] ?? null,
-        }).catch(() => undefined);
-      }
+      if (user) await countFailure(user.id, req, reason);
       throw unauthorized('ایمیل یا رمز عبور نادرست است');
     };
 
@@ -109,43 +32,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
     if (!(await verifyPassword(user.passwordHash, password))) return fail('bad-password');
 
-    const { claims } = await claimsFor(user.id);
-    const accessToken = await signAccessToken(claims);
-    const refresh = generateRefreshToken();
-
-    await prisma.$transaction([
-      prisma.session.create({
-        data: {
-          userId: user.id,
-          refreshTokenHash: refresh.hash,
-          userAgent: req.headers['user-agent'] ?? null,
-          ipAddress: req.ip,
-          expiresAt: new Date(Date.now() + ttlToMs(env.REFRESH_TOKEN_TTL)),
-        },
-      }),
-      prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null },
-      }),
-    ]);
-
-    await audit({
-      organizationId: user.organizationId, actorId: user.id, action: 'LOGIN',
-      entityType: 'user', entityId: user.id,
-      ipAddress: req.ip, userAgent: req.headers['user-agent'] ?? null,
-    });
-
-    return {
-      accessToken,
-      refreshToken: refresh.token,
-      mustChangePassword: user.mustChangePassword,
-      user: {
-        id: user.id, email: user.email, fullName: user.fullName, jobTitle: user.jobTitle,
-        departmentCode: claims.departmentCode, roles: claims.roles, permissions: claims.permissions,
-        delegated: claims.delegated ?? {}, delegatedRoles: claims.delegatedRoles ?? {},
-        locale: user.locale,
-      },
-    };
+    return issueSession(user.id, req, 'password');
   });
 
   /** A display preference, so it needs only an authenticated caller — no admin permission. */
@@ -182,10 +69,15 @@ const authRoutes: FastifyPluginAsync = async (app) => {
      * at this scale — tens of staff, a few devices each — forcing everyone on the account to
      * sign in again is the correct response to a stolen credential, not collateral damage.
      */
+    // Ended on purpose — signed out, a password or role change, a delegation's end: simply over.
+    // Only a token rotated away (or one from before reasons were kept) means someone kept a copy.
+    if (session.revokedAt && session.revokedReason && session.revokedReason !== 'ROTATED') {
+      throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+    }
     if (session.revokedAt) {
       const { count } = await prisma.session.updateMany({
         where: { userId: session.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), revokedReason: 'REUSE' },
       });
       const owner = await prisma.user.findUnique({
         where: { id: session.userId },
@@ -214,13 +106,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     // Login rejects a deactivated or deleted user; refresh must agree, or a revoked employee
     // keeps minting access tokens until the refresh token expires days later.
     if (!sessionUser.isActive || sessionUser.deletedAt) {
-      await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+      await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
     // Rotate: the presented refresh token is single-use.
     const next = generateRefreshToken();
-    await prisma.$transaction([
-      prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } }),
+    const [, rotated] = await prisma.$transaction([
+      prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'ROTATED' } }),
       prisma.session.create({
         data: {
           userId: session.userId, refreshTokenHash: next.hash,
@@ -229,7 +121,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         },
       }),
     ]);
-    return { accessToken: await signAccessToken(claims), refreshToken: next.token };
+    return { accessToken: await signAccessToken({ ...claims, sid: rotated.id }), refreshToken: next.token };
   });
 
   app.post('/auth/logout', { preHandler: [app.authenticate] }, async (req, reply) => {
@@ -237,12 +129,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     const { refreshToken } = (req.body ?? {}) as { refreshToken?: string };
     if (refreshToken) {
       await prisma.session.updateMany({
-        where: { refreshTokenHash: hashToken(refreshToken), userId: actor.id },
-        data: { revokedAt: new Date() },
+        // Only a live one: a token already rotated away keeps its reason, and with it reuse detection.
+        where: { refreshTokenHash: hashToken(refreshToken), userId: actor.id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' },
       });
     } else {
       await prisma.session.updateMany({
-        where: { userId: actor.id, revokedAt: null }, data: { revokedAt: new Date() },
+        where: { userId: actor.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' },
       });
     }
     await audit({
@@ -282,7 +175,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
       }),
       // Force re-authentication everywhere after a password change.
-      prisma.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+      prisma.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'PASSWORD_CHANGED' } }),
     ]);
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',

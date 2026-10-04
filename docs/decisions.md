@@ -1505,3 +1505,40 @@ request.
 **Limits.** A colour change reaches other people's open pages when their units list is next fetched
 — within five minutes, or on reload — not instantly. Charts keep their own series colours; PDFs and
 emails do not show unit colours.
+
+---
+
+## ADR-058 — More ways in, one way to be given access; a page for every person
+
+**Decision.** (Hivamis task 4, first part.) Besides email and password, a person signs in with a
+six-digit code texted to a mobile they proved is theirs, or with Google (OpenID Connect,
+authorization code with PKCE and a nonce, the ID token verified against Google's keys). Codes are kept
+only as an HMAC bound to their purpose and number, last five minutes, allow five tries and one send a
+minute; the sign-in start answers the same whether or not the number has an account. Google answers
+the browser with a redirect carrying a single-use, minute-long ticket in the fragment, traded by the
+page for a session — no token in a URL. Every way in ends in one `issueSession`, which records the
+method in the audit trail. SMS goes through an adapter: a sandbox (messages readable by an
+administrator), Kavenegar's verify/lookup, or a generic HTTP endpoint. Someone without an account can
+ask to join with a proved mobile or a Google account; a request grants nothing until the administrator
+of users approves it and chooses the unit and roles (never system administration), and the
+administrator can close joining altogether. Every person has a page (`/people/:id`) and a directory;
+one's own page (`/me`) manages the ways in — at least one always remains — and the signed-in devices.
+
+Sessions now record why they ended. Only a token whose session was rotated away and is presented
+again is treated as theft (every session revoked, `REFRESH_TOKEN_REUSE`); one ended by signing out, a
+password or role change, a delegation's end or deactivation is simply refused.
+
+**Rationale.** People asked to sign in the way they already sign in elsewhere, and to join without an
+administrator typing their details — but who may do what stays the administrator's (ADR-055). Proving
+a mobile before it can sign anyone in, and refusing to say whether a number has an account, keep the
+new doors from being a way to find or take accounts. The session reasons fix a real fault found while
+building the device list: before them, an administrator changing someone's roles — or the person
+signing out a device — made that device's next refresh look like token theft, signed the person out
+everywhere and raised a critical alert. Those were the false TOKEN_REUSE alerts seen during task 6.
+
+**Limits.** Google sign-in is tested against a stand-in provider with its own keys; it needs the
+organisation's own OAuth client to run for real, and Google must be reachable from the server. The
+Kavenegar and HTTP SMS adapters are written to the providers' documented APIs but not exercised
+against them here. Joining goes to the one organisation an installation has; with several (roadmap
+#50) it will come from the address. Profile photos are not part of this: a person is their initials
+on their unit's colour.

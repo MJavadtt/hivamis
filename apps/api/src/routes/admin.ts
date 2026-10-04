@@ -147,7 +147,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         if (rolesChanged) {
           await tx.session.updateMany({
             where: { userId: id, revokedAt: null },
-            data: { revokedAt: new Date() },
+            data: { revokedAt: new Date(), revokedReason: 'ROLES_CHANGED' },
           });
         }
       }
@@ -176,7 +176,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!target) throw notFound('کاربر');
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({ where: { id }, data: { isActive: false } });
-      await tx.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
       return u;
     });
     await audit({

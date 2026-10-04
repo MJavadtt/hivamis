@@ -48,6 +48,8 @@ import liveRoutes from './routes/live.js';
 import messengerRoutes from './routes/messenger.js';
 import annotationRoutes from './routes/annotations.js';
 import brandRoutes from './routes/brand.js';
+import identityRoutes from './routes/identity.js';
+import peopleRoutes from './routes/people.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
 import ruleRoutes from './routes/rules.js';
@@ -198,6 +200,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(messengerRoutes);
     await api.register(annotationRoutes);
     await api.register(brandRoutes);
+    await api.register(identityRoutes);
+    await api.register(peopleRoutes);
   }, { prefix: '/api/v1' });
 
   /** Machine-readable route inventory, used by the docs and smoke tests. */

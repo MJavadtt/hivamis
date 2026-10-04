@@ -22,6 +22,26 @@ sent** — refresh tokens are single-use.
 | `POST /auth/logout` | Revoke the current session, or all sessions when no token is sent |
 | `GET /auth/me` | Current user with roles and resolved permissions |
 | `POST /auth/change-password` | Change password; revokes every session |
+| `GET /auth/methods` | Public — which ways in this installation offers (`password`, `phone`, `google`) and whether asking to join is open |
+| `POST /auth/phone/start` `{ phone }` | Public — texts a six-digit code if the number is an active person's verified mobile; answers `202` the same either way. One code a minute and five an hour per number |
+| `POST /auth/phone/verify` `{ phone, code }` | Public — signs in; five wrong tries spend the code and count against the account like wrong passwords |
+| `GET /auth/google/start?mode=login\|signup` | Public — `{ url }` to send the browser to (state, nonce and PKCE kept server-side, ten minutes, one use) |
+| `GET /auth/google/callback` | Google's redirect. Answers with a redirect to `/auth/google#ticket=…` (or `#error=CODE`), `/signup#done=sent`, or `/me#linked=google` — never with a token in a URL |
+| `POST /auth/ticket` `{ ticket }` | Public — trades the minute-long, single-use ticket for a session |
+| `GET /auth/signup/options`, `POST /auth/signup/phone/start`, `POST /auth/signup` `{ fullName, email, phone, code, departmentCode?, note? }` | Public — asking to join; records a request, grants nothing |
+| `GET /signup-requests`, `POST /signup-requests/:id/approve` `{ departmentCode, roles, jobTitle? }`, `POST /signup-requests/:id/reject` `{ note }` | `admin.users` — the administrator creates the account with the unit and roles they choose; never `SUPER_ADMIN` |
+| `GET` / `PATCH /settings/signup` `{ enabled }` | `admin.settings` — open or close asking to join |
+| `GET /people?q=`, `GET /people/:id` | Authenticated — the directory and a person's page; mobile, last sign-in are only for the person and `admin.users`; tasks and projects only with `task.read` / `project.read` |
+| `GET /me/profile` | One's ways in and live sessions (`current` marks this device) |
+| `POST /me/phone/start`, `POST /me/phone/verify`, `DELETE /me/phone` | Prove a mobile with a code; remove it as a way in (refused if it is the last) |
+| `POST /me/google/link`, `DELETE /me/identities/:id` | Link or unlink a Google account (unlinking the last way in is refused) |
+| `POST /me/password` `{ newPassword }` | A first password, for someone who joined without one |
+| `DELETE /me/sessions/:id`, `POST /me/sessions/revoke-others` | Sign a device out, or every other device |
+
+A session ends with a reason (`ROTATED`, `SIGNED_OUT`, `PASSWORD_CHANGED`, `ROLES_CHANGED`,
+`DELEGATION_REVOKED`, `DEACTIVATED`, `REUSE`). Presenting a refresh token whose session was **rotated**
+is treated as theft — every session of the user ends and `REFRESH_TOKEN_REUSE` is audited; a token
+whose session ended any other way is simply refused.
 
 ## Conventions
 

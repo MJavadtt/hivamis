@@ -23,6 +23,8 @@ import { LeadReferrers } from '../components/LeadSource';
 import { RoleGrants } from '../components/RoleGrants';
 import { loc, tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
+import { SignupRequests, SmsSandbox } from '../components/SignupRequests';
+import { PersonLink } from './People';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
@@ -91,6 +93,9 @@ function Users() {
   const detailed = can('admin.users');
 
   return (
+    <div className="space-y-5">
+    {detailed && <SignupRequests />}
+    {can('admin.settings') && <SmsSandbox />}
     <Card
       title={tr('کاربران سازمان')}
       subtitle={detailed ? undefined : tr('برای مشاهده نقش‌ها و وضعیت حساب، دسترسی مدیریت کاربران لازم است.')}
@@ -105,7 +110,7 @@ function Users() {
         <tbody>
           {data?.items.map((u: any) => (
             <Tr key={u.id}>
-              <Td><p className="text-sm font-medium">{u.fullName}</p><p className="text-[11px] text-ink-400">{trx(u.jobTitle)}</p></Td>
+              <Td><p className="text-sm font-medium"><PersonLink id={u.id} name={u.fullName} /></p><p className="text-[11px] text-ink-400">{trx(u.jobTitle)}</p></Td>
               <Td className="ltr text-xs">{u.email}</Td>
               <Td><UnitTag code={u.department?.code} /></Td>
               {detailed && (
@@ -125,6 +130,7 @@ function Users() {
         </tbody>
       </Table>
     </Card>
+    </div>
   );
 }
 

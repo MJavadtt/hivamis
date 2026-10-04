@@ -144,6 +144,28 @@ const envSchema = z.object({
    * nothing — for an installation with no route to the browsers' push services, and for tests.
    */
   PUSH_DELIVERY: z.enum(['on', 'off']).default('on'),
+  /**
+   * SMS for one-time codes (Hivamis task 4). `sandbox` keeps messages in the database, readable by an
+   * administrator; `kavenegar` uses Kavenegar's verify/lookup with SMS_TEMPLATE; `http` POSTs
+   * { to, text } to SMS_URL with SMS_API_KEY as a bearer. Unset: sandbox outside production, off in
+   * production — where signing in by mobile is then not offered.
+   */
+  SMS_MODE: z.enum(['off', 'sandbox', 'kavenegar', 'http']).optional(),
+  SMS_API_KEY: z.string().default(''),
+  SMS_TEMPLATE: z.string().default(''),
+  SMS_URL: z.string().default(''),
+  /**
+   * Google sign-in (OpenID Connect). Off until a client id and secret are set; the redirect URI to
+   * register is PUBLIC_APP_URL + /api/v1/auth/google/callback. GOOGLE_ALLOWED_DOMAINS (comma list)
+   * limits who may ask to join with Google to those email domains.
+   */
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
+  GOOGLE_ALLOWED_DOMAINS: z.string().default(''),
+  GOOGLE_AUTH_URL: z.string().default('https://accounts.google.com/o/oauth2/v2/auth'),
+  GOOGLE_TOKEN_URL: z.string().default('https://oauth2.googleapis.com/token'),
+  GOOGLE_JWKS_URL: z.string().default('https://www.googleapis.com/oauth2/v3/certs'),
+  GOOGLE_ISSUER: z.string().default('https://accounts.google.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -187,3 +209,10 @@ export const aiEnabled = env.AI_ENABLED && env.ANTHROPIC_API_KEY.length > 0;
  */
 export const mailEnabled =
   env.MAIL_ENABLED && env.SMTP_HOST.length > 0 && env.SMTP_FROM.length > 0;
+
+/** How one-time codes travel; `off` means no signing in or joining by mobile. */
+export const smsMode: 'off' | 'sandbox' | 'kavenegar' | 'http' =
+  env.SMS_MODE ?? (env.NODE_ENV === 'production' ? 'off' : 'sandbox');
+
+/** Google sign-in needs both halves of its client credentials. */
+export const googleEnabled = env.GOOGLE_CLIENT_ID.length > 0 && env.GOOGLE_CLIENT_SECRET.length > 0;

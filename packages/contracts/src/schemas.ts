@@ -1073,3 +1073,35 @@ export const updateFormDefinitionSchema = z.object({
 export const unitColorSchema = z.object({
   color: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'رنگ باید به شکل #RRGGBB باشد').transform((v) => v.toLowerCase()).nullable(),
 });
+
+/* ── signing in and joining (Hivamis task 4) ─────────────────────────────────── */
+
+/** A one-time code as typed: six digits, Persian or Latin. */
+const otpCode = z.string().trim().transform((v) => v.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
+  .pipe(z.string().regex(/^\d{6}$/, 'کد شش رقم است'));
+
+export const phoneStartSchema = z.object({ phone: iranMobileSchema });
+export const phoneVerifySchema = z.object({ phone: iranMobileSchema, code: otpCode });
+
+/** Asking to join with a mobile proved by its code. The administrator decides the rest. */
+export const signupSchema = z.object({
+  fullName: z.string().trim().min(3, 'نام و نام خانوادگی را کامل بنویسید').max(120),
+  email: z.string().trim().toLowerCase().email('ایمیل معتبر نیست').max(200),
+  phone: iranMobileSchema,
+  code: otpCode,
+  departmentCode: z.enum(DEPARTMENT_CODES).nullish(),
+  note: z.string().trim().max(500).nullish(),
+});
+
+/** Approving a request: the administrator gives the unit and the roles (Hivamis task 6) — never system administration. */
+export const approveSignupSchema = z.object({
+  departmentCode: z.enum(DEPARTMENT_CODES),
+  roles: z.array(z.enum(ROLE_CODES)).min(1, 'دست‌کم یک نقش لازم است').max(4)
+    .refine((r) => !r.includes('SUPER_ADMIN'), 'نقش مدیر سیستم با درخواست عضویت داده نمی‌شود؛ آن را در مدیریت کاربران بدهید'),
+  jobTitle: z.string().trim().max(120).nullish(),
+});
+export const rejectSignupSchema = z.object({ note: z.string().trim().min(3, 'دلیل را بنویسید').max(500) });
+export const signupSettingsSchema = z.object({ enabled: z.boolean() });
+
+/** A first password, for someone who joined with a mobile or Google and never had one. */
+export const setPasswordSchema = z.object({ newPassword: changePasswordSchema.shape.newPassword });

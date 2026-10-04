@@ -77,4 +77,4 @@ export async function authenticateKey(presented: string, ip: string | null): Pro
 /** Where a key may never go: the creator's own account, delegating, and managing keys and webhooks. */
 // The messenger (#40) links a chat that then decides as the person with all their permissions,
 // not a key's narrowed set: only the person may link it.
-export const HUMAN_ONLY_PREFIXES = ['/api/v1/auth/', '/api/v1/delegations', '/api/v1/admin/api-keys', '/api/v1/admin/webhooks', '/api/v1/messenger/', '/api/v1/admin/messenger'];
+export const HUMAN_ONLY_PREFIXES = ['/api/v1/auth/', '/api/v1/delegations', '/api/v1/admin/api-keys', '/api/v1/admin/webhooks', '/api/v1/messenger/', '/api/v1/admin/messenger', '/api/v1/me/', '/api/v1/signup-requests', '/api/v1/settings/signup', '/api/v1/admin/sms-outbox'];

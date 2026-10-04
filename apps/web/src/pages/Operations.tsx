@@ -19,6 +19,7 @@ import { daysFromNow, formatCurrency, formatDate, formatRelative, localDigits } 
 import { TaskTime } from '../components/TaskTime';
 import { tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
+import { PersonLink } from './People';
 
 const UNITS = [
   { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
@@ -694,7 +695,7 @@ export function Traffic() {
                 <tbody>
                   {data.rows.map((r: any) => (
                     <Tr key={r.user.id}>
-                      <Td><p className="text-sm">{r.user.fullName}</p><p className="text-[11px] text-ink-400">{trx(r.user.jobTitle)}</p></Td>
+                      <Td><p className="text-sm"><PersonLink id={r.user.id} name={r.user.fullName} /></p><p className="text-[11px] text-ink-400">{trx(r.user.jobTitle)}</p></Td>
                       <Td><UnitTag code={r.department?.code} /></Td>
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.capacityHours))}{r.leaveHours > 0 && <Badge tone="info" className="ms-1">{tr('{0} س مرخصی', localDigits(r.leaveHours))}</Badge>}
                       </Td>

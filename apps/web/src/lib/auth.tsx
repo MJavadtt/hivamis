@@ -23,6 +23,8 @@ interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Takes up a session another way in produced — a code sent to the mobile (Hivamis task 4). */
+  signInWith: (session: { accessToken: string; refreshToken: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   /** True when the signed-in user holds every listed permission. */
@@ -82,14 +84,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [loadUser]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const data = await apiPost<{
-      accessToken: string; refreshToken: string; user: CurrentUser;
-    }>('/auth/login', { email, password });
-    setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
+  const signInWith = useCallback(async (session: { accessToken: string; refreshToken: string }) => {
+    setAccessToken(session.accessToken);
+    setRefreshToken(session.refreshToken);
     await loadUser();
   }, [loadUser]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    await signInWith(await apiPost<{ accessToken: string; refreshToken: string }>('/auth/login', { email, password }));
+  }, [signInWith]);
 
   const signOut = useCallback(async () => {
     // While the session still stands: this browser stops receiving this person's notices (#49).
@@ -108,13 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signIn,
+      signInWith,
       signOut,
       refreshUser: loadUser,
       can: (...need) => need.every((p) => perms.has(p)),
       canAny: (...need) => need.some((p) => perms.has(p)),
       hasRole: (...roles) => roles.some((r) => user?.roles.includes(r)),
     };
-  }, [user, loading, signIn, signOut, loadUser]);
+  }, [user, loading, signIn, signInWith, signOut, loadUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

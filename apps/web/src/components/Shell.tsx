@@ -18,6 +18,7 @@ import {
   IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers,
 } from './ui';
 import { loc, tr, trx } from '../i18n';
+import { Avatar } from './Avatar';
 
 interface NavItem {
   to: string;
@@ -46,6 +47,8 @@ const NAV: NavGroup[] = [
       { to: '/my-work', label: tr('کارهای من'), icon: IconCheckCircle },
       { to: '/tasks', label: tr('وظایف'), icon: IconCheckCircle, permission: 'task.read' },
       { to: '/forms', label: tr('فرم‌ها'), icon: IconFile, permission: 'form.read' },
+      // No permission of its own: every colleague's page is open to everyone signed in (Hivamis task 4).
+      { to: '/people', label: tr('همکاران'), icon: IconUsers },
     ],
   },
   {
@@ -194,13 +197,15 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-ink-100 p-3">
-          <div className="mb-2 px-1">
-            <p className="truncate text-sm font-medium text-ink-800">{user?.fullName}</p>
-            <p className="truncate text-xs text-ink-500">
-              {trx(user?.jobTitle)}
-              {user?.department && ` — ${loc(user.department, 'name')}`}
-            </p>
-          </div>
+          <Link to="/me" className="mb-2 flex items-center gap-2 rounded-md px-1 py-1 hover:bg-ink-50" title={tr('صفحهٔ من')}>
+            {user && <Avatar name={user.fullName} unit={user.department?.code} size="sm" />}
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-ink-800">{user?.fullName}</span>
+              <span className="block truncate text-xs text-ink-500">
+                {[trx(user?.jobTitle), user?.department ? loc(user.department, 'name') : ''].filter(Boolean).join(' — ')}
+              </span>
+            </span>
+          </Link>
           <Link to="/delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
           </Link>
           <MessengerMenuItem />

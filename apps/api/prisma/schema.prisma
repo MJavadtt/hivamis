@@ -31,6 +31,7 @@ model Organization {
   users       User[]
   companies   Company[]
   holidays    Holiday[]
+  signupRequests SignupRequest[]
 
   @@map("organizations")
 }
@@ -235,6 +236,9 @@ model User {
   passwordHash        String
   jobTitle            String?
   phone               String?
+  /// When the person proved the mobile is theirs with a one-time code (Hivamis task 4); a verified
+  /// mobile is unique among active people and signs them in.
+  phoneVerifiedAt     DateTime?
   isActive            Boolean      @default(true)
   mustChangePassword  Boolean      @default(false)
   /// Personal calendar overrides; null inherits the department, then the organisation.
@@ -290,6 +294,12 @@ model User {
   clientApprovals      ClientApproval[]
   apiKeys              ApiKey[]
   webhookSubscriptions WebhookSubscription[]
+  identities           UserIdentity[]
+  otpCodes             OtpCode[]
+  oauthStates          OAuthState[]
+  loginTickets         LoginTicket[]
+  signupDecisions      SignupRequest[]     @relation("SignupDecider")
+  signupAccounts       SignupRequest[]     @relation("SignupAccount")
 
   @@index([organizationId, departmentId])
   @@index([email])
@@ -315,6 +325,9 @@ model Session {
   ipAddress        String?
   expiresAt        DateTime
   revokedAt        DateTime?
+  /// Why it ended (Hivamis task 4): only ROTATED — or a row from before this was recorded — makes a
+  /// second presentation of its token a sign of theft.
+  revokedReason    String?
   createdAt        DateTime @default(now())
 
   @@index([userId])
@@ -2729,4 +2742,116 @@ model RoleGrant {
 
   @@index([organizationId, roleCode])
   @@map("role_grants")
+}
+
+/* ── Signing in and joining (Hivamis task 4) ─────────────────────────────── */
+
+/// An account somewhere else that signs this person in — today, Google. `subject` is the provider's
+/// permanent id for the person; the email is kept for display only and never used to sign in.
+model UserIdentity {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String
+  subject    String
+  email      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@unique([provider, subject])
+  @@index([userId])
+  @@map("user_identities")
+}
+
+/// A one-time code sent by SMS: to sign in, to sign up, or to prove a mobile is one's own. Only an
+/// HMAC of the code is kept; five wrong tries spend it.
+model OtpCode {
+  id         String    @id @default(uuid())
+  purpose    String
+  phone      String
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@map("otp_codes")
+}
+
+/// What was sent by SMS. Outside the sandbox the code itself is never stored.
+model SmsMessage {
+  id        String   @id @default(uuid())
+  phone     String
+  text      String
+  provider  String
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("sms_outbox")
+}
+
+/// A Google sign-in in progress: the state the browser carries out and back, with the PKCE verifier
+/// and nonce that tie the answer to this request. Ten minutes, one use.
+model OAuthState {
+  id           String    @id @default(uuid())
+  stateHash    String    @unique
+  provider     String
+  mode         String
+  codeVerifier String
+  nonce        String
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@map("oauth_states")
+}
+
+/// The hand-off from a provider's redirect to the app: a single-use ticket, a minute long, that the
+/// page trades for its session — so no token ever travels in a URL.
+model LoginTicket {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method     String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@map("login_tickets")
+}
+
+/// Someone asking to join the organisation, with a mobile or a Google account they proved is theirs.
+/// Nothing is granted until the system administrator approves — and then they choose the unit and roles.
+model SignupRequest {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  method         String
+  fullName       String
+  email          String
+  phone          String?
+  googleSubject  String?
+  departmentCode String?
+  note           String?
+  status         String       @default("PENDING")
+  decidedById    String?
+  decidedBy      User?        @relation("SignupDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt      DateTime?
+  decisionNote   String?
+  userId         String?
+  user           User?        @relation("SignupAccount", fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status, createdAt])
+  @@map("signup_requests")
 }
