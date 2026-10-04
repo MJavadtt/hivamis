@@ -193,7 +193,8 @@ Standard collections support `GET /`, `GET /:id`, `POST /`, `PATCH /:id`.
 | Endpoint | Purpose |
 |---|---|
 | `GET /forms/definitions` | All 130 definitions, grouped, with a per-user `canSubmit` flag |
-| `GET /forms/definitions/:code` | One definition with its field schema and SLA policy |
+| `GET /forms/definitions/:code` | One definition with its field schema, SLA policy and the caller's `canSubmit` |
+| `GET /forms/suggest?entity=&id=&limit=` | `form.read` (and the record kind's read permission) — the forms that point at this record and the caller's unit may send, the ones its stage calls for first (`RECORD_KINDS` in `@hiva/contracts`), then by the unit's use in the last six months; each with `prefill` (the record and the records it belongs to, by field key), `fitsStage` and `lastForRecord`. Without `entity`: the caller's most-sent forms |
 | `GET /forms/definitions/:code/design` | `form.read` — the designer's view (roadmap #15): the fields as they stand, `protectedKeys` (the required fields of the shipped definition, which cannot be removed or retyped), the binding, the submission count and whether this organisation has edited the form |
 | `POST /forms/definitions/:code/design/validate` `{ fields[] }` | `admin.settings` — every problem with a proposed field list at once, in Persian; nothing is written |
 | `PUT /forms/definitions/:code/design` `{ fields[], note? }` | `admin.settings` — replace the fields. Refused with `INVALID_FORM_DESIGN` and a `problems[]` list if it would break the process; mints a version and marks the definition as this organisation's, after which the seed stops overwriting it |

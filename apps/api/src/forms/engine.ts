@@ -1,7 +1,4 @@
-import {
-  DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting, buildStages, currentStage,
-  type ApprovalStage, type DepartmentCode, type FieldDef, type ResolvedStage, type RoleCode, type RoutingRule,
-} from '@hiva/contracts';
+import { DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting, buildStages, currentStage, type ApprovalStage, type DepartmentCode, type FieldDef, type ResolvedStage, type RoleCode, type RoutingRule, maySubmitForm, FORM_SENDER_BYPASS_ROLES } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
@@ -37,7 +34,7 @@ export interface SubmitFormInput {
   actor: FormActor;
 }
 
-const BYPASS_ROLES = new Set(['SUPER_ADMIN', 'CEO', 'DEPUTY']);
+const BYPASS_ROLES = new Set(FORM_SENDER_BYPASS_ROLES);
 
 /**
  * Submit one of the 130 Doc_H forms.
@@ -79,8 +76,8 @@ export async function submitForm(input: SubmitFormInput) {
 
   // Doc_H assigns every form an owning department; only that department may originate it.
   const senders = definition.senderDepts;
-  const bypass = actor.roles.some((r) => BYPASS_ROLES.has(r));
-  if (senders.length > 0 && !bypass && (!actor.departmentCode || !senders.includes(actor.departmentCode))) {
+  // The same rule the pages use to decide which forms to offer (Hivamis task 4b).
+  if (!maySubmitForm(senders, actor.departmentCode, actor.roles)) {
     // Name the units in Persian — the operator should not have to decode «S» or «CR».
     const names = senders
       .map((code) => DEPARTMENT_LABELS[code as DepartmentCode]?.fa ?? code)

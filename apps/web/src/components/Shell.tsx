@@ -19,6 +19,7 @@ import {
 } from './ui';
 import { loc, tr, trx } from '../i18n';
 import { Avatar } from './Avatar';
+import { QuickForms } from './QuickForms';
 
 interface NavItem {
   to: string;
@@ -249,6 +250,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
       </button>
       <GlobalSearch />
       <div className="flex items-center gap-1">
+        <QuickForms />
         {/* What this device is still carrying, and whether it can send it (roadmap #19). */}
         <ConnectionState />
         <OutboxBadge />

@@ -451,6 +451,13 @@ rest are visible so you can see the shape of the process.
 
 *در انتظار تأیید من* is your approval inbox. You cannot approve a form you submitted yourself.
 
+**Forms where you are working.** You rarely need the catalogue. Every record's page — a project, an
+opportunity, a client, a brief, a proposal, a contract, a work order, a task, a change request —
+shows **فرم‌های مرتبط** under its title: the forms about that kind of record that your unit sends,
+the ones its current stage calls for first (highlighted). A click opens the form with the record — and
+its project, client, contract — already filled in; a ✓ marks a form already sent for this record.
+The **+** at the top of every page lists the forms you send most, one click from anywhere.
+
 ---
 
 **Who has to approve this depends on what you typed.** The approver line at the top of a form

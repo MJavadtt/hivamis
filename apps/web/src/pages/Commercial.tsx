@@ -17,6 +17,7 @@ import {
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, localDigits } from '../lib/format';
 import { tr } from '../i18n';
+import { SuggestedForms } from '../components/SuggestedForms';
 
 export function ContractsList() {
   return (
@@ -79,6 +80,7 @@ export function ContractDetail() {
           </>
         }
       />
+      <SuggestedForms entity="contract" id={id} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('اطلاعات قرارداد')} className="lg:col-span-1">
           <dl className="px-4 py-1">

@@ -14,6 +14,8 @@ import { nextCustomNumber, protectedKeys, saveDesign, validateDesign } from '../
 import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
 import type { FormActor } from '../forms/engine.js';
 import type { ApprovalStage, FieldDef, RoutingRule } from '@hiva/contracts';
+import { RECORD_KINDS, maySubmitForm } from '@hiva/contracts';
+import { frequentForms, suggestForRecord } from '../forms/suggest.js';
 
 const formRoutes: FastifyPluginAsync = async (app) => {
   /** The full Doc_H form catalogue, grouped for the navigator. */
@@ -49,10 +51,32 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('form.read')],
   }, async (req) => {
     const { code } = req.params as { code: string };
+    const actor = actorFrom(req);
     const def = await prisma.formDefinition.findUnique({ where: { code } });
     if (!def) throw notFound('تعریف فرم');
     const sla = def.slaCode ? await prisma.slaPolicy.findUnique({ where: { code: def.slaCode } }) : null;
-    return { ...def, sla };
+    return { ...def, sla, canSubmit: maySubmitForm(def.senderDepts, actor.departmentCode, actor.roles) };
+  });
+
+  /**
+   * The forms a page offers, ready to fill (Hivamis task 4b): for a record — `?entity=project&id=…` —
+   * the related forms in the order its stage calls for them, with the record and the ones it belongs
+   * to filled in; without one, the forms the reader sends most.
+   */
+  app.get('/forms/suggest', {
+    preHandler: [app.authenticate, app.requirePermissions('form.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const q = req.query as { entity?: string; id?: string; limit?: string };
+    const limit = Math.min(Math.max(Number(q.limit) || 6, 1), 30);
+    if (!q.entity) return { state: null, total: null, forms: await frequentForms(actor, limit) };
+    const kind = RECORD_KINDS[q.entity];
+    if (!kind || !q.id) throw badRequest('UNKNOWN_ENTITY', 'برای این نوع رکورد فرم مرتبطی تعریف نشده است.');
+    // Seeing a record's forms is no way around not seeing the record.
+    if (!actor.permissions.includes(kind.permission)) return { state: null, total: 0, forms: [] };
+    const result = await suggestForRecord(actor, q.entity, q.id, limit);
+    if (!result) throw notFound('رکورد');
+    return result;
   });
 
   /**

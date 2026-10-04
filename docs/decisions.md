@@ -1542,3 +1542,29 @@ Kavenegar and HTTP SMS adapters are written to the providers' documented APIs bu
 against them here. Joining goes to the one organisation an installation has; with several (roadmap
 #50) it will come from the address. Profile photos are not part of this: a person is their initials
 on their unit's colour.
+
+---
+
+## ADR-059 — A record's page offers its forms, filled in; the catalogue is the fallback
+
+**Decision.** (Hivamis task 4, second part.) Every record page shows the forms related to it as one
+row of buttons under its title. A form is related when one of its fields points at that kind of
+record — read from the form definitions themselves, so a form the organisation designs (roadmap #15)
+joins in without code. The row holds only forms the reader's unit may send, by the same
+`maySubmitForm` rule the form engine enforces; it puts first the Doc_H categories the record's stage
+calls for (`RECORD_KINDS` in `@hiva/contracts`: a project being authorised → contract and finance; in
+delivery → orders, unit work, QC, reporting; closing → closure), then the forms the reader's unit has
+sent most in six months. A click opens the form with every field that points at the record — or at
+the records it belongs to: its project, client, proposal, contract — already filled. A «+» in the top
+bar lists the forms the person sends most, or, before they have sent any, the ones that start
+something.
+
+**Rationale.** The person asked for processes that are a click and already prepared, with the related
+forms on each page, and for speed. The catalogue of 130 forms asks someone to know which form
+comes next and to find, then retype, the record it is about; the record's page already knows both.
+Deriving relatedness from the field definitions, and order from the stage and from use, keeps the
+suggestion honest — a form never appears that the person cannot send, and none is hidden that they can.
+
+**Limits.** Fields other than record references are not prefilled (a status report's period, say).
+The stage map is a default an organisation cannot yet edit. List pages keep their own «new» buttons;
+the related-forms row is on record pages only.

@@ -20,6 +20,7 @@ import { TaskTime } from '../components/TaskTime';
 import { tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
 import { PersonLink } from './People';
+import { SuggestedForms } from '../components/SuggestedForms';
 
 const UNITS = [
   { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
@@ -130,6 +131,7 @@ export function TaskDetail() {
         }
         actions={<WorkflowActions entity="task" id={data.id} transitions={data.availableTransitions} />}
       />
+      <SuggestedForms entity="task" id={id} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title={tr('شرح وظیفه')}>
@@ -300,6 +302,7 @@ export function WorkOrderDetail() {
           </>
         }
       />
+      <SuggestedForms entity="workOrder" id={id} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('عناصر الزامی سفارش')} className="lg:col-span-2" subtitle="Doc_H §C">
           <dl className="divide-y divide-ink-100">
@@ -514,6 +517,7 @@ export function ChangeDetail() {
           </>
         }
       />
+      <SuggestedForms entity="changeRequest" id={id} />
       <PageBody className="space-y-5">
         {data.scopeVerdict === 'OUT_OF_SCOPE' && missing.length > 0 && (
           <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">

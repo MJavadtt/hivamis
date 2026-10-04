@@ -31,6 +31,7 @@ import { BrandLibraryCard } from '../components/BrandLibrary';
 import { ClientFilesCard, PortalMessagesCard } from '../components/PortalAdmin';
 import { loc, tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
+import { SuggestedForms } from '../components/SuggestedForms';
 
 const PROJECT_STATES = [
   'DRAFT', 'PENDING_AUTHORIZATION', 'AUTHORIZED', 'PLANNING', 'ACTIVE',
@@ -180,6 +181,7 @@ export function ProjectDetail() {
           </>
         }
       />
+      <SuggestedForms entity="project" id={id} />
 
       {!authorized && ['ACTIVE', 'PLANNING'].includes(p.state) && (
         <div className="mx-5 mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">

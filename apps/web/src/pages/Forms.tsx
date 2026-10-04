@@ -44,7 +44,7 @@ interface FieldDef {
   columns?: FieldDef[]; visibleWhen?: { field: string; equals: string[] };
 }
 
-interface FormDefinition {
+export interface FormDefinition {
   id: string; no: number; code: string; nameFa: string; nameEn: string;
   category: string; module: string; senderDepts: string[]; receiverDepts: string[];
   approverRoles: string[]; slaCode: string | null; binding: string | null;
@@ -185,8 +185,12 @@ function Catalogue() {
  * Renders any of the 130 Doc_H forms from its stored field schema, so adding or changing
  * a form is a data change rather than a code change.
  */
-function FormRunner({ definition, onClose }: { definition: FormDefinition; onClose: () => void }) {
-  const [values, setValues] = useState<Record<string, unknown>>({});
+export function FormRunner({ definition, onClose, initial }: {
+  definition: FormDefinition; onClose: () => void;
+  /** Values the form opens with — the record it was opened from, and the ones that record belongs to (Hivamis task 4b). */
+  initial?: Record<string, unknown>;
+}) {
+  const [values, setValues] = useState<Record<string, unknown>>(initial ?? {});
   const [busy, setBusy] = useState(false);
   const [issues, setIssues] = useState<Record<string, string>>({});
   const toast = useToast();
@@ -780,4 +784,15 @@ function ContextualHelp() {
       <HelpDrawer open={open} onClose={() => setOpen(false)} initialSection="Forms" />
     </>
   );
+}
+
+/**
+ * A form opened by its code from anywhere — a record's page, the quick menu (Hivamis task 4b) — with
+ * whatever the page already knows filled in.
+ */
+export function FormByCode({ code, initial, onClose }: { code: string; initial?: Record<string, unknown>; onClose: () => void }) {
+  const { data, error } = useQuery<FormDefinition>({ queryKey: [`/forms/definitions/${code}`], queryFn: () => apiGet(`/forms/definitions/${code}`) });
+  if (error) return <Modal open title={tr('فرم')} onClose={onClose}><ErrorBlock error={error} /></Modal>;
+  if (!data) return <Modal open title={tr('فرم')} onClose={onClose}><LoadingBlock /></Modal>;
+  return <FormRunner definition={data} initial={initial} onClose={onClose} />;
 }

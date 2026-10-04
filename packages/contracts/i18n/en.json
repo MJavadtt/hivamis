@@ -601,6 +601,7 @@
   "برای این روز نرخی ثبت شده است؛ جایگزینی آن دلیل می‌خواهد (دست‌کم پنج نویسه).": "A rate is already recorded for this day; replacing it needs a reason (at least five characters).",
   "برای این عملیات به دسترسی «{0}» نیاز دارید": "This operation requires the “{0}” permission",
   "برای این قانون روی این رکورد استثنای فعالی وجود دارد": "There's already an active waiver for this rule on this record",
+  "برای این نوع رکورد فرم مرتبطی تعریف نشده است.": "No related forms are defined for this kind of record.",
   "برای بررسی و تصمیم‌گیری کلیک کنید.{0}": "Click to review and decide.{0}",
   "برای درخواست تأیید مشتری به دسترسی «{0}» نیاز دارید.": "Requesting client approval requires the “{0}” permission.",
   "برای دیدن این صفحه وارد پورتال شوید.": "Sign in to the portal to see this page.",

@@ -19,6 +19,7 @@ import { LeadSourcePicker, sourceComplete, type LeadSourceValue } from '../compo
 import { PortalUsersCard } from '../components/PortalAdmin';
 import { BrandLibraryCard } from '../components/BrandLibrary';
 import { pair, tr, trx } from '../i18n';
+import { SuggestedForms } from '../components/SuggestedForms';
 
 
 /* ── Leads ─────────────────────────────────────────────────────────────── */
@@ -267,6 +268,7 @@ export function OpportunityDetail() {
           <Link to={`/companies/${data.company.id}`} className="text-brand-600 hover:underline">{data.company.legalName}</Link></span>}
         actions={<WorkflowActions entity="opportunity" id={data.id} transitions={data.availableTransitions} />}
       />
+      <SuggestedForms entity="opportunity" id={id} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('اطلاعات فرصت')} className="lg:col-span-1">
           <dl className="px-4 py-1">
@@ -366,6 +368,7 @@ export function CompanyDetail() {
           </>
         }
       />
+      <SuggestedForms entity="company" id={id} />
 
       <div className="border-b border-ink-200 bg-surface px-2">
         <Tabs

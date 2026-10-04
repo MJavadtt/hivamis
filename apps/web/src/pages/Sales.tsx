@@ -17,6 +17,7 @@ import { exactCurrency, formatCurrency, formatDate, formatPercent, localDigits }
 import { ProposalApprovalCard } from '../components/ClientApprovals';
 import { tr } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
+import { SuggestedForms } from '../components/SuggestedForms';
 
 /* ── Briefs ────────────────────────────────────────────────────────────── */
 
@@ -87,6 +88,7 @@ export function BriefDetail() {
           </>
         }
       />
+      <SuggestedForms entity="brief" id={id} />
       <PageBody className="space-y-5">
         {!complete && (
           <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">
@@ -240,6 +242,7 @@ export function ProposalDetail() {
           </>
         }
       />
+      <SuggestedForms entity="proposal" id={id} />
       <PageBody className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile label={tr('قیمت تمام‌شده')} value={formatCurrency(data.totalCost)} hint={tr('اعلام‌شده توسط واحدها')} />
