@@ -300,6 +300,7 @@ model User {
   loginTickets         LoginTicket[]
   signupDecisions      SignupRequest[]     @relation("SignupDecider")
   signupAccounts       SignupRequest[]     @relation("SignupAccount")
+  aiConversations      AiConversation[]
 
   @@index([organizationId, departmentId])
   @@index([email])
@@ -2854,4 +2855,39 @@ model SignupRequest {
 
   @@index([organizationId, status, createdAt])
   @@map("signup_requests")
+}
+
+/* ── The local assistant (Hivamis task 5) ────────────────────────────────── */
+
+/// A person's conversation with the assistant — theirs alone; nobody else, administrators included,
+/// reads it. What each turn did (model, tools, timing) goes to ai_interactions for the AI log.
+model AiConversation {
+  id             String      @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  messages       AiMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("ai_conversations")
+}
+
+/// One message: what the person asked, what the assistant answered, or what a tool returned to it.
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  toolName       String?
+  toolArgs       Json?
+  /// What the answer offers to do next — open a form ready to fill, open a page — for the person to click.
+  actions        Json           @default("[]")
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
 }

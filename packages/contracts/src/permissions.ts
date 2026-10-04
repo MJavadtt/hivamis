@@ -139,6 +139,8 @@ export const PERMISSIONS = {
 
   // AI & administration
   'ai.use': 'استفاده از دستیار هوش مصنوعی',
+  // The local chat assistant (Hivamis task 5): every role has it unless the administrator takes it away.
+  'ai.chat': 'گفت‌وگو با دستیار',
   'ai.configure': 'پیکربندی هوش مصنوعی',
   'admin.users': 'مدیریت کاربران',
   'admin.roles': 'مدیریت نقش‌ها و دسترسی‌ها',
@@ -259,27 +261,30 @@ export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DE
  * Every other role's permissions are what the organisation's system administrator grants. These are
  * the defaults a role starts with — Doc_H's separation of duties — until the administrator reviews it.
  */
+/** What every role holds by default, whatever its part in the process (Hivamis task 5). */
+const EVERYONE: Permission[] = ['ai.chat'];
+
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,
   CEO: ALL_PERMISSIONS,
   DEPUTY: ALL_PERMISSIONS,
   SALES_MANAGER: [
-    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read',
+    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', ...EVERYONE,
   ],
-  SALES_REP: SALES_CORE,
+  SALES_REP: [...SALES_CORE, ...EVERYONE],
   ACCOUNT_MANAGER: ALL_PERMISSIONS,
-  ACCOUNT_EXEC: ACCOUNT_CORE.filter((p) => p !== 'project.close'),
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage'],
-  UNIT_MEMBER: UNIT_CORE,
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage'],
-  PMO_SPECIALIST: PMO_CORE,
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive'],
-  FINANCE_SPECIALIST: FINANCE_CORE,
+  ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
+  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', ...EVERYONE],
+  UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', ...EVERYONE],
+  PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', ...EVERYONE],
+  FINANCE_SPECIALIST: [...FINANCE_CORE, ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve'],
-  LEGAL_SPECIALIST: LEGAL_CORE,
-  VIEWER: READ_ONLY,
+  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', ...EVERYONE],
+  LEGAL_SPECIALIST: [...LEGAL_CORE, ...EVERYONE],
+  VIEWER: [...READ_ONLY, ...EVERYONE],
 };
 
 export type RoleMap = Record<RoleCode, readonly Permission[]>;

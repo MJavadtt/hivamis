@@ -545,6 +545,33 @@ If a language model is configured, you also get a narrative over the same ground
 the page says so plainly. The assistant never sees data you cannot see yourself, never changes
 anything, and every request is logged.
 
+### Asking in a conversation
+
+The ✦ button in the top bar opens a conversation with the assistant. It runs on the
+organisation's own server: it is free, has no limit on questions, and what you say stays inside
+the organisation. You can ask about:
+
+- your work («کارهای امروز من چیست؟»)
+- a record, by its code or its name
+- numbers, such as the margin of projects closed this quarter
+- the organisation's memory, such as what was learnt on similar projects
+
+It knows the page it was opened from, so on a project's page "this project" means that one.
+Suggested questions are offered when the conversation is empty.
+
+While it works, you see what it is looking at («خواندن پرونده…»). It reads what you could read
+yourself, no more. It changes nothing. When something should be done, it offers a button:
+
+- a form, already filled in from what it found, for you to check and send
+- a page, to open
+
+Your conversations are yours alone. Open earlier ones under «گفت‌وگوهای پیشین», or delete them. The
+governance log records which tools were used on which records, never what was said.
+
+The assistant needs a local model running on the server. If it is not running, the conversation
+says so and the system administrator sees how to start it. Answers come one at a time. When
+someone else's answer is being written, yours waits and shows its place in the queue.
+
 ---
 
 ## Getting the organisation started

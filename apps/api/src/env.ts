@@ -166,6 +166,15 @@ const envSchema = z.object({
   GOOGLE_TOKEN_URL: z.string().default('https://oauth2.googleapis.com/token'),
   GOOGLE_JWKS_URL: z.string().default('https://www.googleapis.com/oauth2/v3/certs'),
   GOOGLE_ISSUER: z.string().default('https://accounts.google.com'),
+  /**
+   * The chat assistant (Hivamis task 5): a local model served by Ollama — free, on the organisation's
+   * own machine, no per-message cost. `off` hides it. CHAT_CONCURRENCY is how many answers the model
+   * writes at once; the rest wait their turn (a laptop-class machine manages one).
+   */
+  CHAT_MODE: z.enum(['off', 'ollama']).default('ollama'),
+  OLLAMA_URL: z.string().default('http://127.0.0.1:11434'),
+  OLLAMA_MODEL: z.string().default('qwen3:14b'),
+  CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
 });
 
 const parsed = envSchema.safeParse(process.env);

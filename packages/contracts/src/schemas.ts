@@ -1105,3 +1105,17 @@ export const signupSettingsSchema = z.object({ enabled: z.boolean() });
 
 /** A first password, for someone who joined with a mobile or Google and never had one. */
 export const setPasswordSchema = z.object({ newPassword: changePasswordSchema.shape.newPassword });
+
+/* ── the chat assistant (Hivamis task 5) ─────────────────────────────────────── */
+
+export const chatRequestSchema = z.object({
+  conversationId: z.string().uuid().nullish(),
+  message: z.string().trim().min(1, 'پیامی بنویسید').max(4000),
+  /** Where the person is: the page, and the record on it, if any — "this project" means it. */
+  context: z.object({
+    path: z.string().max(200).nullish(),
+    entity: z.string().max(40).nullish(),
+    id: z.string().uuid().nullish(),
+    title: z.string().max(200).nullish(),
+  }).nullish(),
+});

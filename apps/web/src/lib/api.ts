@@ -84,7 +84,7 @@ export function tokenPermissions(token: string): string[] | null {
 export const refreshSession = () => attemptRefresh();
 
 /** The bearer, and the language the answer — an error message above all — should come in. */
-const baseHeaders = (): Record<string, string> => ({
+export const baseHeaders = (): Record<string, string> => ({
   'accept-language': locale(),
   ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
 });

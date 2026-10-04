@@ -92,6 +92,10 @@ on first sign-in), then deactivate the demo users.
 | `ANTHROPIC_API_KEY` | no | — | Without it, AI falls back to the rule engine |
 | `AI_ENABLED` | no | false | Both this and the key are required. Also enables the model fallback of «پرسش از داده‌ها» (roadmap #27): a question the rules cannot map is sent — the question text and the metric list only, never data — to the model, which may only fill the same plan |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
+| `CHAT_MODE` | no | `ollama` | The chat assistant (Hivamis task 5): `ollama`, a model served by Ollama, or `off`. See [The chat assistant](#the-chat-assistant-local-model) |
+| `OLLAMA_URL` | no | `http://127.0.0.1:11434` | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
+| `OLLAMA_MODEL` | no | `qwen3:14b` | A model that supports tool calling and writes Persian |
+| `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
 
 ## Backup and recovery
 
@@ -549,3 +553,54 @@ supplier bills as payables — a payment out is posted to project cost when it i
 The file is kept in `accounting_exports.content`; the table's check constraint refuses a batch
 whose debits and credits differ.
 
+## The chat assistant (local model)
+
+Hivamis task 5. The assistant in the top bar runs on a model served by
+[Ollama](https://ollama.com) on the organisation's own machine. It has no per-question cost and no
+quota, and nothing said to it leaves the network. Setting it up:
+
+1. Install Ollama on the server, or on a machine the API can reach (`brew install ollama` on a Mac;
+   the install script or package on Linux). Start it with `ollama serve`. On Linux the package runs
+   it as a service.
+2. Download the model:
+
+   ```bash
+   ollama pull qwen3:14b
+   ```
+
+   It is about 9 GB, needs about 10 GB of memory while answering, and fits a 16 GB machine. On a
+   smaller machine use `qwen3:8b` and set `OLLAMA_MODEL`. A different family needs to support tool
+   calling.
+3. If Ollama is not on the API's own machine, set `OLLAMA_URL`. Do not expose Ollama to the
+   internet: it has no authentication.
+
+   With the Compose stack, the API container reaches Ollama on the host at
+   `host.docker.internal:11434`, which is the default there. On Linux, Ollama only listens on
+   127.0.0.1 out of the box. Make it listen on the Docker bridge as well, for example
+   `OLLAMA_HOST=172.17.0.1:11434` in its service environment, rather than on `0.0.0.0`.
+
+`GET /api/v1/ai/chat/status` reports `ready: true` when both are in place. Until then, the
+conversation tells people the assistant is unavailable, and tells the system administrator how to
+start it. The model stays loaded for 30 minutes after the last question. The first question after
+that takes a few seconds longer while the model loads.
+
+**Who has it.** The permission `ai.chat` («گفت‌وگو با دستیار») is in every role by default. A role
+whose permissions an administrator already chose under Admin → Roles before this version keeps
+those exact permissions, so tick `ai.chat` there to give that role the assistant. To turn the
+assistant off for everyone, set `CHAT_MODE=off`.
+
+**Capacity.** One answer is written at a time by default. Measured on a 16 GB Apple M1 Pro also
+running the application, its database and a browser:
+
+- The first question after the model was idle took about 40 seconds, most of it loading.
+- After that, answers took 13 to 36 seconds.
+- The model ran fully on the GPU. The time went to writing the answer, at a few words a second,
+  because memory was short.
+
+`qwen3:8b` answers roughly twice as fast with somewhat weaker Persian. On a server with a GPU and
+spare memory, raise `CHAT_CONCURRENCY` along with Ollama's own `OLLAMA_NUM_PARALLEL`.
+
+**What is kept.** Conversations are in `ai_conversations` and `ai_messages`, and are visible only to
+their owner. Deleting a user deletes theirs. The AI governance log (`ai_interactions`, capability
+`CHAT`) records the tools used, the records they touched, tokens and timing. It never records the
+question or the answer.

@@ -1568,3 +1568,55 @@ suggestion honest — a form never appears that the person cannot send, and none
 **Limits.** Fields other than record references are not prefilled (a status report's period, say).
 The stage map is a default an organisation cannot yet edit. List pages keep their own «new» buttons;
 the related-forms row is on record pages only.
+
+## ADR-060 — The assistant is a local model that reads as the person and only offers
+
+**Decision.** (Hivamis task 5.) A chat assistant in the top bar answers with a model served by
+Ollama on the organisation's own machine. The default is `qwen3:14b`, with thinking turned off for
+speed.
+
+The model is given tools: search records, read one, list records of a kind by state (and projects
+by health), see the person's work, ask the report engine (#27), search the organisation's memory
+(#26), list the forms that fit a record, offer a form, and offer a page. Each read tool calls this application's own endpoint in-process. It uses
+the asking person's token and language, so the permissions, unit scoping and field hiding that
+apply to them apply unchanged. Nothing can be written. A form is offered with its fields filled,
+and only if the person's unit may send it. The person checks it and sends it. Pages are limited to
+an allow-list of in-app paths.
+
+The answer streams as server-sent events. The page it was asked from is part of the question. When
+that page is a record, the record and the forms that fit it are read before the model starts, and
+put in its instructions, which saves it a round.
+
+What tools return is shaped before the model sees it: amounts are given with their currency and
+thousands separators, dates in the reader's calendar, and only the reader's language of each
+label. In a trial the model, given a raw `4400000000`, reported a budget of 440 million tomans as
+4,400 million.
+
+A form the answer names, by code or by a name from the forms it was shown, becomes a button
+through `offer_form` if the model did not offer it. That happens only when it names four or fewer;
+more is a list. Links written in the text are shown as plain words.
+Answers are written one at a time, and the rest queue and see their place. Conversations belong to
+their owner. The governance log records the tools and records used, never the words.
+
+**Rationale.** The person asked for an assistant that is free, unlimited and local, "like Ollama".
+A hosted model meets none of the three. Going through the application's own endpoints, rather than
+giving the model a database or a parallel set of queries, means the assistant cannot see more than
+the person. It also cannot drift from the rules as they change, and a new permission or a field
+hidden in #43 applies to it without further work.
+
+Offering instead of doing keeps every write behind the forms, the workflow engine and their rules.
+A small local model will sometimes be wrong, and here being wrong costs a click, not a record.
+
+**Limits.**
+
+- A 14B model on a laptop is slower than a hosted one: seconds for a short answer, longer when it
+  looks several things up.
+- It is weaker at arithmetic over many rows, so numbers should come from the report tool rather than
+  from the model.
+- It does not always follow its instructions. In trials it said a form was ready without offering
+  it, and recited every fitting form when asked to recommend one or two. That is why buttons come
+  from what the answer names, not only from what the model offers.
+- One answer at a time is the default on a laptop.
+- Conversations are not searchable, and are not shared.
+- `ai.chat` is in every role's defaults. A role whose permissions an administrator set explicitly
+  before this version does not have it until it is ticked.

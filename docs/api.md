@@ -799,6 +799,37 @@ Capabilities: `BRIEF_ANALYSIS`, `PROJECT_SUMMARY`, `RISK_DETECTION`, `STATUS_REP
 `CHANGE_IMPACT_ANALYSIS`, `QC_COMPARISON`, `CUSTOMER_HEALTH`, `NEXT_BEST_ACTION`, `FREE_QUERY`.
 Each requires both `ai.use` and the underlying data permission.
 
+### The chat assistant
+
+Hivamis task 5. A local model (Ollama) answers questions in a conversation. Every route needs
+`ai.chat`, which each role has unless the administrator takes it away; none accepts an API key.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /ai/chat/status` | `{ mode, ready, model, reachable, modelPresent, busy, waiting }`. `ready` means the model server answers and has the model. Takes at most two seconds |
+| `POST /ai/chat` `{ conversationId?, message, context? }` | One question. `context` is the page it was asked from: `{ path, entity, id, title }`. Answers `text/event-stream`; see below. 30 a minute. 503 `CHAT_OFF` when `CHAT_MODE=off` |
+| `GET /ai/conversations` | Your own, newest first (50) |
+| `GET /ai/conversations/:id` | One of yours, with its questions and answers (tool steps are not returned). Someone else's is 404 |
+| `DELETE /ai/conversations/:id` | Delete one of yours, 204 |
+
+The stream's events, in order:
+
+- `meta` `{ conversationId, model }`
+- `queue` `{ position }`, only while waiting for a free slot
+- `tool` `{ name, args }`, each time the model looks something up
+- `delta` `{ text }`, the answer as it is written
+- `action` `{ type: 'form', label, code, prefill }` or `{ type: 'link', label, path }`
+- `done` `{ messageId, actions }`, or `error` `{ code, message }`
+
+When `context` names a record (`entity`, `id`), that record and the forms that fit it are read
+first, as the person, and given to the model. A form the answer names becomes an `action` even if
+the model did not offer it (four at most).
+
+The model's lookups are this application's own read endpoints, called as the person asking. A
+lookup they may not make comes back refused, and the model is told so. Nothing is written: a form
+is only offered, with its fields filled. `prefill` keeps only the form's own fields, and only forms
+the person's unit may send are offered. Links are limited to pages in the application.
+
 ## Administration
 
 | Endpoint | Permission |

@@ -64,6 +64,13 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # The chat assistant's local model (Hivamis task 5): Ollama on the host, reached from the container.
+      CHAT_MODE: ${CHAT_MODE:-ollama}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:14b}
+      CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       - storage:/app/storage
     expose:
