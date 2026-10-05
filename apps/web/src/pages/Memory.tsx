@@ -63,7 +63,7 @@ export default function Memory() {
           >
             <label className="min-w-64 flex-1 text-xs text-ink-600">
               <span className="mb-1 block">{tr('پرسش')}</span>
-              <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={tr('مثلاً: برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟')} aria-label={tr('پرسش')} />
+              <Input data-tour="memory-ask" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={tr('مثلاً: برای مشتری صنایع غذایی چه استراتژی‌هایی داده‌ایم؟')} aria-label={tr('پرسش')} />
             </label>
             <Button type="submit" variant="primary" loading={isFetching} disabled={draft.trim().length < 2}>{tr('جستجو')}</Button>
           </form>

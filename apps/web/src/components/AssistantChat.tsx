@@ -10,6 +10,8 @@ import { ChatText } from './Markdown';
 import { OpenForm, type Suggestion } from './SuggestedForms';
 import { tr } from '../i18n';
 import { useFocusTrap } from '../hooks/useDismissable';
+import { assistantBus } from '../lib/guide';
+import { OwlSvg } from './owl/Owl';
 
 /**
  * The assistant (Hivamis task 5): a conversation with the organisation's own local model, free and
@@ -49,21 +51,24 @@ const heading = () => document.querySelector('main h1')?.textContent?.trim().sli
 export function AssistantButton() {
   const { can } = useAuth();
   const [open, setOpen] = useState(false);
+  const [question, setQuestion] = useState<string | undefined>();
+  // The owl hands over what its guide cannot answer (Hivamis task 8).
+  useEffect(() => assistantBus.on((q) => { setQuestion(q); setOpen(true); }), []);
   if (!can('ai.chat')) return null;
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label={tr('دستیار')} title={tr('دستیار')}
+      <button type="button" data-tour="assistant" onClick={() => { setQuestion(undefined); setOpen(true); }} aria-label={tr('دستیار')} title={tr('دستیار')}
         className="grid size-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
         <svg aria-hidden viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z" strokeLinejoin="round" /><path d="M18.5 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z" strokeLinejoin="round" />
         </svg>
       </button>
-      {open && <AssistantChat onClose={() => setOpen(false)} />}
+      {open && <AssistantChat initialQuestion={question} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-export function AssistantChat({ onClose }: { onClose: () => void }) {
+export function AssistantChat({ onClose, initialQuestion }: { onClose: () => void; initialQuestion?: string }) {
   const { can } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -86,6 +91,11 @@ export function AssistantChat({ onClose }: { onClose: () => void }) {
   useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }); }, [messages]);
   // Closing the drawer stops the answer; nothing else does — not a re-render of the page behind it.
   useEffect(() => () => abort.current?.abort(), []);
+  const asked = useRef(false);
+  useEffect(() => {
+    if (initialQuestion && !asked.current) { asked.current = true; void send(initialQuestion); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion]);
   useEffect(() => {
     if (form) return; // Escape then belongs to the form on top.
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -143,6 +153,7 @@ export function AssistantChat({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex justify-end bg-ink-900/30" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <section ref={panel} className="flex h-full w-full max-w-md flex-col bg-surface shadow-xl" data-testid="assistant">
         <header className="flex items-center gap-2 border-b border-ink-200 px-4 py-3">
+          <OwlSvg size={30} mood={busy ? 'think' : 'idle'} />
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold text-ink-900">{tr('دستیار')}</h2>
             <p className="flex items-center gap-1.5 text-[11px] text-ink-500">

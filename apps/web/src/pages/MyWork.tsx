@@ -65,14 +65,14 @@ export default function MyWork() {
       <PageBody>
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !data ? null : (
           <>
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div data-tour="tiles" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatTile label={tr('در صف')} value={localDigits(data.items.length)} />
               <StatTile label={tr('مهلت نقض‌شده')} value={localDigits(data.breached)} tone={data.breached > 0 ? 'danger' : 'success'} />
               <StatTile label={tr('در خطر')} value={localDigits(data.atRisk)} tone={data.atRisk > 0 ? 'warning' : 'neutral'} />
               <StatTile label={tr('نوع کار')} value={localDigits(Object.values(data.counts).filter(Boolean).length)} />
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={tr('فیلتر بر اساس نوع کار')}>
+            <div data-tour="work-kinds" className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={tr('فیلتر بر اساس نوع کار')}>
               <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>{tr('همه')}</Button>
               {Object.entries(data.kinds).filter(([k]) => data.counts[k]).map(([k, label]) => (
                 <Button key={k} size="sm" variant={kind === k ? 'primary' : 'secondary'} onClick={() => setKind(kind === k ? null : k)}>
@@ -81,7 +81,7 @@ export default function MyWork() {
               ))}
             </div>
 
-            <Card>
+            <Card tour="work-list">
               {!items.length ? <EmptyState title={tr('کاری در صف شما نیست')} /> : (
                 <ul className="divide-y divide-ink-100" data-testid="my-work">
                   {items.map((i) => (

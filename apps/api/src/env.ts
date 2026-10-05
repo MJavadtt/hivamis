@@ -175,6 +175,8 @@ const envSchema = z.object({
   OLLAMA_URL: z.string().default('http://127.0.0.1:11434'),
   OLLAMA_MODEL: z.string().default('qwen3:14b'),
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
+  /** The guide's videos (Hivamis task 8): a screen recording is larger than a document, so it has its own limit. */
+  GUIDE_VIDEO_MAX_MB: z.coerce.number().int().min(1).max(2048).default(200),
 });
 
 const parsed = envSchema.safeParse(process.env);

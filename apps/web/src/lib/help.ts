@@ -68,6 +68,7 @@ const SECTION_TITLE_FA: Record<string, string> = {
   Forms: 'فرم‌ها',
   'Organisational memory': 'حافظهٔ سازمان',
   'The AI assistant': 'دستیار هوشمند',
+  'The guide owl — «هیوا»': 'جغد راهنما، هیوا',
   "The organisation's rules": 'قوانین سازمان',
   'On the phone': 'روی گوشی',
   'Getting the organisation started': 'راه‌اندازی سازمان',

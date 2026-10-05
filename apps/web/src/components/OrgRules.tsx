@@ -65,7 +65,7 @@ export function OrgRules() {
   if (!rules) return null;
   return (
     <Card title={tr('قوانین سازمان')} subtitle={tr('قانون‌هایی که سازمان خودش بر گردش کار گذاشته — بی‌کد. هر قانون شرطی می‌افزاید یا کسی را آگاه می‌کند؛ هیچ قانون Doc_H را برنمی‌دارد.')}
-      action={keeper ? <Button size="sm" variant="primary" className="shrink-0 whitespace-nowrap" onClick={() => setEditing('new')}>{tr('قانون تازه')}</Button> : undefined}>
+      action={keeper ? <Button data-tour="new-rule" size="sm" variant="primary" className="shrink-0 whitespace-nowrap" onClick={() => setEditing('new')}>{tr('قانون تازه')}</Button> : undefined}>
       {!rules.length ? <EmptyState title={tr('هنوز قانونی تعریف نشده')} description={keeper ? tr('با «قانون تازه» شرطی بر یک انتقال بگذارید، یا بگویید چه کسی باید باخبر شود.') : undefined} /> : (
         <ul className="divide-y divide-ink-100" data-testid="org-rules">
           {rules.map((r) => (

@@ -17,6 +17,8 @@ const ROOT = path.resolve(import.meta.dirname, '../../..');
 const SOURCES = [path.join(ROOT, 'packages/contracts/src'), path.join(ROOT, 'apps/api/src')];
 const SKIP = [
   /\/contracts\/src\/i18n\.ts$/,
+  // The guide carries its own English beside each Persian line (Hivamis task 8).
+  /\/contracts\/src\/guide\.ts$/,
   /\/api\/src\/pdf\//, /\/api\/src\/mail\//, /\/api\/src\/ai\//, /\/api\/src\/ask\/model\.ts$/,
   // Documents: the approval certificate and accounting vouchers keep the language they were issued in.
   /\/api\/src\/approvals\/certificate\.ts$/, /\/api\/src\/accounting\/vouchers\.ts$/,

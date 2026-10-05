@@ -574,6 +574,32 @@ someone else's answer is being written, yours waits and shows its place in the q
 
 ---
 
+## The guide owl — «هیوا»
+
+Hiva, the owl in the corner of every page, is the guide to the page you are on. Click it (or the ?
+in the top bar) and it says what the page is for and how to do the usual things there, in your
+language.
+
+- **Show me step by step («نمایش گام‌به‌گام»).** The page plays like a video. The owl flies to each
+  part it talks about, the rest of the page dims, and the steps move on by themselves. Pause, go back
+  or forward with the buttons or the arrow keys; Escape stops. Click a step in the list to start
+  there.
+- **Ask Hiva («از هیوا بپرسید»).** Type a question such as «چطور فرمی را تأیید کنم؟». Answers come
+  from the guide at once, for the parts of the system you can open. **Take me there and show me**
+  opens the right page and plays from that step. For anything the guide does not cover, **Ask the
+  assistant** passes the question on.
+- **Videos.** Where your organisation has recorded one, **ویدیوی این بخش** plays it. The system
+  administrator adds, replaces or removes each section's video, one per language, from the foot of
+  the owl's panel.
+- **Other parts** lists the guide to every part you can open. **The full written guide** opens this
+  document.
+
+The owl follows your pointer and, during a tour, what it is showing. If you prefer it gone, **پنهان
+کردن هیوا** hides it; the ? in the top bar still opens the guide. On a computer that cannot draw
+3D, or with reduced motion turned on, it is drawn flat and keeps still.
+
+---
+
 ## Getting the organisation started
 
 **راه‌اندازی سازمان** (for the system administrator) takes the organisation from empty to working,

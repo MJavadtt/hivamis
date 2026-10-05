@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
@@ -7,6 +7,7 @@ import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
 import { setAccessToken, setRefreshToken } from '../src/lib/api';
 import { AssistantButton } from '../src/components/AssistantChat';
+import { assistantBus } from '../src/lib/guide';
 
 /**
  * Hivamis task 5: the assistant answers as it thinks, says what it is looking at, knows the page it
@@ -112,6 +113,14 @@ describe('The assistant', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'گفت‌وگوهای پیشین' }));
     fireEvent.click(await screen.findByRole('button', { name: /کارهای امروز من/ }));
     expect(await screen.findByText('سه کار دارید.')).toBeDefined();
+  });
+
+  it('takes over a question the owl’s guide could not answer, and asks it at once', async () => {
+    const sent = mount({ reply: [['meta', { conversationId: 'c9', model: 'qwen3:14b' }], ['delta', { text: 'بله.' }], ['done', { messageId: 'm1', actions: [] }]] });
+    await screen.findByRole('button', { name: 'دستیار' });
+    act(() => { assistantBus.ask('گزارش وضعیت را کی بفرستم؟'); });
+    expect(await screen.findByText('بله.')).toBeDefined();
+    expect(sent.find((x) => x.path === '/ai/chat')?.body).toMatchObject({ message: 'گزارش وضعیت را کی بفرستم؟' });
   });
 
   it('is not there for someone the administrator has not given it to', async () => {

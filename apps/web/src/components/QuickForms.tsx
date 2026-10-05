@@ -26,7 +26,7 @@ export function QuickForms() {
 
   if (!can('form.read')) return null;
   return (
-    <div ref={box} className="relative">
+    <div ref={box} data-tour="quick-forms" className="relative">
       <button
         type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={tr('فرم تازه')} title={tr('فرم تازه')}
         className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"

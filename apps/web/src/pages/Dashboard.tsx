@@ -58,7 +58,7 @@ export default function Dashboard() {
           <ErrorBlock error={error} onRetry={() => void refetch()} />
         ) : data ? (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div data-tour="tiles" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatTile
                 label={tr('وظایف باز من')}
                 value={<Count value={data.tasks.total} />}
@@ -96,6 +96,7 @@ export default function Dashboard() {
 
             <div className="grid gap-5 xl:grid-cols-3">
               <Card
+                tour="my-tasks"
                 className="xl:col-span-2"
                 title={tr('وظایف من')}
                 subtitle={tr('مرتب‌شده بر اساس نزدیک‌ترین مهلت')}
@@ -161,7 +162,7 @@ export default function Dashboard() {
                   )}
                 </Card>
 
-                <Card title={tr('روندهای من')}>
+                <Card tour="my-slas" title={tr('روندهای من')}>
                   {!data.sla.items.length ? (
                     <EmptyState title={tr('روند فعالی ندارید')} />
                   ) : (
@@ -181,7 +182,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Card title={tr('پروژه‌های من')} action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? tr('همه فرصت‌ها') : tr('همه پروژه‌ها')}</Link>}>
+            <Card tour="my-projects" title={tr('پروژه‌های من')} action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? tr('همه فرصت‌ها') : tr('همه پروژه‌ها')}</Link>}>
               {data.opportunities && (
                 <Tabs
                   active={projectsTab}

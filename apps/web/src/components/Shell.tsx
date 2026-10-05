@@ -6,7 +6,8 @@ import { OutboxBadge } from './Outbox';
 import { useAuth } from '../lib/auth';
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useLocale, type Locale } from '../lib/locale';
-import { HelpDrawer } from './HelpDrawer';
+import { OwlGuide } from './owl/OwlGuide';
+import { guideBus } from '../lib/guide';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
@@ -150,6 +151,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside
         ref={sidebarRef}
         id="app-sidebar"
+        data-tour="sidebar"
         aria-label={tr('منوی اصلی')}
         inert={!mobileOpen && !isDesktop ? true : undefined}
         className={cx(
@@ -199,7 +201,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-ink-100 p-3">
-          <Link to="/me" className="mb-2 flex items-center gap-2 rounded-md px-1 py-1 hover:bg-ink-50" title={tr('صفحهٔ من')}>
+          <Link to="/me" data-tour="me" className="mb-2 flex items-center gap-2 rounded-md px-1 py-1 hover:bg-ink-50" title={tr('صفحهٔ من')}>
             {user && <Avatar name={user.fullName} unit={user.department?.code} size="sm" />}
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-ink-800">{user?.fullName}</span>
@@ -208,7 +210,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
             </span>
           </Link>
-          <Link to="/delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
+          <Link to="/delegations" data-tour="delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
           </Link>
           <MessengerMenuItem />
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => void signOut()}>
@@ -220,6 +222,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <TopBar onMenu={() => setMobileOpen(true)} menuOpen={mobileOpen} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+      <OwlGuide />
     </div>
   );
 }
@@ -342,7 +345,7 @@ function GlobalSearch() {
   const optionId = (i: number) => `search-option-${i}`;
 
   return (
-    <div ref={boxRef} className="relative flex-1 max-w-xl">
+    <div ref={boxRef} data-tour="search" className="relative flex-1 max-w-xl">
       <div
         className="relative"
         role="combobox"
@@ -418,25 +421,22 @@ interface NotificationRow {
   severity: string; readAt: string | null; createdAt: string;
 }
 
-/** Opens the written guide at the section for the signed-in user's role. */
+/** Opens the owl's guide to this page (Hivamis task 8); the full written guide is one click inside it. */
 function HelpButton() {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label={tr('راهنمای کاربری')}
-        title={tr('راهنمای کاربری')}
-        className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-      >
-        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M9.5 9a2.5 2.5 0 113.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01" strokeLinecap="round" />
-        </svg>
-      </button>
-      <HelpDrawer open={open} onClose={() => setOpen(false)} />
-    </>
+    <button
+      data-tour="help"
+      onClick={() => guideBus.emit({ type: 'open' })}
+      aria-label={tr('راهنمای کاربری')}
+      title={tr('راهنمای کاربری')}
+      className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+    >
+      <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.5 9a2.5 2.5 0 113.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01" strokeLinecap="round" />
+      </svg>
+    </button>
   );
 }
 
@@ -446,6 +446,7 @@ function LocaleToggle() {
   const other: Locale = locale === 'fa' ? 'en' : 'fa';
   return (
     <button
+        data-tour="locale"
       onClick={() => void setLocale(other)}
       title={locale === 'fa' ? 'Switch to English' : tr('تغییر به فارسی')}
       aria-label={locale === 'fa' ? 'Switch interface language to English' : tr('تغییر زبان رابط به فارسی')}
@@ -513,7 +514,7 @@ function Notifications() {
   };
 
   return (
-    <div ref={boxRef} className="relative">
+    <div ref={boxRef} data-tour="notifications" className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-lg p-2 text-ink-500 hover:bg-ink-100"
@@ -568,7 +569,7 @@ export function PageHeader({ title, subtitle, actions, badge }: {
   title: string; subtitle?: ReactNode; actions?: ReactNode; badge?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 bg-surface px-5 py-4">
+    <div data-tour="page-header" className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 bg-surface px-5 py-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-lg font-semibold text-ink-900">{title}</h1>
@@ -576,7 +577,7 @@ export function PageHeader({ title, subtitle, actions, badge }: {
         </div>
         {subtitle && <div className="mt-0.5 text-sm text-ink-500">{subtitle}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div data-tour="page-actions" className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

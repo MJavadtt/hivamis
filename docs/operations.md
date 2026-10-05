@@ -96,6 +96,7 @@ on first sign-in), then deactivate the demo users.
 | `OLLAMA_URL` | no | `http://127.0.0.1:11434` | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
 | `OLLAMA_MODEL` | no | `qwen3:14b` | A model that supports tool calling and writes Persian |
 | `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
+| `GUIDE_VIDEO_MAX_MB` | no | 200 | Largest guide video (Hivamis task 8). Videos are kept in `STORAGE_DIR`, so back them up with it |
 
 ## Backup and recovery
 
@@ -604,3 +605,36 @@ spare memory, raise `CHAT_CONCURRENCY` along with Ollama's own `OLLAMA_NUM_PARAL
 their owner. Deleting a user deletes theirs. The AI governance log (`ai_interactions`, capability
 `CHAT`) records the tools used, the records they touched, tokens and timing. It never records the
 question or the answer.
+
+## The guide owl and its videos
+
+Hivamis task 8. The owl and its guide need no setup: the guide text ships with the application in
+both languages, and the tours are drawn on the live page.
+
+**Videos are the organisation's own.** None ship with the product. For each section, the system
+administrator can add one screen recording per language. Open the page, click the owl, and use
+**ویدیوی این بخش (مدیر سیستم)** at the foot of its panel. To record:
+
+1. Record the screen with the operating system's own recorder (on a Mac, Shift-Command-5).
+2. Convert it to MP4 (H.264) so every browser plays it and seeking starts at once:
+
+   ```bash
+   ffmpeg -i recording.mov -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart -an guide.mp4
+   ```
+
+   Leave out `-an` to keep the narration. Three minutes at 1080p is usually 20 to 40 MB.
+
+A file over `GUIDE_VIDEO_MAX_MB` is refused. The Compose stack's nginx allows 210 MB on this one
+path and streams uploads straight to the API. Raise both together, along with any other proxy in
+front.
+
+**Playing.** A browser's video player cannot send the sign-in token, so the app asks for a link that
+plays that one video for three hours. The link is signed with `JWT_SECRET`, so changing the secret
+ends every link that has been handed out. The video is served in byte ranges, which lets the player
+seek without downloading the whole file.
+
+**The 3D owl** loads three.js in its own chunk, about 125 KB compressed, the first time it appears. It
+stops drawing while it is off screen or the tab is hidden. It holds still for people who asked their
+system for reduced motion, and is drawn flat where WebGL is unavailable. People who prefer it gone
+use **پنهان کردن هیوا** in its panel; the ? in the top bar still opens the guide.
+

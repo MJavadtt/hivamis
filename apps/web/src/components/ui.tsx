@@ -100,11 +100,13 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
 
 /* ── Surfaces ──────────────────────────────────────────────────────────── */
 
-export function Card({ children, className, title, action, subtitle }: {
+export function Card({ children, className, title, action, subtitle, tour }: {
   children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; action?: ReactNode;
+  /** Where the guide's tour may point (Hivamis task 8). */
+  tour?: string;
 }) {
   return (
-    <section className={cx('rounded-xl bg-surface ring-1 ring-ink-200/70 shadow-sm', className)}>
+    <section data-tour={tour} className={cx('rounded-xl bg-surface ring-1 ring-ink-200/70 shadow-sm', className)}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 border-b border-ink-100 px-4 py-3">
           <div className="min-w-0">
@@ -215,7 +217,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 left-4 z-50 flex w-80 flex-col gap-2">
+      {/* Raised while the guide's owl sits in this corner (Hivamis task 8). */}
+      <div className="pointer-events-none fixed bottom-[var(--toast-offset,1rem)] left-4 z-50 flex w-80 flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -383,7 +386,7 @@ export function Tabs({ tabs, active, onChange }: {
     el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [active]);
   return (
-    <div ref={strip} className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1" role="tablist">
+    <div ref={strip} data-tour="tabs" className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.key}

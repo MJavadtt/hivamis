@@ -71,6 +71,7 @@ If a module ever needs independent scaling, its boundary is already drawn.
 | Data fetching | TanStack Query | Cache invalidation after a workflow transition is one call |
 | Styling | Tailwind CSS 4 | Token-driven design system in CSS, no runtime cost, trivially RTL |
 | Charts | Recharts | Lazy-loaded on `/reports` only |
+| The guide's owl | three.js | Hivamis task 8: the owl is drawn in 3D from primitives, with no model file. The library loads in its own chunk the first time the owl appears; without WebGL, or in tests, a flat SVG owl stands in |
 | Language | Persian source, English catalogues (no library) | `tr()` over Persian keys; the English catalogues load only in English, and composed server text is read back against its template (ADR-056) |
 
 **Deliberately not used:** Kubernetes, a message broker, a separate search cluster, a vector
@@ -174,6 +175,10 @@ without a model.
   in-process with the asking person's token, so it sees what they see. It writes nothing: it offers
   forms, already filled, and pages for the person to open. Conversations (`ai_conversations`,
   `ai_messages`) belong to their owner. The log keeps the tools used, not the words.
+- **The guide.** Each page's guide (`GUIDE` in `@hiva/contracts`, ADR-061) is data in both languages.
+  The owl reads it as a tour, the guide's search answers from it, and the assistant searches it with
+  `search_guide`. Tour steps point at `data-tour` anchors on shared components. A test fails if a
+  step names an anchor no page carries, or a route has no section.
 
 ## Data model
 

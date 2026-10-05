@@ -88,7 +88,7 @@ function WaysIn({ profile }: { profile: MyProfile }) {
   const google = profile.identities.filter((i) => i.provider === 'google');
 
   return (
-    <Card title={tr('روش‌های ورود')} subtitle={tr('دست‌کم یک روش همیشه می‌ماند.')}>
+    <Card tour="ways-in" title={tr('روش‌های ورود')} subtitle={tr('دست‌کم یک روش همیشه می‌ماند.')}>
       <div className="divide-y divide-ink-100">
         <section className="p-4" data-testid="way-password">
           <p className="mb-2 text-sm font-medium text-ink-800">{tr('ایمیل و رمز عبور')}{' '}{profile.hasPassword ? <Badge tone="success">{tr('فعال')}</Badge> : <Badge tone="neutral">{tr('گذاشته نشده')}</Badge>}</p>
@@ -203,7 +203,7 @@ function Devices({ profile }: { profile: MyProfile }) {
   const reload = () => qc.invalidateQueries({ queryKey: ['/me/profile'] });
   const others = profile.sessions.filter((s) => !s.current).length;
   return (
-    <Card title={tr('دستگاه‌های واردشده')} subtitle={tr('هر دستگاهی که نمی‌شناسید را خارج کنید.')}
+    <Card tour="devices" title={tr('دستگاه‌های واردشده')} subtitle={tr('هر دستگاهی که نمی‌شناسید را خارج کنید.')}
       action={others > 0 ? <Button size="sm" variant="ghost" onClick={async () => { try { await apiPost('/me/sessions/revoke-others'); toast(tr('دستگاه‌های دیگر خارج شدند.')); await reload(); } catch (e) { toast((e as Error).message, 'danger'); } }}>{tr('خروج همهٔ دستگاه‌های دیگر')}</Button> : undefined}>
       <ul className="divide-y divide-ink-100" data-testid="devices">
         {profile.sessions.map((s) => (

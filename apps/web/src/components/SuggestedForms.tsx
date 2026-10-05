@@ -44,7 +44,7 @@ export function SuggestedForms({ entity, id }: { entity: string; id: string | un
   const { data } = useSuggestions(entity, id, all ? 30 : 6);
   if (!data?.forms?.length) return null;
   return (
-    <div className="mx-5 mt-3 flex flex-wrap items-center gap-2" data-testid="suggested-forms">
+    <div className="mx-5 mt-3 flex flex-wrap items-center gap-2" data-testid="suggested-forms" data-tour="related-forms">
       <span className="text-xs font-medium text-ink-500">{tr('فرم‌های مرتبط:')}</span>
       {data.forms.map((f) => (
         <button

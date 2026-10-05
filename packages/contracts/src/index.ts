@@ -12,3 +12,4 @@ export * from './schemas.js';
 export * from './crm.js';
 export * from './i18n.js';
 export * from './suggest.js';
+export * from './guide.js';

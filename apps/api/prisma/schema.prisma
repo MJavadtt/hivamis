@@ -301,6 +301,7 @@ model User {
   signupDecisions      SignupRequest[]     @relation("SignupDecider")
   signupAccounts       SignupRequest[]     @relation("SignupAccount")
   aiConversations      AiConversation[]
+  guideVideos          GuideVideo[]       @relation("GuideVideoUploader")
 
   @@index([organizationId, departmentId])
   @@index([email])
@@ -2890,4 +2891,24 @@ model AiMessage {
 
   @@index([conversationId, createdAt])
   @@map("ai_messages")
+}
+
+/// A recorded video for one section of the guide (Hivamis task 8), in one language — the
+/// organisation's own screen recording, uploaded by the system administrator. One per section and
+/// language: a new upload replaces the old one.
+model GuideVideo {
+  id             String   @id @default(uuid())
+  organizationId String
+  sectionId      String
+  locale         String
+  title          String
+  storedName     String
+  mimeType       String
+  sizeBytes      Int
+  uploadedById   String
+  uploadedBy     User     @relation("GuideVideoUploader", fields: [uploadedById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, sectionId, locale])
+  @@map("guide_videos")
 }

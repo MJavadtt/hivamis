@@ -204,3 +204,38 @@ body {
     animation: none;
   }
 }
+
+/* Hiva the owl, drawn (Hivamis task 8): the stand-in where three dimensions cannot be drawn. */
+@keyframes owl-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes owl-talk {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.5px); }
+}
+@keyframes owl-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25%, 75% { transform: rotate(-55deg); }
+  50% { transform: rotate(-35deg); }
+}
+@keyframes owl-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+.owl-svg .owl-eyes { animation: owl-blink 4.5s infinite; transform-box: fill-box; transform-origin: center; }
+.owl-svg .owl-body { animation: owl-bob 3s ease-in-out infinite; }
+.owl-svg.owl-talk .owl-jaw { animation: owl-talk 0.25s ease-in-out infinite; }
+.owl-svg.owl-wave .owl-wing-r { animation: owl-wave 1.2s ease-in-out 1; transform-box: fill-box; transform-origin: 10% 10%; }
+.owl-svg.owl-think .owl-head { transform: rotate(-8deg); transform-box: fill-box; transform-origin: center bottom; transition: transform 0.3s; }
+@media (prefers-reduced-motion: reduce) {
+  .owl-svg .owl-eyes, .owl-svg .owl-body, .owl-svg.owl-talk .owl-jaw, .owl-svg.owl-wave .owl-wing-r { animation: none; }
+}
+
+/* The guide's tour plays like a video: a bar fills while a step is on screen. */
+@keyframes tour-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.tour-progress { animation-name: tour-progress; animation-timing-function: linear; animation-fill-mode: forwards; transform-origin: right; }
+[dir='ltr'] .tour-progress { transform-origin: left; }

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { chat, type ChatMessage, type ToolCall, type ToolSpec } from './ollama.js';
 import { dateFor, shape } from './shape.js';
+import { guideFor, searchGuide } from '@hiva/contracts';
 
 /**
  * The assistant's hands (Hivamis task 5) — and why they cannot do harm.
@@ -50,6 +51,7 @@ export const TOOLS: ToolSpec[] = [
   { type: 'function', function: { name: 'my_work', description: "The user's own queue: tasks, orders, reviews and forms waiting for them, with deadlines.", parameters: { type: 'object', properties: {} } } },
   { type: 'function', function: { name: 'ask_numbers', description: 'Answer a question about the numbers (revenue, margin, on-time delivery, SLA, overdue work…) from the defined metrics. Ask in Persian.', parameters: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'] } } },
   { type: 'function', function: { name: 'search_memory', description: "Search the organisation's memory: past briefs, proposals, minutes, lessons learned and client feedback, by meaning.", parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
+  { type: 'function', function: { name: 'search_guide', description: 'How to do something in this application — where a page is, which button, what a step means — from the user guide. Use it for "how do I…" questions.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
   { type: 'function', function: { name: 'related_forms', description: 'The forms that fit a record at its current stage, with their codes. Call this before offer_form.', parameters: { type: 'object', properties: { kind: { type: 'string', enum: FORM_KINDS }, id: { type: 'string' } }, required: ['kind', 'id'] } } },
   { type: 'function', function: { name: 'offer_form', description: 'Show the user a button that opens a form, already filled with the record it is about. The only way to offer a form. The user reviews and sends it themselves.', parameters: { type: 'object', properties: { code: { type: 'string', description: 'A form code from related_forms, e.g. K01_STATUS' }, kind: { type: 'string', enum: FORM_KINDS, description: 'The record the form is about (default: the one on screen)' }, id: { type: 'string' }, prefill: { type: 'object', description: 'Optional extra field key → short text you are sure of' } }, required: ['code'] } } },
   { type: 'function', function: { name: 'offer_page', description: 'Offer the user a link to a page of the application, e.g. /projects/<id>.', parameters: { type: 'object', properties: { path: { type: 'string' }, label: { type: 'string' } }, required: ['path', 'label'] } } },
@@ -168,6 +170,19 @@ export async function runTool(call: ToolCall, ctx: AgentContext): Promise<ToolRe
       const total = bodies.reduce((n, b) => n + (b.total ?? 0), 0);
       return { content: clip({ total, items: items.slice(0, 20).map((it) => shape(summary(it), ctx)) }) };
     }
+    case 'search_guide': {
+      const q = str(a.query, 200);
+      if (!q) return { content: 'empty query' };
+      const found = searchGuide(q, ctx.locale, 4);
+      if (!found.length) return { content: 'nothing in the guide matches; say so, and suggest the full written guide' };
+      const lang = ctx.locale;
+      return {
+        content: found.map((m) => [
+          `Section «${m.section.title[lang]}»${m.section.path ? ` (page ${m.section.path})` : ''}: ${m.section.summary[lang]}`,
+          ...(m.step ? [`  Step «${m.step.title[lang]}»: ${m.step.body[lang]}`] : m.section.steps.slice(0, 3).map((st) => `  - ${st.title[lang]}: ${st.body[lang]}`)),
+        ].join('\n')).join('\n'),
+      };
+    }
     case 'my_work':
       return { content: (await read(ctx, 'GET', '/me/work')).text };
     case 'ask_numbers': {
@@ -224,6 +239,7 @@ export async function runTool(call: ToolCall, ctx: AgentContext): Promise<ToolRe
 }
 
 export function systemPrompt(ctx: AgentContext, now = new Date(), brief = ''): string {
+  const guide = ctx.page?.path ? guideFor(ctx.page.path) : undefined;
   const page = ctx.page?.entity && ctx.page.id
     ? `The user is looking at a ${ctx.page.entity} (id ${ctx.page.id})${ctx.page.title ? `, “${ctx.page.title}”` : ''}. "This" or "here" means it.`
     : ctx.page?.path ? `The user is on the page ${ctx.page.path}.` : '';
@@ -233,6 +249,7 @@ export function systemPrompt(ctx: AgentContext, now = new Date(), brief = ''): s
     `The user: ${ctx.person.fullName}${ctx.person.jobTitle ? `, ${ctx.person.jobTitle}` : ''}${ctx.person.unit ? `, unit ${ctx.person.unit}` : ''}; roles ${ctx.person.roles.join(', ') || '—'}.`,
     `Today is ${dateFor(now.toISOString(), ctx.locale)}.`,
     page,
+    guide && `The page is «${guide.title[ctx.locale]}» in the guide: ${guide.summary[ctx.locale]} For how-to questions, call search_guide.`,
     brief,
     'Rules:',
     '- Facts about records, people and numbers come only from your tools. Never invent a name, date, amount, code or state; if a tool did not return it, say you do not know.',

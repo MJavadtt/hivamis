@@ -69,6 +69,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:14b}
       CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}
+      GUIDE_VIDEO_MAX_MB: ${GUIDE_VIDEO_MAX_MB:-200}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

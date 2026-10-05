@@ -80,7 +80,7 @@ export function WorkflowActions({
 
   return (
     <>
-      <div className="flex flex-wrap gap-1.5">
+      <div data-tour="workflow" className="flex flex-wrap gap-1.5">
         {transitions.map((t) => {
           const failing = checksFor(t.action).filter((c) => !c.ok);
           return (
@@ -265,7 +265,7 @@ export function EntityList<T extends { id: string }>({
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-ink-100 p-3">
-        <form onSubmit={submitSearch} className="relative flex-1 basis-56 max-w-sm">
+        <form onSubmit={submitSearch} data-tour="list-search" className="relative flex-1 basis-56 max-w-sm">
           <IconSearch className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-ink-400" />
           <Input
             value={q}
@@ -276,7 +276,7 @@ export function EntityList<T extends { id: string }>({
         </form>
         {/* Selects carry `w-full` from the shared control style, so the sizing lives on a wrapper. */}
         {filters?.map((f) => (
-          <div key={f.key} className="w-44 shrink-0">
+          <div key={f.key} data-tour="list-filter" className="w-44 shrink-0">
             <Select
               value={filterValues[f.key] ?? ''}
               onChange={(e) => {
@@ -295,7 +295,7 @@ export function EntityList<T extends { id: string }>({
         <Button variant="ghost" size="sm" onClick={() => void refetch()} aria-label={tr('به‌روزرسانی')}>
           <IconRefresh className={cx('size-4', isFetching && 'animate-spin')} />
         </Button>
-        {actions}
+        {actions && <div data-tour="list-actions" className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
 
       {isLoading ? (
@@ -306,7 +306,7 @@ export function EntityList<T extends { id: string }>({
         <EmptyState title={emptyTitle ?? tr('رکوردی یافت نشد')} description={emptyDescription} />
       ) : (
         <>
-          <Table>
+          <div data-tour="list-table"><Table>
             <thead className="bg-ink-50/60">
               <tr>{columns.map((c) => <Th key={c.key} className={c.className}>{c.header}</Th>)}</tr>
             </thead>
@@ -317,7 +317,7 @@ export function EntityList<T extends { id: string }>({
                 </Tr>
               ))}
             </tbody>
-          </Table>
+          </Table></div>
           <Pagination page={data.page} pageCount={data.pageCount} total={data.total} onChange={setPage} />
         </>
       )}
@@ -391,7 +391,7 @@ export function StateHistory({ entity, id }: { entity: string; id: string }) {
   if (isLoading || error || !data?.length) return null;
 
   return (
-    <Card title={tr('تاریخچه وضعیت')} subtitle={tr('{0} تغییر', localDigits(data.length))}>
+    <Card tour="history" title={tr('تاریخچه وضعیت')} subtitle={tr('{0} تغییر', localDigits(data.length))}>
       <ol className="divide-y divide-ink-100">
         {data.map((t) => (
           <li key={t.id} className="px-4 py-2.5">

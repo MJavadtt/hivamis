@@ -1620,3 +1620,50 @@ A small local model will sometimes be wrong, and here being wrong costs a click,
 - Conversations are not searchable, and are not shared.
 - `ai.chat` is in every role's defaults. A role whose permissions an administrator set explicitly
   before this version does not have it until it is ticked.
+
+## ADR-061 — The guide is data, the owl reads it on the live page, and videos are the organisation's
+
+**Decision.** (Hivamis task 8.) The guide is one section per page (`GUIDE` in `@hiva/contracts`).
+Each section has a summary and steps, in Persian and English side by side, and each step may point
+at an element through a `data-tour` anchor on the shared components (page header, list toolbar,
+workflow actions, related forms, tabs).
+
+Hiva the owl sits in the corner of every page. Clicking it opens that page's section. **نمایش
+گام‌به‌گام** plays the section like a video: the owl flies beside each element, the rest of the page
+dims, a caption speaks, and the steps advance on a timer with pause, back, next and Escape.
+
+Questions are answered at once from the guide by a local search in either language. Answers are
+limited to sections the person may open, and an answer on another page navigates there and plays
+from that step. Anything the guide cannot answer goes to the assistant (ADR-060), which now also has
+a `search_guide` tool and knows which page's guide it was opened from.
+
+Recorded videos are uploaded by the system administrator, one per section and language. They play
+through a three-hour signed link, served in byte ranges.
+
+The owl is drawn in three dimensions with three.js, built from primitives. It breathes, blinks,
+follows the pointer or the tour's target, talks, thinks, waves and hops. It is drawn flat (SVG)
+without WebGL, and holds still under reduced motion.
+
+**Rationale.** The person asked for an owl that guides in smooth 3D and answers questions, with text
+and video guides per section.
+
+- **Tours instead of shipped videos.** Videos we recorded would go stale with the next change to a
+  screen, would exist in one language, and would not know what the person may see. A tour drawn on
+  the live page has none of these problems. Recorded videos remain the organisation's choice: its
+  own process, its own voice.
+- **Guide as data.** It can be checked: a test fails if a step points at an anchor no component
+  carries, if a page has no section, or if English text contains Persian. One source then serves the
+  panel, the search and the assistant.
+- **Primitives instead of a model file.** Nothing to license or download, a small chunk, and a
+  character in the house colours.
+
+**Limits.**
+
+- The guide's text is the product's. An organisation cannot yet edit it, only add videos.
+- Steps on detail pages, and in tabs that are not open, show their caption without a highlight, and
+  say so.
+- The search matches words, not meaning; the assistant covers the rest.
+- The written user guide (docs/user-guide.md) is still English, opened from the panel.
+- The owl's three.js chunk is the largest single addition to the web bundle, though it loads only
+  when the owl appears.
+
