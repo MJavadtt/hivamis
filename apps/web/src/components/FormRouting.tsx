@@ -79,7 +79,7 @@ export function FormRouting() {
                   <Tr key={r.id}>
                     <Td><Code>{r.id}</Code></Td>
                     <Td className="max-w-xs text-xs">{loc(r, 'when')}</Td>
-                    <Td className="text-[11px] text-ink-500">{loc(r, 'described')}</Td>
+                    <Td className="text-[12.5px] text-ink-500">{loc(r, 'described')}</Td>
                     <Td className="text-xs">{(r.addApprovers ?? []).map(roleFa).join(tr('، ')) || '—'}</Td>
                     <Td className="text-xs">{(r.notifyRoles ?? []).map(roleFa).join(tr('، ')) || '—'}</Td>
                     <Td><Badge tone={r.source === 'DOC_H' ? 'info' : r.source === 'ORG' ? 'success' : 'neutral'}>{SOURCE_FA[r.source ?? 'DEFAULT']}</Badge></Td>
@@ -140,7 +140,7 @@ export function FormRouting() {
                       commit([...rules, { ...draft, id: draft.id.trim(), whenFa: draft.whenFa.trim(), when: { field: draft.when.field, op, ...(['isTrue', 'isFalse', 'isSet', 'isEmpty'].includes(op) ? {} : { value }) } }]);
                     }}>{tr('ذخیره قاعده')}</Button>
                   <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>{tr('انصراف')}</Button>
-                  <p className="text-[11px] text-ink-500">{tr('ذخیره، نسخهٔ تازه‌ای از تعریف فرم می‌سازد؛ فرم‌های ثبت‌شده با قواعد زمان خودشان می‌مانند.')}</p>
+                  <p className="text-[12.5px] text-ink-500">{tr('ذخیره، نسخهٔ تازه‌ای از تعریف فرم می‌سازد؛ فرم‌های ثبت‌شده با قواعد زمان خودشان می‌مانند.')}</p>
                 </div>
               </div>
             )}

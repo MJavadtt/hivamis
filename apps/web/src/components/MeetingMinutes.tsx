@@ -170,7 +170,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
               <label className="cursor-pointer text-xs text-brand-700 underline">{tr('بارگذاری صوت جلسه')}<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
               </label>
             ) : (
-              <span className="text-[11px] text-ink-400">{tr('رونویسی صوت پیکربندی نشده — متن یادداشت‌ها را وارد کنید.')}</span>
+              <span className="text-[12.5px] text-ink-400">{tr('رونویسی صوت پیکربندی نشده — متن یادداشت‌ها را وارد کنید.')}</span>
             )}
           </div>
         </div>
@@ -184,7 +184,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
           <div className="space-y-3">
             {rows.map((r, i) => (
               <div key={i} className="rounded-lg ring-1 ring-ink-200 p-3" data-testid="minutes-action">
-                <div className="mb-2 flex items-center gap-2 text-[11px] text-ink-400">
+                <div className="mb-2 flex items-center gap-2 text-[12.5px] text-ink-400">
                   <Badge tone={CONF_TONE[r.confidence as keyof typeof CONF_TONE] ?? 'neutral'}>
                     {r.confidence === 'HIGH' ? tr('مسئول و مهلت مشخص') : r.confidence === 'MEDIUM' ? tr('نیازمند تکمیل') : tr('حدسی')}
                   </Badge>
@@ -220,7 +220,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
               }))])}>{tr('افزودن به اقدام‌ها')}</Button>
             </div>
           )}
-          <p className="text-[11px] text-ink-400">{tr('جلسه در {0} — مهلت‌های نسبی («تا شنبه») از همین تاریخ حساب شده‌اند.', formatDate(meeting.heldAt))}</p>
+          <p className="text-[12.5px] text-ink-400">{tr('جلسه در {0} — مهلت‌های نسبی («تا شنبه») از همین تاریخ حساب شده‌اند.', formatDate(meeting.heldAt))}</p>
         </div>
       )}
     </Modal>

@@ -32,11 +32,11 @@ export default function Onboarding() {
               <button type="button" onClick={() => setStep(s.step)}
                 className={`h-full w-full rounded-lg border px-3 py-2 text-start text-xs ${step === s.step ? 'border-brand-500 bg-brand-50' : 'border-ink-200 bg-surface'}`}>
                 <span className="flex items-center gap-1.5">
-                  <span className={`grid size-5 place-items-center rounded-full text-[10px] text-white ${s.done ? 'bg-emerald-600' : 'bg-ink-300'}`}>{s.done ? '✓' : localDigits(i + 1)}</span>
+                  <span className={`grid size-5 place-items-center rounded-full text-[12px] text-white ${s.done ? 'bg-emerald-600' : 'bg-ink-300'}`}>{s.done ? '✓' : localDigits(i + 1)}</span>
                   <span className="font-medium text-ink-800">{loc(s, 'label')}</span>
                 </span>
-                <span className="mt-1 block text-[11px] text-ink-500">{loc(s, 'detail')}</span>
-                {s.confirmed && <span className="mt-0.5 block text-[10px] text-emerald-700">{tr('تأیید شد {0}', formatDateTime(s.confirmed.at))}</span>}
+                <span className="mt-1 block text-[12.5px] text-ink-500">{loc(s, 'detail')}</span>
+                {s.confirmed && <span className="mt-0.5 block text-[12px] text-emerald-700">{tr('تأیید شد {0}', formatDateTime(s.confirmed.at))}</span>}
               </button>
             </li>
           ))}

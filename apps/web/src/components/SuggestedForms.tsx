@@ -54,7 +54,7 @@ export function SuggestedForms({ entity, id }: { entity: string; id: string | un
             f.fitsStage ? 'bg-brand-50/60 text-brand-800 ring-brand-200' : 'bg-surface text-ink-700 ring-ink-200')}
         >
           {loc(f, 'name')}
-          {f.lastForRecord && <span aria-hidden className="ms-1 text-[10px] text-ink-400">✓</span>}
+          {f.lastForRecord && <span aria-hidden className="ms-1 text-[12px] text-ink-400">✓</span>}
         </button>
       ))}
       {(data.total ?? 0) > data.forms.length && (

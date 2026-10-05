@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <h2 className="text-sm font-semibold text-rose-800">{tr('نمایش این صفحه با خطا مواجه شد')}</h2>
               <p className="mt-1.5 text-xs leading-6 text-rose-700">{tr('اطلاعات شما از دست نرفته است. می‌توانید دوباره تلاش کنید یا به داشبورد برگردید. اگر خطا تکرار شد، متن زیر را به تیم فنی اعلام کنید.')}</p>
 
-              <pre className="ltr mt-3 max-h-32 overflow-auto rounded-lg bg-surface/70 p-2.5 text-[11px] text-rose-900">
+              <pre className="ltr mt-3 max-h-32 overflow-auto rounded-lg bg-surface/70 p-2.5 text-[12.5px] text-rose-900">
                 {error.message || String(error)}
               </pre>
 

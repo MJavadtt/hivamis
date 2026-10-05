@@ -25,25 +25,29 @@ export function canDraw3D(): boolean {
   return webgl;
 }
 
-export function Owl({ size, mood = 'idle', lookAt, className }: {
-  size: number; mood?: OwlMood; lookAt?: { x: number; y: number } | null; className?: string;
+export function Owl({ size, mood = 'idle', heading = 0, lookAt, className }: {
+  size: number; mood?: OwlMood;
+  /** While flying: which way, −1 (left) to 1 (right). */
+  heading?: number;
+  lookAt?: { x: number; y: number } | null; className?: string;
 }) {
   const [failed, setFailed] = useState(false);
   const fail = useCallback(() => setFailed(true), []);
-  const flat = <OwlSvg size={size} mood={mood} className={className} />;
+  const flat = <OwlSvg size={size} mood={mood} heading={heading} className={className} />;
   if (failed || !canDraw3D()) return flat;
   return (
     <Suspense fallback={flat}>
-      <Owl3D size={size} mood={mood} lookAt={lookAt} onFail={fail} className={className} />
+      <Owl3D size={size} mood={mood} heading={heading} lookAt={lookAt} onFail={fail} className={className} />
     </Suspense>
   );
 }
 
 /** The owl drawn flat: the same bird, the same cap. */
-export function OwlSvg({ size, mood = 'idle', className }: { size: number; mood?: OwlMood; className?: string }) {
+export function OwlSvg({ size, mood = 'idle', heading = 0, className }: { size: number; mood?: OwlMood; heading?: number; className?: string }) {
   return (
     <svg viewBox="0 0 100 112" width={size} height={size} aria-hidden data-owl="svg"
-      className={cx('owl-svg', mood === 'talk' && 'owl-talk', mood === 'wave' && 'owl-wave', mood === 'think' && 'owl-think', className)}>
+      style={mood === 'fly' ? { transform: `rotate(${(heading * 8).toFixed(1)}deg)` } : undefined}
+      className={cx('owl-svg', mood === 'talk' && 'owl-talk', mood === 'wave' && 'owl-wave', mood === 'think' && 'owl-think', mood === 'fly' && 'owl-fly', className)}>
       <ellipse cx="50" cy="106" rx="26" ry="4" fill="#1e143c" opacity="0.15" />
       <g className="owl-body">
         <ellipse className="owl-wing-l" cx="22" cy="70" rx="9" ry="22" fill="#6e4529" transform="rotate(10 22 70)" />

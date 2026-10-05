@@ -119,7 +119,7 @@ export function FilePreview({ documentId, mimeType, size = 'sm' }: { documentId:
   const previewable = mimeType.startsWith('image/') || mimeType === 'video/mp4' || mimeType === 'application/pdf' || FONT_TYPES.includes(mimeType);
   const url = useFileUrl(previewable ? documentId : null);
   const box = size === 'lg' ? 'max-h-[22rem]' : 'max-h-28';
-  if (!previewable) return <div className="grid h-16 w-20 place-items-center rounded bg-ink-100 text-[10px] text-ink-500" data-testid="preview-none">{mimeType.split('/')[1]?.slice(0, 8).toUpperCase()}</div>;
+  if (!previewable) return <div className="grid h-16 w-20 place-items-center rounded bg-ink-100 text-[12px] text-ink-500" data-testid="preview-none">{mimeType.split('/')[1]?.slice(0, 8).toUpperCase()}</div>;
   if (!url) return <div className={`animate-pulse rounded bg-ink-100 ${size === 'lg' ? 'h-64 w-full' : 'h-16 w-20'}`} />;
   if (mimeType.startsWith('image/')) return <img src={url} alt="" className={`block ${box} max-w-full rounded bg-[repeating-conic-gradient(#e5e7eb_0_25%,#fff_0_50%)] bg-[length:12px_12px] object-contain`} data-testid="preview-image" />;
   if (mimeType === 'video/mp4') return <video src={url} controls={size === 'lg'} muted className={`block ${box} max-w-full rounded bg-black`} data-testid="preview-video" />;
@@ -143,7 +143,7 @@ function PdfFirstPage({ url, width }: { url: string; width: number }) {
     })();
     return () => { alive = false; task?.cancel(); };
   }, [url, width]);
-  if (failed) return <div className="grid h-16 w-20 place-items-center rounded bg-ink-100 text-[10px] text-ink-500">PDF</div>;
+  if (failed) return <div className="grid h-16 w-20 place-items-center rounded bg-ink-100 text-[12px] text-ink-500">PDF</div>;
   return <canvas ref={canvas} className="block max-w-full rounded bg-white shadow-sm ring-1 ring-ink-200" data-testid="preview-pdf" />;
 }
 
@@ -214,8 +214,8 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
                   {v.clientVisible && <Badge tone="info">{tr('در پورتال')}</Badge>}
                   {v.annotations > 0 && <Badge tone="warning">{tr('{0} یادداشت', localDigits(v.annotations))}</Badge>}
                 </p>
-                <p className="text-[11px] text-ink-500">{[metadataFa(v.metadata), sizeFa(v.sizeBytes)].filter(Boolean).join(' · ')}</p>
-                <p className="text-[11px] text-ink-400">{v.uploadedBy?.fullName ?? '—'} · {formatDateTime(v.createdAt)}</p>
+                <p className="text-[12.5px] text-ink-500">{[metadataFa(v.metadata), sizeFa(v.sizeBytes)].filter(Boolean).join(' · ')}</p>
+                <p className="text-[12.5px] text-ink-400">{v.uploadedBy?.fullName ?? '—'} · {formatDateTime(v.createdAt)}</p>
               </div>
               <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${v.id}/download`, v.fileName)}>{tr('دریافت')}</Button>
             </li>
@@ -264,7 +264,7 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
                       if (a === '—' && b === '—') return null;
                       return (
                         <tr key={name} className={a !== b ? 'bg-amber-50 text-amber-900' : ''} data-changed={a !== b || undefined}>
-                          <td className="px-1 py-1 text-ink-500">{name}</td><td className="px-1 py-1">{a}</td><td className="px-1 py-1">{b}{a !== b && <span className="ms-1 text-[10px]">{tr('(تغییر کرد)')}</span>}</td>
+                          <td className="px-1 py-1 text-ink-500">{name}</td><td className="px-1 py-1">{a}</td><td className="px-1 py-1">{b}{a !== b && <span className="ms-1 text-[12px]">{tr('(تغییر کرد)')}</span>}</td>
                         </tr>
                       );
                     })}

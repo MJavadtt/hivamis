@@ -1668,7 +1668,8 @@ and video guides per section.
 - Steps on detail pages, and in tabs that are not open, show their caption without a highlight, and
   say so.
 - The search matches words, not meaning; the assistant covers the rest.
-- The written user guide (docs/user-guide.md) is still English, opened from the panel.
+- The written user guide (docs/user-guide.md) is still English, opened from the panel. (Since
+  ADR-065 it has a Persian edition.)
 - The owl's three.js chunk is the largest single addition to the web bundle, though it loads only
   when the owl appears.
 
@@ -1810,3 +1811,44 @@ installation maintainable by someone other than its developer.
 - The installer and upgrade were exercised in dry run here (no images were built on this machine);
   the CLI, provisioning and the reference sync ran against the real databases.
 
+
+## ADR-065 — The written guide in two editions; Ray at a legible size; the owl flies
+
+**Decision.** (Hivamis, the third list: items 2, 3, 4, 12 and 14.)
+
+- **The guide in Persian.** `docs/user-guide.fa.md` is the Persian edition of `docs/user-guide.md`,
+  section for section in the same order. The help drawer pairs the two by position and keeps the
+  English heading as each section's id, so the role defaults and the contextual links («Forms»,
+  «When the system blocks you») work in both languages. A Persian reader gets the Persian edition; an
+  English reader the English one. Each block of the guide takes its direction from its own text.
+- **Messages the server composes are read in the reader's language.** Reasons, findings and notes
+  built on the server (brief quality, lessons that bear on a project, revenue notes, breach risk,
+  comparable work orders, assignment reasons, the brand check, the question caveats, the kinds of
+  work on «کارهای من») were in the shared catalogue but shown raw. They now pass through `trx`. In
+  Persian, codes that had been shown raw (process-map actions, a work order's priority, a lesson's
+  category) show their labels, and checkboxes are named by their words, not their codes.
+- **Type.** The interface is set in Ray (Maryamsoft; the organisation holds the licence), one variable
+  font for both scripts, with Vazirmatn behind it. Nothing is set below 12px; `text-xs` is 13px and
+  `text-sm` 15px.
+- **Layers.** Drawers sit above the owl; dialogs render at the root of the page above drawers, so a
+  dialog opened from the sliding menu is not confined to it; toasts above everything.
+- **Flight.** The owl moves by flying (`components/owl/flight.ts`): a quadratic arc that rises above
+  both ends, banking into the turn and growing slightly at the top, 0.7–1.7 seconds by distance. Its
+  wings beat and its body pitches and turns toward where it is going, in 3D and in the flat drawing.
+  It flies in once a session after the page has settled, between the steps of a tour, home to its
+  corner, and up off its perch when clicked. A flight interrupted by a new target or a remount
+  continues from where it had got to. Under reduced motion it is simply placed.
+
+**Rationale.** The person reported that the guide's i18n was broken, that the chat could not be used
+at its size, that the owl did not fly, and that the font was small and illegible. A
+translation of the written guide, a fixed stacking order and a floor on type size answer those
+directly. The flight is driven by the Web Animations API on the compositor, so it costs the page
+nothing between frames.
+
+**Limits.**
+
+- The two editions of the guide are kept in step by hand; a test fails when their sections or their
+  lists, quotes and sub-headings no longer line up.
+- «پرسش از داده‌ها» still reads questions in Persian only; in English it says so and offers its
+  examples.
+- Ray is served as WOFF, not WOFF2, because no Brotli encoder was available when it was converted.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import {
-  HELP_SECTIONS, findSection, sectionForRoles, sectionTitle, type HelpSection,
+  HELP_SECTIONS, findSection, sectionForRoles, type HelpSection,
 } from '../lib/help';
 import { cx } from './ui';
 import { tr } from '../i18n';
@@ -11,8 +11,8 @@ import { Markdown } from './Markdown';
 /**
  * The written guide, surfaced where people are rather than in a file nobody opens.
  *
- * Content comes from docs/user-guide.md at build time, so there is one source: editing the
- * guide updates the drawer. It opens on the section matching the signed-in user's role.
+ * Content comes from docs/user-guide.md (and, for Persian readers, docs/user-guide.fa.md) at build
+ * time, so there is one source per language: editing the guide updates the drawer. It opens on the section matching the signed-in user's role.
  */
 export function HelpDrawer({
   open, onClose, initialSection,
@@ -43,7 +43,7 @@ export function HelpDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-start bg-ink-900/40 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-[60] flex justify-start bg-ink-900/40 backdrop-blur-[2px]">
       <div className="absolute inset-0" aria-hidden />
       <div
         ref={panelRef}
@@ -78,7 +78,7 @@ export function HelpDrawer({
                       : 'text-ink-600 hover:bg-ink-100',
                   )}
                 >
-                  {sectionTitle(s.title)}
+                  {s.heading}
                 </button>
               </li>
             ))}
@@ -89,7 +89,7 @@ export function HelpDrawer({
           {active && (
             <>
               <h3 className="mb-3 text-sm font-semibold text-ink-800">
-                {sectionTitle(active.title)}
+                {active.heading}
               </h3>
               <Markdown source={active.body} />
             </>

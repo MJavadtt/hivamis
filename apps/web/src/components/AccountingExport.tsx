@@ -75,7 +75,7 @@ export function AccountingTab() {
           {can('finance.settle') && (
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="primary" loading={busy} disabled={empty || p.problems.length > 0} onClick={() => void post()}>{tr('ثبت خروجی و دریافت فایل')}</Button>
-              <span className="text-[11px] text-ink-500">{tr('پس از ثبت، این سندها در خروجی بعدی نمی‌آیند؛ فایل هر خروجی را می‌توان دوباره گرفت.')}</span>
+              <span className="text-[12.5px] text-ink-500">{tr('پس از ثبت، این سندها در خروجی بعدی نمی‌آیند؛ فایل هر خروجی را می‌توان دوباره گرفت.')}</span>
             </div>
           )}
         </div>
@@ -93,7 +93,7 @@ export function AccountingTab() {
                   <Td className="text-xs">{formatDate(x.periodTo)}</Td>
                   <Td className="text-xs">{localDigits(x.vouchers)} / {localDigits(x.lines)}</Td>
                   <Td className="text-xs">{formatCurrency(x.debitTotal)}</Td>
-                  <Td className="text-[11px]">{x.createdBy ?? '—'} · {formatDateTime(x.createdAt)}</Td>
+                  <Td className="text-[12.5px]">{x.createdBy ?? '—'} · {formatDateTime(x.createdAt)}</Td>
                   <Td><Button size="sm" variant="ghost" onClick={() => void downloadFile(`/accounting/exports/${x.id}/file`, x.fileName).catch((e) => toast(e?.message ?? tr('دریافت ناموفق بود.'), 'danger'))}>{tr('دریافت فایل')}</Button></Td>
                 </Tr>
               ))}
@@ -112,7 +112,7 @@ export function AccountingTab() {
             </div>
           ))}
         </dl>
-        <p className="px-4 pb-3 text-[11px] text-ink-500">{tr('ستون‌ها: {0} · تاریخ {1} · کد تفصیلی برای {2} مشتری', s.layout.columns.map((c) => c.header).join(tr('، ')), s.layout.dateFormat === 'JALALI' ? tr('شمسی') : tr('میلادی'), localDigits(Object.keys(s.clientCodes).length))}</p>
+        <p className="px-4 pb-3 text-[12.5px] text-ink-500">{tr('ستون‌ها: {0} · تاریخ {1} · کد تفصیلی برای {2} مشتری', s.layout.columns.map((c) => c.header).join(tr('، ')), s.layout.dateFormat === 'JALALI' ? tr('شمسی') : tr('میلادی'), localDigits(Object.keys(s.clientCodes).length))}</p>
       </Card>
       {editing && <SettingsModal settings={s} onClose={() => setEditing(false)} />}
     </div>
@@ -127,17 +127,17 @@ function VoucherTable({ preview }: { preview: Preview }) {
         <tbody data-testid="accounting-vouchers">
           {preview.vouchers.map((v) => v.lines.map((l, i) => (
             <Tr key={`${v.kind}-${v.sourceId}-${i}`}>
-              <Td className="text-[11px]">{i === 0 ? formatDate(v.date) : ''}</Td>
-              <Td className="text-[11px]">{i === 0 ? <><Badge tone={v.kind === 'REVERSAL' ? 'warning' : 'neutral'}>{KIND_FA[v.kind]}</Badge> <span className="ltr">{v.reference}</span><span className="block text-ink-500">{v.description}</span></> : ''}</Td>
-              <Td className="text-[11px]">{trx(ACCOUNT_LABELS[l.account])} <span className="ltr text-ink-400">{preview.accounts[l.account] ?? tr('؟')}</span></Td>
-              <Td className="ltr text-[11px]">{l.detail ?? ''}</Td>
-              <Td className="text-[11px]">{l.debit ? rial(l.debit) : ''}</Td>
-              <Td className="text-[11px]">{l.credit ? rial(l.credit) : ''}</Td>
+              <Td className="text-[12.5px]">{i === 0 ? formatDate(v.date) : ''}</Td>
+              <Td className="text-[12.5px]">{i === 0 ? <><Badge tone={v.kind === 'REVERSAL' ? 'warning' : 'neutral'}>{KIND_FA[v.kind]}</Badge> <span className="ltr">{v.reference}</span><span className="block text-ink-500">{v.description}</span></> : ''}</Td>
+              <Td className="text-[12.5px]">{trx(ACCOUNT_LABELS[l.account])} <span className="ltr text-ink-400">{preview.accounts[l.account] ?? tr('؟')}</span></Td>
+              <Td className="ltr text-[12.5px]">{l.detail ?? ''}</Td>
+              <Td className="text-[12.5px]">{l.debit ? rial(l.debit) : ''}</Td>
+              <Td className="text-[12.5px]">{l.credit ? rial(l.credit) : ''}</Td>
             </Tr>
           )))}
         </tbody>
       </Table>
-      {preview.more > 0 && <p className="px-4 py-2 text-[11px] text-ink-500">{tr('و {0} سند دیگر — همه در فایل می‌آیند.', localDigits(preview.more))}</p>}
+      {preview.more > 0 && <p className="px-4 py-2 text-[12.5px] text-ink-500">{tr('و {0} سند دیگر — همه در فایل می‌آیند.', localDigits(preview.more))}</p>}
     </>
   );
 }
@@ -189,7 +189,7 @@ function SettingsModal({ settings, onClose }: { settings: Settings; onClose: () 
 
         <section>
           <h4 className="mb-1 text-xs font-semibold text-ink-700">{tr('ستون‌های فایل')}</h4>
-          <p className="mb-2 text-[11px] text-ink-500">{tr('به همان ترتیب و با همان عنوانی که صفحهٔ ورود سند در نرم‌افزار حسابداری شما می‌خواهد.')}</p>
+          <p className="mb-2 text-[12.5px] text-ink-500">{tr('به همان ترتیب و با همان عنوانی که صفحهٔ ورود سند در نرم‌افزار حسابداری شما می‌خواهد.')}</p>
           <ol className="space-y-1.5">
             {layout.columns.map((c, i) => (
               <li key={`${c.field}-${i}`} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
@@ -220,7 +220,7 @@ function SettingsModal({ settings, onClose }: { settings: Settings; onClose: () 
 
         <section>
           <h4 className="mb-1 text-xs font-semibold text-ink-700">{tr('کد تفصیلی مشتریان')}</h4>
-          {!settings.clients.length ? <p className="text-[11px] text-ink-500">{tr('هنوز با مشتری‌ای سند مالی نداشته‌اید.')}</p> : (
+          {!settings.clients.length ? <p className="text-[12.5px] text-ink-500">{tr('هنوز با مشتری‌ای سند مالی نداشته‌اید.')}</p> : (
             <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
               {settings.clients.map((c) => (
                 <label key={c.id} className="grid grid-cols-[1fr_8rem] items-center gap-2 text-xs text-ink-700">

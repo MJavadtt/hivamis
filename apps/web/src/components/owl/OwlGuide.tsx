@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { guideFor, searchGuide, type GuideSection } from '@hiva/contracts';
@@ -12,6 +12,7 @@ import { formatNumber, localDigits } from '../../lib/format';
 import { tr } from '../../i18n';
 import { Owl, OwlSvg } from './Owl';
 import type { OwlMood } from './mood';
+import { drawnAt, flightPath, hover, type Flight, type Point } from './flight';
 
 /**
  * Hiva the owl (Hivamis task 8): the guide, in person. It sits in the corner of every page; a click
@@ -20,7 +21,18 @@ import type { OwlMood } from './mood';
  * the page dims, and the steps move on by themselves — and a recorded video plays where the
  * organisation has added one. Asked a question, it answers from the guide at once, and passes it to
  * the assistant for anything more.
+ *
+ * It gets about by flying (flight.ts): in along an arc when it first appears in a session, from one
+ * thing to the next during a tour, home to its corner afterwards, and up off its perch when clicked.
  */
+
+const ARRIVED_KEY = 'hiva.owl.arrived';
+const ENTRANCE_DELAY = 1200;
+/** Where the owl was last drawn, kept past a remount (the app rebuilds its frame as it loads) so a
+ * flight under way carries on instead of starting over or snapping to the end. */
+const memory: { at: Point | null; entranceAt?: number } = { at: null };
+const arrived = () => { try { return sessionStorage.getItem(ARRIVED_KEY) === '1'; } catch { return true; } };
+const stillPreferred = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 interface Video { id: string; sectionId: string; locale: 'fa' | 'en'; title: string; sizeBytes: number; createdAt: string }
 interface Tour { section: GuideSection; index: number; playing: boolean; done: boolean }
@@ -100,7 +112,7 @@ export function OwlGuide() {
   // Hello, once.
   useEffect(() => {
     if (hidden || owlPrefs.greeted()) return;
-    const id = setTimeout(() => { setGreeting(true); setMood('wave'); }, 1500);
+    const id = setTimeout(() => { setGreeting(true); setMood('wave'); }, arrived() ? 1500 : ENTRANCE_DELAY + 2000);
     return () => clearTimeout(id);
   }, [hidden]);
 
@@ -162,6 +174,80 @@ export function OwlGuide() {
   const owlY = card ? Math.max(4, card.top - size * 0.72) : restY;
   const showOwl = !hidden || open || !!tour;
 
+  // The flight from wherever the owl is drawn now to wherever it should be.
+  const perch = useRef<HTMLButtonElement>(null);
+  const placed = useRef<Point | null>(null);
+  const [flying, setFlying] = useState(false);
+  const [heading, setHeading] = useState(0);
+  const fly = useCallback((el: HTMLButtonElement, path: Flight, land: Point) => {
+    const anim = el.animate(path.keyframes, { duration: path.duration, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'forwards' });
+    setFlying(true);
+    setHeading(path.heading);
+    anim.onfinish = () => {
+      el.style.transform = `translate3d(${land.x}px, ${land.y}px, 0)`;
+      anim.cancel();
+      setFlying(false);
+      setHeading(0);
+    };
+    return anim;
+  }, []);
+  useLayoutEffect(() => {
+    const el = perch.current;
+    if (!el) { placed.current = null; return undefined; }
+    const to = { x: owlX, y: owlY };
+    // From where it is drawn — mid-flight, where the flight has got to; after a remount, where it was;
+    // the first time this session, from above its corner: it flies in.
+    let from = el.getAnimations?.().length || el.style.transform ? drawnAt(el) : memory.at;
+    const entrance = !arrived();
+    if (from === null && entrance) from = { x: to.x + (rtl() ? 120 : -120), y: -size * 1.6 };
+    placed.current = to;
+    const moved = from && Math.hypot(from.x - to.x, from.y - to.y) > 2;
+    el.getAnimations?.().forEach((a) => a.cancel());
+    if (!moved || stillPreferred() || typeof el.animate !== 'function') {
+      el.style.transform = `translate3d(${to.x}px, ${to.y}px, 0)`;
+      memory.at = to;
+      setFlying(false);
+      try { sessionStorage.setItem(ARRIVED_KEY, '1'); } catch { /* private mode */ }
+      return undefined;
+    }
+    let anim: Animation | null = null;
+    const takeOff = () => {
+      anim = fly(el, flightPath(from!, to), to);
+      const landed = anim.onfinish;
+      anim.onfinish = (e) => {
+        landed?.call(anim!, e);
+        memory.at = to;
+        try { sessionStorage.setItem(ARRIVED_KEY, '1'); } catch { /* private mode */ }
+      };
+    };
+    // The entrance waits for the page to settle: a flight drawn while the page is still loading
+    // arrives in two jumps.
+    let wait = 0;
+    let idle = 0;
+    if (entrance) {
+      el.style.transform = `translate3d(${from!.x}px, ${from!.y}px, 0)`;
+      memory.entranceAt ??= performance.now() + ENTRANCE_DELAY;
+      wait = window.setTimeout(() => {
+        if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(takeOff, { timeout: 1500 });
+        else takeOff();
+      }, Math.max(0, memory.entranceAt - performance.now()));
+    } else {
+      takeOff();
+    }
+    return () => {
+      clearTimeout(wait);
+      if (idle) cancelIdleCallback(idle);
+      if (anim) anim.onfinish = null;
+      // Leaving mid-flight (a remount, a new target): remember where it had got to.
+      memory.at = drawnAt(el) ?? memory.at;
+    };
+  }, [owlX, owlY, showOwl, size, fly]);
+  const flutter = () => {
+    const el = perch.current;
+    if (!el || !placed.current || stillPreferred() || typeof el.animate !== 'function' || el.getAnimations?.().length) return;
+    fly(el, hover(placed.current), placed.current);
+  };
+
   // Toasts stand clear of the owl.
   useEffect(() => {
     document.documentElement.style.setProperty('--toast-offset', showOwl && !tour ? `${size + GAP * 1.5}px` : '1rem');
@@ -178,14 +264,16 @@ export function OwlGuide() {
           <button
             type="button"
             data-tour="owl"
-            onClick={() => { if (tour) return; setGreeting(false); owlPrefs.setGreeted(); setOpen((o) => !o); }}
+            ref={perch}
+            onClick={() => { if (tour) return; setGreeting(false); owlPrefs.setGreeted(); if (!open) flutter(); setOpen((o) => !o); }}
             aria-label={tr('هیوا — راهنمای این صفحه')}
             aria-expanded={open}
             title={tr('هیوا — راهنمای این صفحه')}
-            className="fixed left-0 top-0 z-[55] rounded-full outline-none transition-transform duration-700 ease-in-out focus-visible:ring-2 focus-visible:ring-brand-500 motion-reduce:transition-none"
-            style={{ transform: `translate3d(${owlX}px, ${owlY}px, 0)`, width: size, height: size }}
+            data-mood={flying ? 'fly' : mood}
+            className="fixed left-0 top-0 z-[55] rounded-full outline-none will-change-transform focus-visible:ring-2 focus-visible:ring-brand-500"
+            style={{ width: size, height: size }}
           >
-            <Owl size={size} mood={mood} lookAt={lookAt} />
+            <Owl size={size} mood={flying ? 'fly' : mood} heading={heading} lookAt={flying ? null : lookAt} />
           </button>
         )}
         {greeting && !open && !tour && (
@@ -289,10 +377,10 @@ function TourCard({ tour, style, missing, onMove, onPlay, onDone, onClose, onRep
         </div>
       ) : (
         <>
-          <p className="text-[11px] font-medium text-brand-700">{tr('گام {0} از {1}', localDigits(index + 1), localDigits(steps.length))} · {gt(section.title)}</p>
+          <p className="text-[12.5px] font-medium text-brand-700">{tr('گام {0} از {1}', localDigits(index + 1), localDigits(steps.length))} · {gt(section.title)}</p>
           <h3 className="mt-1 text-sm font-semibold text-ink-900">{gt(step.title)}</h3>
           <p aria-live="polite" className="mt-1 text-sm leading-6 text-ink-700">{gt(step.body)}</p>
-          {missing && <p className="mt-1 text-[11px] text-ink-400">{tr('این بخش الان روی صفحه نیست — شاید در زبانهٔ دیگری است یا برای نقش شما نمایش داده نمی‌شود.')}</p>}
+          {missing && <p className="mt-1 text-[12.5px] text-ink-400">{tr('این بخش الان روی صفحه نیست — شاید در زبانهٔ دیگری است یا برای نقش شما نمایش داده نمی‌شود.')}</p>}
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-ink-100" aria-hidden>
             <div key={index} className="tour-progress h-full rounded-full bg-brand-500"
               style={{ animationDuration: `${duration}ms`, animationPlayState: playing ? 'running' : 'paused' }} />
@@ -335,7 +423,7 @@ function GuidePanel({ section, bottom, hidden, onHide, onClose, onTour, onManual
       <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-2.5">
         <OwlSvg size={28} />
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] text-ink-500">{tr('هیوا، راهنمای شما')}</p>
+          <p className="text-[12.5px] text-ink-500">{tr('هیوا، راهنمای شما')}</p>
           <h2 className="truncate text-sm font-semibold text-ink-900">{section ? gt(section.title) : tr('راهنما')}</h2>
         </div>
         <button type="button" onClick={onClose} aria-label={tr('بستن')} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">✕</button>
@@ -347,15 +435,15 @@ function GuidePanel({ section, bottom, hidden, onHide, onClose, onTour, onManual
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="primary" onClick={() => onTour(section, 0)}>
                 ▶ {tr('نمایش گام‌به‌گام')}
-                <span className="ms-1 text-[11px] opacity-80">{tr('{0} گام · حدود {1} ثانیه', localDigits(section.steps.length), localDigits(seconds))}</span>
+                <span className="ms-1 text-[12.5px] opacity-80">{tr('{0} گام · حدود {1} ثانیه', localDigits(section.steps.length), localDigits(seconds))}</span>
               </Button>
-              {mine && <Button size="sm" variant="secondary" onClick={() => setVideo(mine)}>{tr('ویدیوی این بخش')}{mine.locale !== guideLocale() && <span className="ms-1 text-[11px] opacity-70">({mine.locale === 'fa' ? 'فارسی' : 'English'})</span>}</Button>}
+              {mine && <Button size="sm" variant="secondary" onClick={() => setVideo(mine)}>{tr('ویدیوی این بخش')}{mine.locale !== guideLocale() && <span className="ms-1 text-[12.5px] opacity-70">({mine.locale === 'fa' ? 'فارسی' : 'English'})</span>}</Button>}
             </div>
             <ol className="space-y-1">
               {section.steps.map((st, i) => (
                 <li key={i}>
                   <button type="button" onClick={() => onTour(section, i)} className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-start hover:bg-ink-50">
-                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-50 text-[11px] font-semibold text-brand-700">{localDigits(i + 1)}</span>
+                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-brand-50 text-[12.5px] font-semibold text-brand-700">{localDigits(i + 1)}</span>
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-ink-800">{gt(st.title)}</span>
                       <span className="block text-xs leading-5 text-ink-500">{gt(st.body)}</span>
@@ -380,9 +468,9 @@ function GuidePanel({ section, bottom, hidden, onHide, onClose, onTour, onManual
                 return (
                   <button key={i} type="button" disabled={!reachable} onClick={() => onTour(m.section, stepIndex)}
                     className="block w-full rounded-lg bg-ink-50 px-3 py-2 text-start ring-1 ring-inset ring-ink-200 enabled:hover:bg-brand-50 disabled:cursor-default">
-                    <span className="block text-[11px] text-brand-700">{gt(m.section.title)}{m.step ? ` › ${gt(m.step.title)}` : ''}</span>
+                    <span className="block text-[12.5px] text-brand-700">{gt(m.section.title)}{m.step ? ` › ${gt(m.step.title)}` : ''}</span>
                     <span className="block text-xs leading-5 text-ink-700">{gt(m.step ? m.step.body : m.section.summary)}</span>
-                    {reachable && <span className="mt-0.5 block text-[11px] text-ink-400">{here ? tr('نشانم بده') : tr('برو و نشانم بده')}</span>}
+                    {reachable && <span className="mt-0.5 block text-[12.5px] text-ink-400">{here ? tr('نشانم بده') : tr('برو و نشانم بده')}</span>}
                   </button>
                 );
               }) : <p className="text-xs text-ink-500">{tr('در راهنما چیزی پیدا نکردم.')}</p>}
@@ -455,7 +543,7 @@ function VideoAdmin({ section, videos }: { section: GuideSection; videos: Video[
   return (
     <div className="rounded-lg bg-ink-50 p-3 ring-1 ring-inset ring-ink-200" data-testid="video-admin">
       <p className="text-xs font-medium text-ink-700">{tr('ویدیوی این بخش (مدیر سیستم)')}</p>
-      <p className="mt-0.5 text-[11px] leading-5 text-ink-500">{tr('یک فیلم ضبط‌شده از صفحه برای هر زبان — MP4 یا WebM.')}</p>
+      <p className="mt-0.5 text-[12.5px] leading-5 text-ink-500">{tr('یک فیلم ضبط‌شده از صفحه برای هر زبان — MP4 یا WebM.')}</p>
       {(['fa', 'en'] as const).map((locale) => {
         const v = videos.find((x) => x.locale === locale);
         return (

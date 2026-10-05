@@ -77,10 +77,11 @@ describe('in English', () => {
     expect(formatRelative(new Date())).toBe('today');
   });
 
-  it('heads the guide with its own English section titles', async () => {
-    const { sectionTitle } = await import('../src/lib/help');
-    expect(sectionTitle('The dashboard — «داشبورد»')).toBe('The dashboard');
-    expect(sectionTitle('Sales')).toBe('Sales');
+  it('reads the guide in English, headed with its own English section titles', async () => {
+    const { findSection } = await import('../src/lib/help');
+    expect(findSection('The dashboard — «داشبورد»')?.heading).toBe('The dashboard');
+    expect(findSection('Sales')?.heading).toBe('Sales');
+    expect(findSection('Sales')?.body).toMatch(/^\*\*Your loop/);
   });
 
   it('shows a state badge in English', async () => {

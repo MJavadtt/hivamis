@@ -4,7 +4,7 @@ import { apiGet } from '../lib/api';
 import { Badge } from './ui';
 import { Code } from './common';
 import { formatCurrency, localDigits } from '../lib/format';
-import { loc, tr } from '../i18n';
+import { loc, tr, trx } from '../i18n';
 
 interface Range { p25: number; median: number; p75: number; mean: number }
 interface Estimate {
@@ -54,15 +54,15 @@ export function EstimateCheck({ workOrderId, proposed }: { workOrderId: string; 
       {ref && (
         <dl className="mt-2 grid grid-cols-3 gap-2 text-center">
           <div className="rounded bg-surface px-2 py-1.5">
-            <dt className="text-[10px] text-ink-400">{data.summary.actual ? tr('هزینهٔ واقعی (میانه)') : tr('اعلام‌شده (میانه)')}</dt>
+            <dt className="text-[12px] text-ink-400">{data.summary.actual ? tr('هزینهٔ واقعی (میانه)') : tr('اعلام‌شده (میانه)')}</dt>
             <dd className="nums font-medium">{formatCurrency(ref.median)}</dd>
           </div>
           <div className="rounded bg-surface px-2 py-1.5">
-            <dt className="text-[10px] text-ink-400">{tr('بازهٔ معمول')}</dt>
+            <dt className="text-[12px] text-ink-400">{tr('بازهٔ معمول')}</dt>
             <dd className="nums">{tr('{0} تا {1}', formatCurrency(ref.p25), formatCurrency(ref.p75))}</dd>
           </div>
           <div className="rounded bg-surface px-2 py-1.5">
-            <dt className="text-[10px] text-ink-400">{tr('زمان (میانه)')}</dt>
+            <dt className="text-[12px] text-ink-400">{tr('زمان (میانه)')}</dt>
             <dd className="nums">{data.summary.workingDays ? tr('{0} روز کاری', localDigits(data.summary.workingDays.median)) : '—'}</dd>
           </div>
         </dl>
@@ -78,12 +78,12 @@ export function EstimateCheck({ workOrderId, proposed }: { workOrderId: string; 
 
       {data.comparables.length > 0 && (
         <details className="mt-2">
-          <summary className="cursor-pointer text-[11px] text-ink-500">{tr('سفارش‌های مقایسه‌شده ({0})', localDigits(data.comparables.length))}</summary>
+          <summary className="cursor-pointer text-[12.5px] text-ink-500">{tr('سفارش‌های مقایسه‌شده ({0})', localDigits(data.comparables.length))}</summary>
           <ul className="mt-1 space-y-1">
             {data.comparables.map((c) => (
-              <li key={c.workOrderId} className="text-[11px] text-ink-600">
+              <li key={c.workOrderId} className="text-[12.5px] text-ink-600">
                 <Code>{c.code}</Code>{' '}{tr('{0} —{1}اعلام‌شده {2}{3}· واقعی {4}', c.title, ' ', c.declaredCost != null ? formatCurrency(c.declaredCost) : '—', ' ', c.actualCost != null ? formatCurrency(c.actualCost) : '—')}{c.workingDays != null && tr(' · {0} روز', localDigits(c.workingDays))}
-                <span className="block text-ink-400">{c.whyFa.join(' · ')}</span>
+                <span className="block text-ink-400">{c.whyFa.map(trx).join(' · ')}</span>
               </li>
             ))}
           </ul>

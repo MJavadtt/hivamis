@@ -110,7 +110,7 @@ function Users() {
         <tbody>
           {data?.items.map((u: any) => (
             <Tr key={u.id}>
-              <Td><p className="text-sm font-medium"><PersonLink id={u.id} name={u.fullName} /></p><p className="text-[11px] text-ink-400">{trx(u.jobTitle)}</p></Td>
+              <Td><p className="text-sm font-medium"><PersonLink id={u.id} name={u.fullName} /></p><p className="text-[12.5px] text-ink-400">{trx(u.jobTitle)}</p></Td>
               <Td className="ltr text-xs">{u.email}</Td>
               <Td><UnitTag code={u.department?.code} /></Td>
               {detailed && (

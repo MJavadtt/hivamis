@@ -151,7 +151,7 @@ export function FormDesigner() {
                         <Td className="text-sm">
                           {loc(f, 'label')}
                           {locked.has(f.key) && <Badge tone="info" className="ms-1">{tr('الزام فرآیند')}</Badge>}
-                          {f.visibleWhen && <span className="block text-[11px] text-ink-400">{tr('وابسته به «{0}»', fields.find((x) => x.key === f.visibleWhen!.field)?.labelFa ?? f.visibleWhen.field)}</span>}
+                          {f.visibleWhen && <span className="block text-[12.5px] text-ink-400">{tr('وابسته به «{0}»', fields.find((x) => x.key === f.visibleWhen!.field)?.labelFa ?? f.visibleWhen.field)}</span>}
                         </Td>
                         <Td><Code>{f.key}</Code></Td>
                         <Td className="text-xs">{typeFa(f.type)}</Td>

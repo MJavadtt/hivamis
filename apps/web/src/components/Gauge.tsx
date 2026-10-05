@@ -31,7 +31,7 @@ export function HalfGauge({ value, total, label, legend }: {
       {legend && (
         <ul className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1">
           {legend.map((l) => (
-            <li key={l.label} className="flex items-center gap-1.5 text-[11px] font-bold text-ink-600">
+            <li key={l.label} className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink-600">
               <span className={`size-2 rounded-full ${dot[l.tone]}`} aria-hidden />
               {l.label} <span className="nums text-ink-400">{localDigits(l.value)}</span>
             </li>

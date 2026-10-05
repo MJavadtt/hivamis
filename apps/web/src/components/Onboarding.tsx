@@ -60,7 +60,7 @@ export function ImportPanel({ kind, onDone }: { kind: OnboardingImport; onDone?:
         {preview && (
           <>
             {preview.header.missing.length > 0 && <p className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-800">{tr('این ستون‌ها در فایل نیست: {0}', preview.header.missing.join(tr('، ')))}</p>}
-            {preview.header.unknown.length > 0 && <p className="text-[11px] text-ink-400">{tr('ستون‌هایی که شناخته نشد و نادیده گرفته می‌شود: {0}', preview.header.unknown.join(tr('، ')))}</p>}
+            {preview.header.unknown.length > 0 && <p className="text-[12.5px] text-ink-400">{tr('ستون‌هایی که شناخته نشد و نادیده گرفته می‌شود: {0}', preview.header.unknown.join(tr('، ')))}</p>}
             <p className="text-xs" data-testid={`summary-${kind}`}>{tr('{0} ساخته می‌شود · {1} از قبل هست · {2} مشکل دارد', localDigits(preview.summary.create), localDigits(preview.summary.skip), localDigits(preview.summary.invalid))}</p>
             <ol className="max-h-72 divide-y divide-ink-100 overflow-y-auto rounded-lg border border-ink-200 text-xs" data-testid={`rows-${kind}`}>
               {preview.rows.map((r) => (
@@ -97,7 +97,7 @@ function ImportResult({ result }: { result: CommitResult }) {
           {links.map((a) => (
             <div key={a.email} className="flex flex-wrap items-center gap-2">
               <span className="w-40 truncate">{a.label}</span>
-              <code className="ltr block flex-1 truncate rounded bg-white px-2 py-0.5 text-[11px]">{a.url}</code>
+              <code className="ltr block flex-1 truncate rounded bg-white px-2 py-0.5 text-[12.5px]">{a.url}</code>
               <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard?.writeText(a.url)}>{tr('رونوشت')}</Button>
             </div>
           ))}
@@ -153,7 +153,7 @@ export function UnitMapStep({ onChanged }: { onChanged?: () => void }) {
             {names.map((n) => (
               <li key={n} className="flex flex-wrap items-center gap-2">
                 <span className="w-48 truncate">{n}</span>
-                {people(n) != null && <span className="text-[11px] text-ink-400">{tr('{0} نفر', localDigits(people(n)!))}</span>}
+                {people(n) != null && <span className="text-[12.5px] text-ink-400">{tr('{0} نفر', localDigits(people(n)!))}</span>}
                 <Select value={map[n] ?? ''} onChange={(e) => setDraft({ ...map, [n]: e.target.value })} aria-label={tr('واحد Doc_H برای {0}', n)} className="w-auto">
                   <option value="">{tr('— انتخاب کنید —')}</option>
                   {data.departments.map((d) => <option key={d.code} value={d.code}>{loc(d, 'name')} ({d.code})</option>)}
@@ -245,7 +245,7 @@ export function SlaStep({ onChanged }: { onChanged?: () => void }) {
       <ul className="divide-y divide-ink-100 px-4 text-sm" data-testid="sla-step">
         {data.map((p) => (
           <li key={p.code} className="flex flex-wrap items-center gap-2 py-2">
-            <span className="min-w-0 flex-1">{loc(p, 'label')}{p.docRef && <span className="text-[11px] text-ink-400"> — {p.docRef}</span>}</span>
+            <span className="min-w-0 flex-1">{loc(p, 'label')}{p.docRef && <span className="text-[12.5px] text-ink-400"> — {p.docRef}</span>}</span>
             <Input type="number" min={0.5} step={0.5} value={edits[p.code] ?? String(Number(p.hours))} onChange={(e) => setEdits({ ...edits, [p.code]: e.target.value })} aria-label={tr('ساعت {0}', p.labelFa)} className="w-20" />
             <span className="text-xs text-ink-500">{tr('ساعت کاری')}</span>
           </li>
@@ -279,9 +279,9 @@ export function PendingActivations() {
         {data.map((u) => (
           <li key={u.id} className="flex flex-wrap items-center gap-2 py-2">
             <span className="min-w-0 flex-1">{u.fullName} <span className="ltr text-xs text-ink-400">{u.email}</span></span>
-            <span className="text-[11px] text-ink-400">{u.linkExpiresAt ? tr('پیوند تا {0}', formatDate(u.linkExpiresAt)) : tr('پیوند منقضی')}</span>
+            <span className="text-[12.5px] text-ink-400">{u.linkExpiresAt ? tr('پیوند تا {0}', formatDate(u.linkExpiresAt)) : tr('پیوند منقضی')}</span>
             <Button size="sm" variant="ghost" onClick={() => void fresh(u.id)}>{tr('پیوند تازه')}</Button>
-            {shown[u.id] && <code className="ltr block w-full truncate rounded bg-amber-50 px-2 py-0.5 text-[11px]">{shown[u.id]}</code>}
+            {shown[u.id] && <code className="ltr block w-full truncate rounded bg-amber-50 px-2 py-0.5 text-[12.5px]">{shown[u.id]}</code>}
           </li>
         ))}
       </ul>

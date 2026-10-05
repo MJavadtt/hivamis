@@ -78,7 +78,7 @@ export default function Memory() {
           {!query && (
             <div className="flex flex-wrap gap-1.5 px-4 pb-4">
               {EXAMPLES.map((e) => (
-                <button key={e} type="button" className="rounded-full bg-ink-100 px-3 py-1 text-[11px] text-ink-600 hover:bg-ink-200"
+                <button key={e} type="button" className="rounded-full bg-ink-100 px-3 py-1 text-[12.5px] text-ink-600 hover:bg-ink-200"
                   onClick={() => { setDraft(e); setQuery(e); }}>
                   {e}
                 </button>
@@ -117,11 +117,11 @@ export default function Memory() {
                       <Link to={h.href} className="text-sm font-medium text-brand-700 hover:underline">{loc(h, 'title')}</Link>
                       <span className="ms-auto flex items-center gap-2">
                         <span className="w-20"><ProgressBar value={h.score * 100} tone={h.score > 0.5 ? 'success' : h.score > 0.25 ? 'info' : 'neutral'} /></span>
-                        <span className="nums text-[11px] text-ink-500">{tr('{0}٪', localDigits(Math.round(h.score * 100)))}</span>
+                        <span className="nums text-[12.5px] text-ink-500">{tr('{0}٪', localDigits(Math.round(h.score * 100)))}</span>
                       </span>
                     </div>
                     <p className={cx('mt-1 text-xs leading-6 text-ink-600')}>{loc(h, 'snippet')}</p>
-                    <p className="mt-1 text-[11px] text-ink-400">{tr('شباهت معنایی {0}٪ · شباهت متنی {1}٪ · بردار: {2}', localDigits(Math.round(h.semantic * 100)), localDigits(Math.round(h.lexical * 100)), h.model)}</p>
+                    <p className="mt-1 text-[12.5px] text-ink-400">{tr('شباهت معنایی {0}٪ · شباهت متنی {1}٪ · بردار: {2}', localDigits(Math.round(h.semantic * 100)), localDigits(Math.round(h.lexical * 100)), h.model)}</p>
                   </li>
                 ))}
               </ul>

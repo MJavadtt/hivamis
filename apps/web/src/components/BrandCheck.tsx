@@ -50,8 +50,8 @@ export function BrandCheckPanel({ documentId }: { documentId: string }) {
           {c.colours.map((v, i) => (
             <li key={i} className="flex items-center gap-1.5 rounded-md border border-ink-200 px-1.5 py-1">
               <span className="size-5 shrink-0 rounded ring-1 ring-ink-200" style={{ background: v.hex ?? inkToCss(v.cmyk!) }} />
-              <span className="ltr text-[11px] text-ink-700">{v.hex ?? `C${v.cmyk![0]} M${v.cmyk![1]} Y${v.cmyk![2]} K${v.cmyk![3]}`}</span>
-              <span className="text-[10px] text-ink-400">{shareFa(v.share)}</span>
+              <span className="ltr text-[12.5px] text-ink-700">{v.hex ?? `C${v.cmyk![0]} M${v.cmyk![1]} Y${v.cmyk![2]} K${v.cmyk![3]}`}</span>
+              <span className="text-[12px] text-ink-400">{shareFa(v.share)}</span>
               <Badge tone={TONE[v.status] ?? 'neutral'}>
                 {trx(v.status === 'BRAND' || v.status === 'NEAR' ? `${BRAND_CHECK_STATUS_LABELS[v.status]}: ${v.brand!.name}` : BRAND_CHECK_STATUS_LABELS[v.status])}
               </Badge>
@@ -72,7 +72,7 @@ export function BrandCheckPanel({ documentId }: { documentId: string }) {
       {c && c.spots.length > 0 && (
         <p className="text-ink-600"><span className="text-ink-500">{tr('رنگ‌های اختصاصی:')}{' '}</span>{c.spots.map((s) => `${s.name}${s.status === 'BRAND' ? ' ✓' : ''}`).join(tr('، '))}</p>
       )}
-      {c && c.notesFa.length > 0 && <ul className="list-inside list-disc text-[11px] text-ink-400">{c.notesFa.map((n) => <li key={n}>{n}</li>)}</ul>}
+      {c && c.notesFa.length > 0 && <ul className="list-inside list-disc text-[12.5px] text-ink-400">{c.notesFa.map((n) => <li key={n}>{trx(n)}</li>)}</ul>}
     </section>
   );
 }

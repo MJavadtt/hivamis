@@ -6,6 +6,7 @@ import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
 import { setAccessToken, setRefreshToken } from '../src/lib/api';
 import Delegations from '../src/pages/Delegations';
+import { PERMISSIONS, ROLE_LABELS } from '@hiva/contracts';
 
 /** You can lend only what you hold in your own right; the lists say who, what, until when. */
 const ME = {
@@ -43,8 +44,8 @@ describe('Delegations page', () => {
     expect(picker.textContent).toContain('تأیید بریف');
     expect(picker.textContent).toContain('صدور سفارش کار به واحد');
     expect(picker.textContent).not.toContain('تأیید نهایی قیمت‌گذاری');   // pricing.approve is borrowed
-    expect(screen.queryByLabelText('CEO')).toBeNull();                  // CEO role is borrowed too
-    expect(screen.getByLabelText('ACCOUNT_MANAGER')).toBeTruthy();
+    expect(screen.queryByLabelText(ROLE_LABELS.CEO.fa)).toBeNull();                  // CEO role is borrowed too
+    expect(screen.getByLabelText(ROLE_LABELS.ACCOUNT_MANAGER.fa)).toBeTruthy();
   });
 
   it('separates what I gave from what I was given, with status and dates', async () => {
@@ -61,7 +62,7 @@ describe('Delegations page', () => {
     const calls = mount();
     await screen.findByTestId('permission-picker');
     fireEvent.change(screen.getByLabelText('گیرنده'), { target: { value: 'u-designer' } });
-    fireEvent.click(screen.getByLabelText('workorder.issue'));
+    fireEvent.click(screen.getByLabelText(PERMISSIONS['workorder.issue']));
     const to = document.getElementById('delegation-to') as HTMLInputElement;
     fireEvent.change(to, { target: { value: '۱۴۰۵/۰۷/۰۵ ۱۸:۰۰' } }); fireEvent.blur(to);
     fireEvent.change(screen.getByLabelText('دلیل'), { target: { value: 'مرخصی' } });

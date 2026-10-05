@@ -35,7 +35,7 @@ export function QuickForms() {
       </button>
       {open && (
         <div role="menu" aria-label={tr('فرم تازه')} className="absolute end-0 top-10 z-40 w-72 rounded-xl bg-surface py-2 shadow-lg ring-1 ring-ink-200" data-testid="quick-forms">
-          <p className="px-3 pb-1 text-[11px] font-medium text-ink-500">{tr('فرم‌هایی که بیشتر می‌فرستید')}</p>
+          <p className="px-3 pb-1 text-[12.5px] font-medium text-ink-500">{tr('فرم‌هایی که بیشتر می‌فرستید')}</p>
           {(data?.forms ?? []).map((f) => (
             <button key={f.code} type="button" role="menuitem" onClick={() => { setOpen(false); setForm(f); }}
               className="block w-full px-3 py-2 text-start text-sm text-ink-800 hover:bg-ink-50">

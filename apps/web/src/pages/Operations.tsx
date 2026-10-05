@@ -9,7 +9,7 @@ import { CurrencySelect, FxPreview } from '../components/Fx';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
-import { REVISION_REASON_LABELS } from '@hiva/contracts';
+import { REVISION_REASON_LABELS, stateLabelFa } from '@hiva/contracts';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
@@ -79,7 +79,7 @@ export function TasksList() {
                 return (
                   <div className={cx('text-xs', late && 'font-medium text-rose-600')}>
                     {formatDate(r.dueDate)}
-                    <p className="text-[11px] text-ink-400">{formatRelative(r.dueDate)}</p>
+                    <p className="text-[12.5px] text-ink-400">{formatRelative(r.dueDate)}</p>
                   </div>
                 );
               },
@@ -203,7 +203,7 @@ export function TaskDetail() {
               </DescRow>
               <DescRow label={tr('اولویت')}>
                 <Badge tone={data.priority === 'URGENT' ? 'danger' : data.priority === 'HIGH' ? 'warning' : 'neutral'}>
-                  {data.priority}
+                  {trx(stateLabelFa(data.priority))}
                 </Badge>
               </DescRow>
               <DescRow label={tr('برآورد')}>
@@ -322,7 +322,7 @@ export function WorkOrderDetail() {
               <DescRow label={tr('مسئول')}>{data.owner?.fullName}</DescRow>
               <DescRow label={tr('مهلت')}>{formatDate(data.deadline)}</DescRow>
               <DescRow label={tr('بودجه')}>{formatCurrency(data.budget)}</DescRow>
-              <DescRow label={tr('اولویت')}><Badge tone={data.priority === 'URGENT' ? 'danger' : data.priority === 'HIGH' ? 'warning' : 'neutral'}>{data.priority}</Badge></DescRow>
+              <DescRow label={tr('اولویت')}><Badge tone={data.priority === 'URGENT' ? 'danger' : data.priority === 'HIGH' ? 'warning' : 'neutral'}>{trx(stateLabelFa(data.priority))}</Badge></DescRow>
               <DescRow label={tr('پذیرش')}>{data.acceptedAt ? formatDate(data.acceptedAt) : tr('— پذیرفته نشده —')}</DescRow>
             </dl>
           </Card>
@@ -530,7 +530,7 @@ export function ChangeDetail() {
             <dl className="px-4 py-1">
               <DescRow label={tr('درخواست‌کننده')}>{data.requestedBy === 'CLIENT' ? tr('مشتری') : tr('داخلی')}</DescRow>
               <DescRow label={tr('تاریخ درخواست')}>{formatDate(data.requestedDate)}</DescRow>
-              <DescRow label={tr('اولویت')}>{data.priority}</DescRow>
+              <DescRow label={tr('اولویت')}>{trx(stateLabelFa(data.priority))}</DescRow>
             </dl>
             <p className="border-t border-ink-100 px-4 py-3 text-sm text-ink-700">{data.requestedChange}</p>
             {data.scopeRationale && (
@@ -699,7 +699,7 @@ export function Traffic() {
                 <tbody>
                   {data.rows.map((r: any) => (
                     <Tr key={r.user.id}>
-                      <Td><p className="text-sm"><PersonLink id={r.user.id} name={r.user.fullName} /></p><p className="text-[11px] text-ink-400">{trx(r.user.jobTitle)}</p></Td>
+                      <Td><p className="text-sm"><PersonLink id={r.user.id} name={r.user.fullName} /></p><p className="text-[12.5px] text-ink-400">{trx(r.user.jobTitle)}</p></Td>
                       <Td><UnitTag code={r.department?.code} /></Td>
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.capacityHours))}{r.leaveHours > 0 && <Badge tone="info" className="ms-1">{tr('{0} س مرخصی', localDigits(r.leaveHours))}</Badge>}
                       </Td>
@@ -709,7 +709,7 @@ export function Traffic() {
                         <div className="w-24">
                           <ProgressBar value={r.utilisation}
                             tone={r.utilisation > 100 ? 'danger' : r.utilisation >= 85 ? 'warning' : r.utilisation >= 40 ? 'success' : 'neutral'} />
-                          <span className="nums text-[11px] text-ink-500">{tr('{0}٪', localDigits(r.utilisation))}</span>
+                          <span className="nums text-[12.5px] text-ink-500">{tr('{0}٪', localDigits(r.utilisation))}</span>
                         </div>
                       </Td>
                       <Td className="nums text-xs">

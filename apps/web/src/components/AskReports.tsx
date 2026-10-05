@@ -73,7 +73,7 @@ export function AskReports() {
         <div className="flex flex-wrap gap-1.5 px-4 pb-4">
           {allowed.slice(0, 6).map((m) => (
             <button key={m.key} type="button" onClick={() => askText(m.example)}
-              className="rounded-full bg-ink-50 px-2.5 py-1 text-[11px] text-ink-600 hover:bg-brand-50 hover:text-brand-700">
+              className="rounded-full bg-ink-50 px-2.5 py-1 text-[12.5px] text-ink-600 hover:bg-brand-50 hover:text-brand-700">
               {m.example}
             </button>
           ))}
@@ -112,7 +112,7 @@ function AnswerView({ answer: a, carried, catalog, onPlan, onAsk }: {
       <Card title={tr('پرسش فهمیده نشد')} subtitle={loc(a, 'answer')}>
         <div className="flex flex-wrap gap-1.5 p-4" data-testid="ask-suggestions">
           {(a.suggestions ?? []).map((s) => (
-            <button key={s.key} type="button" onClick={() => onAsk(s.example)} className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] text-brand-700">
+            <button key={s.key} type="button" onClick={() => onAsk(s.example)} className="rounded-full bg-brand-50 px-2.5 py-1 text-[12.5px] text-brand-700">
               {loc(s, 'label')}: {s.example}
             </button>
           ))}
@@ -166,7 +166,7 @@ function AnswerView({ answer: a, carried, catalog, onPlan, onAsk }: {
         <p className="text-sm text-ink-700">{loc(a, 'answer')}</p>
 
         <div className="flex flex-wrap gap-1.5" data-testid="ask-understood">
-          {a.understoodFa.map((u) => <span key={u} className="rounded-md bg-ink-50 px-2 py-0.5 text-[11px] text-ink-600">{u}</span>)}
+          {a.understoodFa.map((u) => <span key={u} className="rounded-md bg-ink-50 px-2 py-0.5 text-[12.5px] text-ink-600">{trx(u)}</span>)}
         </div>
 
         {a.plan && catalog && <Correct plan={a.plan} catalog={catalog} onPlan={onPlan} />}
@@ -197,7 +197,7 @@ function AnswerView({ answer: a, carried, catalog, onPlan, onAsk }: {
         )}
 
         {a.caveatsFa.length > 0 && (
-          <ul className="space-y-0.5 text-xs text-ink-600" data-testid="ask-caveats">{a.caveatsFa.map((c, i) => <li key={i}>· {c}</li>)}</ul>
+          <ul className="space-y-0.5 text-xs text-ink-600" data-testid="ask-caveats">{a.caveatsFa.map((c, i) => <li key={i}>· {trx(c)}</li>)}</ul>
         )}
 
         {a.basis && a.basis.count > 0 && (

@@ -76,7 +76,7 @@ export default function MyWork() {
               <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>{tr('همه')}</Button>
               {Object.entries(data.kinds).filter(([k]) => data.counts[k]).map(([k, label]) => (
                 <Button key={k} size="sm" variant={kind === k ? 'primary' : 'secondary'} onClick={() => setKind(kind === k ? null : k)}>
-                  {label} <span className="ms-1 text-[11px] opacity-70">{localDigits(data.counts[k]!)}</span>
+                  {trx(label)} <span className="ms-1 text-[12.5px] opacity-70">{localDigits(data.counts[k]!)}</span>
                 </Button>
               ))}
             </div>
@@ -89,7 +89,7 @@ export default function MyWork() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge tone="neutral">{data.kinds[i.kind] ?? i.kind}</Badge>
+                            <Badge tone="neutral">{trx(data.kinds[i.kind] ?? i.kind)}</Badge>
                             <Link to={i.href} className="truncate text-sm font-medium text-ink-800 hover:underline">{i.title}</Link>
                             <Code>{i.code}</Code>
                             <StateBadge state={i.state} />

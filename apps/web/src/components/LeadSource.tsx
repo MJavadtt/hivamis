@@ -66,7 +66,7 @@ function PersonPicker({ people, value, onChange, emptyFa }: { people: Person[]; 
       <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto">
         {shown.map((p) => (
           <Chip key={p.id} on={value === p.id} onClick={() => onChange(p.id)} title={[p.jobTitle, p.department].filter(Boolean).join(' — ')}>
-            {p.fullName}{people.length > 8 && p.department ? <span className="ms-1 text-[11px] opacity-70">({p.department})</span> : null}
+            {p.fullName}{people.length > 8 && p.department ? <span className="ms-1 text-[12.5px] opacity-70">({p.department})</span> : null}
           </Chip>
         ))}
       </div>

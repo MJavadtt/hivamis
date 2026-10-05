@@ -51,12 +51,12 @@ export function ApiKeys() {
           <tbody data-testid="api-keys">
             {data.map((k) => (
               <Tr key={k.id}>
-                <Td className="text-xs">{k.name}<p className="text-[10px] text-ink-400">{k.createdBy.fullName}</p></Td>
+                <Td className="text-xs">{k.name}<p className="text-[12px] text-ink-400">{k.createdBy.fullName}</p></Td>
                 <Td className="ltr text-xs">{k.display}</Td>
                 <Td className="text-xs" title={k.permissions.join(tr('، '))}>{tr('{0} دسترسی', localDigits(k.permissions.length))}</Td>
                 <Td className="text-xs">{tr('{0} در دقیقه', localDigits(k.rateLimitPerMinute))}</Td>
-                <Td className="text-xs">{k.lastUsedAt ? <>{formatDateTime(k.lastUsedAt)}<span className="ltr block text-[10px] text-ink-400">{k.lastUsedIp}</span></> : tr('هرگز')}</Td>
-                <Td><Badge tone={KEY_STATUS[k.status][1]}>{KEY_STATUS[k.status][0]}</Badge>{k.revokeReason && <p className="text-[10px] text-ink-400">{k.revokeReason}</p>}</Td>
+                <Td className="text-xs">{k.lastUsedAt ? <>{formatDateTime(k.lastUsedAt)}<span className="ltr block text-[12px] text-ink-400">{k.lastUsedIp}</span></> : tr('هرگز')}</Td>
+                <Td><Badge tone={KEY_STATUS[k.status][1]}>{KEY_STATUS[k.status][0]}</Badge>{k.revokeReason && <p className="text-[12px] text-ink-400">{k.revokeReason}</p>}</Td>
                 <Td>{k.status === 'ACTIVE' && <Button size="sm" variant="ghost" onClick={() => void revoke(k)}>{tr('ابطال')}</Button>}</Td>
               </Tr>
             ))}
@@ -98,7 +98,7 @@ function NewKey({ onClose }: { onClose: (secret?: string) => void }) {
       </Field>
       <div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2" data-testid="grantable">
         {shown.map((g) => (
-          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{loc(g, 'label')} <span className="ltr text-[10px] text-ink-400">{g.code}</span></span>}
+          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{loc(g, 'label')} <span className="ltr text-[12px] text-ink-400">{g.code}</span></span>}
             onChange={(e) => setPicked(e.target.checked ? [...picked, g.code] : picked.filter((p) => p !== g.code))} />
         ))}
       </div>
@@ -136,13 +136,13 @@ export function Webhooks() {
           <tbody data-testid="webhooks">
             {data.map((w) => (
               <Tr key={w.id}>
-                <Td className="text-xs">{w.name}<p className="text-[10px] text-ink-400">{w.createdBy.fullName}</p></Td>
+                <Td className="text-xs">{w.name}<p className="text-[12px] text-ink-400">{w.createdBy.fullName}</p></Td>
                 <Td className="ltr max-w-[14rem] truncate text-xs" title={w.url}>{w.url}</Td>
-                <Td className="ltr text-[11px]">{w.events.join(', ')}</Td>
-                <Td className="text-[11px]">{tr('{0} موفق · {1} در صف · {2} رهاشده', localDigits(w.deliveries.DELIVERED ?? 0), localDigits(w.deliveries.PENDING ?? 0), localDigits(w.deliveries.DEAD ?? 0))}</Td>
+                <Td className="ltr text-[12.5px]">{w.events.join(', ')}</Td>
+                <Td className="text-[12.5px]">{tr('{0} موفق · {1} در صف · {2} رهاشده', localDigits(w.deliveries.DELIVERED ?? 0), localDigits(w.deliveries.PENDING ?? 0), localDigits(w.deliveries.DEAD ?? 0))}</Td>
                 <Td>
                   {w.active ? <Badge tone={w.consecutiveFailures ? 'warning' : 'success'}>{w.consecutiveFailures ? tr('فعال — {0} خطای پیاپی', localDigits(w.consecutiveFailures)) : tr('فعال')}</Badge> : <Badge tone="danger">{tr('غیرفعال')}</Badge>}
-                  {w.disabledReason && <p className="text-[10px] text-ink-400">{w.disabledReason}</p>}
+                  {w.disabledReason && <p className="text-[12px] text-ink-400">{w.disabledReason}</p>}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
@@ -198,7 +198,7 @@ function NewWebhook({ onClose }: { onClose: (secret?: string) => void }) {
                     label={<span className="text-xs font-medium">{tr('{0} — همهٔ گذارها', ent.entityLabelFa)}{!ent.allowed && tr(' (بدون دسترسی دیدن)')}</span>} />
                   {!events.includes(all) && ent.allowed && (
                     <div className="ms-6 flex flex-wrap gap-x-3">
-                      {own.map((e) => <Checkbox key={e.event} checked={events.includes(e.event)} onChange={(x) => toggle(e.event, x.target.checked)} label={<span className="text-[11px]">{loc(e, 'label')}</span>} />)}
+                      {own.map((e) => <Checkbox key={e.event} checked={events.includes(e.event)} onChange={(x) => toggle(e.event, x.target.checked)} label={<span className="text-[12.5px]">{loc(e, 'label')}</span>} />)}
                     </div>
                   )}
                 </div>
@@ -228,7 +228,7 @@ function DeliveryLog({ webhook, onClose }: { webhook: WebhookRow; onClose: () =>
                 <Td className="text-xs">{localDigits(d.attempts)}</Td>
                 <Td className="text-xs">
                   <Badge tone={d.status === 'DELIVERED' ? 'success' : d.status === 'DEAD' ? 'danger' : 'warning'}>{d.status === 'DELIVERED' ? tr('تحویل شد') : d.status === 'DEAD' ? tr('رها شد') : tr('در صف')}</Badge>
-                  {d.lastError && <p className="ltr text-[10px] text-ink-400">{d.lastError}</p>}
+                  {d.lastError && <p className="ltr text-[12px] text-ink-400">{d.lastError}</p>}
                 </Td>
                 <Td>{d.status !== 'DELIVERED' && <Button size="sm" variant="ghost" onClick={() => void redeliver(d.id)}>{tr('ارسال دوباره')}</Button>}</Td>
               </Tr>

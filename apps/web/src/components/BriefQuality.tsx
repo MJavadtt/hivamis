@@ -4,7 +4,7 @@ import { apiGet } from '../lib/api';
 import { Badge, Card, ProgressBar } from './ui';
 import { Code } from './common';
 import { localDigits } from '../lib/format';
-import { loc, tr } from '../i18n';
+import { loc, tr, trx } from '../i18n';
 
 interface Field { key: string; labelFa: string; weight: number; score: number; words: number; findingsFa: string[] }
 interface Payload {
@@ -56,11 +56,11 @@ export function BriefQuality({ briefId }: { briefId: string }) {
                 <div className="flex items-center gap-2 text-xs">
                   <span className="w-32 shrink-0 text-ink-700">{loc(f, 'label')}</span>
                   <span className="flex-1"><ProgressBar value={f.score} tone={f.score >= 80 ? 'success' : f.score >= 50 ? 'warning' : 'danger'} /></span>
-                  <span className="nums w-8 text-end text-[11px] text-ink-500">{localDigits(f.score)}</span>
+                  <span className="nums w-8 text-end text-[12.5px] text-ink-500">{localDigits(f.score)}</span>
                 </div>
                 {f.findingsFa.length > 0 && (
-                  <ul className="mt-0.5 space-y-0.5 ps-3 text-[11px] leading-5 text-ink-500">
-                    {f.findingsFa.map((x, i) => <li key={i}>· {x}</li>)}
+                  <ul className="mt-0.5 space-y-0.5 ps-3 text-[12.5px] leading-5 text-ink-500">
+                    {f.findingsFa.map((x, i) => <li key={i}>· {trx(x)}</li>)}
                   </ul>
                 )}
               </li>
@@ -76,7 +76,7 @@ export function BriefQuality({ briefId }: { briefId: string }) {
               <p className="mt-1 text-ink-600">{tr('میانگین امتیاز بریف‌هایی که به قرارداد رسیدند:')}{' '}<span className="nums font-medium">{localDigits(benchmark.winners.meanScore)}</span>
               </p>
             )}
-            <table className="mt-2 w-full text-[11px]">
+            <table className="mt-2 w-full text-[12.5px]">
               <thead><tr className="text-ink-400"><th className="text-start font-normal">{tr('سطح')}</th><th className="text-start font-normal">{tr('بریف')}</th><th className="text-start font-normal">{tr('بازگشت‌خورده')}</th></tr></thead>
               <tbody>
                 {benchmark.returnRateByBand.map((r) => (
@@ -93,7 +93,7 @@ export function BriefQuality({ briefId }: { briefId: string }) {
           {example && (
             <div className="rounded-lg bg-emerald-50/70 p-3" data-testid="quality-example">
               <p className="font-medium text-emerald-900">{tr('نمونه‌ای مشابه که به قرارداد رسید')}</p>
-              <p className="mt-0.5 text-[11px] text-emerald-800">
+              <p className="mt-0.5 text-[12.5px] text-emerald-800">
                 <Link to={`/briefs/${example.id}`} className="hover:underline">{example.title}</Link> <Code>{example.code}</Code>
               </p>
               {quality.fixFirst && (example as Record<string, unknown>)[quality.fixFirst.key] ? (

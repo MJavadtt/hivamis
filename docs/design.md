@@ -33,9 +33,15 @@ Changing the `brand-*` or `ink-*` values in `index.css` switches the whole inter
 - **Controls are 32px.** Buttons are 32 (28 small). The main action is the kit's dark button:
   black on light, white on dark, with a faint blue glow. Others are outlined (`secondary`) or bare
   (`ghost`). Inputs are 32 with the shadow.
-- **Type.** The kit sets small labels bold (10–12px, grey) and figures semibold at 20px. Persian
-  script needs one step more at that size, so labels here are 11–13px, still bold and grey. The kit's
-  typeface is Inter, which has no Persian; Vazirmatn (self-hosted) sets both scripts.
+- **Type.** The typeface is Ray (Maryamsoft; the organisation holds the licence), one variable font
+  for Persian and Latin, weights 300–950, served from `public/fonts/Ray-VF.woff`; Vazirmatn
+  (self-hosted, SIL OFL) is the fallback. The kit's typeface is Inter, which has no Persian. The kit
+  sets small labels at 10–12px; Persian at that size was hard to read, so the floor is 12px and the
+  scale is raised: `text-xs` 13px on a 20px line, `text-sm` 15px on 24px. No component sets a size
+  below 12px.
+- **Layers.** Page popovers sit at z-50; the owl and its tour at 54–56; drawers (the assistant, the
+  written guide) at z-[60], above the owl; dialogs at z-[70], rendered into the document body so a
+  dialog opened from the sidebar is never confined to the sidebar; toasts at z-[80].
 - **Tabs** are bold grey labels; the selected one sits in an outlined box, with no underline.
 - **Status colours** keep the platform's one status scale (neutral, blue, amber, green, red). The
   rose, amber, emerald and sky palettes are tokens too: in the dark their tints (50–200) are the

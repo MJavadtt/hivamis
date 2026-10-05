@@ -90,12 +90,12 @@ export function Outbox() {
               <Tr key={i.id}>
                 <Td className="text-sm">
                   {loc(i, 'formName')}
-                  <span className="block text-[11px] text-ink-400"><Code>{i.formCode}</Code>{i.asDraft ? tr(' — پیش‌نویس') : ''}</span>
+                  <span className="block text-[12.5px] text-ink-400"><Code>{i.formCode}</Code>{i.asDraft ? tr(' — پیش‌نویس') : ''}</span>
                 </Td>
                 <Td className="text-xs">{formatDateTime(new Date(i.createdAt).toISOString())}</Td>
                 <Td><Badge tone={STATE_FA[i.state]!.tone}>{pair(STATE_FA[i.state]!)}</Badge></Td>
                 <Td className="nums text-xs">{localDigits(i.attempts)}</Td>
-                <Td className="max-w-xs text-[11px] text-ink-600">
+                <Td className="max-w-xs text-[12.5px] text-ink-600">
                   {i.state === 'SENT' && i.submissionCode ? <span className="text-emerald-700">{tr('ثبت شد: {0}', i.submissionCode)}</span> : i.errorFa ?? '—'}
                 </Td>
                 <Td>

@@ -43,7 +43,7 @@ export function ClientApprovalsPanel({ subjectType, subjectId }: { subjectType: 
         <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="approval-link">
           <p className="font-medium">{tr('ایمیل سازمان پیکربندی نشده است؛ این پیوند را خودتان به مشتری برسانید. فقط همین یک بار نمایش داده می‌شود.')}</p>
           <div className="mt-1 flex items-center gap-2">
-            <code className="ltr block flex-1 truncate rounded bg-white px-2 py-1 text-[11px]">{link}</code>
+            <code className="ltr block flex-1 truncate rounded bg-white px-2 py-1 text-[12.5px]">{link}</code>
             <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(link)}>{tr('رونوشت')}</Button>
           </div>
         </div>
@@ -102,8 +102,8 @@ function ApprovalCard({ a, canWrite }: { a: any; canWrite: boolean }) {
       {open && (
         <div className="mt-2 space-y-2 border-t border-ink-100 pt-2">
           <p>{tr('اثر انگشت آنچه نشان داده شد:')}{' '}<code className="ltr">{short(a.manifestHash)}</code>{a.evidenceHash && <>{' '}{tr('· اثر انگشت تصمیم:')}{' '}<code className="ltr">{short(a.evidenceHash)}</code>{' '}{tr('(حلقهٔ {0})', localDigits(a.sequence))}</>}</p>
-          <ul className="space-y-0.5">{files.map((f) => <li key={f.documentId}>{f.fileName} <code className="ltr text-[10px] text-ink-400">{short(f.sha256)}</code></li>)}</ul>
-          <ol className="space-y-0.5 text-[11px] text-ink-600" data-testid="approval-events">
+          <ul className="space-y-0.5">{files.map((f) => <li key={f.documentId}>{f.fileName} <code className="ltr text-[12px] text-ink-400">{short(f.sha256)}</code></li>)}</ul>
+          <ol className="space-y-0.5 text-[12.5px] text-ink-600" data-testid="approval-events">
             {a.events.map((e: any) => (
               <li key={e.id}>{formatDateTime(e.at)} — {trx(CLIENT_APPROVAL_EVENT_LABELS[e.kind] ?? e.kind)}{e.documentId ? ` «${fileName(e.documentId)}»` : ''} <span className="ltr text-ink-400">{e.ip}</span></li>
             ))}
@@ -163,7 +163,7 @@ function AskModal({ subjectType, subjectId, onClose, onLink }: { subjectType: Su
         </Field>
         <div>
           <p className="mb-1 text-xs font-medium text-ink-700">{tr('آنچه مشتری می‌بیند و تأیید می‌کند')}</p>
-          {!o.documents.length && <p className="text-[11px] text-ink-500">{subjectType === 'DELIVERABLE' ? tr('این خروجی هنوز فایلی ندارد.') : tr('متن پروپوزال و مبلغ آن نشان داده می‌شود؛ فایل ارائه (دِک) را هم می‌توانید پیوست کنید.')}</p>}
+          {!o.documents.length && <p className="text-[12.5px] text-ink-500">{subjectType === 'DELIVERABLE' ? tr('این خروجی هنوز فایلی ندارد.') : tr('متن پروپوزال و مبلغ آن نشان داده می‌شود؛ فایل ارائه (دِک) را هم می‌توانید پیوست کنید.')}</p>}
           <div className="space-y-1">
             {o.documents.map((d: any) => (
               <Checkbox key={d.id} label={`${d.fileName} (${localDigits(Math.ceil(d.sizeBytes / 1024))} KB)`} checked={selected.has(d.id)}

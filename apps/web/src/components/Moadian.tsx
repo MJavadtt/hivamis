@@ -136,7 +136,7 @@ export function InvoiceTax({ invoiceId, onClose }: { invoiceId: string; onClose:
     <Modal open wide title={tr('سامانهٔ مؤدیان')} onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>{tr('بستن')}</Button>}>
       {!data ? null : (
         <div className="space-y-4" data-testid="invoice-tax">
-          <p className="text-[11px] text-ink-500">{loc(data, 'mode')}</p>
+          <p className="text-[12.5px] text-ink-500">{loc(data, 'mode')}</p>
           {data.problems.length > 0 && (
             <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="tax-problems">
               <p className="font-medium">{tr('پیش از گزارش باید درست شود:')}</p>
@@ -164,13 +164,13 @@ export function InvoiceTax({ invoiceId, onClose }: { invoiceId: string; onClose:
                 {[...data.submissions].reverse().map((s: any) => (
                   <Tr key={s.id}>
                     <Td className="text-xs">{SUBJECT_FA[s.subject]}</Td>
-                    <Td className="ltr text-[11px]">{s.taxId}{s.referenceTaxId && <span className="block text-ink-400">↩ {s.referenceTaxId}</span>}</Td>
+                    <Td className="ltr text-[12.5px]">{s.taxId}{s.referenceTaxId && <span className="block text-ink-400">↩ {s.referenceTaxId}</span>}</Td>
                     <Td>
                       <Badge tone={(TAX_STATUS[s.status] ?? ['', 'neutral'])[1]}>{(TAX_STATUS[s.status] ?? [s.status])[0]}</Badge>
-                      {s.channel === 'sandbox' && <span className="ms-1 text-[10px] text-amber-700">{tr('آزمایشی')}</span>}
-                      {s.errors && <pre className="ltr mt-1 max-w-xs whitespace-pre-wrap text-[10px] text-rose-700">{JSON.stringify(s.errors)}</pre>}
+                      {s.channel === 'sandbox' && <span className="ms-1 text-[12px] text-amber-700">{tr('آزمایشی')}</span>}
+                      {s.errors && <pre className="ltr mt-1 max-w-xs whitespace-pre-wrap text-[12px] text-rose-700">{JSON.stringify(s.errors)}</pre>}
                     </Td>
-                    <Td className="text-[11px]">{formatDateTime(s.respondedAt ?? s.submittedAt ?? s.createdAt)}</Td>
+                    <Td className="text-[12.5px]">{formatDateTime(s.respondedAt ?? s.submittedAt ?? s.createdAt)}</Td>
                     <Td>{['QUEUED', 'SENT'].includes(s.status) && can('finance.invoice') && <Button size="sm" variant="ghost" onClick={() => void inquire(s.id)}>{tr('پیگیری')}</Button>}</Td>
                   </Tr>
                 ))}

@@ -75,7 +75,7 @@ function Sheet({ title, onClose, children, footer }: { title: string; onClose: (
 const Row = ({ label, children }: { label: string; children: ReactNode }) =>
   children == null || children === '' ? null : (
     <div className="py-2">
-      <dt className="text-[11px] text-ink-500">{label}</dt>
+      <dt className="text-[12.5px] text-ink-500">{label}</dt>
       <dd className="mt-0.5 whitespace-pre-line text-sm text-ink-800">{children}</dd>
     </div>
   );
@@ -165,7 +165,7 @@ function shown(v: unknown, f: FieldDef | undefined, project: SubmissionDetail['p
   // A link to a record is its id; the phone shows what it names, or says where to see it.
   if (f?.type === 'entityRef') return f.entity === 'project' && project && project.id === v ? `${project.name} (${project.code})` : tr('رکورد پیوست‌شده — در نسخهٔ کامل');
   if (Array.isArray(v)) return tr('{0} مورد', localDigits(v.length));
-  if (f?.options) return f.options.find((o) => o.value === v)?.labelFa ?? String(v);
+  if (f?.options) { const o = f.options.find((x) => x.value === v); return o ? loc(o, 'label') : String(v); }
   if (f?.type === 'date' || f?.type === 'datetime') return formatDate(String(v));
   return String(v);
 }
@@ -359,7 +359,7 @@ function QcSheet({ item, onDone, onClose }: { item: WorkItem; onDone: (message: 
 
       <div className="mt-3">
         <span className="mb-1 block text-xs font-medium text-ink-700">{tr('عکس از صحنه (اختیاری، تا {0} عکس)', localDigits(MAX_PHOTOS))}</span>
-        <p className="mb-2 text-[11px] text-ink-500">{tr('شاهدِ همین بررسی است، نه فایل خروجی؛ پس از ثبت، ویرایش نمی‌شود.')}</p>
+        <p className="mb-2 text-[12.5px] text-ink-500">{tr('شاهدِ همین بررسی است، نه فایل خروجی؛ پس از ثبت، ویرایش نمی‌شود.')}</p>
         <div className="flex flex-wrap gap-2">
           {previews.map((src, i) => (
             <div key={src} className="relative">
@@ -371,7 +371,7 @@ function QcSheet({ item, onDone, onClose }: { item: WorkItem; onDone: (message: 
             </div>
           ))}
           {!recorded && photos.length < MAX_PHOTOS && (
-            <label className="flex size-20 cursor-pointer flex-col items-center justify-center rounded-lg text-[11px] text-ink-500 ring-1 ring-dashed ring-ink-300">
+            <label className="flex size-20 cursor-pointer flex-col items-center justify-center rounded-lg text-[12.5px] text-ink-500 ring-1 ring-dashed ring-ink-300">
               <span aria-hidden className="text-lg">＋</span>{tr('عکس')}<input type="file" accept="image/*" capture="environment" multiple className="sr-only" aria-label={tr('افزودن عکس')}
                 onChange={(e) => { const list = Array.from(e.target.files ?? []); setPhotos((p) => [...p, ...list].slice(0, MAX_PHOTOS)); e.target.value = ''; }} />
             </label>
@@ -453,7 +453,7 @@ function PushPanel({ onClose }: { onClose: () => void }) {
               <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-xs">
                 <span className="min-w-0">
                   {deviceFa(s.userAgent)} <span className="text-ink-400" dir="ltr">({s.host})</span>
-                  <span className="block text-[11px] text-ink-500">
+                  <span className="block text-[12.5px] text-ink-500">
                     {s.disabledAt ? tr('خاموش — {0}', DISABLED_FA[s.disabledReason ?? ''] ?? s.disabledReason) : s.lastSuccessAt ? tr('آخرین اعلان: {0}', formatDateTime(s.lastSuccessAt)) : tr('هنوز اعلانی نرفته')}
                   </span>
                 </span>
@@ -546,7 +546,7 @@ export default function Mobile() {
       <header className="sticky top-0 z-30 flex items-center justify-between gap-2 bg-ink-900 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <div className="min-w-0">
           <h1 className="text-sm font-semibold">{tr('هیوامیس همراه')}</h1>
-          <p className="truncate text-[11px] text-white/70">
+          <p className="truncate text-[12.5px] text-white/70">
             {user?.fullName} · <span className={cx('inline-block size-1.5 rounded-full align-middle', live === 'live' ? 'bg-emerald-400' : live === 'connecting' ? 'bg-amber-400' : 'bg-rose-400')} aria-hidden />{' '}
             {live === 'live' ? tr('زنده') : live === 'connecting' ? tr('در حال اتصال') : tr('بدون اتصال زنده')}
           </p>
@@ -591,7 +591,7 @@ export default function Mobile() {
           <button key={t.key} onClick={() => setTab(t.key)} aria-current={active === t.key ? 'page' : undefined}
             className={cx('flex flex-col items-center gap-0.5 py-2.5 text-xs', active === t.key ? 'font-semibold text-brand-700' : 'text-ink-500')}>
             <span>{loc(t, 'label')}</span>
-            <span className={cx('min-w-5 rounded-full px-1.5 text-[11px]', lists[t.key].length ? 'bg-rose-600 text-white' : 'bg-ink-100 text-ink-500')}>{localDigits(lists[t.key].length)}</span>
+            <span className={cx('min-w-5 rounded-full px-1.5 text-[12.5px]', lists[t.key].length ? 'bg-rose-600 text-white' : 'bg-ink-100 text-ink-500')}>{localDigits(lists[t.key].length)}</span>
           </button>
         ))}
       </nav>

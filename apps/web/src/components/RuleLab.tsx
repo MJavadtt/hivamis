@@ -75,7 +75,7 @@ export function RuleLab() {
                 <div className="grid max-h-40 grid-cols-1 gap-1 overflow-auto rounded-lg bg-ink-50/60 p-2 text-xs sm:grid-cols-2" data-testid="lab-guards">
                   {(vocab?.guards ?? []).filter((g) => g.id.startsWith(`${entity}.`) || (def.guards ?? []).includes(g.id)).map((g) => (
                     <label key={g.id} className="flex cursor-pointer items-center gap-2">
-                      <input type="checkbox" checked={effectiveGuards.includes(g.id)} onChange={() => toggle(effectiveGuards, setGuards, g.id)} aria-label={g.id} />
+                      <input type="checkbox" checked={effectiveGuards.includes(g.id)} onChange={() => toggle(effectiveGuards, setGuards, g.id)} />
                       <span>{loc(g, 'label')}</span>
                     </label>
                   ))}

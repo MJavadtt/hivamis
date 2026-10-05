@@ -157,18 +157,18 @@ function Catalogue() {
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-ink-800">{t(def, "name")}</p>
-              <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-500 nums">
+              <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[12.5px] text-ink-500 nums">
                 {localDigits(def.no)}
               </span>
             </div>
-            <p className="mt-2 text-[11px] leading-5 text-ink-500">{tr('از')}{' '}<span className="text-ink-700">{deptNames(def.senderDepts)}</span>{tr('{0}به', ' ')}{' '}<span className="text-ink-700">{deptNames(def.receiverDepts)}</span>
+            <p className="mt-2 text-[12.5px] leading-5 text-ink-500">{tr('از')}{' '}<span className="text-ink-700">{deptNames(def.senderDepts)}</span>{tr('{0}به', ' ')}{' '}<span className="text-ink-700">{deptNames(def.receiverDepts)}</span>
             </p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px]">
               <Badge tone="neutral">{tr('دسته {0}', def.category)}</Badge>
               {def.slaCode && <Badge tone="warning">{tr('دارای SLA')}</Badge>}
             </div>
             {!def.canSubmit && (
-              <p className="mt-1.5 text-[11px] text-ink-400">{tr('ثبت این فرم در اختیار واحد شما نیست')}</p>
+              <p className="mt-1.5 text-[12.5px] text-ink-400">{tr('ثبت این فرم در اختیار واحد شما نیست')}</p>
             )}
           </button>
         ))}
@@ -284,14 +284,14 @@ export function FormRunner({ definition, onClose, initial }: {
           </p>
         )}
         {routed.matched.length > 0 && (
-          <ul className="space-y-0.5 text-[11px] text-amber-800" data-testid="routing-matched">
+          <ul className="space-y-0.5 text-[12.5px] text-amber-800" data-testid="routing-matched">
             {routed.matched.map((m) => (
               <li key={m.id}>⚠ {loc(m, 'when')} → {roleNames([...m.addApprovers, ...m.notifyRoles])}</li>
             ))}
           </ul>
         )}
         {routed.unmatched.length > 0 && (
-          <details className="text-[11px] text-ink-500">
+          <details className="text-[12.5px] text-ink-500">
             <summary className="cursor-pointer">{tr('قواعد مشروط این فرم ({0} مورد هنوز فعال نشده)', localDigits(routed.unmatched.length))}</summary>
             <ul className="mt-1 space-y-0.5 ps-3">
               {routed.unmatched.map((u) => <li key={u.id}>· {loc(u, 'when')}</li>)}
@@ -371,7 +371,7 @@ export function FormField({ field, value, onChange, error }: {
       return (
         <div className="pt-5">
           <Checkbox label={t(field, "label")} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-          {error && <p className="mt-1 text-[11px] text-rose-600">{error}</p>}
+          {error && <p className="mt-1 text-[12.5px] text-rose-600">{error}</p>}
         </div>
       );
     case 'select':
@@ -694,7 +694,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
     }
   };
 
-  const labels = new Map((data?.schema ?? data?.definition.schema ?? []).map((f) => [f.key, f.labelFa]));
+  const labels = new Map((data?.schema ?? data?.definition.schema ?? []).map((f) => [f.key, loc(f, 'label')]));
   const versionNote = data?.definitionVersion && data.definition.version && data.definitionVersion !== data.definition.version
     ? tr('این فرم با نسخهٔ {0} تعریف پر شده؛ نسخهٔ فعلی {1} است.', localDigits(data.definitionVersion), localDigits(data.definition.version))
     : null;
@@ -732,7 +732,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
                 {st.quorum > 1 && (
                   <Badge tone={st.state === 'APPROVED' ? 'success' : 'neutral'}>{tr('{0} از {1} تأیید', localDigits(st.approvedBy.length), localDigits(st.quorum))}</Badge>
                 )}
-                {names.length > 0 && <span className="text-[11px] text-ink-400">— {names.join(tr('، '))}</span>}
+                {names.length > 0 && <span className="text-[12.5px] text-ink-400">— {names.join(tr('، '))}</span>}
                 {waiting && <Badge tone="warning">{tr('اکنون با شماست')}</Badge>}
               </li>
             );

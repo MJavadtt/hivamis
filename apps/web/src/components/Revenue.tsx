@@ -78,7 +78,7 @@ export function ProjectRevenue({ projectId }: { projectId: string }) {
         {data.expectedLoss != null && (
           <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{tr('قرارداد زیان‌ده: هزینهٔ تمام‌شدهٔ اعلام‌شده {0} بیش از ارزش قرارداد است.', formatCurrency(data.expectedLoss))}</p>
         )}
-        {p.notesFa.length > 0 && <ul className="space-y-0.5 text-xs text-ink-500">{p.notesFa.map((n) => <li key={n}>· {n}</li>)}</ul>}
+        {p.notesFa.length > 0 && <ul className="space-y-0.5 text-xs text-ink-500">{p.notesFa.map((n) => <li key={n}>· {trx(n)}</li>)}</ul>}
 
         {data.method === 'MILESTONE' && (
           <div className="rounded-lg ring-1 ring-ink-200">
@@ -178,7 +178,7 @@ export function RevenueReport() {
             ))}
           </tbody>
         </Table>
-        {unpriced > 0 && <p className="px-4 py-2 text-[11px] text-ink-500">{tr('{0} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینهٔ کار نیامده است — نرخ واحدها را در «مدیریت» تعیین کنید.', localDigits(Math.round(unpriced)))}</p>}
+        {unpriced > 0 && <p className="px-4 py-2 text-[12.5px] text-ink-500">{tr('{0} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینهٔ کار نیامده است — نرخ واحدها را در «مدیریت» تعیین کنید.', localDigits(Math.round(unpriced)))}</p>}
       </Card>
       <Card title={tr('کار در جریان به تفکیک پروژه')}>
         {!data.projects.length ? <EmptyState title={tr('پروژه‌ای با ارزش قرارداد نیست')} /> : (
@@ -189,7 +189,7 @@ export function RevenueReport() {
                 <Tr key={p.id}>
                   <Td className="text-xs"><Link to={`/projects/${p.id}`} className="text-brand-700 hover:underline">{p.name}</Link> <span className="text-ink-400">{p.client}</span>
                     {p.expectedLoss != null && <Badge tone="danger">{tr('زیان‌ده')}</Badge>}</Td>
-                  <Td className="text-[11px] text-ink-500">{loc(p, 'method')}</Td>
+                  <Td className="text-[12.5px] text-ink-500">{loc(p, 'method')}</Td>
                   <Td className="text-xs">{p.progress == null ? <span className="text-amber-700" title={trx(p.reasonFa ?? '')}>{tr('سنجیده نشد')}</span> : formatPercent(p.progress * 100)}</Td>
                   <Td className="text-xs">{formatCurrency(p.recognised)}</Td>
                   <Td className="text-xs">{formatCurrency(p.invoiced)}</Td>
@@ -231,7 +231,7 @@ export function MilestoneDone({ projectId, milestoneId }: { projectId: string; m
   const qc = useQueryClient();
   const toast = useToast();
   return (
-    <button className="text-[11px] text-brand-700 underline" onClick={async () => {
+    <button className="text-[12.5px] text-brand-700 underline" onClick={async () => {
       try {
         await apiPatch(`/projects/${projectId}/milestones/${milestoneId}`, { completedAt: new Date().toISOString() });
         toast(tr('نقطهٔ عطف انجام‌شده ثبت شد.'));

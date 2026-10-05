@@ -127,7 +127,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
             {view.files.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 px-3 py-2 text-sm">
                 <span className="flex-1">{f.fileName} <span className="text-xs text-ink-400">({localDigits(Math.ceil(f.sizeBytes / 1024))} KB)</span>
-                  <span className="ltr block text-[10px] text-ink-400">SHA-256 {f.sha256}</span></span>
+                  <span className="ltr block text-[12px] text-ink-400">SHA-256 {f.sha256}</span></span>
                 {f.viewed && <span className="text-xs text-emerald-700">{tr('✓ دریافت شد')}</span>}
                 {forMe && (!done || new Date(view.expiresAt) > new Date()) && view.status !== 'CANCELLED' && view.status !== 'EXPIRED' && (
                   <Button size="sm" variant="secondary" onClick={() => void download(f)}>{tr('دریافت')}</Button>
@@ -144,7 +144,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
           <p className="text-xs">{tr('{0} — شناسه', formatDateTime(done.decidedAt))}{' '}<span className="ltr">{done.code}</span></p>
           <p className="text-xs">{tr('اثر انگشت آنچه دیدید:')}{' '}<code className="ltr break-all">{done.manifestHash}</code></p>
           <p className="text-xs">{tr('اثر انگشت تصمیم:')}{' '}<code className="ltr break-all">{done.evidenceHash}</code></p>
-          <p className="text-[11px]">{tr('این دو را نگه دارید؛ با آن‌ها می‌توان نشان داد تصمیم شما و آنچه دیدید پس از ثبت تغییر نکرده است.')}</p>
+          <p className="text-[12.5px]">{tr('این دو را نگه دارید؛ با آن‌ها می‌توان نشان داد تصمیم شما و آنچه دیدید پس از ثبت تغییر نکرده است.')}</p>
         </section>
       ) : view.status !== 'PENDING' ? (
         <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700" data-testid="approve-closed">{CLOSED_FA[view.status] ?? tr('این درخواست بسته شده است.')}</p>
@@ -174,7 +174,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
           <Checkbox checked={confirm} onChange={(e) => setConfirm(e.target.checked)}
             label={decision === 'APPROVE' ? tr('موارد بالا را همان‌طور که نشان داده شد دیده‌ام و تأیید می‌کنم.') : tr('موارد بالا را دیده‌ام و اصلاح آن را درخواست می‌کنم.')} />
           <Button variant="primary" loading={busy} disabled={!canSubmit} onClick={() => void submit()}>{tr('ثبت تصمیم')}</Button>
-          <p className="text-[11px] text-ink-500">{tr('با ثبت، نام شما، زمان، نشانی IP و مرورگر، و اثر انگشت فایل‌های بالا نگه داشته می‌شود. مهلت: {0}', formatDateTime(view.expiresAt))}</p>
+          <p className="text-[12.5px] text-ink-500">{tr('با ثبت، نام شما، زمان، نشانی IP و مرورگر، و اثر انگشت فایل‌های بالا نگه داشته می‌شود. مهلت: {0}', formatDateTime(view.expiresAt))}</p>
         </section>
       )}
       {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="approve-note">{note}</p>}

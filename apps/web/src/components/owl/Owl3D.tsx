@@ -9,8 +9,8 @@ import type { OwlMood } from './mood';
 /**
  * Hiva the owl, in three dimensions (Hivamis task 8) — built from spheres and cones rather than a
  * model file, so it costs nothing to ship but the library and draws in a few milliseconds. It breathes,
- * blinks, turns its head to the pointer (or to what the tour is showing), talks, thinks, waves and
- * hops. It stops drawing when it is off screen or the tab is hidden, and holds still for people who
+ * blinks, turns its head to the pointer (or to what the tour is showing), talks, thinks, waves,
+ * hops and flies — wings beating, body pitched forward and turned the way it is going. It stops drawing when it is off screen or the tab is hidden, and holds still for people who
  * asked for less motion.
  */
 
@@ -136,16 +136,19 @@ function buildOwl() {
 export interface Owl3DProps {
   size: number;
   mood: OwlMood;
+  /** While flying: which way, −1 (left) to 1 (right). */
+  heading?: number;
   /** A point on the screen to look at; otherwise the pointer. */
   lookAt?: { x: number; y: number } | null;
   onFail?: () => void;
   className?: string;
 }
 
-export default function Owl3D({ size, mood, lookAt, onFail, className }: Owl3DProps) {
+export default function Owl3D({ size, mood, heading = 0, lookAt, onFail, className }: Owl3DProps) {
   const host = useRef<HTMLDivElement>(null);
-  const live = useRef({ mood, lookAt, redraw: () => {} });
+  const live = useRef({ mood, heading, lookAt, redraw: () => {} });
   live.current.mood = mood;
+  live.current.heading = heading;
   live.current.lookAt = lookAt;
 
   useEffect(() => {
@@ -198,7 +201,8 @@ export default function Owl3D({ size, mood, lookAt, onFail, className }: Owl3DPr
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const t = (now - start) / 1000;
-      const { mood: md, lookAt: target } = live.current;
+      const { mood: md, heading: towards, lookAt: target } = live.current;
+      const flying = md === 'fly';
       if (md !== seenMood) { seenMood = md; moodAt = now; }
       const since = (now - moodAt) / 1000;
       const k = 1 - Math.exp(-dt * 6);
@@ -218,15 +222,22 @@ export default function Owl3D({ size, mood, lookAt, onFail, className }: Owl3DPr
       let tilt = 0;
       if (md === 'think') { yaw = 0.3; pitch = -0.22; tilt = 0.24; }
       if (md === 'sleep') { yaw = 0; pitch = 0.25; tilt = 0.12; }
+      // In flight it looks where it is going.
+      if (flying) { yaw = towards * 0.5; pitch = 0.1; }
 
       const breath = Math.sin(t * 2.2);
       owl.root.scale.y = 1 + 0.012 * breath;
       let lift = 0.03 * breath;
       if (md === 'hop' && since < 0.5) lift += 0.38 * Math.sin(Math.PI * since / 0.5);
       if (md === 'talk') lift += 0.02 * Math.abs(Math.sin(t * 6.5));
-      owl.root.position.y = lift;
-      owl.root.rotation.z = 0.025 * Math.sin(t * 0.9);
-      owl.shadow.scale.setScalar(1 - lift * 0.5);
+      // Each downstroke lifts the body a little.
+      const beat = Math.sin(t * 24);
+      if (flying) lift += 0.18 + 0.07 * beat;
+      owl.root.position.y = ease(owl.root.position.y, lift, flying ? 0.5 : 0.35);
+      owl.root.rotation.z = ease(owl.root.rotation.z, flying ? -towards * 0.22 : 0.025 * Math.sin(t * 0.9), k);
+      owl.root.rotation.x = ease(owl.root.rotation.x, flying ? 0.32 : 0, k);
+      owl.root.rotation.y = ease(owl.root.rotation.y, flying ? towards * 0.6 : 0, k);
+      owl.shadow.scale.setScalar(Math.max(0.35, 1 - owl.root.position.y * (flying ? 1.6 : 0.5)));
 
       owl.head.rotation.y = ease(owl.head.rotation.y, yaw, k);
       owl.head.rotation.x = ease(owl.head.rotation.x, pitch + (md === 'talk' ? 0.04 * Math.sin(t * 6.5) : 0), k);
@@ -247,9 +258,19 @@ export default function Owl3D({ size, mood, lookAt, onFail, className }: Owl3DPr
       owl.tassel.rotation.z = 0.18 * Math.sin(t * 1.7) - owl.head.rotation.y * 0.3;
 
       const [left, right] = owl.wings as [Group, Group];
-      const flutter = 0.04 * Math.sin(t * 2.2);
-      left.rotation.z = ease(left.rotation.z, -flutter, k);
-      right.rotation.z = md === 'wave' && since < 1.8 ? 1.25 + 0.4 * Math.sin(since * 14) : ease(right.rotation.z, flutter, k);
+      if (flying) {
+        // Wings out and beating: from just above level to well below, about four strokes a second.
+        const stroke = 1.05 + 0.75 * beat;
+        left.rotation.z = -stroke;
+        right.rotation.z = stroke;
+        left.rotation.x = right.rotation.x = 0.25 * Math.cos(t * 24);
+      } else {
+        const flutter = 0.04 * Math.sin(t * 2.2);
+        left.rotation.x = ease(left.rotation.x, 0, k);
+        right.rotation.x = ease(right.rotation.x, 0, k);
+        left.rotation.z = ease(left.rotation.z, -flutter, k);
+        right.rotation.z = md === 'wave' && since < 1.8 ? 1.25 + 0.4 * Math.sin(since * 14) : ease(right.rotation.z, flutter, k);
+      }
 
       renderer.render(scene, camera);
     };

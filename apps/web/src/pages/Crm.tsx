@@ -319,7 +319,7 @@ export function CompaniesList() {
           rowHref={(r) => `/companies/${r.id}`}
           emptyTitle={tr('مشتری‌ای ثبت نشده')}
           columns={[
-            { key: 'name', header: tr('مشتری'), render: (r) => (<><p className="font-medium text-ink-800">{r.legalName}</p>{r.brandName && <p className="text-[11px] text-ink-400">{r.brandName}</p>}</>) },
+            { key: 'name', header: tr('مشتری'), render: (r) => (<><p className="font-medium text-ink-800">{r.legalName}</p>{r.brandName && <p className="text-[12.5px] text-ink-400">{r.brandName}</p>}</>) },
             { key: 'industry', header: tr('صنعت'), render: (r) => <span className="text-xs">{r.industry ?? '—'}</span> },
             { key: 'account', header: tr('مالک اکانت'), render: (r) => <span className="text-xs">{r.accountOwner?.fullName ?? '—'}</span> },
             { key: 'sales', header: tr('مالک فروش'), render: (r) => <span className="text-xs">{r.salesOwner?.fullName ?? '—'}</span> },

@@ -56,7 +56,7 @@ export function MessengerModal({ onClose }: { onClose: () => void }) {
                 <p>{s.mode === 'sandbox' ? tr('این کد را در گفت‌وگوی آزمایشی زیر بفرستید:') : <>{tr('این کد را برای ربات')}{' '}{code.bot ? <span className="ltr">@{code.bot}</span> : tr('سازمان')}{' '}{tr('بفرستید:')}</>}</p>
                 <p className="ltr text-center text-xl font-semibold tracking-widest">{code.code}</p>
                 {code.deepLink && <p><a href={code.deepLink} target="_blank" rel="noreferrer" className="text-brand-700 underline">{tr('باز کردن ربات')}</a></p>}
-                <p className="text-[11px]">{tr('تا {0} معتبر است و فقط یک بار.', formatDateTime(code.expiresAt))}</p>
+                <p className="text-[12.5px]">{tr('تا {0} معتبر است و فقط یک بار.', formatDateTime(code.expiresAt))}</p>
               </div>
             ) : <Button variant="primary" onClick={() => void link()}>{tr('اتصال پیام‌رسان')}</Button>}
             {s.mode === 'sandbox' && <SandboxChat onLinked={() => void refresh()} />}
@@ -85,7 +85,7 @@ function SandboxChat({ onLinked }: { onLinked: () => void }) {
   };
   return (
     <div className="rounded-lg border border-ink-200" data-testid="sandbox-chat">
-      <p className="border-b border-ink-100 px-3 py-1.5 text-[11px] text-ink-500">{tr('گفت‌وگوی آزمایشی با ربات هیوامیس')}</p>
+      <p className="border-b border-ink-100 px-3 py-1.5 text-[12.5px] text-ink-500">{tr('گفت‌وگوی آزمایشی با ربات هیوامیس')}</p>
       <div className="max-h-80 space-y-2 overflow-y-auto px-3 py-2">
         {!chat?.length && <p className="text-xs text-ink-400">{tr('هنوز پیامی نیست.')}</p>}
         {chat?.map((m) => (
@@ -98,7 +98,7 @@ function SandboxChat({ onLinked }: { onLinked: () => void }) {
                   : <button key={b.text} onClick={() => void press(b.action!)} className="flex-1 rounded border border-ink-200 bg-surface px-2 py-1 text-xs">{b.text}</button>)}
               </div>
             ))}
-            <p className="mt-1 text-[10px] text-ink-400">{formatDateTime(m.at)}</p>
+            <p className="mt-1 text-[12px] text-ink-400">{formatDateTime(m.at)}</p>
           </div>
         ))}
         <div ref={end} />

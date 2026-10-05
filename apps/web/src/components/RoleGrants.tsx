@@ -86,7 +86,7 @@ export function RoleGrants() {
                     className={cx('flex w-full items-center justify-between gap-2 px-4 py-2.5 text-start', r.code === role.code ? 'bg-brand-50' : 'hover:bg-ink-50')}>
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-ink-800">{loc(r, 'name')}</span>
-                      <span className="text-[11px] text-ink-500">{tr('{0} نفر', localDigits(r.userCount))}</span>
+                      <span className="text-[12.5px] text-ink-500">{tr('{0} نفر', localDigits(r.userCount))}</span>
                     </span>
                     <Badge tone={st.tone} className="shrink-0">{st.text}</Badge>
                   </button>
@@ -122,7 +122,7 @@ export function RoleGrants() {
                   <legend className="flex w-full items-center justify-between gap-2 px-1 text-xs font-semibold text-ink-700">
                     <span>{pair(g)} <span className="font-normal text-ink-400">({localDigits(on)}/{localDigits(g.permissions.length)})</span></span>
                     {!locked && (
-                      <button type="button" className="text-[11px] font-normal text-brand-700 underline" onClick={() => toggleGroup(g.permissions, on < g.permissions.length)}>
+                      <button type="button" className="text-[12.5px] font-normal text-brand-700 underline" onClick={() => toggleGroup(g.permissions, on < g.permissions.length)}>
                         {on < g.permissions.length ? tr('همه') : tr('هیچ')}
                       </button>
                     )}
@@ -131,7 +131,7 @@ export function RoleGrants() {
                     {g.permissions.map((p) => (
                       <label key={p} className="flex cursor-pointer items-start gap-2 text-xs text-ink-700">
                         <input type="checkbox" className="mt-0.5 size-3.5" checked={picked.has(p)} onChange={() => toggle(p)} aria-label={trx(PERMISSIONS[p])} />
-                        <span>{trx(PERMISSIONS[p])} <span className="ltr font-mono text-[10px] text-ink-400">{p}</span>
+                        <span>{trx(PERMISSIONS[p])} <span className="ltr font-mono text-[12px] text-ink-400">{p}</span>
                           {!role.fullAccess && !role.defaults.includes(p) && picked.has(p) && <Badge tone="info" className="ms-1">{tr('بیش از پیش‌فرض')}</Badge>}
                         </span>
                       </label>

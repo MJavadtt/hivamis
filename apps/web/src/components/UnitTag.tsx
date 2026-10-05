@@ -31,7 +31,7 @@ export function UnitTag({ code, className }: { code: string | null | undefined; 
   const name = (unit ? loc(unit, 'name') : pair(DEPARTMENT_LABELS[code as DepartmentCode])) || code;
   return (
     <span
-      className={cx('inline-flex max-w-[11rem] items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4', className)}
+      className={cx('inline-flex max-w-[11rem] items-center rounded-md px-1.5 py-0.5 text-[12.5px] font-medium leading-4', className)}
       style={{ backgroundColor: color, color: textOn(color) }}
       title={`${name} (${code})`}
       data-unit={code}

@@ -75,7 +75,7 @@ export function OrgRules() {
                 <Badge tone={r.kind === 'GUARD' ? 'warning' : 'info'}>{trx(CUSTOM_RULE_KIND_LABELS[r.kind])}</Badge>
                 <span className="font-medium text-ink-800">{loc(r, 'label')}</span>
                 <span className="text-xs text-ink-500">{loc(r, 'entity')} {flow()} {loc(r, 'transition')}</span>
-                <span className="text-[11px] text-ink-400">{tr('نسخهٔ {0} · {1} · {2}', localDigits(r.version), r.createdByName, formatDateTime(r.createdAt))}</span>
+                <span className="text-[12.5px] text-ink-400">{tr('نسخهٔ {0} · {1} · {2}', localDigits(r.version), r.createdByName, formatDateTime(r.createdAt))}</span>
               </div>
               {r.whenFa && <p className="text-xs text-ink-600">{r.kind === 'GUARD' ? tr('انتقال فقط وقتی مجاز است که ') : tr('وقتی ')}{loc(r, 'when')}</p>}
               {r.kind === 'NOTIFY' && <p className="text-xs text-ink-600">{tr('آگاه می‌شوند: {0}', r.notifyRoles.map(roleFa).join(tr('، ')))}</p>}
@@ -102,7 +102,7 @@ function RuleHistory({ code, onClose }: { code: string; onClose: () => void }) {
       <ol className="space-y-2 text-sm" data-testid="rule-history">
         {data?.map((r) => (
           <li key={r.id} className="rounded-lg border border-ink-200 px-3 py-2">
-            <p className="flex flex-wrap items-center gap-2"><span className="font-medium">{tr('نسخهٔ {0}', localDigits(r.version))}</span>{r.current ? <Badge tone="success">{tr('جاری')}</Badge> : <Badge tone="neutral">{tr('کنار رفته')}</Badge>}<span className="text-[11px] text-ink-400">{r.createdByName} · {formatDateTime(r.createdAt)}</span></p>
+            <p className="flex flex-wrap items-center gap-2"><span className="font-medium">{tr('نسخهٔ {0}', localDigits(r.version))}</span>{r.current ? <Badge tone="success">{tr('جاری')}</Badge> : <Badge tone="neutral">{tr('کنار رفته')}</Badge>}<span className="text-[12.5px] text-ink-400">{r.createdByName} · {formatDateTime(r.createdAt)}</span></p>
             <p className="text-xs">{loc(r, 'label')}</p>
             {r.whenFa && <p className="text-xs text-ink-600">{loc(r, 'when')}</p>}
           </li>
@@ -283,7 +283,7 @@ interface Registry {
 export function CodeRules() {
   const { data } = useQuery<Registry>({ queryKey: ['/rules/registry'], queryFn: () => apiGet('/rules/registry') });
   if (!data) return null;
-  const label = (key: string) => data.guards.find((g) => g.key === key)?.labelFa ?? key;
+  const label = (key: string) => { const g = data.guards.find((x) => x.key === key); return g ? loc(g, 'label') : key; };
   const core = data.guards.filter((g) => g.source === 'core');
   return (
     <div className="space-y-5">

@@ -25,8 +25,9 @@ describe('Rule lab', () => {
     }));
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={qc}><ToastProvider><RuleLab /></ToastProvider></QueryClientProvider>);
-    // proposal.approve carries both guards; untick one (the vocabulary loads asynchronously).
-    const qcGuard = await screen.findByLabelText('proposal.pricingApproved') as HTMLInputElement;
+    // proposal.approve carries both guards; untick one (the vocabulary loads asynchronously). Each box
+    // is named by the guard's words, not its code.
+    const qcGuard = await screen.findByLabelText('تأیید قیمت') as HTMLInputElement;
     expect(qcGuard.checked).toBe(true);
     fireEvent.click(qcGuard);
     fireEvent.click(screen.getByRole('button', { name: 'شبیه‌سازی روی تاریخچه' }));

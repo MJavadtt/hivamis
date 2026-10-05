@@ -69,7 +69,7 @@ export default function Delegations() {
                 <div className="grid max-h-48 grid-cols-1 gap-1 overflow-auto rounded-lg bg-ink-50/60 p-2 text-xs sm:grid-cols-2" data-testid="permission-picker">
                   {own.map((p) => (
                     <label key={p} className="flex cursor-pointer items-center gap-2">
-                      <input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(perms, setPerms, p)} aria-label={p} />
+                      <input type="checkbox" checked={perms.includes(p)} onChange={() => toggle(perms, setPerms, p)} />
                       <span>{permFa(p)}</span>
                     </label>
                   ))}
@@ -80,7 +80,7 @@ export default function Delegations() {
                   <div className="flex flex-wrap gap-3 text-xs">
                     {ownRoles.map((r) => (
                       <label key={r} className="flex cursor-pointer items-center gap-2">
-                        <input type="checkbox" checked={roles.includes(r)} onChange={() => toggle(roles, setRoles, r)} aria-label={r} />
+                        <input type="checkbox" checked={roles.includes(r)} onChange={() => toggle(roles, setRoles, r)} />
                         <span>{roleFa(r)}</span>
                       </label>
                     ))}

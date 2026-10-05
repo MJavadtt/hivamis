@@ -219,7 +219,7 @@ function SalesReport() {
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={funnel}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'Vazirmatn' }} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'Ray, Vazirmatn' }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => localDigits(v)} />
                 <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} />
@@ -295,10 +295,10 @@ function UnitsReport() {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chart}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fontFamily: 'Vazirmatn' }} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'Ray, Vazirmatn' }} />
               <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
               <Tooltip formatter={(v: number) => tr('{0}٪', localDigits(v))} />
-              <Legend wrapperStyle={{ fontFamily: 'Vazirmatn', fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontFamily: 'Ray, Vazirmatn', fontSize: 12 }} />
               <Bar dataKey="onTime" name={tr('تحویل به‌موقع')} fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
               <Bar dataKey="firstPass" name="First Pass Yield" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -383,7 +383,7 @@ function SlaReport() {
                     {p.complianceRate == null ? <span className="text-xs text-ink-400">—</span> : (
                       <div className="w-24">
                         <ProgressBar value={p.complianceRate} tone={p.complianceRate >= 90 ? 'success' : p.complianceRate >= 70 ? 'warning' : 'danger'} />
-                        <span className="nums text-[11px] text-ink-500">{tr('{0}٪', localDigits(p.complianceRate))}</span>
+                        <span className="nums text-[12.5px] text-ink-500">{tr('{0}٪', localDigits(p.complianceRate))}</span>
                       </div>
                     )}
                   </Td>

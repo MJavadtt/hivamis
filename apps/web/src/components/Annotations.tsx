@@ -87,7 +87,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
             ))}
           </div>
           {file && (
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-500" data-testid="file-versions">
+            <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-500" data-testid="file-versions">
               {versions.length > 1 && versions.map((v) => (
                 <button key={v.id} onClick={() => { setFileId(v.id); setPending(null); }}
                   className={`rounded-full px-2 py-0.5 ${v.id === file.id ? 'bg-ink-800 text-white' : 'bg-ink-100 text-ink-700'}`}>{tr('نسخهٔ {0}{1}{2}', localDigits(v.version), v.current ? tr(' (فعلی)') : '', v.annotations > 0 ? tr(' · {0} یادداشت', localDigits(v.annotations)) : '')}</button>
@@ -102,7 +102,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
           {file && !file.current && (
             <p className="rounded-lg bg-ink-100 px-3 py-2 text-xs text-ink-700" data-testid="old-version">{tr('این نسخهٔ قدیمی است — یادداشت‌هایش برای سنجیدن نسخهٔ تازه نشان داده می‌شوند و یادداشت تازه فقط روی نسخهٔ فعلی گذاشته می‌شود.')}</p>
           )}
-          {mayMark && <p className="text-[11px] text-ink-500">
+          {mayMark && <p className="text-[12.5px] text-ink-500">
             {file?.kind === 'image' ? tr('روی تصویر کلیک کنید تا نشانه بگذارید.') : file?.kind === 'video' ? tr('ویدیو را در لحظهٔ مورد نظر نگه دارید و «یادداشت در این لحظه» را بزنید.') : tr('روی صفحه بکشید تا ناحیه‌ای را مشخص کنید.')}
           </p>}
           <div className="grid gap-3 lg:grid-cols-[1fr_16rem]">
@@ -130,12 +130,12 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
                 <li key={a.id} onMouseEnter={() => setFocus(a.id)} onClick={() => setFocus(a.id)}
                   className={`cursor-pointer rounded-lg border px-2 py-1.5 ${focus === a.id ? 'border-brand-400' : 'border-ink-200'} ${a.status === 'RESOLVED' ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-1.5">
-                    <span className="grid size-5 place-items-center rounded-full bg-rose-600 text-[10px] font-semibold text-white">{localDigits(a.number)}</span>
+                    <span className="grid size-5 place-items-center rounded-full bg-rose-600 text-[12px] font-semibold text-white">{localDigits(a.number)}</span>
                     <span className="text-ink-500">{a.kind === 'TIMECODE' ? timecodeFa(a.timeSec ?? 0) : a.kind === 'HIGHLIGHT' ? tr('صفحهٔ {0}', localDigits(a.page ?? 1)) : ''}</span>
                     {a.status === 'RESOLVED' ? <Badge tone="success">{tr('رفع شد')}</Badge> : a.revision ? <Badge tone="warning">{a.revision.code}</Badge> : null}
                   </div>
                   <p className="mt-1 whitespace-pre-line text-ink-800">{a.note}</p>
-                  <p className="mt-0.5 text-[10px] text-ink-400">{a.author.fullName} · {formatDateTime(a.createdAt)}</p>
+                  <p className="mt-0.5 text-[12px] text-ink-400">{a.author.fullName} · {formatDateTime(a.createdAt)}</p>
                   <div className="mt-1 flex gap-1">
                     {can('deliverable.write') && <Button size="sm" variant="ghost" onClick={() => void setStatus(a, a.status === 'OPEN' ? 'RESOLVED' : 'OPEN')}>{a.status === 'OPEN' ? tr('رفع شد') : tr('باز کردن دوباره')}</Button>}
                     {a.author.id === user?.id && !a.qcReviewId && <Button size="sm" variant="ghost" onClick={() => void remove(a)}>{tr('حذف')}</Button>}
@@ -153,7 +153,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
 function Pin({ a, focus }: { a: AnnotationRow; focus: boolean }) {
   return (
     <span style={{ left: `${(a.x ?? 0) * 100}%`, top: `${(a.y ?? 0) * 100}%` }} data-testid="pin"
-      className={`absolute grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-[11px] font-semibold text-white shadow ring-2 ring-white ${a.status === 'RESOLVED' ? 'bg-emerald-600' : 'bg-rose-600'} ${focus ? 'scale-125' : ''}`}>
+      className={`absolute grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-[12.5px] font-semibold text-white shadow ring-2 ring-white ${a.status === 'RESOLVED' ? 'bg-emerald-600' : 'bg-rose-600'} ${focus ? 'scale-125' : ''}`}>
       {localDigits(a.number)}
     </span>
   );
@@ -182,7 +182,7 @@ function VideoStage({ documentId, marks, onPick, seekTo }: { documentId: string;
       <div className="flex flex-wrap items-center gap-1.5">
         {onPick && <Button size="sm" variant="secondary" onClick={() => { video.current?.pause(); onPick({ timeSec: Math.round((video.current?.currentTime ?? 0) * 10) / 10 }); }}>{tr('یادداشت در این لحظه')}</Button>}
         {marks.map((a) => (
-          <button key={a.id} onClick={() => { if (video.current) video.current.currentTime = a.timeSec ?? 0; }} className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px]">
+          <button key={a.id} onClick={() => { if (video.current) video.current.currentTime = a.timeSec ?? 0; }} className="rounded bg-ink-100 px-1.5 py-0.5 text-[12.5px]">
             {localDigits(a.number)} · {timecodeFa(a.timeSec ?? 0)}
           </button>
         ))}
@@ -245,7 +245,7 @@ function PdfStage({ documentId, marks, focus, pending, onPick }: { documentId: s
         <div ref={layer} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={() => setDrag(null)} className={`absolute inset-0 ${onPick ? 'cursor-crosshair' : ''}`}>
           {marks.filter((a) => a.page === page).map((a) => (
             <div key={a.id} style={rect(a as { x: number; y: number; w: number; h: number })} className={`absolute border-2 ${a.status === 'RESOLVED' ? 'border-emerald-500 bg-emerald-400/10' : 'border-rose-500 bg-rose-400/15'} ${focus === a.id ? 'ring-2 ring-brand-400' : ''}`}>
-              <span className="absolute -top-2.5 -start-2.5 grid size-5 place-items-center rounded-full bg-rose-600 text-[10px] text-white">{localDigits(a.number)}</span>
+              <span className="absolute -top-2.5 -start-2.5 grid size-5 place-items-center rounded-full bg-rose-600 text-[12px] text-white">{localDigits(a.number)}</span>
             </div>
           ))}
           {drag && <div style={rect({ x: Math.min(drag.x, drag.x2), y: Math.min(drag.y, drag.y2), w: Math.abs(drag.x2 - drag.x), h: Math.abs(drag.y2 - drag.y) })} className="absolute border-2 border-dashed border-amber-500 bg-amber-300/20" />}

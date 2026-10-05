@@ -118,7 +118,7 @@ function SignIn() {
       <Field label={tr('رمز عبور')}><Input value={password} onChange={(e) => setPassword(e.target.value)} className="ltr" type="password" autoComplete="current-password" aria-label={tr('رمز عبور')} /></Field>
       {error && <p className="text-xs text-rose-700" data-testid="portal-error">{error}</p>}
       <Button variant="primary" loading={busy} disabled={!email || !password} onClick={() => void go()}>{tr('ورود')}</Button>
-      <p className="text-[11px] text-ink-500">{tr('حساب پورتال را مدیر اکانت شما می‌سازد؛ اگر رمز را فراموش کرده‌اید، دعوت تازه بخواهید.')}</p>
+      <p className="text-[12.5px] text-ink-500">{tr('حساب پورتال را مدیر اکانت شما می‌سازد؛ اگر رمز را فراموش کرده‌اید، دعوت تازه بخواهید.')}</p>
     </Centered>
   );
 }
@@ -219,7 +219,7 @@ function Progress({ done, total, label }: { done: number; total: number; label: 
   return (
     <div className="mt-2">
       <div className="h-1.5 rounded-full bg-ink-100"><div className="h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} /></div>
-      <p className="mt-1 text-[11px] text-ink-500">{tr('{0}: {1} از {2}', label, localDigits(done), localDigits(total))}</p>
+      <p className="mt-1 text-[12.5px] text-ink-500">{tr('{0}: {1} از {2}', label, localDigits(done), localDigits(total))}</p>
     </div>
   );
 }
@@ -318,7 +318,7 @@ function ProjectPage() {
           {data.messages.map((m) => (
             <li key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.fromClient ? 'ms-auto bg-brand-50 text-ink-800' : 'bg-ink-50 text-ink-800'}`}>
               <p className="whitespace-pre-line">{m.body}</p>
-              <p className="mt-1 text-[10px] text-ink-500">{m.author} · {formatDateTime(m.createdAt)}</p>
+              <p className="mt-1 text-[12px] text-ink-500">{m.author} · {formatDateTime(m.createdAt)}</p>
             </li>
           ))}
         </ul>

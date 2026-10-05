@@ -159,7 +159,7 @@ export function SmsSandbox() {
       {!data.messages.length ? <EmptyState title={tr('پیامکی نیست')} /> : (
         <ul className="divide-y divide-ink-100 text-sm" data-testid="sms-sandbox">
           {data.messages.slice(0, 10).map((m) => (
-            <li key={m.id} className="flex gap-3 px-4 py-2"><span className="ltr w-28 shrink-0 text-ink-500">{m.phone}</span><span className="min-w-0 flex-1">{m.text}</span><span className="text-[11px] text-ink-400">{formatDateTime(m.createdAt)}</span></li>
+            <li key={m.id} className="flex gap-3 px-4 py-2"><span className="ltr w-28 shrink-0 text-ink-500">{m.phone}</span><span className="min-w-0 flex-1">{m.text}</span><span className="text-[12.5px] text-ink-400">{formatDateTime(m.createdAt)}</span></li>
           ))}
         </ul>
       )}

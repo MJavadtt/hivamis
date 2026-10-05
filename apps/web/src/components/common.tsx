@@ -97,7 +97,7 @@ export function WorkflowActions({
             >
               {loc(t, 'label')}
               {failing.length > 0 && (
-                <span className="ms-1.5 rounded-full bg-rose-100 px-1.5 text-[10px] font-semibold text-rose-700" aria-label={tr('{0} پیش‌نیاز برقرار نیست', localDigits(failing.length))}>
+                <span className="ms-1.5 rounded-full bg-rose-100 px-1.5 text-[12px] font-semibold text-rose-700" aria-label={tr('{0} پیش‌نیاز برقرار نیست', localDigits(failing.length))}>
                   {localDigits(failing.length)}
                 </span>
               )}
@@ -121,7 +121,7 @@ export function WorkflowActions({
                       {c.waived && <span className="text-amber-700">{' '}{tr('— استثنا: {0}', c.waived.reason)}</span>}
                     </span>
                     {!c.ok && can('governance.waive') && (
-                      <button type="button" className="shrink-0 text-[11px] text-brand-700 underline"
+                      <button type="button" className="shrink-0 text-[12.5px] text-brand-700 underline"
                         onClick={() => { setWaiving({ action: t.action, guard: c.guard, labelFa: c.labelFa }); setWaiverReason(''); }}>{tr('صدور استثنا')}</button>
                     )}
                   </li>
@@ -329,7 +329,7 @@ export function EntityList<T extends { id: string }>({
 /* ── Small presentational helpers ──────────────────────────────────────── */
 
 export const Code = ({ children }: { children: ReactNode }) => (
-  <span className="ltr rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[11px] text-ink-600">{children}</span>
+  <span className="ltr rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[12.5px] text-ink-600">{children}</span>
 );
 
 export const StateCell = ({ state }: { state: string }) => <StateBadge state={state} />;
@@ -402,7 +402,7 @@ export function StateHistory({ entity, id }: { entity: string; id: string }) {
               <StateBadge state={t.toState} />
               <span className="ms-auto text-ink-400">{formatRelative(t.createdAt)}</span>
             </div>
-            <p className="mt-1 text-[11px] text-ink-500">
+            <p className="mt-1 text-[12.5px] text-ink-500">
               {t.actor?.fullName ?? '—'}
               {t.reason ? <span className="text-ink-700"> — {t.reason}</span> : null}
             </p>

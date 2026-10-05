@@ -76,12 +76,12 @@ export function SecurityAlerts() {
                   <Badge tone="neutral" className="ms-auto">{STATUS_FA[a.status]}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-ink-700">{loc(a, 'message')}</p>
-                <p className="mt-0.5 text-[11px] text-ink-400">{tr('{0} تا {1}{2}', formatDateTime(a.windowStart), formatDateTime(a.windowEnd), a.ipAddress && a.actor ? tr(' · آخرین نشانی {0}', a.ipAddress) : '')}</p>
-                <details className="mt-1 text-[11px] text-ink-500">
+                <p className="mt-0.5 text-[12.5px] text-ink-400">{tr('{0} تا {1}{2}', formatDateTime(a.windowStart), formatDateTime(a.windowEnd), a.ipAddress && a.actor ? tr(' · آخرین نشانی {0}', a.ipAddress) : '')}</p>
+                <details className="mt-1 text-[12.5px] text-ink-500">
                   <summary className="cursor-pointer">{tr('شواهد')}</summary>
-                  <pre className="mt-1 max-h-48 overflow-auto rounded bg-ink-50 p-2 text-[10px] ltr" dir="ltr">{JSON.stringify(a.evidence, null, 2)}</pre>
+                  <pre className="mt-1 max-h-48 overflow-auto rounded bg-ink-50 p-2 text-[12px] ltr" dir="ltr">{JSON.stringify(a.evidence, null, 2)}</pre>
                 </details>
-                {a.reviewNote && <p className="mt-1 text-[11px] text-ink-500">{a.reviewedBy}: {a.reviewNote}</p>}
+                {a.reviewNote && <p className="mt-1 text-[12.5px] text-ink-500">{a.reviewedBy}: {a.reviewNote}</p>}
                 {a.status === 'OPEN' && (
                   <div className="mt-2 flex gap-1.5">
                     <Button size="sm" variant="secondary" onClick={() => { setReviewing({ alert: a, status: 'ACKNOWLEDGED' }); setNote(''); }}>{tr('بررسی کردم')}</Button>

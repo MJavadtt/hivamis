@@ -189,7 +189,7 @@ export function UnitQcNote({ review }: { review: UnitReview | undefined }) {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-500" data-testid="unit-qc-note">
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-500" data-testid="unit-qc-note">
       <Badge tone={review.verdict === 'PASSED' ? 'success' : 'danger'}>{tr('QC سطح ۱: {0}', review.verdict === 'PASSED' ? tr('قبول') : tr('رد'))}</Badge>
       <span>{review.reviewer.fullName} — {formatRelative(review.reviewedAt)}</span>
       {review.documents.map((d, i) => (
@@ -223,7 +223,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
               <Td><UnitTag code={r.responsibleDepartmentCode} /></Td>
               <Td className="text-xs">
                 <span className={overdue ? 'font-medium text-rose-600' : ''}>{formatDate(r.dueDate)}</span>
-                <p className="text-[11px] text-ink-400">{formatRelative(r.dueDate)}</p>
+                <p className="text-[12.5px] text-ink-400">{formatRelative(r.dueDate)}</p>
               </Td>
               <Td><StateBadge state={r.state} /></Td>
               <Td className="flex items-center gap-1">
@@ -348,9 +348,9 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
             <p className="text-xs font-medium text-ink-700">{tr('یادداشت‌های روی فایل‌ها')}</p>
             <Button size="sm" variant="secondary" onClick={() => setAnnotating(true)}>{tr('یادداشت روی فایل‌ها')}</Button>
           </div>
-          {!open.length ? <p className="mt-1 text-[11px] text-ink-500">{tr('یادداشت بازی نیست؛ برای نشان دادن جای دقیق اصلاح، روی خود فایل یادداشت بگذارید.')}</p> : (
+          {!open.length ? <p className="mt-1 text-[12.5px] text-ink-500">{tr('یادداشت بازی نیست؛ برای نشان دادن جای دقیق اصلاح، روی خود فایل یادداشت بگذارید.')}</p> : (
             <>
-              <p className="mt-1 text-[11px] text-ink-500">{tr('در صورت عدم تأیید، یادداشت‌های انتخاب‌شده سطر به سطر در «اصلاح مورد انتظار» اصلاحیه می‌آیند.')}</p>
+              <p className="mt-1 text-[12.5px] text-ink-500">{tr('در صورت عدم تأیید، یادداشت‌های انتخاب‌شده سطر به سطر در «اصلاح مورد انتظار» اصلاحیه می‌آیند.')}</p>
               <div className="mt-2 space-y-1">
                 {open.map((a) => (
                   <Checkbox key={a.id} checked={!unchecked.has(a.id)}

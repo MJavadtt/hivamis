@@ -59,20 +59,20 @@ export function BreachRisk({ mine }: { mine?: boolean }) {
                   <Td>
                     <div className="w-24">
                       <ProgressBar value={p.probability * 100} tone={TONE[p.risk]} />
-                      <span className="nums text-[11px] text-ink-600">{tr('{0}٪ — {1}', localDigits(Math.round(p.probability * 100)), RISK_FA[p.risk])}</span>
+                      <span className="nums text-[12.5px] text-ink-600">{tr('{0}٪ — {1}', localDigits(Math.round(p.probability * 100)), RISK_FA[p.risk])}</span>
                     </div>
                     {p.beatsWarnAt && <Badge tone="info" className="mt-1">{tr('پیش از آستانهٔ ثابت')}</Badge>}
                   </Td>
-                  <Td className="nums text-xs">{tr('{0} از {1} س', localDigits(p.consumedHours), localDigits(p.budgetHours))}<span className="block text-[11px] text-ink-400">{tr('{0}٪ مهلت', localDigits(Math.round(p.ratio * 100)))}</span>
+                  <Td className="nums text-xs">{tr('{0} از {1} س', localDigits(p.consumedHours), localDigits(p.budgetHours))}<span className="block text-[12.5px] text-ink-400">{tr('{0}٪ مهلت', localDigits(Math.round(p.ratio * 100)))}</span>
                   </Td>
                   <Td className="text-xs">
                     {p.expectedFinish ? formatDate(p.expectedFinish) : '—'}
                     {p.expectedOverrunHours != null && p.expectedOverrunHours > 0 && (
-                      <span className="block text-[11px] text-rose-600">{tr('{0} س فراتر از مهلت', localDigits(p.expectedOverrunHours))}</span>
+                      <span className="block text-[12.5px] text-rose-600">{tr('{0} س فراتر از مهلت', localDigits(p.expectedOverrunHours))}</span>
                     )}
                   </Td>
-                  <Td className="max-w-xs text-[11px] text-ink-500">
-                    <ul className="space-y-0.5">{p.becauseFa.map((b, i) => <li key={i}>· {b}</li>)}</ul>
+                  <Td className="max-w-xs text-[12.5px] text-ink-500">
+                    <ul className="space-y-0.5">{p.becauseFa.map((b, i) => <li key={i}>· {trx(b)}</li>)}</ul>
                   </Td>
                 </Tr>
               ))}

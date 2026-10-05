@@ -14,7 +14,7 @@ export function Avatar({ name, unit, color, size = 'md', className }: {
     <span
       aria-hidden
       className={cx('inline-grid shrink-0 place-items-center rounded-full font-semibold',
-        size === 'sm' ? 'size-7 text-[11px]' : size === 'lg' ? 'size-16 text-xl' : 'size-10 text-sm', className)}
+        size === 'sm' ? 'size-7 text-[12.5px]' : size === 'lg' ? 'size-16 text-xl' : 'size-10 text-sm', className)}
       style={{ backgroundColor: bg, color: textOn(bg) }}
     >
       {initials}

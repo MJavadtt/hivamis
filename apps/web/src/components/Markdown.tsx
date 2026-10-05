@@ -3,33 +3,43 @@ import { cx } from './ui';
 
 /**
  * Renders the small subset of markdown the guide actually uses: headings, ordered and unordered
- * lists, bold, inline code and paragraphs. A full parser would be a dependency for four constructs.
+ * lists, quotes, bold, inline code and paragraphs. A full parser would be a dependency for five
+ * constructs. Each block takes its direction from its own text, so the Persian guide reads right to
+ * left — a Latin word inside a Persian sentence («QC», «SLA») included — and the English one left to
+ * right.
  */
 export function Markdown({ source }: { source: string }) {
   const blocks = source.split(/\n{2,}/);
   return (
-    <div className="ltr space-y-3 text-left text-[13px] leading-7 text-ink-700">
+    <div className="space-y-3 text-start text-[14px] leading-7 text-ink-700">
       {blocks.map((block, i) => {
         const lines = block.split('\n');
 
         if (block.startsWith('### ')) {
-          return <h4 key={i} className="pt-1 text-[13px] font-semibold text-ink-800">{inline(block.slice(4))}</h4>;
+          return <h4 key={i} dir="auto" className="pt-1 text-[14px] font-semibold text-ink-800">{inline(block.slice(4))}</h4>;
         }
         if (/^\d+\.\s/.test(block)) {
           return (
-            <ol key={i} className="list-decimal space-y-1.5 ps-5">
+            <ol key={i} dir="auto" className="list-decimal space-y-1.5 ps-5">
               {splitItems(lines, /^\d+\.\s/).map((item, j) => <li key={j}>{inline(item)}</li>)}
             </ol>
           );
         }
         if (block.startsWith('- ')) {
           return (
-            <ul key={i} className="list-disc space-y-1.5 ps-5">
+            <ul key={i} dir="auto" className="list-disc space-y-1.5 ps-5">
               {splitItems(lines, /^-\s/).map((item, j) => <li key={j}>{inline(item)}</li>)}
             </ul>
           );
         }
-        return <p key={i}>{inline(block.replace(/\n/g, ' '))}</p>;
+        if (block.startsWith('> ')) {
+          return (
+            <blockquote key={i} dir="auto" className="border-s-4 border-ink-200 bg-ink-50 px-3 py-2 text-ink-700">
+              {lines.map((l, j) => <p key={j}>{inline(l.replace(/^>\s?/, ''))}</p>)}
+            </blockquote>
+          );
+        }
+        return <p key={i} dir="auto">{inline(block.replace(/\n/g, ' '))}</p>;
       })}
     </div>
   );
@@ -51,7 +61,7 @@ export function inline(text: string): ReactNode[] {
       return <strong key={i} className="font-semibold text-ink-800">{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={i} className="rounded bg-ink-100 px-1 py-0.5 text-[11px]">{part.slice(1, -1)}</code>;
+      return <code key={i} className="rounded bg-ink-100 px-1 py-0.5 text-[12.5px]">{part.slice(1, -1)}</code>;
     }
     return part;
   });

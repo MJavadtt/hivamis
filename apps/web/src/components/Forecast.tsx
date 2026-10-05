@@ -36,11 +36,11 @@ export function Forecast({ projectId }: { projectId: string }) {
           {data.histogram.map((h, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-1" title={tr('{0} تا {1}: {2} اجرا', formatDate(h.from), formatDate(h.to), localDigits(h.runs))}>
               <div className="w-full rounded-t bg-brand-500/70" style={{ height: `${Math.max(2, (h.runs / max) * 80)}px` }} />
-              <span className="text-[9px] text-ink-400">{localDigits(Math.round(h.toHours))}</span>
+              <span className="text-[12px] text-ink-400">{localDigits(Math.round(h.toHours))}</span>
             </div>
           ))}
         </div>
-        <p className="mt-1 text-[11px] text-ink-500">{tr('محور افقی: ساعت کاری از اکنون تا پایان · ارتفاع: تعداد اجراهایی که در آن بازه تمام شدند')}</p>
+        <p className="mt-1 text-[12.5px] text-ink-500">{tr('محور افقی: ساعت کاری از اکنون تا پایان · ارتفاع: تعداد اجراهایی که در آن بازه تمام شدند')}</p>
         {data.samples.some((s) => s.source === 'default') && <Badge tone="warning" className="mt-2">{tr('سابقهٔ کافی نیست — با ثبت زمان روی وظایف، پیش‌بینی دقیق‌تر می‌شود')}</Badge>}
       </div>
     </Card>

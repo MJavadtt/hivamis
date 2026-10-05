@@ -3,6 +3,10 @@
 Hivamis (هیوامیس) follows the agency's own process. If you know your role in Doc_H, the system will feel
 familiar — and it will stop you when a step is skipped.
 
+A Persian edition, [user-guide.fa.md](user-guide.fa.md), stands section for section with this one; the
+in-app guide shows each reader the edition in their language. A change here is made there too, in the
+same place.
+
 ## Signing in
 
 Use your organisational email. What you see is decided by your role: navigation, buttons and

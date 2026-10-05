@@ -47,7 +47,7 @@ export function BriefsList() {
               render: (r) => (
                 <div className="w-24">
                   <ProgressBar value={r.completenessScore} tone={r.completenessScore === 100 ? 'success' : r.completenessScore >= 60 ? 'warning' : 'danger'} />
-                  <span className="nums text-[11px] text-ink-500">{tr('{0}٪', localDigits(r.completenessScore))}</span>
+                  <span className="nums text-[12.5px] text-ink-500">{tr('{0}٪', localDigits(r.completenessScore))}</span>
                 </div>
               ),
             },

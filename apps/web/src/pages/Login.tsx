@@ -135,7 +135,7 @@ export default function Login() {
 
           {methods?.google && (
             <>
-              <div className="flex items-center gap-2 text-[11px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{tr('یا')}<span className="h-px flex-1 bg-ink-200" /></div>
+              <div className="flex items-center gap-2 text-[12.5px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{tr('یا')}<span className="h-px flex-1 bg-ink-200" /></div>
               <GoogleButton mode="login" label={tr('ورود با حساب گوگل')} onError={setError} />
             </>
           )}

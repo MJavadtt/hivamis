@@ -160,7 +160,7 @@ function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid, la
       </button>
 
       {badInput && (
-        <p className="mt-1 text-[11px] text-rose-600">{tr('تاریخ نامعتبر است — قالب درست: {0}', mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'))}</p>
+        <p className="mt-1 text-[12.5px] text-rose-600">{tr('تاریخ نامعتبر است — قالب درست: {0}', mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'))}</p>
       )}
 
       {open && !disabled && (
@@ -217,7 +217,7 @@ function CalendarPopover({
 
       <div className="grid grid-cols-7 gap-0.5 text-center">
         {JALALI_WEEKDAYS.map((d, i) => (
-          <span key={i} className="py-1 text-[11px] text-ink-400">{d}</span>
+          <span key={i} className="py-1 text-[12.5px] text-ink-400">{d}</span>
         ))}
         {Array.from({ length: lead }, (_, i) => <span key={`pad${i}`} />)}
         {Array.from({ length: days }, (_, i) => {
@@ -245,7 +245,7 @@ function CalendarPopover({
 
       {mode === 'datetime' && (
         <div className="mt-2 flex items-center gap-2 border-t border-ink-100 pt-2">
-          <label className="text-[11px] text-ink-500" htmlFor="jdi-time">{tr('ساعت')}</label>
+          <label className="text-[12.5px] text-ink-500" htmlFor="jdi-time">{tr('ساعت')}</label>
           <input
             id="jdi-time"
             type="time"
@@ -262,9 +262,9 @@ function CalendarPopover({
 
       <div className="mt-2 flex justify-between border-t border-ink-100 pt-2">
         <button type="button" onClick={() => onPick({ ...today, hh: time.hh, mm: time.mm })}
-          className="text-[11px] text-brand-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('امروز')}</button>
+          className="text-[12.5px] text-brand-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('امروز')}</button>
         <button type="button" onClick={onClose}
-          className="text-[11px] text-ink-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('بستن')}</button>
+          className="text-[12.5px] text-ink-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">{tr('بستن')}</button>
       </div>
     </div>
   );

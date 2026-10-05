@@ -9,6 +9,11 @@ import { Code } from './common';
 import { formatDateTime, localDigits } from '../lib/format';
 import { loc, tr, trx } from '../i18n';
 
+/** The categories of Doc_H's lessons-learned form, as the form names them. */
+const LESSON_CATEGORY_FA: Record<string, string> = {
+  PROCESS: 'فرآیند', QUALITY: 'کیفیت', SCHEDULE: 'زمان‌بندی', COST: 'هزینه', CLIENT: 'مشتری', RESOURCE: 'منابع',
+};
+
 interface Lesson {
   lessonId: string; titleFa: string; category: string | null; recommendation: string | null;
   snippetFa: string; score: number; whyFa: string[];
@@ -75,25 +80,25 @@ export function ProjectLessons({ projectId }: { projectId: string }) {
             <li key={l.lessonId} className="px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-ink-800">{loc(l, 'title')}</span>
-                {l.category && <Badge tone="neutral">{l.category}</Badge>}
+                {l.category && <Badge tone="neutral">{trx(LESSON_CATEGORY_FA[l.category] ?? l.category)}</Badge>}
                 {l.review && (
                   <Badge tone={l.review.decision === 'APPLIED' ? 'success' : 'neutral'}>
                     {l.review.decision === 'APPLIED' ? tr('به‌کار گرفته شد') : tr('مرتبط نبود')}
                   </Badge>
                 )}
-                <span className="ms-auto nums text-[11px] text-ink-400">{tr('{0}٪ مرتبط', localDigits(Math.round(l.score * 100)))}</span>
+                <span className="ms-auto nums text-[12.5px] text-ink-400">{tr('{0}٪ مرتبط', localDigits(Math.round(l.score * 100)))}</span>
               </div>
               {l.fromProject && (
-                <p className="mt-0.5 text-[11px] text-ink-500">{tr('از')}{' '}<Link to={`/projects/${l.fromProject.id}`} className="text-brand-600 hover:underline">{l.fromProject.name}</Link>
+                <p className="mt-0.5 text-[12.5px] text-ink-500">{tr('از')}{' '}<Link to={`/projects/${l.fromProject.id}`} className="text-brand-600 hover:underline">{l.fromProject.name}</Link>
                   {' '}<Code>{l.fromProject.code}</Code>{l.companyName ? ` — ${l.companyName}` : ''}
                 </p>
               )}
               <p className="mt-1 text-xs leading-6 text-ink-700">{trx(l.recommendation || l.snippetFa)}</p>
-              <ul className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-ink-400">
-                {l.whyFa.map((w, i) => <li key={i}>· {w}</li>)}
+              <ul className="mt-1 flex flex-wrap gap-x-3 text-[12.5px] text-ink-400">
+                {l.whyFa.map((w, i) => <li key={i}>· {trx(w)}</li>)}
               </ul>
               {l.review?.note && (
-                <p className="mt-1 text-[11px] text-ink-500">{tr('یادداشت {0} در {1}: {2}', l.review.reviewedBy ?? '', formatDateTime(l.review.reviewedAt), l.review.note)}</p>
+                <p className="mt-1 text-[12.5px] text-ink-500">{tr('یادداشت {0} در {1}: {2}', l.review.reviewedBy ?? '', formatDateTime(l.review.reviewedAt), l.review.note)}</p>
               )}
               {mayReview && !l.review && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -128,7 +133,7 @@ export function ProjectLessons({ projectId }: { projectId: string }) {
         </ul>
       )}
       {!data.usedService && data.lessons.length > 0 && (
-        <p className="border-t border-ink-100 px-4 py-2 text-[11px] text-ink-400">{tr('سرویس embedding پیکربندی نشده — این فهرست بیشتر بر پایهٔ واژه‌های مشترک است تا معنا.')}</p>
+        <p className="border-t border-ink-100 px-4 py-2 text-[12.5px] text-ink-400">{tr('سرویس embedding پیکربندی نشده — این فهرست بیشتر بر پایهٔ واژه‌های مشترک است تا معنا.')}</p>
       )}
     </Card>
   );

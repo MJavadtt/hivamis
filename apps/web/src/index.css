@@ -1,6 +1,16 @@
 @import 'tailwindcss';
 
 
+/* Ray (Maryamsoft; the organisation holds the licence) — the interface's typeface, Persian and Latin in
+   one variable font, weights 300–950. Vazirmatn stays as the fallback below. */
+@font-face {
+  font-family: 'Ray';
+  src: url('/fonts/Ray-VF.woff') format('woff');
+  font-weight: 300 950;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Self-hosted Vazirmatn (SIL OFL 1.1 — see public/fonts/OFL.txt).
    Four weights, matching what the SPA uses: 400 body, 500 (×56), 600 (×21), 700 (×2).
    Shipping only 400/700 would make the browser snap 500→400 and 600→700. */
@@ -42,7 +52,13 @@
   text on white keeps a 4.5:1 contrast.
 */
 @theme {
-  --font-sans: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Ray', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Legible sizes (the second sweep): the smallest steps rise a pixel; spacing does not move. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5rem;
 
   /* Primary/primary-* — the kit's Blue mode. */
   --color-brand-50: #eff6ff;
@@ -303,8 +319,25 @@ body {
 .owl-svg.owl-talk .owl-jaw { animation: owl-talk 0.25s ease-in-out infinite; }
 .owl-svg.owl-wave .owl-wing-r { animation: owl-wave 1.2s ease-in-out 1; transform-box: fill-box; transform-origin: 10% 10%; }
 .owl-svg.owl-think .owl-head { transform: rotate(-8deg); transform-box: fill-box; transform-origin: center bottom; transition: transform 0.3s; }
+/* In flight: both wings beat from the shoulder, and the body rises on each downstroke. */
+@keyframes owl-flap-l {
+  0%, 100% { transform: rotate(15deg); }
+  50% { transform: rotate(105deg); }
+}
+@keyframes owl-flap-r {
+  0%, 100% { transform: rotate(-15deg); }
+  50% { transform: rotate(-105deg); }
+}
+@keyframes owl-lift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.owl-svg.owl-fly .owl-wing-l { animation: owl-flap-l 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 8%; }
+.owl-svg.owl-fly .owl-wing-r { animation: owl-flap-r 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 8%; }
+.owl-svg.owl-fly .owl-body { animation: owl-lift 0.26s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .owl-svg .owl-eyes, .owl-svg .owl-body, .owl-svg.owl-talk .owl-jaw, .owl-svg.owl-wave .owl-wing-r { animation: none; }
+  .owl-svg .owl-eyes, .owl-svg .owl-body, .owl-svg.owl-talk .owl-jaw, .owl-svg.owl-wave .owl-wing-r,
+  .owl-svg.owl-fly .owl-wing-l, .owl-svg.owl-fly .owl-wing-r, .owl-svg.owl-fly .owl-body { animation: none; }
 }
 
 /* The guide's tour plays like a video: a bar fills while a step is on screen. */

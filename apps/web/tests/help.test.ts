@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HELP_SECTIONS, findSection, sectionForRoles, sectionTitle } from '../src/lib/help';
+import { GUIDE_EN, GUIDE_FA, HELP_SECTIONS, findSection, sectionForRoles } from '../src/lib/help';
 
 /**
  * The drawer's content is imported from docs/user-guide.md at build time, so these assert the
@@ -36,10 +36,31 @@ describe('In-app help', () => {
     expect(findSection(undefined)).toBeUndefined();
   });
 
-  it('has a Persian heading for every section', () => {
-    // In Persian, a section with no Persian heading would show its English one.
-    const missing = HELP_SECTIONS.filter((s) => sectionTitle(s.title) === s.title).map((s) => s.title);
-    expect(missing, `sections without a Persian heading: ${missing.join(', ')}`).toEqual([]);
+  it('reads the guide in Persian to a Persian reader, section for section', () => {
+    // The Persian edition is paired with the English one by position: a section added to one and
+    // not the other would shift every heading after it onto the wrong body.
+    expect(GUIDE_FA.length, 'docs/user-guide.fa.md has a different number of sections').toBe(GUIDE_EN.length);
+    for (const s of HELP_SECTIONS) {
+      expect(s.heading, s.title).not.toBe(s.title);
+      // A Persian reader gets Persian prose, not the English guide with Persian labels in it.
+      const latin = (s.body.match(/[A-Za-z]/g) ?? []).length;
+      const persian = (s.body.match(/[\u0600-\u06FF]/g) ?? []).length;
+      expect(persian, `${s.heading} reads mostly in English`).toBeGreaterThan(latin * 4);
+    }
+    expect(findSection('Sales')?.heading).toBe('فروش');
+  });
+
+  it('keeps the two editions in step: lists, quotes and sub-headings in the same places', () => {
+    for (const [i, en] of GUIDE_EN.entries()) {
+      const fa = GUIDE_FA[i]!;
+      const shape = (b: string) => ({
+        numbered: (b.match(/^\d+\. /gm) ?? []).length,
+        bullets: (b.match(/^- /gm) ?? []).length,
+        quotes: (b.match(/^> /gm) ?? []).length,
+        subheadings: (b.match(/^### /gm) ?? []).length,
+      });
+      expect(shape(fa.body), `${en.title} ↔ ${fa.title}`).toEqual(shape(en.body));
+    }
   });
 
   it('exposes the sections the contextual links point at', () => {

@@ -112,14 +112,14 @@ export function ESignCard({ contractId }: { contractId: string }) {
                     <li key={s.id}>
                       {localDigits(s.order)}. {s.name} <span className="ltr text-ink-400">{s.email}</span> — {trx(SIGNER_STATUS_LABELS[s.status] ?? s.status)}
                       {s.signedAt && <> · {formatDateTime(s.signedAt)}</>}
-                      {s.certificate && <span className="block text-[11px] text-ink-500">{tr('گواهی:')}{' '}<span className="ltr">{s.certificate.subject}</span>{' '}{tr('· صادرکننده:')}{' '}{s.certificate.issuer}{' '}{tr('· سریال')}{' '}<span className="ltr">{s.certificate.serial}</span></span>}
-                      {s.declineReason && <span className="block text-[11px] text-rose-700">«{s.declineReason}»</span>}
+                      {s.certificate && <span className="block text-[12.5px] text-ink-500">{tr('گواهی:')}{' '}<span className="ltr">{s.certificate.subject}</span>{' '}{tr('· صادرکننده:')}{' '}{s.certificate.issuer}{' '}{tr('· سریال')}{' '}<span className="ltr">{s.certificate.serial}</span></span>}
+                      {s.declineReason && <span className="block text-[12.5px] text-rose-700">«{s.declineReason}»</span>}
                     </li>
                   ))}
                 </ol>
                 {e.transitionError && <p className="mt-1 rounded bg-rose-50 px-2 py-1 text-rose-800">{tr('امضا کامل شد اما قرارداد به «امضاشده» نرفت:')}{' '}{e.transitionError}</p>}
-                <p className="mt-1 text-[11px] text-ink-400">{tr('SHA-256 فایل فرستاده‌شده:')}{' '}<span className="ltr">{e.originalSha256.slice(0, 16)}…</span>{e.signedSha256 && <>{' '}{tr('· فایل امضاشده:')}{' '}<span className="ltr">{e.signedSha256.slice(0, 16)}…</span></>}</p>
-                <p className="mt-1 text-[11px] text-ink-500">{e.events.map((x: any) => `${EVENT_FA[x.kind] ?? x.kind} (${formatDateTime(x.at)})`).join(` ${flow()} `)}</p>
+                <p className="mt-1 text-[12.5px] text-ink-400">{tr('SHA-256 فایل فرستاده‌شده:')}{' '}<span className="ltr">{e.originalSha256.slice(0, 16)}…</span>{e.signedSha256 && <>{' '}{tr('· فایل امضاشده:')}{' '}<span className="ltr">{e.signedSha256.slice(0, 16)}…</span></>}</p>
+                <p className="mt-1 text-[12.5px] text-ink-500">{e.events.map((x: any) => `${EVENT_FA[x.kind] ?? x.kind} (${formatDateTime(x.at)})`).join(` ${flow()} `)}</p>
               </li>
             ))}
           </ul>

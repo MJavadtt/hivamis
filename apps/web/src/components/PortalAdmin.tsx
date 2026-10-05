@@ -17,7 +17,7 @@ function LinkOnce({ link }: { link: string }) {
     <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="portal-invite-link">
       <p className="font-medium">{tr('ایمیل سازمان پیکربندی نشده است؛ این پیوند دعوت را خودتان به مشتری برسانید. فقط همین یک بار نمایش داده می‌شود.')}</p>
       <div className="mt-1 flex items-center gap-2">
-        <code className="ltr block flex-1 truncate rounded bg-white px-2 py-1 text-[11px]">{link}</code>
+        <code className="ltr block flex-1 truncate rounded bg-white px-2 py-1 text-[12.5px]">{link}</code>
         <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(link)}>{tr('رونوشت')}</Button>
       </div>
     </div>
@@ -53,7 +53,7 @@ export function PortalUsersCard({ companyId, contacts }: { companyId: string; co
               <li key={u.id} className="flex flex-wrap items-center gap-2 py-2">
                 <span className="flex-1">{u.contact?.fullName} <span className="ltr text-xs text-ink-400">{u.email}</span></span>
                 <Badge tone={STATUS_TONE[u.status] ?? 'neutral'}>{trx(PORTAL_USER_STATUS_LABELS[u.status] ?? u.status)}</Badge>
-                <span className="text-[11px] text-ink-400">{u.lastLoginAt ? tr('آخرین ورود {0}', formatDateTime(u.lastLoginAt)) : tr('دعوت {0}', formatDate(u.createdAt))}</span>
+                <span className="text-[12.5px] text-ink-400">{u.lastLoginAt ? tr('آخرین ورود {0}', formatDateTime(u.lastLoginAt)) : tr('دعوت {0}', formatDate(u.createdAt))}</span>
                 <Button size="sm" variant="ghost" onClick={() => void run(() => apiPost(`/portal-users/${u.id}/reinvite`), tr('دعوت تازه ساخته شد؛ رمز پیشین دیگر کار نمی‌کند.'))}>{tr('دعوت دوباره')}</Button>
                 {u.status !== 'DISABLED' && <Button size="sm" variant="ghost" onClick={() => void run(() => apiPost(`/portal-users/${u.id}/disable`), tr('دسترسی به پورتال بسته شد.'))}>{tr('غیرفعال')}</Button>}
               </li>
@@ -67,7 +67,7 @@ export function PortalUsersCard({ companyId, contacts }: { companyId: string; co
             </Select>
             <Button size="sm" variant="primary" disabled={!chosen} onClick={() => void run(() => apiPost('/portal-users', { contactId: chosen }), tr('دعوت‌نامه ساخته شد.'))}>{tr('دعوت به پورتال')}</Button>
           </div>
-        ) : <p className="text-[11px] text-ink-500">{tr('برای دعوت، مخاطب باید ایمیل داشته باشد.')}</p>}
+        ) : <p className="text-[12.5px] text-ink-500">{tr('برای دعوت، مخاطب باید ایمیل داشته باشد.')}</p>}
       </div>
     </Card>
   );
@@ -108,9 +108,9 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
             <li key={f.lineageId ?? f.id} className="flex flex-wrap items-center gap-2 py-2">
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5"><span className="truncate">{f.fileName}</span><VersionBadge version={f.version} />{f.deliverable && <span className="text-xs text-ink-400"> — {f.deliverable.name}</span>}</span>
-                {metadataFa(f.metadata) && <span className="block text-[11px] text-ink-500">{metadataFa(f.metadata)}</span>}
+                {metadataFa(f.metadata) && <span className="block text-[12.5px] text-ink-500">{metadataFa(f.metadata)}</span>}
               </span>
-              <span className="text-[11px] text-ink-400">{localDigits(Math.ceil(f.sizeBytes / 1024))} KB · {formatDate(f.createdAt)}</span>
+              <span className="text-[12.5px] text-ink-400">{localDigits(Math.ceil(f.sizeBytes / 1024))} KB · {formatDate(f.createdAt)}</span>
               <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${f.id}/download`, f.fileName)}>{tr('دریافت')}</Button>
               {f.version > 1 && <VersionsButton documentId={f.id} version={f.version} onChanged={refresh} />}
               <NewVersionButton documentId={f.id} onDone={refresh} />
@@ -148,7 +148,7 @@ export function PortalMessagesCard({ projectId }: { projectId: string }) {
         {data.messages.map((m) => (
           <div key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.fromClient ? 'bg-brand-50' : 'ms-auto bg-ink-50'}`}>
             <p className="whitespace-pre-line">{m.body}</p>
-            <p className="mt-1 text-[10px] text-ink-500">{m.fromClient ? tr('مشتری — {0}', m.author) : m.author} · {formatDateTime(m.createdAt)}</p>
+            <p className="mt-1 text-[12px] text-ink-500">{m.fromClient ? tr('مشتری — {0}', m.author) : m.author} · {formatDateTime(m.createdAt)}</p>
           </div>
         ))}
         {can('portal.manage') && (

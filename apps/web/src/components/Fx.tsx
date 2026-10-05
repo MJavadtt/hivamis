@@ -27,7 +27,7 @@ export function Amount({ base, original, currency }: { base: unknown; original?:
   return (
     <span className="inline-flex flex-col leading-tight">
       <span className="font-medium">{money(original as number, currency)}</span>
-      <span className="text-[10px] text-ink-400">{formatCurrency(base as number)}</span>
+      <span className="text-[12px] text-ink-400">{formatCurrency(base as number)}</span>
     </span>
   );
 }
@@ -51,7 +51,7 @@ export function FxPreview({ currency, amount, on }: { currency: string; amount: 
     enabled,
   });
   if (!enabled) return null;
-  if (!data) return <p className="text-[11px] text-ink-400">{tr('در حال یافتن نرخ…')}</p>;
+  if (!data) return <p className="text-[12.5px] text-ink-400">{tr('در حال یافتن نرخ…')}</p>;
   if (data.rate == null) {
     return <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800" data-testid="fx-preview">{tr('برای {0} در این تاریخ یا پیش از آن نرخی ثبت نشده است؛ ثبت ممکن نیست تا نرخ آن روز در «مالی ← نرخ ارز» ثبت شود.', currencyFa(currency))}</p>;
   }
@@ -60,7 +60,7 @@ export function FxPreview({ currency, amount, on }: { currency: string; amount: 
   }
   return (
     <p className="rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-700" data-testid="fx-preview">{tr('به نرخ {0}: هر {1} = {2} ریال', formatDate(data.effectiveDate), currencyFa(currency), formatNumber(data.rate))}{amount > 0 && <> ← <strong>{tr('{0} ریال', formatNumber(Math.round(amount * Number(data.rate))))}</strong></>}
-      <span className="block text-[10px] text-ink-400">{tr('این نرخ با سند ذخیره می‌شود و با تغییر نرخ‌های بعدی جابه‌جا نمی‌شود.')}</span>
+      <span className="block text-[12px] text-ink-400">{tr('این نرخ با سند ذخیره می‌شود و با تغییر نرخ‌های بعدی جابه‌جا نمی‌شود.')}</span>
     </p>
   );
 }
@@ -93,14 +93,14 @@ export function FxRates() {
         <tbody data-testid="fx-rates">
           {data.currencies.map((c) => (
             <Tr key={c.currency}>
-              <Td className="text-sm">{loc(c, 'label')} <span className="text-[10px] text-ink-400">{c.currency}</span></Td>
+              <Td className="text-sm">{loc(c, 'label')} <span className="text-[12px] text-ink-400">{c.currency}</span></Td>
               <Td className="nums text-sm">{c.latest ? tr('{0} ریال', formatNumber(c.latest.rate)) : '—'}</Td>
               <Td className="text-xs">{c.latest ? formatDate(c.latest.effectiveDate) : '—'}</Td>
               <Td>{!c.latest ? <Badge tone="neutral">{tr('بی‌نرخ')}</Badge> : c.latest.stale ? <Badge tone="warning">{tr('کهنه — {0} روز', localDigits(c.latest.ageDays))}</Badge> : <Badge tone="success">{tr('به‌روز')}</Badge>}</Td>
               <Td>
                 {c.history.length > 0 && <button className="text-xs text-brand-700 underline" onClick={() => setOpen(open === c.currency ? null : c.currency)}>{tr('{0} نرخ', localDigits(c.history.length))}</button>}
                 {open === c.currency && (
-                  <ul className="mt-1 space-y-0.5 text-[11px] text-ink-600">
+                  <ul className="mt-1 space-y-0.5 text-[12.5px] text-ink-600">
                     {c.history.map((h) => <li key={h.id}>{formatDate(h.effectiveDate)}: {formatNumber(h.rate)}{h.source === 'IMPORT' ? tr(' (ورود گروهی)') : ''}{h.note ? ` — ${h.note}` : ''}</li>)}
                   </ul>
                 )}
@@ -222,7 +222,7 @@ export function FxReport() {
                   <Td className="ltr text-xs">{r.number}</Td>
                   <Td className="text-xs">{r.company?.legalName}</Td>
                   <Td className="text-xs">{money(r.outstanding, r.currency)}</Td>
-                  <Td className="text-xs">{formatCurrency(r.bookedBase)} <span className="text-[10px] text-ink-400">({formatDate(r.bookedRateDate)})</span></Td>
+                  <Td className="text-xs">{formatCurrency(r.bookedBase)} <span className="text-[12px] text-ink-400">({formatDate(r.bookedRateDate)})</span></Td>
                   <Td className="text-xs">{formatCurrency(r.currentBase)}</Td>
                   <Td className={`text-xs ${tone(r.unrealised)}`}>{signed(r.unrealised)}</Td>
                 </Tr>

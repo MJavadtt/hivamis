@@ -65,14 +65,14 @@ export function ProjectMedia({ projectId }: { projectId: string }) {
                     <input type="checkbox" aria-label={tr('انتخاب {0}', o.code)} checked={selected.includes(o.id)} onChange={(e) => setSelected(e.target.checked ? [...selected, o.id] : selected.filter((x) => x !== o.id))} />
                   )}</Td>
                   <Td className="text-xs"><Code>{o.code}</Code><p className="mt-0.5 text-ink-700">{channelFa(o.channel)} — {o.placement}</p></Td>
-                  <Td className="text-xs">{o.supplier.name}<p className="text-[10px] text-ink-400">{pctLabel(o)}</p></Td>
+                  <Td className="text-xs">{o.supplier.name}<p className="text-[12px] text-ink-400">{pctLabel(o)}</p></Td>
                   <Td className="text-xs">{tr('{0} تا {1}', formatDate(o.flightStart), formatDate(o.flightEnd))}</Td>
                   <Td className="text-xs">
                     {money(o.originalClientAmount ?? o.clientAmount, o.currency)}
-                    <p className="text-[10px] text-ink-400">{tr('عبوری {0} · آژانس {1}', money(o.originalNetAmount ?? o.netAmount, o.currency), formatCurrency(o.agencyRevenue))}</p>
+                    <p className="text-[12px] text-ink-400">{tr('عبوری {0} · آژانس {1}', money(o.originalNetAmount ?? o.netAmount, o.currency), formatCurrency(o.agencyRevenue))}</p>
                   </Td>
                   <Td className="text-xs">{o.clientInvoice ? <span className="ltr">{o.clientInvoice.number}</span> : <span className="text-ink-400">—</span>}
-                    {o.vendorInvoiceAmount != null && <p className="text-[10px] text-ink-500">{tr('رسانه: {0}', money(o.vendorInvoiceAmount, o.currency))}</p>}
+                    {o.vendorInvoiceAmount != null && <p className="text-[12px] text-ink-500">{tr('رسانه: {0}', money(o.vendorInvoiceAmount, o.currency))}</p>}
                   </Td>
                   <Td><StateBadge state={o.state} /></Td>
                   <Td>
@@ -258,7 +258,7 @@ export function MediaReport() {
         <Exception title={tr('در انتظار صورت‌حساب رسانه')} rows={exc.awaitingVendorInvoice} hint={tr('بدهی‌ای که هنوز کسی ندیده')} />
         <Exception title={tr('اختلاف با صورت‌حساب رسانه')} rows={exc.discrepancies} hint={tr('رسانه چیزی جز رزرو صورت‌حساب کرده است')} />
       </div>
-      <p className="text-[11px] text-ink-400"><Badge tone="neutral">{tr('{0} سفارش', localDigits(data.totals.orders))}</Badge>{' '}{tr('— عبوری در درآمد و حاشیهٔ پروژه‌ها شمرده نمی‌شود؛ کمیسیون هنگام پخش شناسایی می‌شود.')}</p>
+      <p className="text-[12.5px] text-ink-400"><Badge tone="neutral">{tr('{0} سفارش', localDigits(data.totals.orders))}</Badge>{' '}{tr('— عبوری در درآمد و حاشیهٔ پروژه‌ها شمرده نمی‌شود؛ کمیسیون هنگام پخش شناسایی می‌شود.')}</p>
     </div>
   );
 }

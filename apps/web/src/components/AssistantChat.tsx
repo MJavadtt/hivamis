@@ -150,20 +150,25 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-ink-900/30" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[60] flex justify-end bg-ink-900/30" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <section ref={panel} className="flex h-full w-full max-w-md flex-col bg-surface shadow-xl" data-testid="assistant">
-        <header className="flex items-center gap-2 border-b border-ink-200 px-4 py-3">
-          <OwlSvg size={30} mood={busy ? 'think' : 'idle'} />
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-ink-900">{tr('دستیار')}</h2>
-            <p className="flex items-center gap-1.5 text-[11px] text-ink-500">
-              <span className={cx('size-1.5 rounded-full', status?.ready ? 'bg-emerald-500' : 'bg-ink-300')} />
-              {status?.ready ? tr('مدل محلی {0} — رایگان و بی‌سقف', status.model ?? '') : tr('مدل محلی در دسترس نیست')}
-            </p>
+        {/* Two rows: on a phone the title, the model and three controls do not fit on one. */}
+        <header className="border-b border-ink-200 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <OwlSvg size={30} mood={busy ? 'think' : 'idle'} />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold text-ink-900">{tr('دستیار')}</h2>
+              <p className="flex items-center gap-1.5 text-[12.5px] text-ink-500">
+                <span className={cx('size-1.5 shrink-0 rounded-full', status?.ready ? 'bg-emerald-500' : 'bg-ink-300')} />
+                <span className="truncate">{status?.ready ? tr('مدل محلی {0} — رایگان و بی‌سقف', status.model ?? '') : tr('مدل محلی در دسترس نیست')}</span>
+              </p>
+            </div>
+            <button type="button" onClick={onClose} aria-label={tr('بستن')} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">✕</button>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => setHistory((h) => !h)}>{tr('گفت‌وگوهای پیشین')}</Button>
-          <Button size="sm" variant="ghost" onClick={fresh}>{tr('گفت‌وگوی تازه')}</Button>
-          <button type="button" onClick={onClose} aria-label={tr('بستن')} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">✕</button>
+          <div className="mt-2 flex gap-1.5">
+            <Button size="sm" variant={history ? 'secondary' : 'ghost'} onClick={() => setHistory((h) => !h)}>{tr('گفت‌وگوهای پیشین')}</Button>
+            <Button size="sm" variant="ghost" onClick={fresh}>{tr('گفت‌وگوی تازه')}</Button>
+          </div>
         </header>
 
         {history ? <History onOpen={(id) => void open(id)} onDeleted={(id) => { if (id === conversationId) fresh(); }} /> : (
@@ -192,7 +197,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
                 <div className={cx('max-w-[85%] rounded-2xl px-3.5 py-2.5', m.role === 'user' ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-800 ring-1 ring-inset ring-ink-200')}>
                   {m.tools.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap gap-1">
-                      {[...new Set(m.tools)].filter((t) => TOOL_FA[t]).map((t) => <span key={t} className="rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-500 ring-1 ring-inset ring-ink-200">{TOOL_FA[t]}</span>)}
+                      {[...new Set(m.tools)].filter((t) => TOOL_FA[t]).map((t) => <span key={t} className="rounded-full bg-surface px-2 py-0.5 text-[12px] text-ink-500 ring-1 ring-inset ring-ink-200">{TOOL_FA[t]}</span>)}
                     </div>
                   )}
                   {m.role === 'user' ? <p dir="auto" className="whitespace-pre-wrap text-sm leading-7">{m.content}</p>
@@ -243,7 +248,7 @@ function History({ onOpen, onDeleted }: { onOpen: (id: string) => void; onDelete
         <li key={c.id} className="flex items-center gap-2 px-4 py-2.5">
           <button type="button" onClick={() => onOpen(c.id)} className="min-w-0 flex-1 text-start">
             <span dir="auto" className="block truncate text-sm text-ink-800">{c.title}</span>
-            <span className="text-[11px] text-ink-400">{formatDateTime(c.updatedAt)}</span>
+            <span className="text-[12.5px] text-ink-400">{formatDateTime(c.updatedAt)}</span>
           </button>
           <button type="button" aria-label={tr('پاک کردن این گفت‌وگو')} className="rounded p-1 text-xs text-ink-400 hover:bg-rose-50 hover:text-rose-700"
             onClick={async () => { await apiDelete(`/ai/conversations/${c.id}`); await qc.invalidateQueries({ queryKey: ['/ai/conversations'] }); onDeleted(c.id); }}>✕</button>

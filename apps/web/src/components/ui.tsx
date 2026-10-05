@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
@@ -85,7 +86,7 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
         'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         'disabled:opacity-50 disabled:pointer-events-none',
-        size === 'sm' ? 'px-2.5 py-1 text-xs leading-5' : 'px-3 py-1.5 text-[13px] leading-5',
+        size === 'sm' ? 'px-2.5 py-1 text-xs leading-5' : 'px-3 py-1.5 text-[14px] leading-5',
         BUTTON_VARIANTS[variant],
         className,
       )}
@@ -113,7 +114,7 @@ export function Card({ children, className, title, action, subtitle, tour }: {
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 border-b border-ink-200 px-5 py-3.5">
           <div className="min-w-0">
-            {title && <h2 className="text-[13px] font-bold text-ink-800">{title}</h2>}
+            {title && <h2 className="text-[14px] font-bold text-ink-800">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs font-medium text-ink-500">{subtitle}</p>}
           </div>
           {action}
@@ -222,7 +223,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={push}>
       {children}
       {/* Raised while the guide's owl sits in this corner (Hivamis task 8). */}
-      <div className="pointer-events-none fixed bottom-[var(--toast-offset,1rem)] left-4 z-50 flex w-80 flex-col gap-2">
+      <div className="pointer-events-none fixed bottom-[var(--toast-offset,1rem)] left-4 z-[80] flex w-80 flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -252,13 +253,13 @@ export function Field({ label, required, hint, error, children }: {
         {required && <span className="text-rose-500">*</span>}
       </span>
       {children}
-      {hint && !error && <span className="mt-1 block text-[11px] text-ink-500">{hint}</span>}
-      {error && <span className="mt-1 block text-[11px] text-rose-600">{error}</span>}
+      {hint && !error && <span className="mt-1 block text-[12.5px] text-ink-500">{hint}</span>}
+      {error && <span className="mt-1 block text-[12.5px] text-rose-600">{error}</span>}
     </label>
   );
 }
 
-const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-1.5 text-[13px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
+const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-1.5 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
 
 /** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
@@ -308,7 +309,7 @@ export const Th = ({ children, className }: { children?: ReactNode; className?: 
 );
 
 export const Td = ({ children, className, title }: { children?: ReactNode; className?: string; title?: string }) => (
-  <td title={title} className={cx('px-4 py-3 align-middle text-[13px] text-ink-700', className)}>{children}</td>
+  <td title={title} className={cx('px-4 py-3 align-middle text-[14px] text-ink-700', className)}>{children}</td>
 );
 
 export const Tr = ({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) => (
@@ -353,8 +354,11 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
   }, [open]);
 
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 pt-12 backdrop-blur-[2px]">
+  // Rendered at the root of the page: a dialog opened from inside a transformed container (the
+  // sidebar slides on a transform) was otherwise confined to that container's box — the messenger
+  // opened 200px wide inside the menu (Hivamis, the second sweep). Above drawers, below toasts.
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 pt-12 backdrop-blur-[2px]">
       {/* Visual scrim only; dismissal is the hook's outside-click, so there is one path. */}
       <div className="absolute inset-0" aria-hidden />
       <div
@@ -373,7 +377,8 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
         <div className="max-h-[65vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && <footer className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -406,13 +411,13 @@ export function Tabs({ tabs, active, onChange }: {
           aria-selected={active === t.key}
           onClick={() => onChange(t.key)}
           className={cx(
-            'whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-bold transition-colors',
+            'whitespace-nowrap rounded-md px-3 py-1.5 text-[14px] font-bold transition-colors',
             active === t.key ? 'bg-surface text-ink-900 shadow-sm ring-1 ring-inset ring-ink-200' : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800',
           )}
         >
           {t.label}
           {t.count !== undefined && t.count > 0 && (
-            <span className="ms-1.5 rounded-sm bg-ink-100 px-1.5 py-0.5 text-[11px] nums text-ink-600">
+            <span className="ms-1.5 rounded-sm bg-ink-100 px-1.5 py-0.5 text-[12.5px] nums text-ink-600">
               {localDigits(t.count)}
             </span>
           )}

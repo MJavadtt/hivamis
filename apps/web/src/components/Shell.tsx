@@ -170,7 +170,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className={cx('flex h-16 shrink-0 items-center gap-2 px-3', compact ? 'justify-center' : 'justify-between')}>
           <Link to="/" className="flex min-w-0 items-center gap-2.5" title={tr('هیوامیس')}>
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink-900 text-sm font-bold text-surface">{tr('ه')}</span>
-            {!compact && <span className="truncate text-[13px] font-bold text-ink-800">{tr('هیوامیس')}</span>}
+            {!compact && <span className="truncate text-[14px] font-bold text-ink-800">{tr('هیوامیس')}</span>}
           </Link>
           <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden" onClick={() => setMobileOpen(false)} aria-label={tr('بستن منو')}>
             <IconClose className="size-4" />
@@ -194,7 +194,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div key={group.label} className="mb-3">
               {compact
                 ? <div className="mx-auto my-2 h-px w-6 bg-ink-200" aria-hidden />
-                : <p className="px-3 pb-1 pt-2 text-[11px] font-bold text-ink-400">{group.label}</p>}
+                : <p className="px-3 pb-1 pt-2 text-[12.5px] font-bold text-ink-400">{group.label}</p>}
               <ul className="space-y-0.5">
                 {group.items.map((item) => (
                   <li key={item.to}>
@@ -205,7 +205,7 @@ export function Shell({ children }: { children: ReactNode }) {
                       aria-label={compact ? item.label : undefined}
                       className={({ isActive }) =>
                         cx(
-                          'flex h-8 items-center gap-3 rounded-lg text-[13px] font-semibold transition-colors',
+                          'flex h-8 items-center gap-3 rounded-lg text-[14px] font-semibold transition-colors',
                           compact ? 'justify-center' : 'px-3',
                           isActive
                             ? 'bg-ink-100 text-ink-900'
@@ -231,7 +231,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-bold text-ink-800">{user?.fullName}</span>
-                  <span className="block truncate text-[11px] font-semibold text-ink-500">
+                  <span className="block truncate text-[12.5px] font-semibold text-ink-500">
                     {[trx(user?.jobTitle), user?.department ? loc(user.department, 'name') : ''].filter(Boolean).join(' — ')}
                   </span>
                 </span>
@@ -417,7 +417,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder={tr('جستجوی سراسری… (Ctrl+K)')}
-          className="w-full rounded-lg border-0 bg-surface py-1.5 ps-9 pe-3 text-[13px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600"
+          className="w-full rounded-lg border-0 bg-surface py-1.5 ps-9 pe-3 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600"
         />
         {isFetching && <Spinner className="absolute inset-y-0 end-3 my-auto size-4" />}
       </div>
@@ -434,7 +434,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
           ) : (
             data.groups.map((group) => (
               <div key={group.type} role="group" aria-label={loc(group, 'label')} className="mb-1.5 last:mb-0">
-                <p className="px-2.5 py-1 text-[11px] font-semibold text-ink-400">{loc(group, 'label')}</p>
+                <p className="px-2.5 py-1 text-[12.5px] font-semibold text-ink-400">{loc(group, 'label')}</p>
                 {group.items.map((item) => {
                   const i = flat.findIndex((f) => f.item.id === item.id && f.group === group.type);
                   const isActive = i === active;
@@ -455,7 +455,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
                       <span className="truncate text-ink-700">
                         {item.legalName ?? item.title ?? item.name}
                       </span>
-                      {item.code && <span className="ltr shrink-0 text-[11px] text-ink-400">{item.code}</span>}
+                      {item.code && <span className="ltr shrink-0 text-[12.5px] text-ink-400">{item.code}</span>}
                     </button>
                   );
                 })}
@@ -579,7 +579,7 @@ function Notifications() {
           data-testid="live-status" data-status={live}
         />
         {!!data?.unread && (
-          <span className="absolute -end-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-medium text-white nums">
+          <span className="absolute -end-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[12px] font-medium text-white nums">
             {localDigits(data.unread > 9 ? tr('۹+') : data.unread)}
           </span>
         )}
@@ -605,7 +605,7 @@ function Notifications() {
                     {n.severity === 'WARNING' && <Badge tone="warning">{tr('هشدار')}</Badge>}
                   </div>
                   {n.body && <p className="mt-0.5 text-xs text-ink-500">{n.body}</p>}
-                  <p className="mt-1 text-[11px] text-ink-400">{formatRelative(n.createdAt)}</p>
+                  <p className="mt-1 text-[12.5px] text-ink-400">{formatRelative(n.createdAt)}</p>
                 </div>
               ))
             )}

@@ -58,9 +58,9 @@ export function BrandLibraryCard({ companyId }: { companyId: string }) {
                   <button type="button" title={tr('رونوشت کد رنگ')} onClick={() => { void navigator.clipboard?.writeText(c.hex); toast(tr('{0} رونوشت شد.', c.hex)); }}
                     className="flex h-20 w-28 flex-col justify-end rounded-lg p-2 text-start shadow-sm ring-1 ring-ink-200" style={{ background: c.hex, color: inkOn(c.hex) }}>
                     <span className="text-xs font-medium">{c.name}</span>
-                    <span className="ltr text-[11px] opacity-90">{c.hex}</span>
-                    {c.cmyk && <span className="ltr text-[10px] opacity-80">C{c.cmyk[0]} M{c.cmyk[1]} Y{c.cmyk[2]} K{c.cmyk[3]}</span>}
-                    <span className="text-[10px] opacity-80">{trx(BRAND_COLOR_ROLE_LABELS[c.role])}</span>
+                    <span className="ltr text-[12.5px] opacity-90">{c.hex}</span>
+                    {c.cmyk && <span className="ltr text-[12px] opacity-80">C{c.cmyk[0]} M{c.cmyk[1]} Y{c.cmyk[2]} K{c.cmyk[3]}</span>}
+                    <span className="text-[12px] opacity-80">{trx(BRAND_COLOR_ROLE_LABELS[c.role])}</span>
                   </button>
                 </li>
               ))}
@@ -94,7 +94,7 @@ export function BrandLibraryCard({ companyId }: { companyId: string }) {
                   <FilePreview documentId={f.id} mimeType={f.mimeType} />
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-1.5"><Badge tone="neutral">{trx(BRAND_ROLE_LABELS[f.brandRole])}</Badge><span className="truncate">{f.fileName}</span></p>
-                    <p className="text-[11px] text-ink-500">{[metadataFa(f.metadata), `${f.uploadedBy?.fullName ?? ''} · ${formatDate(f.createdAt)}`].filter(Boolean).join(' · ')}</p>
+                    <p className="text-[12.5px] text-ink-500">{[metadataFa(f.metadata), `${f.uploadedBy?.fullName ?? ''} · ${formatDate(f.createdAt)}`].filter(Boolean).join(' · ')}</p>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => void downloadFile(`/documents/${f.id}/download`, f.fileName)}>{tr('دریافت')}</Button>
                   <VersionsButton documentId={f.id} version={f.version} onChanged={refresh} />
@@ -111,7 +111,7 @@ export function BrandLibraryCard({ companyId }: { companyId: string }) {
             </Select>
             <input ref={input} type="file" className="hidden" data-testid="brand-file-input" onChange={(e) => { const f = e.target.files?.[0]; if (f) void add(f); e.target.value = ''; }} />
             <Button size="sm" variant="secondary" onClick={() => input.current?.click()}>{tr('افزودن فایل برند')}</Button>
-            <span className="text-[11px] text-ink-400">{tr('لوگو، فایل فونت (TTF/OTF/WOFF)، راهنمای هویت بصری یا تصویر.')}</span>
+            <span className="text-[12.5px] text-ink-400">{tr('لوگو، فایل فونت (TTF/OTF/WOFF)، راهنمای هویت بصری یا تصویر.')}</span>
           </div>
         )}
       </div>
@@ -175,7 +175,7 @@ function KitEditor({ companyId, kit, onClose, onSaved }: { companyId: string; ki
           ))}
           {bad && <p className="text-xs text-rose-700">{tr('کد رنگ «{0}» باید به شکل #RRGGBB باشد.', bad.hex)}</p>}
           {badInk && <p className="text-xs text-rose-700">{tr('مقدار CMYK «{0}» باید چهار عدد بین ۰ تا ۱۰۰ باشد.', badInk.ink)}</p>}
-          <p className="text-[11px] text-ink-400">{tr('CMYK برای سنجش فایل‌های چاپی است؛ بدون آن، رنگ‌های CMYK یک فایل با برند سنجیده نمی‌شود.')}</p>
+          <p className="text-[12.5px] text-ink-400">{tr('CMYK برای سنجش فایل‌های چاپی است؛ بدون آن، رنگ‌های CMYK یک فایل با برند سنجیده نمی‌شود.')}</p>
           <Button size="sm" variant="secondary" onClick={() => setColors([...colors, { name: '', hex: '#000000', role: 'SECONDARY', ink: '' }])}>{tr('افزودن رنگ')}</Button>
         </section>
         <section className="space-y-2">

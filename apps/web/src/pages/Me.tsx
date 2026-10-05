@@ -10,7 +10,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Avatar } from '../components/Avatar';
 import { UnitTag, useUnits } from '../components/UnitTag';
 import { goToGoogleLink } from './People';
-import { pair, tr } from '../i18n';
+import { pair, tr, trx } from '../i18n';
 import { ROLE_LABELS, type RoleCode } from '@hiva/contracts';
 
 /**
@@ -57,7 +57,7 @@ export default function Me() {
               <Avatar name={user.fullName} unit={user.department?.code} color={unit?.color} size="lg" />
               <div className="min-w-0 flex-1">
                 <p className="text-lg font-semibold text-ink-900">{user.fullName}</p>
-                <p className="text-sm text-ink-600">{user.jobTitle}</p>
+                <p className="text-sm text-ink-600">{trx(user.jobTitle)}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {user.department && <UnitTag code={user.department.code} />}
                   {user.roles.map((r) => <Badge key={r} tone="neutral">{pair(ROLE_LABELS[r as RoleCode]) || r}</Badge>)}
@@ -117,7 +117,7 @@ function WaysIn({ profile }: { profile: MyProfile }) {
           {google.map((g) => (
             <p key={g.id} className="mb-2 flex items-center gap-2 text-sm text-ink-700">
               <span className="ltr">{g.email}</span>
-              {g.lastUsedAt && <span className="text-[11px] text-ink-400">{tr('آخرین ورود {0}', formatDateTime(g.lastUsedAt))}</span>}
+              {g.lastUsedAt && <span className="text-[12.5px] text-ink-400">{tr('آخرین ورود {0}', formatDateTime(g.lastUsedAt))}</span>}
               <Button size="sm" variant="ghost" disabled={ways <= 1} title={ways <= 1 ? tr('این تنها راه ورود شماست') : undefined}
                 onClick={() => void run(() => apiDelete(`/me/identities/${g.id}`), tr('حساب گوگل جدا شد.'))}>{tr('جدا کردن')}</Button>
             </p>
@@ -210,7 +210,7 @@ function Devices({ profile }: { profile: MyProfile }) {
           <li key={s.id} className="flex items-center gap-3 px-4 py-3 text-sm">
             <div className="min-w-0 flex-1">
               <p className="font-medium text-ink-800">{device(s.userAgent)}{s.current && <Badge tone="success" className="ms-2">{tr('همین دستگاه')}</Badge>}</p>
-              <p className="text-[11px] text-ink-500"><span className="ltr">{s.ipAddress}</span>{' · '}{tr('از {0}', formatDateTime(s.createdAt))}</p>
+              <p className="text-[12.5px] text-ink-500"><span className="ltr">{s.ipAddress}</span>{' · '}{tr('از {0}', formatDateTime(s.createdAt))}</p>
             </div>
             {!s.current && (
               <Button size="sm" variant="ghost" onClick={async () => { try { await apiDelete(`/me/sessions/${s.id}`); toast(tr('دستگاه خارج شد.')); await reload(); } catch (e) { toast((e as Error).message, 'danger'); } }}>{tr('خروج')}</Button>

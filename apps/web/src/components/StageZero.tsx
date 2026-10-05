@@ -41,7 +41,7 @@ export function StageZero({ deliverable }: {
   };
 
   return (
-    <div className="text-[11px]" data-testid="stage-zero">
+    <div className="text-[12.5px]" data-testid="stage-zero">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-ink-500">{tr('بررسی خودکار:')}</span>
         {result

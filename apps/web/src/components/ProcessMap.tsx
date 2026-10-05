@@ -19,6 +19,12 @@ interface Mining {
   bottlenecks: { state: string; meanDwellHours: number; visits: number }[];
 }
 
+/** A move by its name in the workflow («واجد شرایط کردن»), not its code (qualify). */
+function actionLabel(entity: string, action: string): string {
+  const t = (WORKFLOWS as Record<string, { transitions: readonly { action: string; labelFa: string; labelEn?: string }[] }>)[entity]?.transitions.find((x) => x.action === action);
+  return t ? loc(t, 'label') : action;
+}
+
 const h = (n: number | null) => (n == null ? '—' : tr('{0} س', localDigits(Math.round(n * 10) / 10)));
 
 /**
@@ -83,7 +89,7 @@ export function ProcessMap() {
                   {data.loops.map((l) => (
                     <Tr key={`${l.from}${l.to}${l.action}`}>
                       <Td className="text-xs">{trx(stateLabelFa(l.from))}</Td><Td className="text-xs">{trx(stateLabelFa(l.to))}</Td>
-                      <Td><Code>{l.action}</Code></Td><Td className="nums text-xs">{localDigits(l.count)}</Td><Td className="nums text-xs">{localDigits(l.cases)}</Td>
+                      <Td className="text-xs">{actionLabel(data.entity, l.action)}</Td><Td className="nums text-xs">{localDigits(l.count)}</Td><Td className="nums text-xs">{localDigits(l.cases)}</Td>
                     </Tr>
                   ))}
                 </tbody>
@@ -147,7 +153,7 @@ function Graph({ data }: { data: Mining }) {
           return (
             <g key={`${e.from}${e.to}${e.action}`} data-testid="edge">
               <path d={d} fill="none" stroke={colour(e)} strokeWidth={width} strokeDasharray={e.cascade ? '6 4' : e.declared ? undefined : '2 3'} markerEnd="url(#arrow)" opacity={0.85} />
-              <text x={self ? a.x : mid.x} y={(self ? a.y - 95 : mid.y) - 6} fontSize="11" textAnchor="middle" fill="#334155">{e.action} ×{e.count}{e.meanHours != null ? ` · ${Math.round(e.meanHours * 10) / 10}h` : ''}</text>
+              <text x={self ? a.x : mid.x} y={(self ? a.y - 95 : mid.y) - 6} fontSize="11" textAnchor="middle" fill="#334155">{tr('{0} ×{1}', actionLabel(data.entity, e.action), localDigits(e.count))}{e.meanHours != null ? ` · ${h(e.meanHours)}` : ''}</text>
             </g>
           );
         })}
@@ -156,13 +162,13 @@ function Graph({ data }: { data: Mining }) {
           return (
             <g key={s} data-testid="node">
               <rect x={p.x - 52} y={p.y - 22} width={104} height={44} rx={10} fill={n?.terminal ? '#ecfdf5' : n?.initial ? '#eff6ff' : '#ffffff'} stroke={n?.declared === false ? '#be123c' : '#94a3b8'} strokeWidth={1.5} />
-              <text x={p.x} y={p.y - 4} fontSize="11" textAnchor="middle" fill="#0f172a">{trx(stateLabelFa(s))}</text>
-              <text x={p.x} y={p.y + 12} fontSize="10" textAnchor="middle" fill="#64748b">{n ? `${n.visits}${n.open ? ` · ${n.open} open` : ''}${n.meanDwellHours != null ? ` · ${Math.round(n.meanDwellHours * 10) / 10}h` : ''}` : ''}</text>
+              <text x={p.x} y={p.y - 4} fontSize="12" textAnchor="middle" fill="#0f172a">{trx(stateLabelFa(s))}</text>
+              <text x={p.x} y={p.y + 12} fontSize="11" textAnchor="middle" fill="#64748b">{n ? `${localDigits(n.visits)}${n.open ? ` · ${tr('{0} باز', localDigits(n.open))}` : ''}${n.meanDwellHours != null ? ` · ${h(n.meanDwellHours)}` : ''}` : ''}</text>
             </g>
           );
         })}
       </svg>
-      <p className="px-2 text-[11px] text-ink-500" dir="rtl">{tr('ضخامت یال = فراوانی · رنگ = میانگین انتظار پیش از انتقال (آبی کم، نارنجی میانه، قرمز زیاد) · خط‌چین = آبشاری · نقطه‌چین = خارج از مدل اعلام‌شده')}</p>
+      <p className="px-2 text-[12.5px] text-ink-500" dir="rtl">{tr('ضخامت یال = فراوانی · رنگ = میانگین انتظار پیش از انتقال (آبی کم، نارنجی میانه، قرمز زیاد) · خط‌چین = آبشاری · نقطه‌چین = خارج از مدل اعلام‌شده')}</p>
     </div>
   );
 }

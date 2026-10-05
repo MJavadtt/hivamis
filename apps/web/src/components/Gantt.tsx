@@ -73,7 +73,7 @@ export function Gantt({ projectId }: { projectId: string }) {
                 return (
                   <g key={i}>
                     <rect x={LEFT + i * COL} y={TOP} width={COL} height={H - TOP} fill={weekend ? '#f1f5f9' : i % 2 ? '#fafafa' : '#ffffff'} />
-                    <text x={LEFT + i * COL + COL / 2} y={16} fontSize="9" textAnchor="middle" fill="#64748b">{formatDate(d).slice(5)}</text>
+                    <text x={LEFT + i * COL + COL / 2} y={16} fontSize="11" textAnchor="middle" fill="#64748b">{formatDate(d).slice(5)}</text>
                   </g>
                 );
               })}

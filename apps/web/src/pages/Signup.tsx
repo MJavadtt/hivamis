@@ -84,7 +84,7 @@ export default function Signup() {
               <p className="text-xs leading-6 text-ink-500">{tr('درخواست شما به مدیر سیستم می‌رسد؛ او واحد و نقش شما را تعیین و تأیید می‌کند. تا آن زمان دسترسی‌ای داده نمی‌شود.')}</p>
               {options.google && <GoogleButton mode="signup" label={tr('درخواست با حساب گوگل')} onError={setError} />}
               {options.google && options.phone && (
-                <div className="flex items-center gap-2 text-[11px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{tr('یا با شمارهٔ همراه')}<span className="h-px flex-1 bg-ink-200" /></div>
+                <div className="flex items-center gap-2 text-[12.5px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{tr('یا با شمارهٔ همراه')}<span className="h-px flex-1 bg-ink-200" /></div>
               )}
               {options.phone && (
                 <form onSubmit={submit} className="space-y-3">

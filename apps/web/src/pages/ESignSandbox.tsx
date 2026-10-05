@@ -69,7 +69,7 @@ export default function ESignSandbox({ token }: { token: string }) {
         <p className="text-xs text-ink-500">{tr('امضاکننده: {0}', view.signer.name)}{' '}<span className="ltr">({view.signer.email})</span></p>
       </header>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 px-3 py-2 text-sm">
-        <span className="flex-1">{view.document.fileName}<span className="ltr block text-[10px] text-ink-400">SHA-256 {view.document.sha256}</span></span>
+        <span className="flex-1">{view.document.fileName}<span className="ltr block text-[12px] text-ink-400">SHA-256 {view.document.sha256}</span></span>
         <Button size="sm" variant="secondary" onClick={() => void download()}>{tr('دریافت قرارداد')}</Button>
       </div>
       <ol className="space-y-1 text-sm" data-testid="esign-sandbox-signers">
@@ -94,7 +94,7 @@ export default function ESignSandbox({ token }: { token: string }) {
               <Button variant="primary" loading={busy} disabled={name.trim().length < 3 || !confirm} onClick={() => void act('sign', { signerName: name, confirm: true })}>{tr('امضای آزمایشی')}</Button>
               <Button variant="ghost" onClick={() => setDeclining(true)}>{tr('رد')}</Button>
             </div>
-            <p className="text-[11px] text-ink-500">{tr('صادرکنندهٔ گواهی آزمایشی: {0}. مهلت: {1}', view.issuer, formatDateTime(view.expiresAt))}</p>
+            <p className="text-[12.5px] text-ink-500">{tr('صادرکنندهٔ گواهی آزمایشی: {0}. مهلت: {1}', view.issuer, formatDateTime(view.expiresAt))}</p>
           </div>
         )}
       {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{note}</p>}

@@ -173,14 +173,14 @@ function BundleModal({ kind, id, onClose }: { kind: string; id: string; onClose:
                         label={
                           <span className="flex min-w-0 flex-1 items-center gap-2">
                             <span className="truncate text-sm text-ink-800">{i.title}</span>
-                            {i.code && <code className="shrink-0 text-[11px] text-ink-400">{i.code}</code>}
+                            {i.code && <code className="shrink-0 text-[12.5px] text-ink-400">{i.code}</code>}
                             {i.type === 'file' && (
                               <Badge tone={i.embeddable ? 'info' : 'warning'}>
                                 {i.embeddable ? tr('فایل') : tr('درج‌نشدنی')}
                               </Badge>
                             )}
                             {i.sizeBytes ? (
-                              <span className="shrink-0 text-[11px] text-ink-400">{humanSize(i.sizeBytes)}</span>
+                              <span className="shrink-0 text-[12.5px] text-ink-400">{humanSize(i.sizeBytes)}</span>
                             ) : null}
                           </span>
                         }

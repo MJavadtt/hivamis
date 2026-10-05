@@ -122,7 +122,7 @@ export default function Dashboard() {
                           <Tr key={t.id}>
                             <Td>
                               <p className="font-medium text-ink-800">{t.title}</p>
-                              <p className="ltr text-[11px] text-ink-400">{t.code}</p>
+                              <p className="ltr text-[12.5px] text-ink-400">{t.code}</p>
                             </Td>
                             <Td className="text-xs">
                               <Link to={`/projects/${t.project.id}`} className="text-brand-600 hover:underline">
@@ -133,7 +133,7 @@ export default function Dashboard() {
                               <span className={days !== null && days < 0 ? 'text-rose-600 font-medium' : ''}>
                                 {formatDate(t.dueDate)}
                               </span>
-                              <p className="text-[11px] text-ink-400">{formatRelative(t.dueDate)}</p>
+                              <p className="text-[12.5px] text-ink-400">{formatRelative(t.dueDate)}</p>
                             </Td>
                             <Td><StateBadge state={t.state} /></Td>
                           </Tr>
@@ -183,7 +183,7 @@ export default function Dashboard() {
                         <li key={s.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                           <div className="min-w-0">
                             <p className="truncate text-sm text-ink-800">{loc(s.policy, 'label')}</p>
-                            <p className="text-[11px] text-ink-400">{tr('مهلت {0}', formatRelative(s.dueAt))}</p>
+                            <p className="text-[12.5px] text-ink-400">{tr('مهلت {0}', formatRelative(s.dueAt))}</p>
                           </div>
                           <StateBadge state={s.state} />
                         </li>
@@ -225,7 +225,7 @@ export default function Dashboard() {
                         <Tr key={o.id}>
                           <Td>
                             <Link to={`/opportunities/${o.id}`} className="font-medium text-brand-600 hover:underline">{o.title}</Link>
-                            <p className="ltr text-[11px] text-ink-400">{o.code}</p>
+                            <p className="ltr text-[12.5px] text-ink-400">{o.code}</p>
                           </Td>
                           <Td className="text-xs">{o.company?.legalName}</Td>
                           <Td><StateBadge state={o.state} /></Td>
@@ -256,7 +256,7 @@ export default function Dashboard() {
                           <Link to={`/projects/${p.id}`} className="font-medium text-brand-600 hover:underline">
                             {p.name}
                           </Link>
-                          <p className="ltr text-[11px] text-ink-400">{p.code}</p>
+                          <p className="ltr text-[12.5px] text-ink-400">{p.code}</p>
                         </Td>
                         <Td className="text-xs">{p.company?.legalName}</Td>
                         <Td><StateBadge state={p.state} /></Td>
