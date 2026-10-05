@@ -38,7 +38,7 @@ describe('Process map', () => {
     // The most frequent edge is the widest.
     const widths = [...svg.querySelectorAll('[data-testid="edge"] path')].map((p) => Number(p.getAttribute('stroke-width')));
     expect(Math.max(...widths)).toBe(6);
-    expect(screen.getByTestId('bottlenecks').textContent).toContain('۹.۵ س');
+    expect(screen.getByTestId('bottlenecks').textContent).toContain('۹٫۵ س');
     expect(screen.getByTestId('unused').textContent).toContain('رد سرنخ');
     expect(screen.getByTestId('variants').textContent).toContain('۶۰٪');
     expect(screen.getByText('حلقه‌ای ثبت نشده')).toBeTruthy();

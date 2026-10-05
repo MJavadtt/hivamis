@@ -191,7 +191,7 @@ function AuditTrail() {
             <option value="">{tr('همه اقدامات')}</option>
             {Object.entries(ACTION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
-          <Input value={entityType} onChange={(e) => setEntityType(e.target.value)} placeholder={tr('نوع موجودیت')} className="w-32 text-xs" />
+          <Input value={entityType} onChange={(e) => setEntityType(e.target.value)} placeholder={tr('نوع موجودیت')} aria-label={tr('نوع موجودیت')} className="w-32 text-xs" />
         </div>
       }
     >

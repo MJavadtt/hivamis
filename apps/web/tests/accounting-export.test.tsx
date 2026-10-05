@@ -32,7 +32,7 @@ describe('Export to the accounting package', () => {
     const lines = screen.getByTestId('accounting-vouchers');
     expect(lines.textContent).toContain('حساب‌های دریافتنی (مشتریان)');
     expect(lines.textContent).toContain('1104');
-    expect(lines.textContent).toContain('۱,۱۰۰,۰۰۰ ریال');
+    expect(lines.textContent).toContain('۱٬۱۰۰٬۰۰۰ ریال');
     expect(lines.textContent).toContain('؟');                            // VAT has no code yet
     expect(screen.getByTestId('accounting-history').textContent).toContain('لیلا موسوی');
   });

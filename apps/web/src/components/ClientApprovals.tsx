@@ -5,7 +5,10 @@ import { apiGet, apiPost, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { formatDateTime, localDigits } from '../lib/format';
-import { tr, trx } from '../i18n';
+import { pair, tr, trx } from '../i18n';
+
+/** «تأیید مشتری» is also the state «client approved»; here it names the approval being asked for. */
+const CLIENT_APPROVAL = () => pair({ fa: 'تأیید مشتری', en: 'Client approval' });
 
 /* Roadmap #35 — a client's approval, kept as evidence. */
 
@@ -183,7 +186,7 @@ export function DeliverableApprovalButton({ deliverable }: { deliverable: { id: 
   if (!['DELIVERED', 'ACCEPTED', 'REVISION_REQUIRED'].includes(deliverable.state)) return null;
   return (
     <>
-      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{tr('تأیید مشتری')}</Button>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{CLIENT_APPROVAL()}</Button>
       {open && (
         <Modal open wide title={tr('تأیید مشتری — {0}', deliverable.name)} onClose={() => setOpen(false)} footer={<Button variant="ghost" onClick={() => setOpen(false)}>{tr('بستن')}</Button>}>
           <ClientApprovalsPanel subjectType="DELIVERABLE" subjectId={deliverable.id} />
@@ -196,7 +199,7 @@ export function DeliverableApprovalButton({ deliverable }: { deliverable: { id: 
 export function ProposalApprovalCard({ proposal }: { proposal: { id: string; state: string } }) {
   if (!['PRESENTED_TO_CLIENT', 'CLIENT_APPROVED', 'CLIENT_REVISION_REQUESTED', 'CLIENT_REJECTED'].includes(proposal.state)) return null;
   return (
-    <Card title={tr('تأیید مشتری')} subtitle={tr('تأیید یا درخواست اصلاح مشتری، با نام، زمان، نشانی، و اثر انگشت آنچه دید — قابل اثبات در اختلاف بعدی.')}>
+    <Card title={CLIENT_APPROVAL()} subtitle={tr('تأیید یا درخواست اصلاح مشتری، با نام، زمان، نشانی، و اثر انگشت آنچه دید — قابل اثبات در اختلاف بعدی.')}>
       <div className="px-4 py-3"><ClientApprovalsPanel subjectType="PROPOSAL" subjectId={proposal.id} /></div>
     </Card>
   );

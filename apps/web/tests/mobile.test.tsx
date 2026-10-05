@@ -95,7 +95,7 @@ describe('The phone’s three loops', () => {
     expect(tabs).toEqual(['پذیرش سفارش۱', 'تأیید فرم۱', 'QC واحد۱']);
     expect(screen.queryByText('سفارش در حال اجرا')).toBeNull();
     expect(screen.queryByText('وظیفهٔ میزکار')).toBeNull();
-    expect(screen.getByTestId('mobile-list').textContent).toContain('۲.۵ ساعت مانده');
+    expect(screen.getByTestId('mobile-list').textContent).toContain('۲٫۵ ساعت مانده');
   });
 
   it('accepts a work order from its sheet, through the workflow engine', async () => {

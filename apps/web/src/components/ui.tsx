@@ -15,14 +15,14 @@ export const cx = (...parts: (string | false | null | undefined)[]) => parts.fil
 
 export type Tone = 'neutral' | 'info' | 'progress' | 'warning' | 'success' | 'danger';
 
-// In the dark, the kit tints rather than fills: a translucent wash of the colour, its light text.
+// In the dark these read as tints, not pale fills: the status palettes are tokens too (index.css).
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: 'bg-ink-100 text-ink-600 ring-ink-200',
-  info: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-300 dark:ring-sky-400/30',
+  info: 'bg-sky-50 text-sky-700 ring-sky-200',
   progress: 'bg-brand-50 text-brand-700 ring-brand-200',
-  warning: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/30',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/30',
-  danger: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-400/10 dark:text-rose-300 dark:ring-rose-400/30',
+  warning: 'bg-amber-50 text-amber-700 ring-amber-200',
+  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  danger: 'bg-rose-50 text-rose-700 ring-rose-200',
 };
 
 /** State → (Persian label, tone). Every workflow state in the platform is covered. */
@@ -66,7 +66,7 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-ink-900 text-surface ring-1 ring-inset ring-ink-800 hover:bg-ink-800 focus-visible:outline-brand-600 shadow-[0_1px_4px_0_rgb(37_99_235/0.2)]',
   secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-200 shadow-sm hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
   ghost: 'text-ink-600 hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600 shadow-sm',
+  danger: 'bg-rose-600 text-white hover:bg-rose-500 focus-visible:outline-rose-600 shadow-sm',
   subtle: 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100 hover:bg-brand-100 focus-visible:outline-brand-600',
 };
 

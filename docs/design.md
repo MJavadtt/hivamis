@@ -37,9 +37,10 @@ Changing the `brand-*` or `ink-*` values in `index.css` switches the whole inter
   script needs one step more at that size, so labels here are 11–13px, still bold and grey. The kit's
   typeface is Inter, which has no Persian; Vazirmatn (self-hosted) sets both scripts.
 - **Tabs** are bold grey labels; the selected one sits in an outlined box, with no underline.
-- **Status badges** keep the platform's one status scale (neutral, blue, amber, green, red). In the
-  dark they are tinted rather than filled, through a `dark:` variant that follows the app's theme
-  switch.
+- **Status colours** keep the platform's one status scale (neutral, blue, amber, green, red). The
+  rose, amber, emerald and sky palettes are tokens too: in the dark their tints (50–200) are the
+  colour washed over the card and their text shades (700–900) light, so every badge and notice box
+  reads there. Fills (600) keep their colour.
 
 ## Layout
 

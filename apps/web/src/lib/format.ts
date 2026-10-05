@@ -19,9 +19,21 @@ const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '�
 export const toPersianDigits = (input: string | number): string =>
   String(input).replace(/\d/g, (d) => PERSIAN_DIGITS[Number(d)]);
 
+/**
+ * A number as Persian writes it: Persian digits, «٫» for the decimal point and «٬» between thousands
+ * (۴٬۴۰۰٫۵) — not the Latin «.» and «,» between Persian digits. A string with several dots (an
+ * address, a version) is not a decimal and keeps its dots (Hivamis task 10).
+ */
+export function persianNumber(input: string | number): string {
+  let s = String(input);
+  if ((s.match(/\./g) ?? []).length <= 1) s = s.replace(/(\d)\.(\d)/g, '$1٫$2');
+  s = s.replace(/(\d),(?=\d{3}(?:\D|$))/g, '$1٬');
+  return toPersianDigits(s);
+}
+
 /** Digits as the reader's language writes them: Persian in Persian, Latin in English. */
 export const localDigits = (input: string | number): string =>
-  isEnglish() ? String(input) : toPersianDigits(input);
+  isEnglish() ? String(input) : persianNumber(input);
 
 export function formatNumber(value: number | string | null | undefined, fractionDigits = 0): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -45,7 +57,7 @@ export function formatCurrency(value: number | string | null | undefined, compac
   if (!compact) return rials(formatNumber(n));
   const abs = Math.abs(n);
   const scaled = (div: number, fa: string, en: string) =>
-    isEnglish() ? `${(n / div).toFixed(1)} ${en} Rials` : `${toPersianDigits((n / div).toFixed(1))} ${fa} ریال`;
+    isEnglish() ? `${(n / div).toFixed(1)} ${en} Rials` : `${persianNumber((n / div).toFixed(1))} ${fa} ریال`;
   if (abs >= 1_000_000_000_000) return scaled(1_000_000_000_000, 'هزار میلیارد', 'trillion');
   if (abs >= 1_000_000_000) return scaled(1_000_000_000, 'میلیارد', 'billion');
   if (abs >= 1_000_000) return scaled(1_000_000, 'میلیون', 'million');
@@ -119,7 +131,7 @@ export function formatRelative(value: string | Date | null | undefined): string 
 export const formatPercent = (value: number | string | null | undefined): string =>
   value === null || value === undefined || value === ''
     ? '—'
-    : isEnglish() ? `${Number(value).toFixed(1)}%` : `${toPersianDigits(Number(value).toFixed(1))}٪`;
+    : isEnglish() ? `${Number(value).toFixed(1)}%` : `${persianNumber(Number(value).toFixed(1))}٪`;
 
 /** Convert a Jalali date input back to an ISO string for the API. */
 /** Kept for callers that hold a Gregorian value; Jalali entry uses jalaliPartsToValue. */

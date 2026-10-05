@@ -34,6 +34,10 @@ which you can sign out. **Colleagues («همکاران»)** lists everyone; each
 unit, roles, email and, where you may see them, their open tasks and projects. Mobile numbers and last
 sign-ins are shown only to the person themselves and to the administrators of users.
 
+**When the server cannot be reached.** If the app opens while the server is restarting or the network
+is down, it says «سرور در دسترس نیست» and tries again by itself; your session is kept, so there is
+no need to sign in again.
+
 **The screen.** The menu on the side can fold to a column of icons with the button beside the
 logo; hover over an icon to see its name. Each person's choice is remembered on their device. On a
 phone, search is the magnifier at the top. The language is set on your own page, and the light or

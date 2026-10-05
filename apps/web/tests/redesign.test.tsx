@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -97,11 +99,15 @@ describe('The interface after the kit', () => {
     expect(page).not.toHaveBeenCalled();
   });
 
-  it('keeps status colours legible in the dark: tinted, not filled', () => {
+  it('keeps status colours legible in the dark: the status palettes are tokens, tinted there', () => {
+    const css = readFileSync(path.resolve(__dirname, '../src/index.css'), 'utf8');
     const { container } = render(<StateBadge state="BREACHED" />);
-    const cls = container.firstElementChild!.className;
-    expect(cls).toContain('bg-rose-50');
-    expect(cls).toContain('dark:bg-rose-400/10');
-    expect(cls).toContain('dark:text-rose-300');
+    expect(container.firstElementChild!.className).toContain('bg-rose-50');
+    // Both dark blocks — the switch and «هماهنگ با سیستم» — wash the tint and lift the text.
+    for (const token of ['--color-rose-50: #301e21', '--color-rose-700: #fda4af', '--color-amber-50: #302718', '--color-emerald-700: #6ee7b7', '--color-sky-200: #164458']) {
+      expect(css.split(token).length - 1, token).toBe(2);
+    }
+    // A fill keeps its colour, so a danger button stays red under white text.
+    expect(css).not.toContain('--color-rose-600:');
   });
 });

@@ -30,8 +30,8 @@ describe('Revenue recognition', () => {
     const rows = await screen.findByTestId('revenue-months');
     const shahrivar = [...rows.querySelectorAll('tr')].find((r) => r.textContent!.includes('شهریور'))!;
     // Billed 700 million in the month, earned 250: the billing view calls it a 600-million month.
-    expect(shahrivar.textContent).toContain('۱۵۰.۰ میلیون ریال');
-    expect(shahrivar.textContent).toContain('۶۰۰.۰ میلیون ریال');
+    expect(shahrivar.textContent).toContain('۱۵۰٫۰ میلیون ریال');
+    expect(shahrivar.textContent).toContain('۶۰۰٫۰ میلیون ریال');
     expect(screen.getByText('کمپین سنجش با ساعت').closest('tr')!.textContent).toContain('پیش‌صورت‌حساب');
 
     // The current month is never offered; the next in order is.

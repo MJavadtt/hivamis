@@ -1716,3 +1716,34 @@ values. The kit's other primaries (Pink, Indigo, Emerald) and grey themes are on
   `bg-amber-50` notices) stay light in dark mode.
 - The kit's footer is not reproduced; the app has no footer content.
 
+## ADR-063 — A refresh token is spent once, by one tab at a time; an unanswered refresh is not a refusal
+
+**Decision.** (Hivamis task 10.) The sweep found three faults around refreshing a session, and
+fixed them together.
+
+- **The server rotates atomically.** It revokes the presented session only if it is still live
+  (`updateMany … where revokedAt is null`), inside the transaction that creates the new one. When
+  two requests present the same token at once, one rotation wins. The other is handled as the
+  replay it is: every session of the account is revoked, and the reuse is audited. Before, both
+  rotated, and the account gained two sessions from one token. The test's two simultaneous
+  refreshes answer `200, 401` now, and answered `200, 200` against the old code.
+- **The browser refreshes one tab at a time.** Concurrent 401s in a tab already shared one
+  request. Tabs now take turns through a Web Lock (`hiva.refresh`), and each reads the stored token
+  inside the lock. A tab never presents a token another tab has just rotated, so the stricter server
+  never reads two tabs as theft. Restoring the session on page load uses the same path; it used to
+  call the endpoint directly, which is how React's development double mount produced pairs of
+  sessions.
+- **An unanswered refresh keeps the session.** A network error, a 5xx or a 429 is reported as
+  *unreachable*: the stored token is kept, the page says the server cannot be reached and tries
+  again with backoff, and «تلاش دوباره» tries at once. Only a refusal from the server (400, 401,
+  403) ends the session. Before, any failure deleted the token, so a server restart or a deploy
+  signed out everyone who loaded a page during it.
+
+**Rationale.** Reuse detection is only worth having if it is not triggered by the system itself.
+Weakening it with a grace window would also forgive an attacker who replays quickly, so the fix
+makes legitimate clients unable to spend a token twice, and makes the server unable to honour it
+twice.
+
+**Limits.** A browser without Web Locks (none of the supported ones) falls back to one refresh per
+tab. Two devices can never share a refresh token, so they never race.
+

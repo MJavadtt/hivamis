@@ -132,7 +132,7 @@ function Catalogue() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <IconSearch className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-ink-400" />
-          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={tr('جستجوی فرم…')} className="ps-9" />
+          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder={tr('جستجوی فرم…')} aria-label={tr('جستجوی فرم…')} className="ps-9" />
         </div>
         <div className="w-64 shrink-0"><Select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">{tr('همه دسته‌ها')}</option>

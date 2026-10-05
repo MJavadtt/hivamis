@@ -21,7 +21,7 @@ describe('An invoice and سامانهٔ مؤدیان', () => {
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><InvoiceTax invoiceId="i1" onClose={() => {}} /></QueryClientProvider>);
     expect((await screen.findByTestId('tax-problems')).textContent).toContain('کد پستی ده‌رقمی خریدار');
     expect((screen.getByText('گزارش به سامانه').closest('button') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('invoice-tax').textContent).toContain('۵۵,۰۰۰,۰۰۰ ریال');
+    expect(screen.getByTestId('invoice-tax').textContent).toContain('۵۵٬۰۰۰٬۰۰۰ ریال');
     fireEvent.change(await screen.findByLabelText('کد پستی خریدار'), { target: { value: '1234567890' } });
     fireEvent.click(screen.getByText('ذخیره'));
     await waitFor(() => expect(puts).toHaveLength(1));

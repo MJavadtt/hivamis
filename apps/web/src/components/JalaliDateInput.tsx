@@ -14,6 +14,8 @@ type DateInputProps = {
   disabled?: boolean;
   id?: string;
   invalid?: boolean;
+  /** Its name for a screen reader, where no <label> stands beside it (Hivamis task 10). */
+  label?: string;
 };
 
 /**
@@ -36,10 +38,11 @@ function toLocalInput(value: string | null | undefined, mode: 'date' | 'datetime
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-function GregorianDateInput({ value, onChange, mode = 'date', disabled, id, invalid }: DateInputProps) {
+function GregorianDateInput({ value, onChange, mode = 'date', disabled, id, invalid, label }: DateInputProps) {
   return (
     <Input
       id={id}
+      aria-label={label}
       type={mode === 'date' ? 'date' : 'datetime-local'}
       value={toLocalInput(value, mode)}
       disabled={disabled}
@@ -68,7 +71,7 @@ function GregorianDateInput({ value, onChange, mode = 'date', disabled, id, inva
  * The value emitted is unchanged from the native input: `YYYY-MM-DD` for a date, and a UTC
  * instant for a datetime. No API contract moves.
  */
-function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid }: DateInputProps) {
+function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid, label }: DateInputProps) {
   const parts = useMemo(() => isoToJalaliParts(value), [value]);
   const [text, setText] = useState(() => formatJalaliInput(parts, mode));
   const [open, setOpen] = useState(false);
@@ -122,6 +125,7 @@ function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid }: 
     <div ref={boxRef} className="relative">
       <Input
         id={id}
+        aria-label={label}
         ref={fieldRef}
         value={text}
         disabled={disabled}

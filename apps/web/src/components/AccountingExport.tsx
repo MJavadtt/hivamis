@@ -53,7 +53,7 @@ export function AccountingTab() {
   return (
     <div className="space-y-5">
       <Card title={tr('سندهای ثبت‌نشده')} subtitle={tr('هر فاکتور، ابطال، دریافت و پرداختی که هنوز به نرم‌افزار حسابداری نرفته — تا تاریخی که انتخاب می‌کنید.')}
-        action={<div className="w-40"><JalaliDateInput value={to} onChange={setTo} id="accounting-to" /></div>}>
+        action={<div className="w-40"><JalaliDateInput value={to} onChange={setTo} id="accounting-to" label={tr('تا تاریخ')} /></div>}>
         <div className="space-y-3 px-4 py-3">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <StatTile label={tr('فاکتور')} value={localDigits(p.counts.invoices)} />

@@ -37,9 +37,9 @@ describe('Time on a task', () => {
     const calls = serve();
     wrap(<TaskTime taskId="t1" assigneeId="u-designer" />);
     const list = await screen.findByTestId('time-entries');
-    expect(list.textContent).toContain('۳.۵ س');
+    expect(list.textContent).toContain('۳٫۵ س');
     expect(list.textContent).toContain('وایرفریم');
-    expect(screen.getByText(/برآورد ۱۰ س · واقعی ۷.۵ س/)).toBeTruthy();
+    expect(screen.getByText(/برآورد ۱۰ س · واقعی ۷٫۵ س/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('ساعت'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'ثبت' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.includes('/tasks/t1/time'))).toBe(true));

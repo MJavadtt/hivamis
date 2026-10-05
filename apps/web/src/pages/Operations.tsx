@@ -671,7 +671,7 @@ export function Traffic() {
         title={tr('ترافیک و ظرفیت')}
         subtitle={tr('ظرفیت در دسترس در برابر کار تعهدشده — روی تقویم و مرخصی خود هر فرد، و همان حسابی که پیشنهاد تخصیص از آن می‌آید')}
         actions={
-          <div className="w-48"><Select value={unit} onChange={(e) => setUnit(e.target.value)}>
+          <div className="w-48"><Select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={tr('واحد')}>
             <option value="">{tr('همه واحدها')}</option>
             {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
           </Select></div>

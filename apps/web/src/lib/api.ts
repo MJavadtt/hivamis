@@ -6,7 +6,7 @@ import { locale, tr, trx } from '../i18n';
 const REFRESH_KEY = 'hiva.refresh';
 
 let accessToken: string | null = null;
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 
 export const setAccessToken = (t: string | null) => { accessToken = t; };
 export const getAccessToken = () => accessToken;
@@ -37,32 +37,57 @@ export class ApiError extends Error {
   }
 }
 
-async function attemptRefresh(): Promise<boolean> {
-  const token = getRefreshToken();
-  if (!token) return false;
-  // Collapse concurrent 401s into a single refresh round-trip.
+/** How a refresh went: a new pair, a refusal (the session is over), or no answer (try again later). */
+export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
+
+/**
+ * One refresh at a time: concurrent 401s in this tab share a round-trip, and tabs take turns through
+ * a Web Lock, each reading the stored token inside it. Without that, two tabs (or React's development
+ * double mount) spent the same refresh token twice — the server either minted two sessions or, once
+ * rotation was made atomic, read it as theft and signed the person out everywhere (Hivamis task 10).
+ */
+function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
-    try {
-      const res = await fetch('/api/v1/auth/refresh', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ refreshToken: token }),
-      });
-      if (!res.ok) return false;
+    const run = async (): Promise<RefreshOutcome> => {
+      const token = getRefreshToken();
+      if (!token) return 'rejected';
+      let res: Response;
+      try {
+        res = await fetch('/api/v1/auth/refresh', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ refreshToken: token }),
+        });
+      } catch {
+        return 'unreachable';
+      }
+      // A server restarting, a proxy with nothing behind it, the rate limit: the session may well be
+      // fine. Only the server saying no ends it.
+      if (res.status >= 500 || res.status === 429) return 'unreachable';
+      if (!res.ok) return 'rejected';
       const data = await res.json();
       setAccessToken(data.accessToken);
       setRefreshToken(data.refreshToken);
       // Whatever asked for it — a page, the live stream, an expiring token — the new token says what
       // its holder may now do; the app compares and re-reads the user when that changed (Hivamis task 6).
       window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { permissions: tokenPermissions(data.accessToken) } }));
-      return true;
+      return 'ok';
+    };
+    try {
+      const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+      return locks ? await locks.request('hiva.refresh', run) : await run();
     } catch {
-      return false;
+      return 'unreachable';
     } finally {
       queueMicrotask(() => { refreshing = null; });
     }
   })();
   return refreshing;
+}
+
+async function attemptRefresh(): Promise<boolean> {
+  if (!getRefreshToken()) return false;
+  return (await refreshOnce()) === 'ok';
 }
 
 /** Fired after every token refresh, with the permissions the new token carries. */
@@ -82,6 +107,8 @@ export function tokenPermissions(token: string): string[] | null {
 
 /** For callers that hold a connection open themselves — the live stream (roadmap #39). */
 export const refreshSession = () => attemptRefresh();
+/** Restoring a session on load: tells a refused session from a server that did not answer. */
+export const restoreSession = () => refreshOnce();
 
 /** The bearer, and the language the answer — an error message above all — should come in. */
 export const baseHeaders = (): Record<string, string> => ({

@@ -271,6 +271,7 @@ export function EntityList<T extends { id: string }>({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={searchPlaceholder ?? tr('جستجو…')}
+            aria-label={searchPlaceholder ?? tr('جستجو…')}
             className="ps-9"
           />
         </form>

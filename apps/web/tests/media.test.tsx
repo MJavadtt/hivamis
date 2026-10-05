@@ -26,14 +26,14 @@ describe('Media orders on a project', () => {
 
     await screen.findByTestId('media-orders');
     // Cancelled orders count for nothing; the draft still counts as planned media.
-    expect(screen.getByText('عبوری به رسانه‌ها').closest('div')!.parentElement!.textContent).toContain('۱.۷ میلیارد ریال');
-    expect(screen.getByText('سهم آژانس').closest('div')!.parentElement!.textContent).toContain('۳۰۰.۰ میلیون ریال');
+    expect(screen.getByText('عبوری به رسانه‌ها').closest('div')!.parentElement!.textContent).toContain('۱٫۷ میلیارد ریال');
+    expect(screen.getByText('سهم آژانس').closest('div')!.parentElement!.textContent).toContain('۳۰۰٫۰ میلیون ریال');
 
     // Only an order that is booked or ran can be billed.
     expect(screen.queryByLabelText('انتخاب MO-000002')).toBeNull();
     fireEvent.click(screen.getByLabelText('انتخاب MO-000001'));
     fireEvent.click(screen.getByText('صورت‌حساب ۱ سفارش'));
-    expect((await screen.findByTestId('media-bill-split')).textContent).toContain('هزینهٔ عبوری رسانه ۸۵۰.۰ میلیون ریال + کمیسیون آژانس ۱۵۰.۰ میلیون ریال');
+    expect((await screen.findByTestId('media-bill-split')).textContent).toContain('هزینهٔ عبوری رسانه ۸۵۰٫۰ میلیون ریال + کمیسیون آژانس ۱۵۰٫۰ میلیون ریال');
     fireEvent.change(screen.getByLabelText('شمارهٔ صورت‌حساب'), { target: { value: 'M-17' } });
     fireEvent.click(screen.getByText('صدور'));
     await waitFor(() => expect(posted).toHaveLength(1));

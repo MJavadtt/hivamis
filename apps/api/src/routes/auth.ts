@@ -74,7 +74,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     if (session.revokedAt && session.revokedReason && session.revokedReason !== 'ROTATED') {
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
-    if (session.revokedAt) {
+    const reused = async () => {
       const { count } = await prisma.session.updateMany({
         where: { userId: session.userId, revokedAt: null },
         data: { revokedAt: new Date(), revokedReason: 'REUSE' },
@@ -95,8 +95,9 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         userAgent: req.headers['user-agent'] ?? null,
         requestId: req.id,
       }).catch(() => undefined);
-      throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
-    }
+      return unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+    };
+    if (session.revokedAt) throw await reused();
 
     if (session.expiresAt < new Date()) {
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
@@ -109,18 +110,25 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
-    // Rotate: the presented refresh token is single-use.
+    // Rotate: the presented refresh token is single-use — and only one request may spend it. Two
+    // presenting it at once both read it as live; the rotation itself decides, so the second is the
+    // replay it is, rather than a second session minted from the same token (Hivamis task 10).
     const next = generateRefreshToken();
-    const [, rotated] = await prisma.$transaction([
-      prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'ROTATED' } }),
-      prisma.session.create({
+    const rotated = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.session.updateMany({
+        where: { id: session.id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'ROTATED' },
+      });
+      if (!count) return null;
+      return tx.session.create({
         data: {
           userId: session.userId, refreshTokenHash: next.hash,
           userAgent: req.headers['user-agent'] ?? null, ipAddress: req.ip,
           expiresAt: new Date(Date.now() + ttlToMs(env.REFRESH_TOKEN_TTL)),
         },
-      }),
-    ]);
+      });
+    });
+    if (!rotated) throw await reused();
     return { accessToken: await signAccessToken({ ...claims, sid: rotated.id }), refreshToken: next.token };
   });
 

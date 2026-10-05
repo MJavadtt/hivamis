@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { ADMIN_PERMISSIONS, Shell } from './components/Shell';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { LoadingBlock } from './components/ui';
+import { Button, LoadingBlock } from './components/ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Forms from './pages/Forms';
@@ -41,8 +41,18 @@ function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: 
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, unreachable, retry } = useAuth();
   const { pathname } = useLocation();
+
+  if (!user && unreachable) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+        <p className="text-sm font-bold text-ink-800">{tr('سرور در دسترس نیست.')}</p>
+        <p className="max-w-sm text-xs text-ink-500">{tr('نشست شما محفوظ است؛ چند لحظه دیگر خودمان دوباره امتحان می‌کنیم.')}</p>
+        <Button variant="secondary" size="sm" onClick={retry}>{tr('تلاش دوباره')}</Button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

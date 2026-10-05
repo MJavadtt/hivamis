@@ -19,7 +19,7 @@ describe('Foreign amounts', () => {
     };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => json(answers[new URL(String(input)).searchParams.get('currency')!])));
     const { unmount } = wrap(<FxPreview currency="USD" amount={300} on="2026-09-25" />);
-    expect((await screen.findByTestId('fx-preview')).textContent).toContain('۳۶۰,۰۰۰,۰۰۰ ریال');
+    expect((await screen.findByTestId('fx-preview')).textContent).toContain('۳۶۰٬۰۰۰٬۰۰۰ ریال');
     unmount();
     const stale = wrap(<FxPreview currency="EUR" amount={1} on={null} />);
     expect((await screen.findByTestId('fx-preview')).textContent).toContain('کهنه‌تر از ۷ روز');
@@ -30,8 +30,8 @@ describe('Foreign amounts', () => {
 
   it('shows a foreign figure as written, with its rial booking beneath', () => {
     render(<Amount base={11_000_000_000} original={11_000} currency="USD" />);
-    expect(screen.getByText('۱۱,۰۰۰ دلار آمریکا')).toBeTruthy();
-    expect(screen.getByText('۱۱.۰ میلیارد ریال')).toBeTruthy();
+    expect(screen.getByText('۱۱٬۰۰۰ دلار آمریکا')).toBeTruthy();
+    expect(screen.getByText('۱۱٫۰ میلیارد ریال')).toBeTruthy();
   });
 
   it('takes a foreign invoice’s currency for a receipt, keeps it changeable, and always sends it', async () => {
@@ -48,7 +48,7 @@ describe('Foreign amounts', () => {
     await waitFor(() => expect((invoiceSelect as HTMLSelectElement).options.length).toBe(2));
     fireEvent.change(invoiceSelect, { target: { value: 'i1' } });
     expect((screen.getByLabelText('ارز مبلغ') as HTMLSelectElement).value).toBe('USD');
-    expect(screen.getByText(/۴,۰۰۰ دلار آمریکا از ۱۰,۰۰۰ دلار آمریکا تسویه شده/)).toBeTruthy();
+    expect(screen.getByText(/۴٬۰۰۰ دلار آمریکا از ۱۰٬۰۰۰ دلار آمریکا تسویه شده/)).toBeTruthy();
     // Paid in rials instead — which the person must choose, and the request must say.
     fireEvent.change(screen.getByLabelText('ارز مبلغ'), { target: { value: 'IRR' } });
     fireEvent.change(screen.getByLabelText('مبلغ'), { target: { value: '6600000000' } });

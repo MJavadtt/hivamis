@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TOKEN_REFRESHED_EVENT, api, apiGet, apiPost, getRefreshToken, setAccessToken, setRefreshToken } from './api';
+import { TOKEN_REFRESHED_EVENT, apiGet, apiPost, getRefreshToken, restoreSession, setAccessToken, setRefreshToken } from './api';
 import { adoptAccountLocale } from './locale';
 import { forgetPushOnSignOut } from './push';
 
@@ -22,6 +22,9 @@ export interface CurrentUser {
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
+  /** The stored session could not be checked: the server did not answer. It is kept, and tried again. */
+  unreachable: boolean;
+  retry: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   /** Takes up a session another way in produced — a code sent to the mobile (Hivamis task 4). */
   signInWith: (session: { accessToken: string; refreshToken: string }) => Promise<void>;
@@ -39,6 +42,8 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreachable, setUnreachable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const loadUser = useCallback(async () => {
     try {
@@ -64,25 +69,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
   }, [loadUser]);
 
-  // Restore the session from the stored refresh token on first paint.
+  // Restore the session from the stored refresh token on first paint. A server that does not answer
+  // — restarting, a deploy, the network — is not a refusal: the token is kept and tried again, rather
+  // than signing the person out (Hivamis task 10).
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
     (async () => {
       if (!getRefreshToken()) { setLoading(false); return; }
-      try {
-        const data = await api<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
-          method: 'POST',
-          body: { refreshToken: getRefreshToken() },
-        });
-        setAccessToken(data.accessToken);
-        setRefreshToken(data.refreshToken);
+      const outcome = await restoreSession();
+      if (cancelled) return;
+      if (outcome === 'ok') {
+        setUnreachable(false);
         await loadUser();
-      } catch {
+      } else if (outcome === 'rejected') {
+        setUnreachable(false);
         setRefreshToken(null);
-      } finally {
-        setLoading(false);
+      } else {
+        setUnreachable(true);
+        timer = setTimeout(() => setAttempt((n) => n + 1), Math.min(30_000, 3_000 * 2 ** Math.min(attempt, 4)));
       }
+      setLoading(false);
     })();
-  }, [loadUser]);
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [loadUser, attempt]);
 
   const signInWith = useCallback(async (session: { accessToken: string; refreshToken: string }) => {
     setAccessToken(session.accessToken);
@@ -110,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       user,
       loading,
+      unreachable,
+      retry: () => setAttempt((n) => n + 1),
       signIn,
       signInWith,
       signOut,
@@ -118,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canAny: (...need) => need.some((p) => perms.has(p)),
       hasRole: (...roles) => roles.some((r) => user?.roles.includes(r)),
     };
-  }, [user, loading, signIn, signInWith, signOut, loadUser]);
+  }, [user, loading, unreachable, signIn, signInWith, signOut, loadUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

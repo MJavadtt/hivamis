@@ -77,7 +77,7 @@ describe('My work', () => {
   it('says how much of a running clock is left, in working hours', async () => {
     mount();
     const list = await screen.findByTestId('my-work');
-    expect(list.textContent).toContain('پذیرش سفارش: ۲.۵ ساعت کاری مانده');
+    expect(list.textContent).toContain('پذیرش سفارش: ۲٫۵ ساعت کاری مانده');
   });
 
   it('puts the item’s own actions on the row, and a link where there are none', async () => {
