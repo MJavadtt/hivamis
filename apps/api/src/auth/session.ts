@@ -4,6 +4,7 @@ import { env } from '../env.js';
 import { audit } from '../lib/audit.js';
 import { generateRefreshToken, signAccessToken, ttlToMs } from './tokens.js';
 import { claimsFor } from './claims.js';
+import { assertSignInHere } from '../lib/tenant.js';
 
 /** How a person proved who they are; recorded with every sign-in. */
 export type SignInMethod = 'password' | 'phone' | 'google';
@@ -15,6 +16,7 @@ export type SignInMethod = 'password' | 'phone' | 'google';
  */
 export async function issueSession(userId: string, req: FastifyRequest, method: SignInMethod) {
   const { user, claims } = await claimsFor(userId);
+  await assertSignInHere(req, user.organizationId);
   const refresh = generateRefreshToken();
   const [session] = await prisma.$transaction([
     prisma.session.create({

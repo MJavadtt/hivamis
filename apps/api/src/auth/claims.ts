@@ -1,15 +1,17 @@
 import { permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import { prisma } from '../db.js';
-import { unauthorized } from '../lib/errors.js';
+import { AppError, unauthorized } from '../lib/errors.js';
 import { grantsOf, permissionsFor, versionsFor } from './grants.js';
 
 /** The claims a user signs in with — roles, permissions, delegations as of now. Also used by the messenger (#40). */
 export async function claimsFor(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { department: true, roles: { include: { role: true } } },
+    include: { department: true, roles: { include: { role: true } }, organization: { select: { isActive: true } } },
   });
   if (!user) throw unauthorized();
+  // Roadmap #50: a suspended organisation signs nobody in, and its sessions stop refreshing.
+  if (!user.organization.isActive) throw new AppError(401, 'ORG_SUSPENDED', 'سازمان شما موقتاً از دسترس خارج است.');
   const roles = user.roles.map((r) => r.role.code as RoleCode);
   // As the organisation's administrator granted them (Hivamis task 6); `gv` dates the grants.
   const grants = await grantsOf(user.organizationId);

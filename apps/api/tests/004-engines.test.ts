@@ -235,7 +235,7 @@ describe('Form definition versioning', () => {
     const { verifyAccessToken } = await import('../src/auth/tokens.js');
 
     const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
-    const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const def = await prisma.formDefinition.findFirstOrThrow({ where: { code: CODE } });
     const original = FORM_BY_CODE.get(CODE)!;
     const originalLabel = original.fields.find((f) => f.key === 'addedInformation')!.labelFa;
     const data = { briefId: brief.id, addedInformation: 'اطلاعات تکمیلی نسخهٔ اول' };
@@ -255,7 +255,7 @@ describe('Form definition versioning', () => {
     expect(published).toEqual({ version: def.version + 1, changed: true });
     // Publishing the same schema again is a no-op — the seed relies on this.
     expect((await publishDefinition(prisma, { organizationId: def.organizationId, form: reworded })).changed).toBe(false);
-    expect((await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } })).version).toBe(def.version + 1);
+    expect((await prisma.formDefinition.findFirstOrThrow({ where: { code: CODE } })).version).toBe(def.version + 1);
 
     // The earlier submission still reads as it was filled in.
     const old = expectOk(await get(`/forms/submissions/${first.id}`, T.sales), 'old submission');
@@ -359,7 +359,7 @@ describe('My work — one queue', () => {
   it('puts a breached clock first, then whatever runs out soonest, then the rest', async () => {
     const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_REVISION' } });
+    const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_REVISION' } });
     const mk = (title: string, due: number) => prisma.task.create({
       data: {
         organizationId: project.organizationId, code: `TSK-Q-${title}-${Date.now()}`, projectId: project.id,
@@ -685,7 +685,7 @@ describe('Calendars per unit and per person', () => {
     expect(addBusinessHours(wed17, 4, await loadCalendar(org.id)).getDay()).toBe(6);
 
     // And the same for a real clock: started while the owner is away, due after they return.
-    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
     const clock = await prisma.slaClock.create({ data: {
       organizationId: org.id, policyId: policy.id, entityType: 'test', entityId: `leave-${Date.now()}`,
       startedAt: new Date(2026, 8, 5, 10, 0, 0), dueAt: new Date(2026, 8, 9, 17, 0, 0), state: 'RUNNING', ownerId: strategy.id,
@@ -949,7 +949,7 @@ describe('Conditional approval routing', () => {
 
   it('versions a rule change, so a form already filed keeps the rules it was judged under', async () => {
     const p = await proposal();
-    const before = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CONTRACT } });
+    const before = await prisma.formDefinition.findFirstOrThrow({ where: { code: CONTRACT } });
     const filed = expectOk(await post('/forms/submissions', T.accountManager, {
       formCode: CONTRACT,
       data: { proposalId: p.id, contractValue: 1_000_000_000, scaleBand: 'M', notes: 'پیش از تغییر قاعده' },
@@ -2004,7 +2004,7 @@ describe('The form designer', () => {
   const CODE = 'B11_BRIEF_ANALYSIS';
 
   it('adds a field, versions the change, and leaves the forms already filed alone', async () => {
-    const before = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const before = await prisma.formDefinition.findFirstOrThrow({ where: { code: CODE } });
     const original = (before.schema as unknown as any[]);
     const brief = await prisma.brief.findFirstOrThrow();
 
@@ -2043,7 +2043,7 @@ describe('The form designer', () => {
   });
 
   it('refuses a design that would break the process, and says everything wrong at once', async () => {
-    const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: 'C20_ORDER_STRATEGY' } });
+    const def = await prisma.formDefinition.findFirstOrThrow({ where: { code: 'C20_ORDER_STRATEGY' } });
     const fields = (def.schema as unknown as any[]);
     // Doc_H §C: the nine elements of an order form. Dropping the deadline is not a design choice.
     const withoutDeadline = fields.filter((f) => f.key !== 'deadline');
@@ -2099,12 +2099,12 @@ describe('The form designer', () => {
     expect(expectOk(await post(`/forms/submissions/${filed.id}/decision`, T.creative, { decision: 'APPROVE' }), 'approve').state).toBe('APPROVED');
 
     // A re-seed of the catalogue leaves an edited definition alone rather than overwriting it.
-    const edited = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const edited = await prisma.formDefinition.findFirstOrThrow({ where: { code: CODE } });
     expect(edited.customizedAt).not.toBeNull();
     const shipped = FORM_BY_CODE.get(CODE)!;
     const again = await publishDefinition(prisma, { organizationId: org.id, form: shipped, note: 'seed' });
     expect(again.skippedCustomised).toBe(true);
-    const after = await prisma.formDefinition.findUniqueOrThrow({ where: { code: CODE } });
+    const after = await prisma.formDefinition.findFirstOrThrow({ where: { code: CODE } });
     expect((after.schema as unknown as any[]).some((f) => f.key === 'clientBudgetBand')).toBe(true);
     expect(after.version).toBe(edited.version);
   });
@@ -2234,7 +2234,7 @@ describe('SLA breach prediction', () => {
   async function policyWith(code: string, hours: number) {
     const org = await prisma.organization.findFirstOrThrow();
     const p = await prisma.slaPolicy.upsert({
-      where: { code }, update: { hours },
+      where: { organizationId_code: { organizationId: org.id, code } }, update: { hours },
       create: { organizationId: org.id, code, labelFa: `سیاست آزمایشی ${code}`, labelEn: code, hours, warnAt: 0.75 },
     });
     return { p, org };
@@ -2602,7 +2602,7 @@ describe('SLA engine', () => {
   it('flags an overdue clock as BREACHED and notifies its owner', async () => {
     const project = await prisma.project.findFirst();
     const user = await prisma.user.findUnique({ where: { email: 'designer@hiva.local' } });
-    const policy = await prisma.slaPolicy.findUnique({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const policy = await prisma.slaPolicy.findFirst({ where: { code: 'SLA_ACCOUNT_QC' } });
 
     const clock = await prisma.slaClock.create({
       data: {
@@ -2627,7 +2627,7 @@ describe('SLA engine', () => {
 
   it('flags a clock past its warning threshold as AT_RISK', async () => {
     const project = await prisma.project.findFirst();
-    const policy = await prisma.slaPolicy.findUnique({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const policy = await prisma.slaPolicy.findFirst({ where: { code: 'SLA_ACCOUNT_QC' } });
     // Fixed dates, and `now` passed in: the clock is read in working hours, so a run that
     // happened to fall on a Thursday used to measure the weekend as elapsed time.
     const startedAt = new Date(2026, 8, 5, 9, 0, 0);   // Saturday 09:00
@@ -2688,7 +2688,7 @@ describe('SLA pauses', () => {
 
   async function openClock(suffix: string, startedAt: Date) {
     const project = await prisma.project.findFirst();
-    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
     return prisma.slaClock.create({
       data: {
         organizationId: project!.organizationId, policyId: policy.id,
@@ -2819,7 +2819,7 @@ describe('SLA pauses', () => {
 
   it('exposes pause and resume to the clock owner and to traffic management, and to no one else', async () => {
     const project = await prisma.project.findFirst();
-    const policy = await prisma.slaPolicy.findUniqueOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
+    const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
     const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
     const clock = await prisma.slaClock.create({
       data: {

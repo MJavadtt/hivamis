@@ -4,8 +4,22 @@ import { prisma } from './db.js';
 import { startJobs } from './jobs/runner.js';
 import { warnOnDemoAccounts } from './lib/demo-accounts.js';
 import { shutdownPdfEngine } from './pdf/renderer.js';
+import { syncReference } from './setup/reference.js';
+import { APP_VERSION } from './version.js';
 
 const app = await buildApp();
+
+// Roadmap #50: an upgraded installation brings its reference data up to the code before it serves.
+// A failure is loud but not fatal — the system runs on the reference data it already has.
+if (env.REFERENCE_SYNC === 'on') {
+  const started = Date.now();
+  await syncReference(prisma, { trigger: 'startup', appVersion: APP_VERSION })
+    .then((s) => app.log.info({
+      version: APP_VERSION, ms: Date.now() - started, recorded: s.recorded,
+      organizations: s.organizations.map((o) => ({ id: o.organizationId, formsChanged: o.formsChanged, formsKept: o.formsKept, slaAdded: o.slaAdded, slaUpdated: o.slaUpdated, departmentsAdded: o.departmentsAdded })),
+    }, 'reference data in step with the code'))
+    .catch((err) => app.log.error({ err }, 'reference sync failed — serving on the reference data already present'));
+}
 const boss = await startJobs(app.log).catch((err) => {
   app.log.error({ err }, 'failed to start background jobs — continuing without them');
   return null;

@@ -68,6 +68,11 @@ describe('Signing in by mobile', () => {
     await waitFor(() => expect(getRefreshToken()).toBe('r2'));
   });
 
+  it('says whose sign-in it is — on an installation with several organisations, this address’s (roadmap #50)', async () => {
+    mount(<Login />, () => undefined);
+    expect((await screen.findByTestId('login-org')).textContent).toBe('هیوا');
+  });
+
   it('offers Google and joining only where the installation does', async () => {
     mount(<Login />, () => undefined);
     expect(await screen.findByRole('button', { name: /ورود با حساب گوگل/ })).toBeDefined();

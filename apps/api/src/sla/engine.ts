@@ -121,7 +121,7 @@ export interface StartSlaInput {
  * Re-starting an already-running clock for the same policy+entity is a no-op.
  */
 export async function startSla(tx: Tx, input: StartSlaInput): Promise<void> {
-  const policy = await tx.slaPolicy.findUnique({ where: { code: input.policyCode } });
+  const policy = await tx.slaPolicy.findUnique({ where: { organizationId_code: { organizationId: input.organizationId, code: input.policyCode } } });
   if (!policy || !policy.isActive) return;
 
   const existing = await tx.slaClock.findFirst({

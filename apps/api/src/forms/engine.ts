@@ -70,7 +70,7 @@ export async function submitForm(input: SubmitFormInput) {
     }
   }
 
-  const definition = await prisma.formDefinition.findUnique({ where: { code: input.formCode } });
+  const definition = await prisma.formDefinition.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code: input.formCode } } });
   if (!definition) throw notFound('تعریف فرم');
   if (!definition.isActive) throw badRequest('FORM_INACTIVE', 'این فرم غیرفعال است.');
 

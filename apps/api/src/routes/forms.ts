@@ -52,9 +52,10 @@ const formRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const { code } = req.params as { code: string };
     const actor = actorFrom(req);
-    const def = await prisma.formDefinition.findUnique({ where: { code } });
+    // The reader's own organisation's definition: another organisation has its own under the same code.
+    const def = await prisma.formDefinition.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code } } });
     if (!def) throw notFound('تعریف فرم');
-    const sla = def.slaCode ? await prisma.slaPolicy.findUnique({ where: { code: def.slaCode } }) : null;
+    const sla = def.slaCode ? await prisma.slaPolicy.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code: def.slaCode } } }) : null;
     return { ...def, sla, canSubmit: maySubmitForm(def.senderDepts, actor.departmentCode, actor.roles) };
   });
 
@@ -169,7 +170,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createFormDefinitionSchema, req.body);
-    const clash = await prisma.formDefinition.findUnique({ where: { code: input.code } });
+    const clash = await prisma.formDefinition.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code: input.code } } });
     if (clash) throw badRequest('FORM_CODE_TAKEN', `کد «${input.code}» قبلاً استفاده شده است`);
     const problems = validateDesign(input.code, input.fields as never, { isCustom: true });
     if (problems.length) throw badRequest('INVALID_FORM_DESIGN', 'طراحی فرم ایراد دارد', { problems });

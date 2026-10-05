@@ -177,6 +177,16 @@ const envSchema = z.object({
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
   /** The guide's videos (Hivamis task 8): a screen recording is larger than a document, so it has its own limit. */
   GUIDE_VIDEO_MAX_MB: z.coerce.number().int().min(1).max(2048).default(200),
+  /**
+   * Roadmap #50. On start, bring every organisation's reference data — roles, units, SLA policies,
+   * the form catalogue — up to this version of the code. `off` leaves it to `cli reference:sync`.
+   */
+  REFERENCE_SYNC: z.enum(['on', 'off']).default('on'),
+  /**
+   * `single`: one organisation, as before. `multi`: several on one installation; a request that
+   * names no signed-in user (sign-in, asking to join, Google) finds its organisation by host name.
+   */
+  TENANT_MODE: z.enum(['single', 'multi']).default('single'),
 });
 
 const parsed = envSchema.safeParse(process.env);

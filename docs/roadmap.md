@@ -65,4 +65,4 @@ Status vocabulary, and it is used strictly:
 | 47 | Extension points on guards and effects | — | Verified | 462057a |
 | 48 | Migration and onboarding toolkit | 20 | Verified | 88db859 |
 | 49 | Mobile for the three short-SLA loops | 39 | Verified (real push service: not exercised) | next |
-| 50 | Multi-tenancy and on-premise installer | — | Pending | |
+| 50 | Multi-tenancy and on-premise installer | — | Verified (upgrade sync and CLI against the running system); provisioning and isolation Tested; installer Tested in dry run | next |

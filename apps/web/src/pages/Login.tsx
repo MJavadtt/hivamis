@@ -81,6 +81,8 @@ export default function Login() {
         <div className="mb-6 text-center">
           <span className="mx-auto mb-3 grid size-12 place-items-center rounded-lg bg-ink-900 text-xl font-bold text-surface">{tr('ه')}</span>
           <h1 className="text-xl font-semibold text-ink-900">{tr('هیوامیس')}</h1>
+          {/* Whose sign-in this is — on an installation with several organisations, the one of this address (roadmap #50). */}
+          {methods?.organization && <p className="mt-1 text-sm font-bold text-ink-700" dir="auto" data-testid="login-org">{methods.organization}</p>}
           <p className="mt-1 text-sm text-ink-500">{tr('سیستم‌عامل سازمانی — ورود به سامانه')}</p>
         </div>
 

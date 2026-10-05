@@ -1,5 +1,6 @@
 # Full stack: PostgreSQL + API + SPA behind nginx.
-# Copy .env.docker.example to .env and set the secrets before `docker compose up -d`.
+# `infrastructure/hivamis install` writes .env and starts it; by hand, copy .env.docker.example to .env
+# and set the secrets before `docker compose up -d`.
 
 services:
   db:
@@ -70,6 +71,12 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:14b}
       CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}
       GUIDE_VIDEO_MAX_MB: ${GUIDE_VIDEO_MAX_MB:-200}
+      # Roadmap #50: the address links are built on, one or several organisations, the version shown,
+      # and whether start-up brings the reference data up to the code.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
+      TENANT_MODE: ${TENANT_MODE:-single}
+      REFERENCE_SYNC: ${REFERENCE_SYNC:-on}
+      APP_VERSION: ${APP_VERSION:-}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

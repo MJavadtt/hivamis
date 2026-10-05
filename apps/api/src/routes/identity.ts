@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
   approveSignupSchema, permissionsForRoles, phoneStartSchema, phoneVerifySchema, rejectSignupSchema, signupSchema,
   signupSettingsSchema, type RoleCode,
@@ -9,6 +9,7 @@ import { env, mailEnabled } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { organizationForHost, organizationForRequest, requestHost, tenancy } from '../lib/tenant.js';
 import { appUrl, notify } from '../mail/notify.js';
 import { enqueueMail } from '../jobs/runner.js';
 import { grantsOf } from '../auth/grants.js';
@@ -25,13 +26,27 @@ import { createTicket, finishGoogle, google, googleConfigured, redeemTicket, sta
  * (Hivamis task 6) — so nobody gets in by signing up.
  */
 
+/**
+ * A mobile number is not unique across organisations; at one organisation's address, signing in by
+ * code looks only among its people (roadmap #50).
+ */
+async function hereOnly(req: FastifyRequest): Promise<{ organizationId?: string }> {
+  if (tenancy.mode !== 'multi') return {};
+  const here = await organizationForHost(requestHost(req));
+  return here ? { organizationId: here.id } : {};
+}
+
 /** What a sign-up-created account's password hash starts as: it can never verify. */
 export const NO_PASSWORD_PREFIX = '!no-password:';
 export const hasPassword = (hash: string) => !hash.startsWith('!');
 
 /** Joining is open unless the administrator closed it; there must also be a way to prove oneself. */
-async function signupState() {
-  const org = await prisma.organization.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true, settings: true } });
+async function signupState(req: FastifyRequest, organizationId?: string | null) {
+  // The organisation of the address the person came to (roadmap #50); after Google, the one the
+  // sign-in began in — Google returns to the installation's one address.
+  const org = organizationId
+    ? await prisma.organization.findFirst({ where: { id: organizationId, isActive: true }, select: { id: true, name: true, slug: true, settings: true } })
+    : await organizationForRequest(req);
   if (!org) throw notFound('سازمان');
   const settings = (org.settings ?? {}) as { signup?: { enabled?: boolean } };
   const open = settings.signup?.enabled !== false;
@@ -55,8 +70,8 @@ const SENT_FOR = 60;
 
 const identityRoutes: FastifyPluginAsync = async (app) => {
   /** Which ways in this installation offers — the sign-in and sign-up pages ask before drawing. */
-  app.get('/auth/methods', async () => {
-    const s = await signupState();
+  app.get('/auth/methods', async (req) => {
+    const s = await signupState(req);
     return {
       organization: s.org.name, password: true, phone: smsAvailable(), google: googleConfigured(),
       signup: { open: s.open && (s.phone || s.google), phone: s.phone, google: s.google },
@@ -72,7 +87,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
   app.post('/auth/phone/start', { config: RATE }, async (req, reply) => {
     const { phone } = parse(phoneStartSchema, req.body);
     if (!smsAvailable()) throw new AppError(503, 'SMS_OFF', 'ورود با شمارهٔ همراه در این نصب فعال نیست.');
-    const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null } });
+    const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null, ...(await hereOnly(req)) } });
     if (user && !(user.lockedUntil && user.lockedUntil > new Date())) {
       const issued = await issueCode({ purpose: 'LOGIN', phone, userId: user.id, ipAddress: req.ip });
       // Sent in the background: waiting on the provider would make an existing number slower to answer.
@@ -83,7 +98,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/auth/phone/verify', { config: RATE }, async (req) => {
     const { phone, code } = parse(phoneVerifySchema, req.body);
-    const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null } });
+    const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null, ...(await hereOnly(req)) } });
     if (!user) throw unauthorized('کد درست نیست یا منقضی شده است.');
     if (user.lockedUntil && user.lockedUntil > new Date()) throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
     const ok = await checkCode({ purpose: 'LOGIN', phone, code });
@@ -99,8 +114,9 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
   app.get('/auth/google/start', { config: RATE }, async (req) => {
     const { mode } = req.query as { mode?: string };
     if (mode === 'signup') {
-      if (!(await signupState()).google) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با گوگل در این سازمان باز نیست.');
-      return { url: await startGoogle('SIGNUP') };
+      const s = await signupState(req);
+      if (!s.google) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با گوگل در این سازمان باز نیست.');
+      return { url: await startGoogle('SIGNUP', null, s.org.id) };
     }
     return { url: await startGoogle('LOGIN') };
   });
@@ -112,18 +128,19 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
       reply.redirect(`${appUrl(path)}#${new URLSearchParams(fragment).toString()}`);
     if (q.error || !q.code || !q.state) return back('/auth/google', { error: 'CANCELLED' });
     try {
-      const { mode, userId, profile } = await finishGoogle(q.code, q.state);
-      return await googleOutcome(mode, userId, profile, req.ip, back);
+      const { mode, userId, organizationId, profile } = await finishGoogle(q.code, q.state);
+      return await googleOutcome(req, mode, userId, organizationId, profile, back);
     } catch (e) {
       return back('/auth/google', { error: e instanceof AppError ? e.code : 'GOOGLE_FAILED' });
     }
   });
 
   async function googleOutcome(
-    mode: 'LOGIN' | 'SIGNUP' | 'LINK', linkUserId: string | null,
-    profile: { sub: string; email: string; name: string; domain: string }, ip: string,
+    req: FastifyRequest, mode: 'LOGIN' | 'SIGNUP' | 'LINK', linkUserId: string | null, organizationId: string | null,
+    profile: { sub: string; email: string; name: string; domain: string },
     back: (path: string, fragment: Record<string, string>) => FastifyReply,
   ) {
+    const ip = req.ip;
     const identity = await prisma.userIdentity.findUnique({ where: { provider_subject: { provider: 'google', subject: profile.sub } }, include: { user: true } });
 
     if (mode === 'LINK') {
@@ -154,7 +171,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // SIGNUP
-    const s = await signupState();
+    const s = await signupState(req, organizationId);
     if (!s.google) return back('/signup', { error: 'SIGNUP_CLOSED' });
     if (google.allowedDomains.length && !google.allowedDomains.includes(profile.domain)) return back('/signup', { error: 'DOMAIN' });
     if (identity || await prisma.user.findUnique({ where: { email: profile.email } })) return back('/signup', { error: 'HAS_ACCOUNT' });
@@ -177,8 +194,8 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   /* ── asking to join ──────────────────────────────────────────────────── */
 
-  app.get('/auth/signup/options', async () => {
-    const s = await signupState();
+  app.get('/auth/signup/options', async (req) => {
+    const s = await signupState(req);
     const units = s.open
       ? await prisma.department.findMany({ where: { organizationId: s.org.id }, orderBy: { sortOrder: 'asc' }, select: { code: true, nameFa: true, nameEn: true } })
       : [];
@@ -187,7 +204,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/auth/signup/phone/start', { config: RATE }, async (req, reply) => {
     const { phone } = parse(phoneStartSchema, req.body);
-    if (!(await signupState()).phone) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با شمارهٔ همراه در این سازمان باز نیست.');
+    if (!(await signupState(req)).phone) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با شمارهٔ همراه در این سازمان باز نیست.');
     const issued = await issueCode({ purpose: 'SIGNUP', phone, ipAddress: req.ip });
     if (!('code' in issued)) throw new AppError(429, 'CODE_TOO_SOON', `کد تازه تا ${issued.retryAfterSeconds} ثانیهٔ دیگر.`, { retryAfterSeconds: issued.retryAfterSeconds });
     await sendCode(phone, issued.code, 'SIGNUP');
@@ -196,7 +213,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/auth/signup', { config: RATE }, async (req, reply) => {
     const input = parse(signupSchema, req.body);
-    const s = await signupState();
+    const s = await signupState(req);
     if (!s.phone) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با شمارهٔ همراه در این سازمان باز نیست.');
     if (!(await checkCode({ purpose: 'SIGNUP', phone: input.phone, code: input.code }))) throw badRequest('BAD_CODE', 'کد درست نیست یا منقضی شده است.');
     // The number is proved now; only then say what stands in the way.
@@ -293,8 +310,9 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     return { id, status: 'REJECTED' };
   });
 
-  app.get('/settings/signup', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async () => {
-    const s = await signupState();
+  app.get('/settings/signup', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    // The administrator's own organisation, whatever address they came to.
+    const s = await signupState(req, actorFrom(req).organizationId);
     return { enabled: s.open, phone: smsAvailable(), google: googleConfigured() };
   });
 

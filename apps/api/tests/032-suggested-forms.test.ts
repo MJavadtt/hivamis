@@ -37,7 +37,7 @@ describe('Forms a page offers', () => {
   it('fills the project, and the client it belongs to, in every form that asks for them', async () => {
     const res = expectOk(await get('/forms/suggest', pmo, { entity: 'project', id: project.id, limit: '30' }), 'suggest');
     for (const f of res.forms) {
-      const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: f.code } });
+      const def = await prisma.formDefinition.findFirstOrThrow({ where: { code: f.code } });
       for (const field of refsTo(def.schema, 'project')) expect(f.prefill[field.key]).toBe(project.id);
       for (const field of refsTo(def.schema, 'company')) expect(f.prefill[field.key]).toBe(project.companyId);
     }
@@ -60,7 +60,7 @@ describe('Forms a page offers', () => {
     // A unit that sends none of a project's forms is offered none.
     const res = expectOk(await get('/forms/suggest', legal, { entity: 'project', id: project.id, limit: '30' }), 'legal');
     for (const f of res.forms) {
-      const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: f.code } });
+      const def = await prisma.formDefinition.findFirstOrThrow({ where: { code: f.code } });
       expect(maySubmitForm(def.senderDepts, 'LG', ['LEGAL_MANAGER'])).toBe(true);
     }
   });
@@ -70,7 +70,7 @@ describe('Forms a page offers', () => {
     expect(before.forms.length).toBe(5);
     // Each is one the person's unit may send.
     for (const f of before.forms) {
-      const def = await prisma.formDefinition.findUniqueOrThrow({ where: { code: f.code } });
+      const def = await prisma.formDefinition.findFirstOrThrow({ where: { code: f.code } });
       expect(maySubmitForm(def.senderDepts, 'S', ['SALES_REP'])).toBe(true);
     }
     const pick = (await prisma.formDefinition.findMany({ where: { isActive: true, senderDepts: { has: 'S' } }, orderBy: { no: 'desc' } }))[0]!;

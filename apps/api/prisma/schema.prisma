@@ -24,6 +24,11 @@ model Organization {
   workEndHour   Int      @default(18)
   breakHours    Int      @default(1)
   settings      Json     @default("{}")
+  /// Roadmap #50: the organisation's short name, and the host names that open it.
+  slug          String?  @unique
+  hosts         String[] @default([])
+  /// A suspended organisation: nobody signs in, nothing is lost.
+  isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1474,7 +1479,7 @@ model FormDefinition {
   id             String   @id @default(uuid())
   organizationId String
   no             Int
-  code           String   @unique
+  code           String
   nameFa         String
   nameEn         String
   category       String
@@ -1505,6 +1510,8 @@ model FormDefinition {
   submissions FormSubmission[]
   versions    FormDefinitionVersion[]
 
+  /// Roadmap #50: a code names a form within its organisation; another organisation has its own.
+  @@unique([organizationId, code])
   @@index([organizationId, category])
   @@index([module])
   @@map("form_definitions")
@@ -1608,18 +1615,21 @@ model FormApproval {
 model SlaPolicy {
   id             String   @id @default(uuid())
   organizationId String
-  code           String   @unique
+  code           String
   labelFa        String
   labelEn        String
   hours          Decimal  @db.Decimal(8, 2)
   warnAt         Decimal  @default(0.75) @db.Decimal(4, 3)
   docRef         String?
   isActive       Boolean  @default(true)
+  /// Roadmap #50: the organisation set its own hours; the catalogue no longer moves them on upgrade.
+  customizedAt   DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   clocks SlaClock[]
 
+  @@unique([organizationId, code])
   @@map("sla_policies")
 }
 
@@ -2809,6 +2819,9 @@ model OAuthState {
   nonce        String
   userId       String?
   user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Roadmap #50: the organisation an «ask to join with Google» began in — the callback returns to
+  /// the installation's one address, which names no organisation.
+  organizationId String?
   expiresAt    DateTime
   consumedAt   DateTime?
   createdAt    DateTime  @default(now())
@@ -2912,3 +2925,18 @@ model GuideVideo {
   @@unique([organizationId, sectionId, locale])
   @@map("guide_videos")
 }
+
+/// Roadmap #50: each time the reference data — roles, units, SLA policies, the form catalogue — was
+/// brought up to the running version: on start-up after an upgrade, or by hand.
+model SystemUpgrade {
+  id         String    @id @default(uuid())
+  appVersion String
+  trigger    String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  summary    Json      @default("{}")
+
+  @@index([startedAt])
+  @@map("system_upgrades")
+}
+

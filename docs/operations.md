@@ -2,7 +2,36 @@
 
 ## Deployment
 
-### Docker (recommended)
+### Docker, with the installer (recommended)
+
+Roadmap #50. On a machine with Docker, Docker Compose v2 and `openssl`, from a checkout of the
+repository:
+
+```bash
+infrastructure/hivamis install --org-name "آژانس نمونه" --org-slug nemooneh \
+  --admin-email boss@nemooneh.ir --admin-name "پرستو نمونه" --domain hiva.nemooneh.ir
+```
+
+The installer:
+
+1. writes `.env` from `.env.docker.example`, with a database password and token key generated on
+   the spot, readable only by its owner;
+2. sets `PUBLIC_APP_URL` and `CORS_ORIGIN` to `https://<domain>`, or `http://localhost:<port>`
+   without `--domain`;
+3. builds and starts the stack and waits until the API is ready. The API migrates the database
+   and brings the reference data up first;
+4. creates the organisation and its first system administrator. The administrator has no
+   password: the installer prints a one-time link (valid seven days) where they set their own, and
+   emails it when mail is configured.
+
+It refuses to run where `.env` already exists, so an installation's secrets are never overwritten.
+`--port` changes the published port (8080); `--multi` sets up an installation for several
+organisations.
+
+Serves on `http://localhost:8080`. Only the web container publishes a port; the API and database
+are reachable only on the internal network.
+
+### Docker, by hand
 
 ```bash
 cp .env.docker.example .env
@@ -10,11 +39,8 @@ cp .env.docker.example .env
 #   POSTGRES_PASSWORD=$(openssl rand -base64 32)
 #   JWT_SECRET=$(openssl rand -base64 48)
 docker compose up -d --build
-docker compose exec api npx prisma migrate deploy   # runs automatically on start
+docker compose exec -T api node dist/cli.js tenant:create --name "…" --slug … --admin-email … --admin-name "…"
 ```
-
-Serves on `http://localhost:8080`. Only the web container publishes a port; the API and database
-are reachable only on the internal network.
 
 **Before going live:** terminate TLS at a reverse proxy in front of `web`, set `CORS_ORIGIN` to
 the real origin, and add HSTS at that proxy.
@@ -29,14 +55,25 @@ node --env-file=.env dist/server.js     # API
 # serve apps/web/dist from any static host, proxying /api to the API
 ```
 
-## Seeding
+## Reference data and seeding
 
-`pnpm db:seed` is idempotent: it upserts reference data (departments, roles, permissions, 30 SLA
-policies, all 130 form definitions) and skips demo data if customers already exist.
+The reference data comprises units, roles and permissions, the 30 SLA policies and the 130 form
+definitions. **It comes from the code, and is brought up to it on every start of the API**
+(roadmap #50, `REFERENCE_SYNC=on`):
 
-**In production, run the seed but do not keep the demo accounts.** They share a published
-development password. Create real accounts through `POST /users` (which forces a password change
-on first sign-in), then deactivate the demo users.
+- every organisation in service gets what is missing;
+- what the catalogue still speaks for is refreshed;
+- nothing an organisation made its own is taken back: a form edited in the designer, SLA hours its
+  administrator set, its units' colours.
+
+The sync runs as one transaction behind an advisory lock, so replicas starting together take
+turns. Each run that changed something is recorded in `system_upgrades`. To run it by hand:
+`node dist/cli.js reference:sync [--slug s]`.
+
+`pnpm db:seed` is for development. It creates the demo organisation, brings its reference data up
+through the same sync, and loads the demo dataset when `SEED_DEMO_DATA=true` outside production.
+**A production installation does not need the seed**: its first organisation and administrator
+come from `tenant:create`, as the installer does.
 
 ## Environment variables
 
@@ -97,8 +134,31 @@ on first sign-in), then deactivate the demo users.
 | `OLLAMA_MODEL` | no | `qwen3:14b` | A model that supports tool calling and writes Persian |
 | `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
 | `GUIDE_VIDEO_MAX_MB` | no | 200 | Largest guide video (Hivamis task 8). Videos are kept in `STORAGE_DIR`, so back them up with it |
+| `REFERENCE_SYNC` | no | `on` | Roadmap #50: on start, bring every organisation's reference data — roles, units, SLA policies, the form catalogue — up to the code. `off` leaves it to `cli reference:sync` |
+| `TENANT_MODE` | no | `single` | Roadmap #50: `single`, one organisation; `multi`, several, each found by its host names. See [Several organisations](#several-organisations) |
+| `APP_VERSION` | no | the API package's version | Shown by `/health` and `status`, written into each reference sync. `hivamis upgrade` sets it from `git describe` |
 
 ## Backup and recovery
+
+With the Compose stack, `infrastructure/hivamis` runs both inside the containers, so the host needs
+no PostgreSQL tools:
+
+```bash
+infrastructure/hivamis backup                    # → backups/hiva-db-….dump, backups/hiva-storage-….tar.gz
+infrastructure/hivamis restore --db backups/hiva-db-20261005-020000.dump \
+                               --storage backups/hiva-storage-20261005-020000.tar.gz --yes
+```
+
+`backup` prunes files older than `RETENTION_DAYS` (default 30) from `HIVAMIS_BACKUP_DIR` (default
+`./backups`). `restore` stops the application, leaving the database up, replaces the database (and
+the files, if given), starts the application again and waits until it is ready. It refuses without
+`--yes`. Schedule the backup daily:
+
+```cron
+0 2 * * * cd /opt/hivamis && infrastructure/hivamis backup >> /var/log/hivamis-backup.log 2>&1
+```
+
+Without Docker, the scripts below do the same against `DATABASE_URL` and `STORAGE_DIR`:
 
 ```bash
 DATABASE_URL=… STORAGE_DIR=./storage ./infrastructure/database/backup.sh
@@ -122,6 +182,63 @@ The script demands you type `RESTORE` — it overwrites the target database.
 
 **Test your restore.** A backup you have never restored is a hypothesis, not a backup. Restore
 into a scratch database quarterly and check `/health/ready` plus a project 360 view.
+
+## Upgrading
+
+```bash
+infrastructure/hivamis upgrade --pull
+```
+
+The upgrade:
+
+1. takes a backup first (`--no-backup` skips it);
+2. updates the checkout (`--pull` runs `git pull --ff-only`; without it, the files already in place
+   are used);
+3. rebuilds the images, stamped with `git describe` as `APP_VERSION`;
+4. restarts the stack. On start the API applies new migrations, then brings every organisation's
+   reference data up to the code: a form the new version changed reaches the organisations whose
+   form it still is, and an SLA policy it added is created. The operator does nothing else;
+5. waits until the API is ready, and prints `status`: the version, the migrations applied, the last
+   reference sync, and the organisations.
+
+Before #50 the upgrade stopped at the migrations. The reference data stayed as the previous seed
+left it, so a form changed in the catalogue kept its old fields until someone re-ran the seed by
+hand. Going back is a restore of the backup the upgrade took.
+
+## Several organisations
+
+Roadmap #50. One installation can serve several organisations, each with its own units, users,
+rules, forms, records and address.
+
+- **The mode.**
+  - `TENANT_MODE=single` (the default) serves one organisation, and provisioning refuses a second
+    one, so it cannot be created by mistake.
+  - `TENANT_MODE=multi` serves several. A request without a signed-in user (signing in, asking to
+    join, the sign-in page) finds its organisation by host name. A signed-in request carries its
+    organisation in its token, as always.
+- **The commands**, through the API's CLI (`infrastructure/hivamis tenant …` inside the stack):
+
+  ```bash
+  infrastructure/hivamis tenant create --name "…" --slug acme --admin-email a@acme.ir --admin-name "…" --host hiva.acme.ir
+  infrastructure/hivamis tenant list
+  infrastructure/hivamis tenant update --slug acme --add-host acme.example.com
+  infrastructure/hivamis tenant update --slug acme --suspend      # its sessions end now; --resume undoes it
+  ```
+
+- **Addresses.**
+  - Point each organisation's host names at the installation, and list them with `--host` or
+    `--add-host`. A host belongs to one organisation.
+  - At an organisation's address, only its people sign in. Anyone else is told what a wrong
+    password is told.
+  - The installation's own address, which names no organisation, accepts everyone's sign-in.
+  - Google sign-in returns to `PUBLIC_APP_URL`, so it completes at the installation's address.
+- **A suspended organisation** keeps everything: nobody can sign in, its sessions stop refreshing,
+  and its users see «سازمان شما موقتاً از دسترس خارج است».
+- **What stays shared.**
+  - Roles and permissions are the installation's definitions; each organisation grants them its
+    own way (task 6).
+  - Record numbers (PRJ-…) run on one sequence for the whole installation, so they never collide.
+  - A person's email is unique across the installation.
 
 ## Production readiness checklist
 

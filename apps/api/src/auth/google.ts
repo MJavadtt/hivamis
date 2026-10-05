@@ -41,13 +41,13 @@ const b64url = (b: Buffer) => b.toString('base64url');
 
 export type GoogleMode = 'LOGIN' | 'SIGNUP' | 'LINK';
 
-export async function startGoogle(mode: GoogleMode, userId: string | null = null): Promise<string> {
+export async function startGoogle(mode: GoogleMode, userId: string | null = null, organizationId: string | null = null): Promise<string> {
   if (!googleConfigured()) throw new AppError(503, 'GOOGLE_OFF', 'ورود با حساب گوگل در این نصب پیکربندی نشده است.');
   const state = b64url(randomBytes(32));
   const codeVerifier = b64url(randomBytes(48));
   const nonce = b64url(randomBytes(24));
   await prisma.oAuthState.create({
-    data: { stateHash: sha(state), provider: 'google', mode, codeVerifier, nonce, userId, expiresAt: new Date(Date.now() + 10 * 60_000) },
+    data: { stateHash: sha(state), provider: 'google', mode, codeVerifier, nonce, userId, organizationId, expiresAt: new Date(Date.now() + 10 * 60_000) },
   });
   const url = new URL(google.authUrl);
   url.search = new URLSearchParams({
@@ -61,7 +61,7 @@ export async function startGoogle(mode: GoogleMode, userId: string | null = null
 export interface GoogleProfile { sub: string; email: string; name: string; domain: string }
 
 /** Spends the state and returns who Google says this is, or throws a code the page can explain. */
-export async function finishGoogle(code: string, state: string): Promise<{ mode: GoogleMode; userId: string | null; profile: GoogleProfile }> {
+export async function finishGoogle(code: string, state: string): Promise<{ mode: GoogleMode; userId: string | null; organizationId: string | null; profile: GoogleProfile }> {
   const row = await prisma.oAuthState.findUnique({ where: { stateHash: sha(state) } });
   if (!row || row.consumedAt || row.expiresAt < new Date()) throw new AppError(400, 'GOOGLE_STATE', 'این درخواست ورود منقضی شده یا پیش‌تر به کار رفته است؛ دوباره تلاش کنید.');
   const spent = await prisma.oAuthState.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: new Date() } });
@@ -98,6 +98,7 @@ export async function finishGoogle(code: string, state: string): Promise<{ mode:
   return {
     mode: row.mode as GoogleMode,
     userId: row.userId,
+    organizationId: row.organizationId,
     profile: { sub: String(payload.sub), email, name: typeof payload.name === 'string' ? payload.name : email, domain: email.split('@')[1] ?? '' },
   };
 }

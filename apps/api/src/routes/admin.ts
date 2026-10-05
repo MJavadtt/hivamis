@@ -460,6 +460,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         ...(hours != null ? { hours } : {}),
         ...(warnAt != null ? { warnAt } : {}),
         ...(isActive != null ? { isActive } : {}),
+        // Hours set here are the organisation's; an upgrade no longer moves them (roadmap #50).
+        ...(hours != null || warnAt != null ? { customizedAt: new Date() } : {}),
       },
     });
     await audit({

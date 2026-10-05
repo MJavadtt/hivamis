@@ -61,7 +61,7 @@ export async function publishDefinition(
   const routing = (form.routing ?? []) as unknown as object;
   const approvalChain = (form.approvalChain ?? []) as unknown as object;
 
-  const existing = await tx.formDefinition.findUnique({ where: { code: form.code } });
+  const existing = await tx.formDefinition.findUnique({ where: { organizationId_code: { organizationId: input.organizationId, code: form.code } } });
   if (!existing) {
     const created = await tx.formDefinition.create({
       data: { organizationId: input.organizationId, no: form.no, code: form.code, ...metadata, schema, routing, approvalChain, version: 1 },

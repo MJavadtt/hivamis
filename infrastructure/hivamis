@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Hivamis on one machine, with Docker Compose (roadmap #50).
+#
+#   infrastructure/hivamis install --org-name NAME --org-slug SLUG --admin-email EMAIL --admin-name NAME
+#                                  [--domain HOST] [--port 8080] [--multi]
+#   infrastructure/hivamis status
+#   infrastructure/hivamis backup
+#   infrastructure/hivamis restore --db FILE.dump [--storage FILE.tar.gz] --yes
+#   infrastructure/hivamis upgrade [--pull] [--no-backup]
+#   infrastructure/hivamis tenant list | create … | update …     (the API's own commands)
+#
+# HIVAMIS_ENV_FILE    the settings file (default: .env beside docker-compose.yml)
+# HIVAMIS_BACKUP_DIR  where backups go (default: ./backups); RETENTION_DAYS (default 30)
+# HIVAMIS_DRY_RUN=1   print every command instead of running it
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="${HIVAMIS_ENV_FILE:-$ROOT/.env}"
+BACKUP_DIR="${HIVAMIS_BACKUP_DIR:-$ROOT/backups}"
+RETENTION_DAYS="${RETENTION_DAYS:-30}"
+DRY="${HIVAMIS_DRY_RUN:-0}"
+
+say() { printf '%s\n' "$*" >&2; }
+die() { say "✗ $*"; exit 1; }
+run() { if [ "$DRY" = 1 ]; then printf '+ %s\n' "$*"; else "$@"; fi; }
+compose() { run docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" "$@"; }
+# A command whose output is a file: the redirect is part of what a dry run shows.
+compose_to() { local out="$1"; shift
+  if [ "$DRY" = 1 ]; then printf '+ docker compose %s > %s\n' "$*" "$out"; else docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" "$@" > "$out"; fi; }
+compose_from() { local in="$1"; shift
+  if [ "$DRY" = 1 ]; then printf '+ docker compose %s < %s\n' "$*" "$in"; else docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" "$@" < "$in"; fi; }
+env_get() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true; }
+secret() { openssl rand -base64 "$1" | tr -d '\n/+='; }
+cli() { compose exec -T api node dist/cli.js "$@"; }
+need_tools() {
+  [ "$DRY" = 1 ] && return 0
+  command -v docker >/dev/null || die "Docker is not installed."
+  docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is not available (docker compose)."
+}
+
+wait_healthy() {
+  if [ "$DRY" = 1 ]; then printf '+ wait for http://api:4000/health/ready\n'; return 0; fi
+  say "→ waiting for the API (migrations and the reference data run first) …"
+  for _ in $(seq 1 90); do
+    if docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" exec -T api curl -fsS http://127.0.0.1:4000/health/ready >/dev/null 2>&1; then
+      say "✓ the API is ready"; return 0
+    fi
+    sleep 2
+  done
+  die "the API did not become ready; see: docker compose logs api"
+}
+
+cmd_install() {
+  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --org-name) org_name="$2"; shift 2 ;;
+      --org-slug) org_slug="$2"; shift 2 ;;
+      --admin-email) admin_email="$2"; shift 2 ;;
+      --admin-name) admin_name="$2"; shift 2 ;;
+      --domain) domain="$2"; shift 2 ;;
+      --port) port="$2"; shift 2 ;;
+      --multi) mode="multi"; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -n "$org_name" ] && [ -n "$org_slug" ] && [ -n "$admin_email" ] && [ -n "$admin_name" ] \
+    || die "install needs --org-name, --org-slug, --admin-email and --admin-name"
+  need_tools
+  command -v openssl >/dev/null || die "openssl is needed to generate the secrets."
+  # An existing settings file holds the database password and the token key: never overwritten.
+  [ -f "$ENV_FILE" ] && die "$ENV_FILE already exists — this installation is set up; use: hivamis upgrade"
+
+  local origin
+  if [ -n "$domain" ]; then origin="https://$domain"; else origin="http://localhost:$port"; fi
+  say "→ writing $ENV_FILE (secrets generated here, readable only by you)"
+  umask 077
+  sed -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(secret 32)|" \
+      -e "s|^JWT_SECRET=.*|JWT_SECRET=$(secret 48)|" \
+      -e "s|^WEB_PORT=.*|WEB_PORT=$port|" \
+      -e "s|^CORS_ORIGIN=.*|CORS_ORIGIN=$origin|" \
+      -e "s|^PUBLIC_APP_URL=.*|PUBLIC_APP_URL=$origin|" \
+      -e "s|^TENANT_MODE=.*|TENANT_MODE=$mode|" \
+      "$ROOT/.env.docker.example" > "$ENV_FILE"
+  printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
+
+  say "→ building and starting the stack"
+  compose up -d --build
+  wait_healthy
+
+  say "→ creating the organisation and its first administrator"
+  local hosts=()
+  [ -n "$domain" ] && hosts=(--host "$domain")
+  cli tenant:create --name "$org_name" --slug "$org_slug" --admin-email "$admin_email" --admin-name "$admin_name" "${hosts[@]}"
+  say ""
+  say "✓ Hivamis is running at $origin"
+  say "  The administrator sets their password from the link above (valid seven days, once)."
+  say "  Next: put TLS in front of port $port, and schedule: infrastructure/hivamis backup"
+}
+
+cmd_status() { compose ps; cli status; }
+
+cmd_backup() {
+  local stamp user db
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  user="$(env_get POSTGRES_USER)"; user="${user:-hiva}"
+  db="$(env_get POSTGRES_DB)"; db="${db:-hiva_os}"
+  run mkdir -p "$BACKUP_DIR"
+  say "→ dumping the database"
+  compose_to "$BACKUP_DIR/hiva-db-$stamp.dump" exec -T db pg_dump --format=custom --no-owner --no-acl -U "$user" "$db"
+  say "→ archiving uploaded files"
+  compose_to "$BACKUP_DIR/hiva-storage-$stamp.tar.gz" exec -T api tar -czf - -C /app storage
+  say "→ pruning backups older than $RETENTION_DAYS days"
+  run find "$BACKUP_DIR" -name 'hiva-*' -type f -mtime "+$RETENTION_DAYS" -delete
+  say "✓ backup: $BACKUP_DIR/hiva-db-$stamp.dump and hiva-storage-$stamp.tar.gz"
+}
+
+cmd_restore() {
+  local dump="" storage="" yes=0 user db
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --db) dump="$2"; shift 2 ;;
+      --storage) storage="$2"; shift 2 ;;
+      --yes) yes=1; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -n "$dump" ] || die "restore needs --db FILE.dump"
+  [ "$DRY" = 1 ] || [ -f "$dump" ] || die "no such file: $dump"
+  [ -z "$storage" ] || [ "$DRY" = 1 ] || [ -f "$storage" ] || die "no such file: $storage"
+  [ "$yes" = 1 ] || die "restore replaces the database$([ -n "$storage" ] && echo ' and the uploaded files') — add --yes to go ahead"
+  user="$(env_get POSTGRES_USER)"; user="${user:-hiva}"
+  db="$(env_get POSTGRES_DB)"; db="${db:-hiva_os}"
+  say "→ stopping the application (the database stays up)"
+  compose stop web api
+  say "→ restoring the database"
+  compose_from "$dump" exec -T db pg_restore --clean --if-exists --no-owner --no-acl -U "$user" -d "$db"
+  if [ -n "$storage" ]; then
+    say "→ restoring uploaded files"
+    compose_from "$storage" run --rm --no-deps -T api sh -c 'rm -rf /app/storage/* && tar -xzf - -C /app'
+  fi
+  say "→ starting the application"
+  compose up -d
+  wait_healthy
+  say "✓ restored from $dump"
+}
+
+cmd_upgrade() {
+  local pull=0 backup=1
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pull) pull=1; shift ;;
+      --no-backup) backup=0; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  need_tools
+  # Before anything changes: a way back.
+  [ "$backup" = 1 ] && cmd_backup
+  if [ "$pull" = 1 ]; then
+    say "→ fetching the new version"
+    run git -C "$ROOT" pull --ff-only
+  fi
+  local version
+  version="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+  say "→ rebuilding${version:+ ($version)}"
+  APP_VERSION="$version" compose build
+  say "→ restarting — the API migrates the database and brings the reference data up to the code"
+  APP_VERSION="$version" compose up -d
+  wait_healthy
+  cli status
+}
+
+cmd_tenant() {
+  local sub="${1:-list}"; shift || true
+  case "$sub" in
+    list|create|update) cli "tenant:$sub" "$@" ;;
+    *) die "tenant list | create … | update …" ;;
+  esac
+}
+
+case "${1:-help}" in
+  install) shift; cmd_install "$@" ;;
+  status) shift; cmd_status ;;
+  backup) shift; cmd_backup ;;
+  restore) shift; cmd_restore "$@" ;;
+  upgrade) shift; cmd_upgrade "$@" ;;
+  tenant) shift; cmd_tenant "$@" ;;
+  *) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+esac

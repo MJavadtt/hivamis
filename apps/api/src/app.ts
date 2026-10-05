@@ -58,6 +58,7 @@ import ruleRoutes from './routes/rules.js';
 import orgRuleRoutes from './routes/org-rules.js';
 import onboardingRoutes from './routes/onboarding.js';
 import pushRoutes from './routes/push.js';
+import { APP_VERSION } from './version.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   // The rules the running code declares become a version row if they changed since last boot,
@@ -138,7 +139,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     return send(500, { code: 'INTERNAL_ERROR', message: 'خطای داخلی سرور رخ داد.' });
   });
 
-  app.get('/health', async () => ({ status: 'ok', uptime: process.uptime() }));
+  app.get('/health', async () => ({ status: 'ok', uptime: process.uptime(), version: APP_VERSION }));
 
   app.get('/health/ready', async (_req, reply) => {
     try {

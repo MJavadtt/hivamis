@@ -5,14 +5,11 @@
  * Idempotent: re-running upserts reference data and skips demo data if it already exists.
  */
 import { PrismaClient } from '@prisma/client';
-import {
-  ALL_FORMS, ALL_PERMISSIONS, PERMISSIONS, ROLE_CODES, ROLE_LABELS, ROLE_PERMISSIONS,
-  DEPARTMENT_LABELS, DEPARTMENT_CODES, EXECUTION_DEPARTMENTS, SLA_POLICIES,
-  type RoleCode, type DepartmentCode,
-} from '@hiva/contracts';
+import { type RoleCode, type DepartmentCode } from '@hiva/contracts';
 import { hashPassword } from '../src/auth/password.js';
 import { nextCode } from '../src/lib/codes.js';
-import { publishDefinition } from '../src/forms/versions.js';
+import { syncReference } from '../src/setup/reference.js';
+import { APP_VERSION } from '../src/version.js';
 
 const prisma = new PrismaClient();
 
@@ -115,88 +112,22 @@ async function main() {
     update: {},
   });
 
-  console.log('→ seeding departments …');
-  const departments = new Map<DepartmentCode, string>();
-  let order = 0;
-  for (const code of DEPARTMENT_CODES) {
-    const dep = await prisma.department.upsert({
-      where: { organizationId_code: { organizationId: org.id, code } },
-      create: {
-        organizationId: org.id,
-        code,
-        nameFa: DEPARTMENT_LABELS[code].fa,
-        nameEn: DEPARTMENT_LABELS[code].en,
-        isExecutionalUnit: EXECUTION_DEPARTMENTS.includes(code),
-        sortOrder: order++,
-      },
-      update: { nameFa: DEPARTMENT_LABELS[code].fa, nameEn: DEPARTMENT_LABELS[code].en },
-    });
-    departments.set(code, dep.id);
-  }
-
-  console.log('→ seeding permissions & roles …');
-  const permIds = new Map<string, string>();
-  for (const code of ALL_PERMISSIONS) {
-    const p = await prisma.permission.upsert({
-      where: { code },
-      create: { code, nameFa: PERMISSIONS[code] },
-      update: { nameFa: PERMISSIONS[code] },
-    });
-    permIds.set(code, p.id);
-  }
-
-  const roleIds = new Map<RoleCode, string>();
-  for (const code of ROLE_CODES) {
-    const role = await prisma.role.upsert({
-      where: { code },
-      create: { code, nameFa: ROLE_LABELS[code].fa, nameEn: ROLE_LABELS[code].en },
-      update: { nameFa: ROLE_LABELS[code].fa, nameEn: ROLE_LABELS[code].en },
-    });
-    roleIds.set(code, role.id);
-    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
-    const grants = [...new Set(ROLE_PERMISSIONS[code])];
-    await prisma.rolePermission.createMany({
-      data: grants
-        .map((p) => permIds.get(p))
-        .filter((id): id is string => !!id)
-        .map((permissionId) => ({ roleId: role.id, permissionId })),
-      skipDuplicates: true,
-    });
-  }
-
-  console.log('→ seeding SLA policies …');
-  for (const policy of SLA_POLICIES) {
-    await prisma.slaPolicy.upsert({
-      where: { code: policy.code },
-      create: {
-        organizationId: org.id,
-        code: policy.code,
-        labelFa: policy.labelFa,
-        labelEn: policy.labelEn,
-        hours: policy.hours,
-        warnAt: policy.warnAt,
-        docRef: policy.docRef,
-      },
-      update: { hours: policy.hours, warnAt: policy.warnAt, docRef: policy.docRef },
-    });
-  }
-
-  console.log(`→ seeding ${ALL_FORMS.length} form definitions …`);
-  // Through the versioning module: a changed schema becomes a new version, an unchanged one
-  // writes nothing, and submissions keep pointing at the version they were filled under.
-  let newVersions = 0;
-  let customised = 0;
-  for (const form of ALL_FORMS) {
-    const { changed, skippedCustomised } = await publishDefinition(prisma, { organizationId: org.id, form, note: 'seed' });
-    if (changed) newVersions++;
-    if (skippedCustomised) customised++;
-  }
-  if (newVersions) console.log(`  ${newVersions} definition(s) gained a new version`);
+  // Reference data — units, permissions and roles, SLA policies, the form catalogue — through the
+  // same sync an upgrade and a new organisation use (roadmap #50).
+  console.log('→ bringing reference data up to the code …');
+  const ref = await syncReference(prisma, { trigger: 'seed', appVersion: APP_VERSION, only: [org.id] });
+  const mine = ref.organizations[0];
+  if (mine?.formsChanged) console.log(`  ${mine.formsChanged} form definition(s) created or given a new version`);
   // Said out loud: a form the organisation has edited keeps its own fields, and the catalogue
   // no longer speaks for it (roadmap #15).
-  if (customised) console.log(`  ${customised} definition(s) left as this organisation edited them`);
-
-  await syncCounters();
+  if (mine?.formsKept) console.log(`  ${mine.formsKept} definition(s) left as this organisation edited them`);
+  if (mine?.slaKept) console.log(`  ${mine.slaKept} SLA polic(ies) keep the hours this organisation set`);
+  const departments = new Map<DepartmentCode, string>(
+    (await prisma.department.findMany({ where: { organizationId: org.id }, select: { code: true, id: true } })).map((d) => [d.code as DepartmentCode, d.id]),
+  );
+  const roleIds = new Map<RoleCode, string>(
+    (await prisma.role.findMany({ select: { code: true, id: true } })).map((r) => [r.code as RoleCode, r.id]),
+  );
 
   // ── demo phase ────────────────────────────────────────────────────────────
   // Everything above is reference data and is always safe to load. Everything below
@@ -791,33 +722,6 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
  * Self-healing: guarantees `nextCode` can never re-issue a code that exists, whatever
  * wrote the earlier rows (an older seed, a restored dump, a manual insert).
  */
-async function syncCounters() {
-  const tables: [scope: string, table: string][] = [
-    ['lead', 'leads'], ['opportunity', 'opportunities'], ['brief', 'briefs'],
-    ['proposal', 'proposals'], ['project', 'projects'], ['workOrder', 'work_orders'],
-    ['task', 'tasks'], ['deliverable', 'deliverables'], ['qcReview', 'qc_reviews'],
-    ['revision', 'revisions'], ['changeRequest', 'change_requests'], ['contract', 'contracts'],
-    ['invoice', 'invoices'], ['risk', 'risks'], ['issue', 'issues'], ['decision', 'decisions'],
-    ['meeting', 'meetings'], ['statusReport', 'status_reports'],
-    ['outsourceRequest', 'outsource_requests'], ['formSubmission', 'form_submissions'],
-    ['handoff', 'handoffs'],
-  ];
-  for (const [scope, table] of tables) {
-    const rows = await prisma.$queryRawUnsafe<{ max: number | null }[]>(
-      `SELECT MAX(NULLIF(regexp_replace(code, '^.*-', ''), '')::int) AS max
-         FROM ${table} WHERE code ~ '^[A-Z]+-[0-9]+$'`,
-    );
-    const max = rows[0]?.max ?? 0;
-    if (max > 0) {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO counters (id, scope, value) VALUES (gen_random_uuid(), $1, $2)
-         ON CONFLICT (scope) DO UPDATE SET value = GREATEST(counters.value, $2)`,
-        scope, max,
-      );
-    }
-  }
-}
-
 async function summary() {
   const [users, forms, slas, companies, projects, tasks] = await Promise.all([
     prisma.user.count(), prisma.formDefinition.count(), prisma.slaPolicy.count(),

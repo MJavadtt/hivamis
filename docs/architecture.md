@@ -211,18 +211,30 @@ Design rules applied throughout:
 
 ## Multi-tenancy
 
-Deliberately **not** implemented as full SaaS multi-tenancy. Doc_H describes one organisation.
-Building tenant provisioning, per-tenant configuration and isolation testing would be complexity
-with no current buyer.
+Several organisations on one installation (roadmap #50, ADR-064). Each has its own units, users,
+rules, forms, SLA policies and records.
 
-What *is* in place: `organizationId` on every scoped table, applied by the data layer to every
-lookup — list, detail, update, delete, workflow transitions, PDF export and AI grounding — plus
-an organisation-level calendar, working hours and holidays, cached per organisation. A
-cross-tenant read returns 404 rather than 403, since a 403 would confirm the record exists.
-What is *not* in place is tenant resolution: `organizationId` comes from the actor's token, not
-from the request. See ADR-008 for the full list of what SaaS would still require.
-Turning this into multi-tenant SaaS means adding tenant resolution and provisioning — not
-reshaping the schema.
+- **Scoping.** `organizationId` is on every scoped table, and the data layer applies it to every
+  lookup: list, detail, update, delete, workflow transitions, PDF export and AI grounding. Form and
+  SLA codes are unique per organisation, so each has the whole catalogue under the same codes. A
+  cross-tenant read returns 404 rather than 403, since a 403 would confirm the record exists.
+- **Resolution.** A signed-in request takes its organisation from its token. An anonymous one
+  (sign-in, asking to join, the sign-in page) takes it from the host name in `TENANT_MODE=multi`, or
+  is the one organisation in `single`. A person signs in only at their organisation's address or at
+  the installation's own.
+- **Provisioning.** `cli tenant:create` creates the organisation, brings its reference data up, and
+  creates its first administrator, who sets a password from a one-time link. A suspended
+  organisation keeps everything but signs nobody in.
+- **Shared by design.** Role and permission definitions (each organisation grants its own), the
+  record-number sequence, and email uniqueness are shared.
+
+## Upgrades
+
+The reference data is code. On every start the API brings each organisation's reference data up to
+it (`src/setup/reference.ts`), in one transaction behind an advisory lock. It never takes back what
+an organisation made its own: a form edited in the designer, SLA hours its administrator set. Each
+run that changed something is written to `system_upgrades`. `infrastructure/hivamis` installs,
+backs up, restores and upgrades a Compose installation.
 
 ## Security
 

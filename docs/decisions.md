@@ -220,6 +220,11 @@ own token), provisioning, per-tenant branding, and per-tenant form and workflow 
 `FormDefinition.code` and `SlaPolicy.code` are also globally unique rather than unique per
 organisation, which a second tenant with its own form catalogue would collide on.
 
+**Update (roadmap #50, ADR-064).** All of the above is now in place: resolution by host, provisioning,
+codes unique per organisation, and the organisation's name on its sign-in page. Per-tenant form and
+workflow overrides were already there through the form designer (#15) and the organisation's own
+rules (#47).
+
 ---
 
 ## ADR-009 — Persian-first, RTL-first, Jalali dates
@@ -1746,4 +1751,62 @@ twice.
 
 **Limits.** A browser without Web Locks (none of the supported ones) falls back to one refresh per
 tab. Two devices can never share a refresh token, so they never race.
+
+## ADR-064 — Several organisations on one installation, and an upgrade that brings each up to the code
+
+**Decision.** (Roadmap #50.) The four gaps ADR-008 listed are closed, and an installation can be
+installed, upgraded, backed up and restored without hand work.
+
+- **Codes per organisation.** `form_definitions` and `sla_policies` are unique on
+  `(organizationId, code)`. Every lookup by code takes the organisation from the actor or the
+  input. The sweep found `GET /forms/definitions/:code` unscoped, which was harmless with one
+  organisation and a cross-tenant read with two.
+- **Resolution.** `TENANT_MODE=multi` finds an anonymous request's organisation by host
+  (`organizations.hosts`):
+  - asking to join, the sign-in page's name and phone sign-in use the organisation of the address;
+  - a Google «ask to join» carries the organisation it began in, in its sign-in state;
+  - a person signs in at their own organisation's address or at the installation's own, and
+    elsewhere is told what a wrong password is told;
+  - a suspended organisation (`isActive`) signs nobody in, and its sessions end with reason
+    `SUSPENDED`.
+- **Provisioning.** `cli tenant:create` checks everything before writing anything. It creates the
+  organisation, runs the reference sync for it, and creates a system administrator in the management
+  unit with no password and a one-time activation link at the organisation's host. In `single` mode
+  it refuses a second organisation.
+- **The upgrade path.** The seed's reference phase became `src/setup/reference.ts`, and the API
+  runs it on start (`REFERENCE_SYNC=on`).
+  - It runs as one transaction behind `pg_advisory_xact_lock`, so replicas take turns and a failure
+    changes nothing.
+  - It adds what is missing and refreshes what the catalogue speaks for. It keeps what an
+    organisation made its own: designer-edited forms (`customizedAt`), and SLA hours an
+    administrator set, which now stamp `customizedAt`. Before, a re-run seed reset them.
+  - Runs that changed something, or met a new version, are recorded in `system_upgrades`.
+  - Against this installation's own database, the first start after the change gave the lead form
+    the fields task 2 had added in the code several commits
+earlier.
+- **The operator's script.** `infrastructure/hivamis`:
+  - `install` generates the secrets into a 600-mode `.env`, starts the stack and provisions;
+  - `backup` and `restore` run `pg_dump`/`pg_restore` and `tar` inside the containers;
+  - `upgrade` backs up, rebuilds stamped with `git describe`, restarts and reports;
+  - `status` and `tenant` pass through to the CLI;
+  - `HIVAMIS_DRY_RUN=1` prints every command, which is how the tests exercise it.
+
+**Rationale.** The single-organisation assumption lived in a handful of places: two unique indexes,
+a dozen lookups by code, two `findFirst` organisation lookups. Closing them cost less than ADR-008
+feared, because the scoping was already everywhere else.
+
+The upgrade gap was a real defect, not a feature. Every installation that upgraded silently ran on
+the previous version's forms and SLA policies. Making the code's reference data reach the
+database on every start, while respecting what each organisation changed, is what makes an on-premise
+installation maintainable by someone other than its developer.
+
+**Limits.**
+
+- Roles, permission definitions, the record-number sequence and email uniqueness are shared across
+  the installation.
+- Google sign-in returns to `PUBLIC_APP_URL` and completes there.
+- Organisations are created and suspended from the command line; there is no platform operator's
+  web screen.
+- The installer and upgrade were exercised in dry run here (no images were built on this machine);
+  the CLI, provisioning and the reference sync ran against the real databases.
 

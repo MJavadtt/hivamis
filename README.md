@@ -72,13 +72,14 @@ The seed creates fifteen demo accounts across every role. They share the passwor
 ## Running with Docker
 
 ```bash
-cp .env.docker.example .env
-# set POSTGRES_PASSWORD and JWT_SECRET
-docker compose up -d --build
+infrastructure/hivamis install --org-name "…" --org-slug acme --admin-email you@acme.ir --admin-name "…"
 ```
 
-The stack serves the SPA on `http://localhost:8080` with the API proxied at `/api`.
-Migrations run automatically on API start. Only the web container publishes a port.
+The installer generates the secrets, starts the stack and creates the organisation and its first
+administrator, who sets a password from a one-time link. The stack serves the SPA on
+`http://localhost:8080` with the API proxied at `/api`. On start the API migrates the database and
+brings the reference data up to the code. Only the web container publishes a port. `hivamis backup`,
+`restore`, `upgrade`, `status` and `tenant` cover the rest; see docs/operations.md.
 
 ---
 
