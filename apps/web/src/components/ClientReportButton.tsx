@@ -58,7 +58,7 @@ export function ClientReportButton({ reportId }: { reportId: string }) {
               <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder={data.to ?? tr('نشانی ایمیل مشتری ثبت نشده')} type="email" aria-label={tr('گیرنده')} />
             </label>
             {/* The server builds this HTML with the same escaping as the PDF; it is our own template. */}
-            <div className="max-h-[50vh] overflow-auto rounded-lg ring-1 ring-ink-200/70 p-4 text-sm"
+            <div className="max-h-[50vh] overflow-auto rounded-lg ring-1 ring-ink-200 p-4 text-sm"
               data-testid="client-report-preview" dangerouslySetInnerHTML={{ __html: data.html }} />
           </>
         )}

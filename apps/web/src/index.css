@@ -34,38 +34,64 @@
 }
 
 /*
-  Design tokens. A single restrained palette drives the whole UI: slate for structure,
-  indigo for interaction, and a status scale reused everywhere a state is shown, so a
-  colour always means the same thing to the operator.
+  Design tokens — Hivamis task 3, after the Figma kit the organisation chose ("Main Dashboard",
+  Constructor X): a neutral grey ramp for structure, one blue for interaction, black for the main
+  action, hairline borders and square cards. The values are the kit's own variables (Base/base-*,
+  Primary/primary-*, Background/*), resolved for its Light and Dark modes. One deliberate
+  departure: secondary text (ink-500) is one step darker than the kit's base-500, so small grey
+  text on white keeps a 4.5:1 contrast.
 */
+/* `dark:` follows the app's own switch (data-theme on <html>), and the system while it is left on
+   «هماهنگ با سیستم». Used only where a colour is not a token: the status tints. */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --font-sans: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  /* Primary/primary-* — the kit's Blue mode. */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
 
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
+  /* Base/base-* — Neutral Gray, light mode. */
+  --color-ink-50: #f7f7f7;
+  --color-ink-100: #f2f2f2;
+  --color-ink-200: #e6e6e6;
+  --color-ink-300: #cccccc;
+  --color-ink-400: #999999;
+  --color-ink-500: #737373;
+  --color-ink-600: #666666;
+  --color-ink-700: #4d4d4d;
+  --color-ink-800: #333333;
+  --color-ink-900: #010101;
 
-  /* The page and card surface. A token rather than bare `bg-white`, so dark mode redefines one
-     value instead of forking every component — and `text-white` on a brand button stays white. */
+  /* Cards and panels (Base/base-0), and the page beneath them (Background/background-0). A token
+     rather than bare `bg-white`, so dark mode redefines one value instead of forking every component. */
   --color-surface: #ffffff;
+  --color-canvas: #ffffff;
+
+  /* The kit's one shadow (Shadows/shadow-base): a hairline lift under cards, inputs and buttons. */
+  --shadow-sm: 0 1px 2px 0 rgb(128 128 128 / 0.1);
+
+  /* Cards are square in the kit (its Radius "Default" mode): rounded-xl is the card radius here.
+     Controls keep 8px (rounded-lg), small marks 6px and 4px. */
+  --radius-xl: 0rem;
 }
 
 :root {
@@ -76,7 +102,7 @@
  * Dark mode redefines TOKENS ONLY — no component style is forked. The ink scale is the neutral
  * ramp from lightest background to darkest text, so inverting it flips the whole interface:
  * bg-ink-50 becomes a dark surface and text-ink-800 becomes light, with every ring, border and
- * muted-text class following automatically.
+ * muted-text class following automatically. The values are the kit's Dark mode.
  *
  * Driven by data-theme on <html>, set by the theme provider. Three states: light, dark, and
  * system (the attribute is absent, so the prefers-color-scheme block below applies).
@@ -85,60 +111,66 @@
   [data-theme='dark'] {
     color-scheme: dark;
 
-    --color-surface: #161a23;
+    --color-surface: #1a1a1a;
+    --color-canvas: #010101;
 
-    --color-ink-50: #10131a;
-    --color-ink-100: #1a1f29;
-    --color-ink-200: #272d3a;
-    --color-ink-300: #3a4356;
-    --color-ink-400: #7c8798;
-    --color-ink-500: #9aa5b6;
-    --color-ink-600: #b6c0ce;
-    --color-ink-700: #cfd6e0;
-    --color-ink-800: #e6eaf0;
-    --color-ink-900: #f6f8fb;
+    --color-ink-50: #1f1f1f;
+    --color-ink-100: #262626;
+    --color-ink-200: #333333;
+    --color-ink-300: #4d4d4d;
+    --color-ink-400: #808080;
+    --color-ink-500: #a6a6a6;
+    --color-ink-600: #cccccc;
+    --color-ink-700: #e6e6e6;
+    --color-ink-800: #f2f2f2;
+    --color-ink-900: #ffffff;
 
-    /* The brand ramp is lifted rather than inverted: an indigo that reads on white is muddy on
-       a dark ground, and the 50/100 tints are used as subtle fills that must stay subtle. */
-    --color-brand-50: #1e1b4b;
-    --color-brand-100: #262261;
-    --color-brand-200: #312c7a;
-    --color-brand-300: #4338ca;
-    --color-brand-400: #5b52e0;
-    --color-brand-500: #7b74ee;
-    --color-brand-600: #8f89f2;
-    --color-brand-700: #a9a4f6;
-    --color-brand-800: #c4c0f9;
-    --color-brand-900: #dddafb;
+    /* The kit lifts its primary in the dark (600 → blue-500); the 50–200 tints are its alpha
+       steps laid over the dark card, so subtle fills stay subtle. */
+    --color-brand-50: #1b212f;
+    --color-brand-100: #1c2944;
+    --color-brand-200: #1d3059;
+    --color-brand-300: #1d4ed8;
+    --color-brand-400: #2563eb;
+    --color-brand-500: #60a5fa;
+    --color-brand-600: #3b82f6;
+    --color-brand-700: #93c5fd;
+    --color-brand-800: #bfdbfe;
+    --color-brand-900: #dbeafe;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
       color-scheme: dark;
 
-      --color-surface: #161a23;
+      --color-surface: #1a1a1a;
+      --color-canvas: #010101;
 
-      --color-ink-50: #10131a;
-      --color-ink-100: #1a1f29;
-      --color-ink-200: #272d3a;
-      --color-ink-300: #3a4356;
-      --color-ink-400: #7c8798;
-      --color-ink-500: #9aa5b6;
-      --color-ink-600: #b6c0ce;
-      --color-ink-700: #cfd6e0;
-      --color-ink-800: #e6eaf0;
-      --color-ink-900: #f6f8fb;
+      --color-ink-50: #1f1f1f;
+      --color-ink-100: #262626;
+      --color-ink-200: #333333;
+      --color-ink-300: #4d4d4d;
+      --color-ink-400: #808080;
+      --color-ink-500: #a6a6a6;
+      --color-ink-600: #cccccc;
+      --color-ink-700: #e6e6e6;
+      --color-ink-800: #f2f2f2;
+      --color-ink-900: #ffffff;
 
-      --color-brand-50: #1e1b4b;
-      --color-brand-100: #262261;
-      --color-brand-200: #312c7a;
-      --color-brand-300: #4338ca;
-      --color-brand-400: #5b52e0;
-      --color-brand-500: #7b74ee;
-      --color-brand-600: #8f89f2;
-      --color-brand-700: #a9a4f6;
-      --color-brand-800: #c4c0f9;
-      --color-brand-900: #dddafb;
+      --color-brand-50: #1b212f;
+      --color-brand-100: #1c2944;
+      --color-brand-200: #1d3059;
+      --color-brand-300: #1d4ed8;
+      --color-brand-400: #2563eb;
+      --color-brand-500: #60a5fa;
+      --color-brand-600: #3b82f6;
+      --color-brand-700: #93c5fd;
+      --color-brand-800: #bfdbfe;
+      --color-brand-900: #dbeafe;
+
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
     }
   }
 }
@@ -152,7 +184,7 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background-color: var(--color-ink-100);
+  background-color: var(--color-canvas);
   color: var(--color-ink-800);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'ss02';
@@ -175,7 +207,7 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-ink-100);
+  background: var(--color-canvas);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-ink-300);

@@ -1667,3 +1667,52 @@ and video guides per section.
 - The owl's three.js chunk is the largest single addition to the web bundle, though it loads only
   when the owl appears.
 
+## ADR-062 — The interface takes its values from the chosen Figma kit, as tokens
+
+**Decision.** (Hivamis task 3.) The organisation chose a Figma community kit ("Main Dashboard",
+Constructor X) and supplied it as a `.fig` file. The file was decoded directly, without the Figma
+connector: its kiwi-encoded document, its components, and its variables in Light and Dark mode. The
+interface was then brought to it in two layers.
+
+- **Tokens** (`apps/web/src/index.css`, listed in docs/design.md):
+  - the kit's neutral grey ramp becomes `ink-*`, and its blue primary `brand-*`;
+  - its Background and Base-0 become the new `canvas` (the page) and `surface` (cards);
+  - its shadow becomes `shadow-sm`, and its square cards make `rounded-xl` 0;
+  - dark mode takes the kit's Dark values, still by redefining tokens only.
+- **Shared components:**
+  - the 32px controls;
+  - the dark button as the main action, black on light and white on dark;
+  - square bordered cards, metric tiles with an outlined icon, and bold grey labels;
+  - tabs with an outlined selected tab;
+  - the sidebar's grouped navigation with the person's card, folding to a rail on desktop;
+  - a 64px top bar that, on a phone, shows the logo and opens search over itself;
+  - a centred content column, and the head line over a hairline;
+  - the kit's half gauge, on the dashboard's deadlines.
+
+Every page is built from these components, so the redesign reaches every page without editing each
+one.
+
+**Rationale.** Taking the file's own variables, rather than matching colours by eye from a picture,
+makes the result the kit's, in both modes. Keeping the change in tokens and shared components keeps
+dark mode, RTL and every page consistent, and means a later change of palette is a change of
+values. The kit's other primaries (Pink, Indigo, Emerald) and grey themes are one edit away.
+
+**Departures from the kit:**
+
+- **Secondary text** (`ink-500`) is one step darker than the kit's base-500, to keep 4.5:1 contrast
+  for small text on white.
+- **Type.** Labels are one step larger than the kit's 10–12px, because Persian script at 10px bold
+  does not read. Vazirmatn replaces Inter, which has no Persian glyphs.
+- **Status badges** keep the platform's single status scale. In the dark they are tinted, through a
+  `dark:` variant tied to the app's own theme switch.
+- **Text alignment.** Tables and cards that were hard-coded to `text-right` now use `text-start`, so
+  English reads left to right.
+
+**Limits.**
+
+- Of the kit's charts, only the half gauge is used. The column chart and the progress rings have
+  no data on the dashboard that calls for them yet.
+- Alert boxes written with fixed light colours outside the shared badges (some `bg-rose-50` and
+  `bg-amber-50` notices) stay light in dark mode.
+- The kit's footer is not reproduced; the app has no footer content.
+

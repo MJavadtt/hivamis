@@ -12,6 +12,7 @@ import {
 import { formatCurrency, formatDate, formatRelative, localDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
 import { loc, tr, trx } from '../i18n';
+import { HalfGauge } from '../components/Gauge';
 
 interface MyDashboard {
   tasks: {
@@ -166,7 +167,18 @@ export default function Dashboard() {
                   {!data.sla.items.length ? (
                     <EmptyState title={tr('روند فعالی ندارید')} />
                   ) : (
-                    <ul className="divide-y divide-ink-100">
+                    <>
+                    <HalfGauge
+                      value={data.sla.items.length - data.sla.breached - data.sla.atRisk}
+                      total={data.sla.items.length}
+                      label={tr('در مسیر')}
+                      legend={[
+                        { label: tr('در مسیر'), value: data.sla.items.length - data.sla.breached - data.sla.atRisk, tone: 'brand' },
+                        { label: tr('در خطر'), value: data.sla.atRisk, tone: 'warning' },
+                        { label: tr('نقض‌شده'), value: data.sla.breached, tone: 'danger' },
+                      ]}
+                    />
+                    <ul className="divide-y divide-ink-200 border-t border-ink-200">
                       {data.sla.items.slice(0, 6).map((s) => (
                         <li key={s.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
                           <div className="min-w-0">
@@ -177,6 +189,7 @@ export default function Dashboard() {
                         </li>
                       ))}
                     </ul>
+                    </>
                   )}
                 </Card>
               </div>

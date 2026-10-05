@@ -15,13 +15,14 @@ export const cx = (...parts: (string | false | null | undefined)[]) => parts.fil
 
 export type Tone = 'neutral' | 'info' | 'progress' | 'warning' | 'success' | 'danger';
 
+// In the dark, the kit tints rather than fills: a translucent wash of the colour, its light text.
 const TONE_CLASSES: Record<Tone, string> = {
   neutral: 'bg-ink-100 text-ink-600 ring-ink-200',
-  info: 'bg-sky-50 text-sky-700 ring-sky-200',
+  info: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-300 dark:ring-sky-400/30',
   progress: 'bg-brand-50 text-brand-700 ring-brand-200',
-  warning: 'bg-amber-50 text-amber-700 ring-amber-200',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  danger: 'bg-rose-50 text-rose-700 ring-rose-200',
+  warning: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/30',
+  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/30',
+  danger: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-400/10 dark:text-rose-300 dark:ring-rose-400/30',
 };
 
 /** State → (Persian label, tone). Every workflow state in the platform is covered. */
@@ -37,7 +38,7 @@ export function StateBadge({ state, className }: { state: string; className?: st
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap',
+        'inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
         TONE_CLASSES[meta.tone],
         className,
       )}
@@ -49,7 +50,7 @@ export function StateBadge({ state, className }: { state: string; className?: st
 
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return (
-    <span className={cx('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset', TONE_CLASSES[tone], className)}>
+    <span className={cx('inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', TONE_CLASSES[tone], className)}>
       {children}
     </span>
   );
@@ -59,12 +60,14 @@ export function Badge({ children, tone = 'neutral', className }: { children: Rea
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
 
+/* The kit's buttons: the main action is its "Dark Button" — black on light, white on dark, since
+   ink-900 and surface swap with the theme — with a faint blue glow; the rest are outlined or bare. */
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600 shadow-sm',
-  secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-300 hover:bg-ink-50 focus-visible:outline-brand-600',
-  ghost: 'text-ink-600 hover:bg-ink-100 focus-visible:outline-brand-600',
+  primary: 'bg-ink-900 text-surface ring-1 ring-inset ring-ink-800 hover:bg-ink-800 focus-visible:outline-brand-600 shadow-[0_1px_4px_0_rgb(37_99_235/0.2)]',
+  secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-200 shadow-sm hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
+  ghost: 'text-ink-600 hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
   danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600 shadow-sm',
-  subtle: 'bg-brand-50 text-brand-700 hover:bg-brand-100 focus-visible:outline-brand-600',
+  subtle: 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100 hover:bg-brand-100 focus-visible:outline-brand-600',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -79,10 +82,10 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors',
+        'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         'disabled:opacity-50 disabled:pointer-events-none',
-        size === 'sm' ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2 text-sm',
+        size === 'sm' ? 'px-2.5 py-1 text-xs leading-5' : 'px-3 py-1.5 text-[13px] leading-5',
         BUTTON_VARIANTS[variant],
         className,
       )}
@@ -106,12 +109,12 @@ export function Card({ children, className, title, action, subtitle, tour }: {
   tour?: string;
 }) {
   return (
-    <section data-tour={tour} className={cx('rounded-xl bg-surface ring-1 ring-ink-200/70 shadow-sm', className)}>
+    <section data-tour={tour} className={cx('rounded-xl bg-surface ring-1 ring-ink-200 shadow-sm', className)}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 border-b border-ink-100 px-4 py-3">
+        <header className="flex items-start justify-between gap-3 border-b border-ink-200 px-5 py-3.5">
           <div className="min-w-0">
-            {title && <h2 className="text-sm font-semibold text-ink-800">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
+            {title && <h2 className="text-[13px] font-bold text-ink-800">{title}</h2>}
+            {subtitle && <p className="mt-0.5 text-xs font-medium text-ink-500">{subtitle}</p>}
           </div>
           {action}
         </header>
@@ -128,14 +131,15 @@ export function StatTile({ label, value, hint, tone = 'neutral', icon }: {
     neutral: 'text-ink-900', info: 'text-sky-700', progress: 'text-brand-700',
     warning: 'text-amber-700', success: 'text-emerald-700', danger: 'text-rose-700',
   };
+  // The kit's metric card: an outlined round icon, a small bold label, the figure.
   return (
-    <div className="rounded-xl bg-surface p-4 ring-1 ring-ink-200/70 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-ink-500">{label}</p>
-        {icon && <span className="text-ink-300">{icon}</span>}
+    <div className="flex h-full items-start gap-4 rounded-xl bg-surface p-5 ring-1 ring-ink-200 shadow-sm">
+      {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface text-ink-500 ring-1 ring-ink-200 [&>svg]:size-5">{icon}</span>}
+      <div className="min-w-0">
+        <p className="text-xs font-bold text-ink-500">{label}</p>
+        <p className={cx('mt-1 text-xl font-semibold nums', accent[tone])}>{value}</p>
+        {hint && <p className="mt-1 text-xs font-semibold text-ink-500">{hint}</p>}
       </div>
-      <p className={cx('mt-1.5 text-2xl font-semibold nums', accent[tone])}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-ink-500">{hint}</p>}
     </div>
   );
 }
@@ -243,7 +247,7 @@ export function Field({ label, required, hint, error, children }: {
 }) {
   return (
     <label className="block">
-      <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ink-700">
+      <span className="mb-1 flex items-center gap-1 text-xs font-bold text-ink-700">
         {label}
         {required && <span className="text-rose-500">*</span>}
       </span>
@@ -254,7 +258,7 @@ export function Field({ label, required, hint, error, children }: {
   );
 }
 
-const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-300 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
+const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-1.5 text-[13px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
 
 /** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
@@ -280,7 +284,7 @@ export function Checkbox({ label, ...rest }: InputHTMLAttributes<HTMLInputElemen
         id={id}
         type="checkbox"
         {...rest}
-        className="mt-0.5 size-4 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-600"
+        className="mt-0.5 size-4 shrink-0 rounded-md border-ink-300 text-brand-600 accent-brand-600 focus:ring-brand-600"
       />
       <span>{label}</span>
     </label>
@@ -292,25 +296,25 @@ export function Checkbox({ label, ...rest }: InputHTMLAttributes<HTMLInputElemen
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className="overflow-x-auto">
-      <table className={cx('w-full min-w-[640px] text-right text-sm', className)}>{children}</table>
+      <table className={cx('w-full min-w-[640px] text-start text-sm', className)}>{children}</table>
     </div>
   );
 }
 
 export const Th = ({ children, className }: { children?: ReactNode; className?: string }) => (
-  <th scope="col" className={cx('whitespace-nowrap px-4 py-2.5 text-xs font-semibold text-ink-500', className)}>
+  <th scope="col" className={cx('whitespace-nowrap px-4 py-2.5 text-xs font-bold text-ink-600', className)}>
     {children}
   </th>
 );
 
 export const Td = ({ children, className, title }: { children?: ReactNode; className?: string; title?: string }) => (
-  <td title={title} className={cx('px-4 py-2.5 align-middle text-ink-700', className)}>{children}</td>
+  <td title={title} className={cx('px-4 py-3 align-middle text-[13px] text-ink-700', className)}>{children}</td>
 );
 
 export const Tr = ({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) => (
   <tr
     onClick={onClick}
-    className={cx('border-t border-ink-100', onClick && 'cursor-pointer hover:bg-ink-50/70', className)}
+    className={cx('border-t border-ink-200', onClick && 'cursor-pointer hover:bg-ink-50', className)}
   >
     {children}
   </tr>
@@ -321,7 +325,7 @@ export function Pagination({ page, pageCount, total, onChange }: {
 }) {
   if (pageCount <= 1) return null;
   return (
-    <div className="flex items-center justify-between border-t border-ink-100 px-4 py-2.5 text-xs text-ink-500">
+    <div className="flex items-center justify-between border-t border-ink-200 px-4 py-2.5 text-xs font-semibold text-ink-500">
       <span className="nums">{tr('{0} رکورد — صفحه {1} از {2}', localDigits(total), localDigits(page), localDigits(pageCount))}</span>
       <div className="flex gap-1.5">
         <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => onChange(page - 1)}>{tr('قبلی')}</Button>
@@ -360,14 +364,14 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
         aria-label={title}
         className={cx('animate-in relative w-full rounded-xl bg-surface shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
       >
-        <header className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-ink-800">{title}</h2>
+        <header className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
+          <h2 className="text-sm font-bold text-ink-800">{title}</h2>
           <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-600" aria-label={tr('بستن')}>
             <IconClose className="size-4" />
           </button>
         </header>
         <div className="max-h-[65vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-ink-100 px-5 py-3">{footer}</footer>}
+        {footer && <footer className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3">{footer}</footer>}
       </div>
     </div>
   );
@@ -380,13 +384,21 @@ export function Tabs({ tabs, active, onChange }: {
 }) {
   // A link can open a tab that sits beyond the visible strip; bring it into view so the page
   // says where it is.
+  // Only the strip scrolls, sideways: scrollIntoView would also move the page, and a dashboard whose
+  // tabs sit near the bottom of the screen opened scrolled down.
   const strip = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = strip.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    const s = strip.current;
+    const el = s?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!s || !el) return;
+    const sr = s.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    if (er.left < sr.left) s.scrollLeft -= sr.left - er.left;
+    else if (er.right > sr.right) s.scrollLeft += er.right - sr.right;
   }, [active]);
   return (
-    <div ref={strip} data-tour="tabs" className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1" role="tablist">
+    // The kit's tab group: bold grey labels; the chosen one sits in an outlined box.
+    <div ref={strip} data-tour="tabs" className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1 py-2" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.key}
@@ -394,17 +406,16 @@ export function Tabs({ tabs, active, onChange }: {
           aria-selected={active === t.key}
           onClick={() => onChange(t.key)}
           className={cx(
-            'relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors',
-            active === t.key ? 'text-brand-700' : 'text-ink-500 hover:text-ink-700',
+            'whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-bold transition-colors',
+            active === t.key ? 'bg-surface text-ink-900 shadow-sm ring-1 ring-inset ring-ink-200' : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800',
           )}
         >
           {t.label}
           {t.count !== undefined && t.count > 0 && (
-            <span className="ms-1.5 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] nums text-ink-600">
+            <span className="ms-1.5 rounded-sm bg-ink-100 px-1.5 py-0.5 text-[11px] nums text-ink-600">
               {localDigits(t.count)}
             </span>
           )}
-          {active === t.key && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded bg-brand-600" />}
         </button>
       ))}
     </div>
@@ -417,7 +428,7 @@ export function ProgressBar({ value, tone = 'progress' }: { value: number; tone?
     warning: 'bg-amber-500', success: 'bg-emerald-500', danger: 'bg-rose-500',
   };
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-200" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
       <div className={cx('h-full rounded-full transition-[width]', fill[tone])} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </div>
   );
@@ -461,4 +472,5 @@ export const IconRefresh = ico(<><path d="M3 12a9 9 0 0115.5-6.4L21 8" /><path d
 export const IconPlus = ico(<><path d="M12 5v14M5 12h14" /></>);
 export const IconArrow = ico(<><path d="M19 12H5M12 19l-7-7 7-7" /></>);
 export const IconClock = ico(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>);
+export const IconFold = ico(<><path d="M5 5v14" /><path d="M18 7l-5 5 5 5" /></>);
 export const IconLayers = ico(<><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>);

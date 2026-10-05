@@ -151,7 +151,7 @@ function Catalogue() {
             key={def.code}
             onClick={() => setSelected(def)}
             className={cx(
-              'rounded-xl bg-surface p-4 text-right ring-1 ring-ink-200/70 shadow-sm transition',
+              'rounded-xl bg-surface p-4 text-start ring-1 ring-ink-200 shadow-sm transition',
               def.canSubmit ? 'hover:ring-brand-400 hover:shadow' : 'opacity-70',
             )}
           >
@@ -465,7 +465,7 @@ function TableField({ field, value, onChange, error }: {
           <thead className="bg-ink-50">
             <tr>
               {field.columns?.map((c) => (
-                <th key={c.key} className="px-2 py-1.5 text-right font-medium text-ink-600">{t(c, "label")}</th>
+                <th key={c.key} className="px-2 py-1.5 text-start font-medium text-ink-600">{t(c, "label")}</th>
               ))}
               <th className="w-8" />
             </tr>

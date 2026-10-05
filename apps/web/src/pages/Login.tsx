@@ -79,7 +79,7 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center bg-ink-100 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand-600 text-xl font-bold text-white">{tr('ه')}</span>
+          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-lg bg-ink-900 text-xl font-bold text-surface">{tr('ه')}</span>
           <h1 className="text-xl font-semibold text-ink-900">{tr('هیوامیس')}</h1>
           <p className="mt-1 text-sm text-ink-500">{tr('سیستم‌عامل سازمانی — ورود به سامانه')}</p>
         </div>

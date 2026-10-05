@@ -34,6 +34,11 @@ which you can sign out. **Colleagues («همکاران»)** lists everyone; each
 unit, roles, email and, where you may see them, their open tasks and projects. Mobile numbers and last
 sign-ins are shown only to the person themselves and to the administrators of users.
 
+**The screen.** The menu on the side can fold to a column of icons with the button beside the
+logo; hover over an icon to see its name. Each person's choice is remembered on their device. On a
+phone, search is the magnifier at the top. The language is set on your own page, and the light or
+dark theme follows the phone's.
+
 **Language.** The **EN** / **فا** button at the top switches the whole interface between Persian and
 English; the page reloads in the other language and remembers the choice, here and on your next
 device. In English, numbers use Latin digits, amounts read "Rials", dates are Gregorian and date

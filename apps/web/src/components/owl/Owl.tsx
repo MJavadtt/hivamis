@@ -76,8 +76,8 @@ export function OwlSvg({ size, mood = 'idle', className }: { size: number; mood?
           <path d="M46 47h8l-4 7z" fill="#e98a1c" />
           <path className="owl-jaw" d="M47.5 53h5l-2.5 3z" fill="#c76f12" />
           <g transform="rotate(6 50 14)">
-            <rect x="39" y="11" width="22" height="7" rx="2" fill="#4f46e5" />
-            <path d="M50 2l20 8-20 8-20-8z" fill="#3730a3" />
+            <rect x="39" y="11" width="22" height="7" rx="2" fill="#2563eb" />
+            <path d="M50 2l20 8-20 8-20-8z" fill="#1d4ed8" />
             <circle cx="50" cy="10" r="1.6" fill="#f2c14e" />
             <path d="M50 10h17v10" fill="none" stroke="#f2c14e" strokeWidth="1.2" />
             <path d="M65 19h4l-2 6z" fill="#f2c14e" />

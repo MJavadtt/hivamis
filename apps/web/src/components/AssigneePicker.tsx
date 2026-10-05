@@ -43,7 +43,7 @@ export function AssigneePicker({ taskId, value, onChange }: { taskId: string; va
             aria-pressed={picked}
             className={cx(
               'w-full rounded-lg px-3 py-2 text-start ring-1 transition',
-              picked ? 'bg-brand-50 ring-brand-400' : 'bg-surface ring-ink-200/70 hover:bg-ink-50/60',
+              picked ? 'bg-brand-50 ring-brand-400' : 'bg-surface ring-ink-200 hover:bg-ink-50/60',
             )}
           >
             <div className="flex items-center gap-2">

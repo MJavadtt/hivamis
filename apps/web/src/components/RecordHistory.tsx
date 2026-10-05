@@ -99,7 +99,7 @@ export function RecordHistory({ entityType, entityId }: { entityType: string; en
         {isLoading ? null : !data?.events.length ? <EmptyState title={tr('تغییری ثبت نشده')} /> : (
           <ol className="space-y-3" data-testid="history-timeline">
             {[...data.events].reverse().map((ev) => (
-              <li key={ev.id} className="rounded-lg ring-1 ring-ink-200/70 p-3 text-xs">
+              <li key={ev.id} className="rounded-lg ring-1 ring-ink-200 p-3 text-xs">
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
                   <Badge tone={ev.action === 'DELETE' ? 'danger' : ev.action === 'STATE_TRANSITION' ? 'info' : 'neutral'}>
                     {ACTION_FA[ev.action] ?? ev.action}

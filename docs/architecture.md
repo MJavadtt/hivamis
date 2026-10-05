@@ -69,7 +69,7 @@ If a module ever needs independent scaling, its boundary is already drawn.
 | Auth | `jose` (JWT) + Argon2id | Argon2id is the current OWASP recommendation; short access tokens with rotating refresh tokens |
 | SPA | React 19 + Vite 6 | Internal tool: no SEO need, so a fast SPA beats SSR complexity |
 | Data fetching | TanStack Query | Cache invalidation after a workflow transition is one call |
-| Styling | Tailwind CSS 4 | Token-driven design system in CSS, no runtime cost, trivially RTL |
+| Styling | Tailwind CSS 4 | Token-driven design system in CSS, no runtime cost, trivially RTL. The tokens are the Figma kit's variables (Hivamis task 3, [design.md](design.md)) |
 | Charts | Recharts | Lazy-loaded on `/reports` only |
 | The guide's owl | three.js | Hivamis task 8: the owl is drawn in 3D from primitives, with no model file. The library loads in its own chunk the first time the owl appears; without WebGL, or in tests, a flat SVG owl stands in |
 | Language | Persian source, English catalogues (no library) | `tr()` over Persian keys; the English catalogues load only in English, and composed server text is read back against its template (ADR-056) |

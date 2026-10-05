@@ -15,7 +15,7 @@ import { MessengerMenuItem } from './Messenger';
 import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
-  IconClose, IconDashboard, IconFile, IconLogout, IconMoney, IconSearch,
+  IconClose, IconDashboard, IconFile, IconFold, IconLogout, IconMoney, IconSearch,
   IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers,
 } from './ui';
 import { loc, tr, trx } from '../i18n';
@@ -105,6 +105,12 @@ const NAV: NavGroup[] = [
 export function Shell({ children }: { children: ReactNode }) {
   const { user, signOut, can, canAny } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The kit's sidebar folds to a rail of icons (Hivamis task 3); remembered per viewer.
+  const [rail, setRail] = useState(() => { try { return localStorage.getItem('hiva.sidebar') === 'rail'; } catch { return false; } });
+  const toggleRail = () => setRail((r) => {
+    try { localStorage.setItem('hiva.sidebar', r ? 'full' : 'rail'); } catch { /* private window */ }
+    return !r;
+  });
   // One live stream for the signed-in tab (roadmap #39).
   useLiveUpdates(useQueryClient());
 
@@ -131,6 +137,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   useEffect(() => setMobileOpen(false), [location.pathname]);
+  const compact = rail && isDesktop;
 
   const visibleGroups = NAV
     .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }))
@@ -155,43 +162,59 @@ export function Shell({ children }: { children: ReactNode }) {
         aria-label={tr('منوی اصلی')}
         inert={!mobileOpen && !isDesktop ? true : undefined}
         className={cx(
-          'fixed inset-y-0 right-0 z-40 flex w-64 flex-col border-s border-ink-200 bg-surface transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 right-0 z-40 flex w-[248px] flex-col border-e border-ink-200 bg-canvas transition-[transform,width] lg:static lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0',
+          compact && 'lg:w-16',
         )}
       >
-        <div className="flex h-14 items-center justify-between gap-2 border-b border-ink-100 px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">{tr('ه')}</span>
-            <span className="text-sm font-semibold text-ink-800">{tr('هیوامیس')}</span>
+        <div className={cx('flex h-16 shrink-0 items-center gap-2 px-3', compact ? 'justify-center' : 'justify-between')}>
+          <Link to="/" className="flex min-w-0 items-center gap-2.5" title={tr('هیوامیس')}>
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink-900 text-sm font-bold text-surface">{tr('ه')}</span>
+            {!compact && <span className="truncate text-[13px] font-bold text-ink-800">{tr('هیوامیس')}</span>}
           </Link>
-          <button className="rounded p-1 text-ink-400 lg:hidden" onClick={() => setMobileOpen(false)} aria-label={tr('بستن منو')}>
+          <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden" onClick={() => setMobileOpen(false)} aria-label={tr('بستن منو')}>
             <IconClose className="size-4" />
           </button>
+          {!compact && (
+            <button type="button" onClick={toggleRail} aria-label={tr('جمع کردن منو')} title={tr('جمع کردن منو')}
+              className="hidden rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 hover:text-ink-900 lg:block">
+              <IconFold className="size-[18px] rtl:-scale-x-100" />
+            </button>
+          )}
         </div>
+        {compact && (
+          <button type="button" onClick={toggleRail} aria-label={tr('باز کردن منو')} title={tr('باز کردن منو')}
+            className="mx-auto mb-1 hidden rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 hover:text-ink-900 lg:block">
+            <IconFold className="size-[18px] ltr:-scale-x-100" />
+          </button>
+        )}
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <nav className={cx('flex-1 overflow-y-auto pb-3', compact ? 'px-2' : 'px-3')}>
           {visibleGroups.map((group) => (
-            <div key={group.label} className="mb-4">
-              <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-                {group.label}
-              </p>
+            <div key={group.label} className="mb-3">
+              {compact
+                ? <div className="mx-auto my-2 h-px w-6 bg-ink-200" aria-hidden />
+                : <p className="px-3 pb-1 pt-2 text-[11px] font-bold text-ink-400">{group.label}</p>}
               <ul className="space-y-0.5">
                 {group.items.map((item) => (
                   <li key={item.to}>
                     <NavLink
                       to={item.to}
                       end={item.to === '/'}
+                      title={compact ? item.label : undefined}
+                      aria-label={compact ? item.label : undefined}
                       className={({ isActive }) =>
                         cx(
-                          'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                          'flex h-8 items-center gap-3 rounded-lg text-[13px] font-semibold transition-colors',
+                          compact ? 'justify-center' : 'px-3',
                           isActive
-                            ? 'bg-brand-50 font-medium text-brand-700'
-                            : 'text-ink-600 hover:bg-ink-100 hover:text-ink-800',
+                            ? 'bg-ink-100 text-ink-900'
+                            : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
                         )
                       }
                     >
-                      <item.icon className="size-4 shrink-0" />
-                      {item.label}
+                      <item.icon className="size-[18px] shrink-0" />
+                      {!compact && <span className="truncate">{item.label}</span>}
                     </NavLink>
                   </li>
                 ))}
@@ -200,27 +223,40 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-ink-100 p-3">
-          <Link to="/me" data-tour="me" className="mb-2 flex items-center gap-2 rounded-md px-1 py-1 hover:bg-ink-50" title={tr('صفحهٔ من')}>
+        <div className={cx('shrink-0 space-y-1 border-t border-ink-200', compact ? 'p-2' : 'p-3')}>
+          <Link to="/me" data-tour="me" title={tr('صفحهٔ من')}
+            className={cx('flex items-center gap-3 rounded-lg bg-surface shadow-sm ring-1 ring-ink-200 hover:bg-ink-50', compact ? 'justify-center p-1.5' : 'p-2')}>
             {user && <Avatar name={user.fullName} unit={user.department?.code} size="sm" />}
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-ink-800">{user?.fullName}</span>
-              <span className="block truncate text-xs text-ink-500">
-                {[trx(user?.jobTitle), user?.department ? loc(user.department, 'name') : ''].filter(Boolean).join(' — ')}
-              </span>
-            </span>
+            {!compact && (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-bold text-ink-800">{user?.fullName}</span>
+                  <span className="block truncate text-[11px] font-semibold text-ink-500">
+                    {[trx(user?.jobTitle), user?.department ? loc(user.department, 'name') : ''].filter(Boolean).join(' — ')}
+                  </span>
+                </span>
+                <svg aria-hidden viewBox="0 0 24 24" className="size-4 shrink-0 text-ink-400" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </>
+            )}
           </Link>
-          <Link to="/delegations" data-tour="delegations" className="mb-1 block rounded-md px-2 py-1.5 text-xs text-ink-600 hover:bg-ink-50 hover:text-ink-800">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
-          </Link>
-          <MessengerMenuItem />
-          <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => void signOut()}>
-            <IconLogout className="size-4" />{' '}{tr('خروج')}</Button>
+          {!compact && (
+            <>
+              <Link to="/delegations" data-tour="delegations" className="block rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50 hover:text-ink-900">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
+              </Link>
+              <MessengerMenuItem />
+            </>
+          )}
+          <Button variant="ghost" size="sm" className={cx('w-full', compact ? 'justify-center px-0' : 'justify-start')} onClick={() => void signOut()} title={compact ? tr('خروج') : undefined} aria-label={compact ? tr('خروج') : undefined}>
+            <IconLogout className="size-4" />{!compact && <>{' '}{tr('خروج')}</>}</Button>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onMenu={() => setMobileOpen(true)} menuOpen={mobileOpen} />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-canvas">
+          {/* The kit's content column: centred, so a wide screen does not stretch a page into lines. */}
+          <div className="mx-auto w-full max-w-[1400px] pb-10">{children}</div>
+        </main>
       </div>
       <OwlGuide />
     </div>
@@ -243,25 +279,40 @@ function ConnectionState() {
 }
 
 function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
+  // On a phone the kit's bar is the menu, the logo and a few icons; search opens over it.
+  const [searching, setSearching] = useState(false);
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink-200 bg-surface px-4">
-      <button className="rounded p-1.5 text-ink-500 hover:bg-ink-100 lg:hidden" onClick={onMenu} aria-label={tr('منو')}
+    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b border-ink-200 bg-canvas px-3 sm:gap-3 sm:px-4 lg:px-6">
+      <button className="rounded-lg p-1.5 text-ink-600 shadow-sm ring-1 ring-ink-200 hover:bg-ink-50 lg:hidden" onClick={onMenu} aria-label={tr('منو')}
           aria-controls="app-sidebar"
           aria-expanded={menuOpen}>
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
         </svg>
       </button>
-      <GlobalSearch />
-      <div className="flex items-center gap-1">
+      <Link to="/" className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink-900 text-sm font-bold text-surface lg:hidden" aria-label={tr('هیوامیس')}>{tr('ه')}</Link>
+      <div className="hidden flex-1 sm:contents"><GlobalSearch /></div>
+      <button type="button" onClick={() => setSearching(true)} aria-label={tr('جستجو')}
+        className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900 sm:hidden">
+        <IconSearch className="size-[18px]" />
+      </button>
+      {searching && (
+        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-canvas px-3 sm:hidden">
+          <GlobalSearch autoFocus />
+          <button type="button" onClick={() => setSearching(false)} aria-label={tr('بستن')} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50">
+            <IconClose className="size-4" />
+          </button>
+        </div>
+      )}
+      <div className="ms-auto flex items-center gap-1 sm:gap-1.5">
         <QuickForms />
         <AssistantButton />
         {/* What this device is still carrying, and whether it can send it (roadmap #19). */}
         <ConnectionState />
         <OutboxBadge />
-        <HelpButton />
-        <LocaleToggle />
-        <ThemeToggle />
+        <span className="hidden sm:contents"><HelpButton /></span>
+        <span className="hidden sm:contents"><LocaleToggle /></span>
+        <span className="hidden sm:contents"><ThemeToggle /></span>
         <Notifications />
       </div>
     </header>
@@ -283,7 +334,7 @@ const SEARCH_ROUTES: Record<string, string> = {
   task: '/tasks', brief: '/briefs', proposal: '/proposals', contract: '/contracts',
 };
 
-function GlobalSearch() {
+function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
   const [term, setTerm] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -356,6 +407,7 @@ function GlobalSearch() {
         <IconSearch className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-ink-400" />
         <input
           ref={inputRef}
+          autoFocus={autoFocus}
           value={term}
           role="searchbox"
           autoComplete="off"
@@ -365,7 +417,7 @@ function GlobalSearch() {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder={tr('جستجوی سراسری… (Ctrl+K)')}
-          className="w-full rounded-lg border-0 bg-ink-100 py-2 ps-9 pe-3 text-sm text-ink-800 placeholder:text-ink-400 focus:bg-surface focus:ring-2 focus:ring-inset focus:ring-brand-600"
+          className="w-full rounded-lg border-0 bg-surface py-1.5 ps-9 pe-3 text-[13px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600"
         />
         {isFetching && <Spinner className="absolute inset-y-0 end-3 my-auto size-4" />}
       </div>
@@ -396,7 +448,7 @@ function GlobalSearch() {
                       onMouseEnter={() => setActive(i)}
                       onClick={() => go({ group: group.type, item })}
                       className={cx(
-                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-right text-sm',
+                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-start text-sm',
                         isActive ? 'bg-brand-50 text-brand-800' : 'hover:bg-ink-100',
                       )}
                     >
@@ -429,7 +481,7 @@ function HelpButton() {
       onClick={() => guideBus.emit({ type: 'open' })}
       aria-label={tr('راهنمای کاربری')}
       title={tr('راهنمای کاربری')}
-      className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
+      className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
     >
       <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -450,7 +502,7 @@ function LocaleToggle() {
       onClick={() => void setLocale(other)}
       title={locale === 'fa' ? 'Switch to English' : tr('تغییر به فارسی')}
       aria-label={locale === 'fa' ? 'Switch interface language to English' : tr('تغییر زبان رابط به فارسی')}
-      className="rounded-lg px-2 py-1.5 text-xs font-medium text-ink-500 hover:bg-ink-100
+      className="h-8 rounded-lg px-2 text-xs font-bold text-ink-600 hover:bg-ink-50 hover:text-ink-900
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
     >
       {locale === 'fa' ? 'EN' : tr('فا')}
@@ -473,7 +525,7 @@ function ThemeToggle() {
       onClick={() => setPreference(next[preference])}
       title={tr('نمایش: {0}', labels[preference])}
       aria-label={tr('حالت نمایش: {0} — برای تغییر کلیک کنید', labels[preference])}
-      className="rounded-lg p-2 text-ink-500 hover:bg-ink-100
+      className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
     >
       {preference === 'system' ? (
@@ -517,7 +569,7 @@ function Notifications() {
     <div ref={boxRef} data-tour="notifications" className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-lg p-2 text-ink-500 hover:bg-ink-100"
+        className="relative grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900"
         aria-label={tr('اعلان‌ها{0}', data?.unread ? tr(' ({0} خوانده‌نشده)', data.unread) : '')}
       >
         <IconBell className="size-5" />
@@ -569,13 +621,14 @@ export function PageHeader({ title, subtitle, actions, badge }: {
   title: string; subtitle?: ReactNode; actions?: ReactNode; badge?: ReactNode;
 }) {
   return (
-    <div data-tour="page-header" className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 bg-surface px-5 py-4">
+    // The kit's head line: the title and its actions over a hairline, on the page itself.
+    <div data-tour="page-header" className="mx-5 flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 pb-5 pt-7">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold text-ink-900">{title}</h1>
+          <h1 className="text-base font-bold text-ink-900">{title}</h1>
           {badge}
         </div>
-        {subtitle && <div className="mt-0.5 text-sm text-ink-500">{subtitle}</div>}
+        {subtitle && <div className="mt-1 text-xs font-semibold text-ink-500">{subtitle}</div>}
       </div>
       {actions && <div data-tour="page-actions" className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

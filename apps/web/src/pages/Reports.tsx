@@ -23,7 +23,8 @@ import { MediaReport } from '../components/Media';
 import { loc, tr, trx } from '../i18n';
 import { UnitTag, useUnits } from '../components/UnitTag';
 
-const CHART_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+// The kit's chart palette (Hivamis task 3): its blue first, then the colours of its progress rings.
+const CHART_COLORS = ['#2563eb', '#60a5fa', '#22c55e', '#f97316', '#a855f7', '#ec4899'];
 
 export default function Reports() {
   const { can } = useAuth();
@@ -221,7 +222,7 @@ function SalesReport() {
                 <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: 'Vazirmatn' }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => localDigits(v)} />
-                <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

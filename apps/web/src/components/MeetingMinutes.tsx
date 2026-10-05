@@ -183,7 +183,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
           {problems.length > 0 && <ul className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{problems.map((p, i) => <li key={i}>· {p}</li>)}</ul>}
           <div className="space-y-3">
             {rows.map((r, i) => (
-              <div key={i} className="rounded-lg ring-1 ring-ink-200/70 p-3" data-testid="minutes-action">
+              <div key={i} className="rounded-lg ring-1 ring-ink-200 p-3" data-testid="minutes-action">
                 <div className="mb-2 flex items-center gap-2 text-[11px] text-ink-400">
                   <Badge tone={CONF_TONE[r.confidence as keyof typeof CONF_TONE] ?? 'neutral'}>
                     {r.confidence === 'HIGH' ? tr('مسئول و مهلت مشخص') : r.confidence === 'MEDIUM' ? tr('نیازمند تکمیل') : tr('حدسی')}

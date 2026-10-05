@@ -81,7 +81,7 @@ export function ProjectRevenue({ projectId }: { projectId: string }) {
         {p.notesFa.length > 0 && <ul className="space-y-0.5 text-xs text-ink-500">{p.notesFa.map((n) => <li key={n}>· {n}</li>)}</ul>}
 
         {data.method === 'MILESTONE' && (
-          <div className="rounded-lg ring-1 ring-ink-200/70">
+          <div className="rounded-lg ring-1 ring-ink-200">
             <div className="flex items-center justify-between px-3 py-2 text-xs">
               <span className="font-medium text-ink-700">{tr('سهم درآمد نقاط عطف')}</span>
               {editable && !shares && <button className="text-brand-700 underline" onClick={() => setShares(Object.fromEntries(data.milestones.map((m) => [m.id, m.revenueShare == null ? '' : String(m.revenueShare)])))}>{tr('ویرایش')}</button>}
@@ -93,7 +93,7 @@ export function ProjectRevenue({ projectId }: { projectId: string }) {
                   {m.completedAt ? <Badge tone="success">{tr('انجام‌شده')}</Badge> : <Badge tone="neutral">{tr('پیش رو')}</Badge>}
                   {shares
                     ? <Input type="number" className="ltr w-20" value={shares[m.id] ?? ''} aria-label={tr('سهم {0}', m.name)} onChange={(e) => setShares({ ...shares, [m.id]: e.target.value })} />
-                    : <span className="w-16 text-left nums">{m.revenueShare == null ? '—' : tr('{0}٪', localDigits(m.revenueShare))}</span>}
+                    : <span className="w-16 text-end nums">{m.revenueShare == null ? '—' : tr('{0}٪', localDigits(m.revenueShare))}</span>}
                 </li>
               ))}
             </ul>

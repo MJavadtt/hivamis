@@ -29,7 +29,7 @@ export function QuickForms() {
     <div ref={box} data-tour="quick-forms" className="relative">
       <button
         type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={tr('فرم تازه')} title={tr('فرم تازه')}
-        className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        className="grid size-8 place-items-center rounded-lg bg-ink-900 text-surface shadow-[0_1px_4px_0_rgb(37_99_235/0.2)] ring-1 ring-inset ring-ink-800 hover:bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
       >
         <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
       </button>

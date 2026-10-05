@@ -16,7 +16,7 @@ import type { OwlMood } from './mood';
 
 const C = {
   body: '#8a5a3b', wing: '#6e4529', dark: '#4b2e1c', belly: '#f2e2c4', face: '#ecd9b8', mark: '#b98a5e',
-  eye: '#ffffff', iris: '#f5a524', pupil: '#1c1917', beak: '#e98a1c', cap: '#4f46e5', capTop: '#3730a3', gold: '#f2c14e',
+  eye: '#ffffff', iris: '#f5a524', pupil: '#1c1917', beak: '#e98a1c', cap: '#2563eb', capTop: '#1d4ed8', gold: '#f2c14e',
 };
 
 const mat = (color: string, roughness = 0.7) => new MeshStandardMaterial({ color, roughness, metalness: 0 });
@@ -168,7 +168,7 @@ export default function Owl3D({ size, mood, lookAt, onFail, className }: Owl3DPr
     const camera = new PerspectiveCamera(30, 1, 0.1, 50);
     camera.position.set(0, 0.4, 8.2);
     camera.lookAt(0, 0.2, 0);
-    scene.add(new HemisphereLight('#fff7ed', '#6d5bd0', 1.7));
+    scene.add(new HemisphereLight('#fff7ed', '#5b7bd5', 1.7));
     const key = new DirectionalLight('#ffffff', 2.6);
     key.position.set(3, 5, 6);
     scene.add(key);

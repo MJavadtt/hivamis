@@ -83,7 +83,7 @@ export function AskReports() {
 
       {answer && <AnswerView answer={answer} carried={carried} catalog={catalog} onPlan={rerun} onAsk={askText} />}
 
-      <details className="rounded-xl bg-surface ring-1 ring-ink-200/70">
+      <details className="rounded-xl bg-surface ring-1 ring-ink-200">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-ink-700">{tr('چه می‌توانم بپرسم؟ — {0} شاخص', localDigits(allowed.length))}</summary>
         <ul className="divide-y divide-ink-100" data-testid="ask-catalog">
           {(catalog?.metrics ?? []).map((m) => (

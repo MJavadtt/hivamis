@@ -58,7 +58,7 @@ export function AssistantButton() {
   return (
     <>
       <button type="button" data-tour="assistant" onClick={() => { setQuestion(undefined); setOpen(true); }} aria-label={tr('دستیار')} title={tr('دستیار')}
-        className="grid size-8 place-items-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
+        className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
         <svg aria-hidden viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z" strokeLinejoin="round" /><path d="M18.5 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z" strokeLinejoin="round" />
         </svg>

@@ -69,7 +69,7 @@ export default function Signup() {
     <main className="grid min-h-screen place-items-center bg-ink-100 p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand-600 text-xl font-bold text-white">{tr('ه')}</span>
+          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-lg bg-ink-900 text-xl font-bold text-surface">{tr('ه')}</span>
           <h1 className="text-xl font-semibold text-ink-900">{tr('درخواست عضویت')}</h1>
           {options && <p className="mt-1 text-sm text-ink-500">{tr('در هیوامیسِ {0}', options.organization)}</p>}
         </div>
