@@ -1399,6 +1399,7 @@
   "سرنخی ثبت نشده": "No lead recorded",
   "سرنخ‌ها": "Leads",
   "سرور در دسترس نیست.": "The server cannot be reached.",
+  "سرور در دسترس نیست؛ چند لحظهٔ دیگر دوباره تلاش کنید.": "The server cannot be reached; try again in a moment.",
   "سرویس embedding": "Embedding service",
   "سرویس embedding پیکربندی نشده — این فهرست بیشتر بر پایهٔ واژه‌های مشترک است تا معنا.": "The embedding service isn't configured — this list is based more on shared words than on meaning.",
   "سرویس اعلان این مرورگر را دیگر نمی‌شناسد": "The notification service no longer recognises this browser",

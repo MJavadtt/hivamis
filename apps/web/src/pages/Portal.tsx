@@ -5,6 +5,7 @@ import { Badge, Button, Field, Input, Textarea } from '../components/ui';
 import { formatDate, formatDateTime, formatNumber, localDigits } from '../lib/format';
 import { ApprovalDecision, type ApprovalApi, type Receipt, type View } from './ApprovePublic';
 import { loc, locale, tr, trx } from '../i18n';
+import { fallbackMessage } from '../lib/api';
 
 /*
  * Roadmap #34 — the client portal. A separate little app under /portal: its own sign-in, its own
@@ -29,12 +30,12 @@ async function raw(path: string, init: RequestInit = {}) {
 async function papi<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await raw(path, init);
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new PortalError(trx(body?.error?.message) || tr('خطای {0}', res.status), res.status);
+  if (!res.ok) throw new PortalError(trx(body?.error?.message) || fallbackMessage(res.status), res.status);
   return body as T;
 }
 async function save(path: string, fallback: string) {
   const res = await raw(path);
-  if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(trx(b?.error?.message) || tr('خطای {0}', res.status)); }
+  if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(trx(b?.error?.message) || fallbackMessage(res.status)); }
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
   const href = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');

@@ -37,6 +37,35 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The API answers every error itself, as JSON. A failure without that body came from something
+ * standing in for it — the development server's proxy (a bare 500) or nginx (502–504) while the API
+ * is stopped or restarting — and a fetch that throws never reached anything. Both say so in words,
+ * instead of «خطای ۵۰۰» or the browser's "Failed to fetch".
+ */
+const unreachable = (): ApiErrorBody => ({ code: 'UNREACHABLE', message: tr('سرور در دسترس نیست؛ چند لحظهٔ دیگر دوباره تلاش کنید.') });
+
+/** The words for a failure that came without the API's own: the pages outside the session use it too. */
+export const fallbackMessage = (status: number): string => (status >= 500 ? unreachable().message : tr('خطای {0}', status));
+
+export async function failure(res: Response): Promise<ApiError> {
+  try {
+    const parsed = await res.json();
+    if (parsed?.error) return new ApiError(res.status, parsed.error as ApiErrorBody);
+  } catch { /* not the API's own answer */ }
+  return new ApiError(res.status, res.status >= 500 ? unreachable() : { code: 'UNKNOWN', message: fallbackMessage(res.status) });
+}
+
+/** Sends, turning "no answer at all" into the same unreachable error. An abort stays an abort. */
+async function reach(send: () => Promise<Response>): Promise<Response> {
+  try {
+    return await send();
+  } catch (e) {
+    if ((e as Error)?.name === 'AbortError') throw e;
+    throw new ApiError(0, unreachable());
+  }
+}
+
 /** How a refresh went: a new pair, a refusal (the session is over), or no answer (try again later). */
 export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
 
@@ -139,20 +168,13 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
 
-  let res = await send();
+  let res = await reach(send);
   if (res.status === 401 && getRefreshToken()) {
-    if (await attemptRefresh()) res = await send();
+    if (await attemptRefresh()) res = await reach(send);
   }
 
   if (res.status === 204) return undefined as T;
-  if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
-    try {
-      const parsed = await res.json();
-      if (parsed?.error) body = parsed.error;
-    } catch { /* keep the fallback message */ }
-    throw new ApiError(res.status, body);
-  }
+  if (!res.ok) throw await failure(res);
   return opts.raw ? ((await res.text()) as T) : ((await res.json()) as T);
 }
 
@@ -162,18 +184,11 @@ export async function apiUpload<T = unknown>(path: string, form: FormData): Prom
     method: 'POST', body: form,
     headers: baseHeaders(),
   });
-  let res = await send();
+  let res = await reach(send);
   if (res.status === 401 && getRefreshToken()) {
-    if (await attemptRefresh()) res = await send();
+    if (await attemptRefresh()) res = await reach(send);
   }
-  if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
-    try {
-      const parsed = await res.json();
-      if (parsed?.error) body = parsed.error;
-    } catch { /* keep the fallback message */ }
-    throw new ApiError(res.status, body);
-  }
+  if (!res.ok) throw await failure(res);
   return (await res.json()) as T;
 }
 
@@ -203,17 +218,10 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
 
   const send = () => fetch(url, { headers: baseHeaders() });
 
-  let res = await send();
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+  let res = await reach(send);
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
 
-  if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
-    try {
-      const parsed = await res.json();
-      if (parsed?.error) body = parsed.error;
-    } catch { /* binary or empty body — keep the fallback */ }
-    throw new ApiError(res.status, body);
-  }
+  if (!res.ok) throw await failure(res);
 
   const disposition = res.headers.get('content-disposition') ?? '';
   const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
@@ -237,22 +245,18 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
 export async function apiBlob(path: string): Promise<Blob> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
-  let res = await send();
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
-  if (!res.ok) throw new ApiError(res.status, { code: 'UNKNOWN', message: tr('خطای {0}', res.status) });
+  let res = await reach(send);
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (!res.ok) throw await failure(res);
   return res.blob();
 }
 
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
-  let res = await send();
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
-  if (!res.ok) {
-    let body: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
-    try { const parsed = await res.json(); if (parsed?.error) body = parsed.error; } catch { /* not JSON */ }
-    throw new ApiError(res.status, body);
-  }
+  let res = await reach(send);
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (!res.ok) throw await failure(res);
   const ascii = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '');
   const blob = await res.blob();
   const href = URL.createObjectURL(blob);
@@ -279,17 +283,10 @@ export async function downloadPdfBundle(
     body: JSON.stringify(body),
   });
 
-  let res = await send();
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await send();
+  let res = await reach(send);
+  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
 
-  if (!res.ok) {
-    let err: ApiErrorBody = { code: 'UNKNOWN', message: tr('خطای {0}', res.status) };
-    try {
-      const parsed = await res.json();
-      if (parsed?.error) err = parsed.error;
-    } catch { /* binary or empty body */ }
-    throw new ApiError(res.status, err);
-  }
+  if (!res.ok) throw await failure(res);
 
   const disposition = res.headers.get('content-disposition') ?? '';
   const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);

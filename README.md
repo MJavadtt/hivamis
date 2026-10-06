@@ -49,6 +49,10 @@ pnpm dev
 - API — <http://localhost:4000>
 - Health — <http://localhost:4000/health/ready>
 
+Both must run. The web server proxies `/api` to port 4000; with the API stopped, every request —
+signing in included — fails (the proxy answers a bare 500), and the app says «سرور در دسترس نیست».
+Start the API again (`pnpm dev`, or `pnpm --filter @hiva/api dev`).
+
 ### Development sign-in
 
 The seed creates fifteen demo accounts across every role. They share the password

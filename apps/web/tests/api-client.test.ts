@@ -140,3 +140,40 @@ describe('Error surfacing', () => {
     await expect(api('/projects')).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe('A server that is not there', () => {
+  // "errore 500" (the third list): the API was stopped, and the development server's proxy answered
+  // the sign-in with a bare 500. The person should read that the server cannot be reached.
+  const UNREACHABLE = 'سرور در دسترس نیست؛ چند لحظهٔ دیگر دوباره تلاش کنید.';
+  const reply = (status: number, body: string | null, type = 'text/plain') =>
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status, headers: { 'content-type': type } })));
+
+  it('reads a bare 500 from the proxy, and nginx’s 502, as the server being unreachable', async () => {
+    reply(500, null);
+    const bare = await api('/auth/login', { method: 'POST', body: {} }).catch((e) => e);
+    expect(bare).toBeInstanceOf(ApiError);
+    expect(bare.body.code).toBe('UNREACHABLE');
+    expect(bare.message).toBe(UNREACHABLE);
+    reply(502, '<html><body>502 Bad Gateway</body></html>', 'text/html');
+    expect((await api('/projects').catch((e) => e)).message).toBe(UNREACHABLE);
+  });
+
+  it('keeps the API’s own 500 — it answers in JSON — and an ordinary 404 as they are', async () => {
+    reply(500, JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'خطای داخلی سرور رخ داد.' } }), 'application/json');
+    const own = await api('/projects').catch((e) => e);
+    expect(own.body.code).toBe('INTERNAL_ERROR');
+    expect(own.message).toBe('خطای داخلی سرور رخ داد.');
+    reply(404, null);
+    expect((await api('/nowhere').catch((e) => e)).message).toBe('خطای 404');
+  });
+
+  it('says the same when the request reaches nothing at all, and lets an abort be an abort', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const none = await api('/projects').catch((e) => e);
+    expect(none).toBeInstanceOf(ApiError);
+    expect(none.status).toBe(0);
+    expect(none.message).toBe(UNREACHABLE);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new DOMException('aborted', 'AbortError'); }));
+    expect((await api('/projects').catch((e) => e)).name).toBe('AbortError');
+  });
+});

@@ -40,7 +40,9 @@ sign-ins are shown only to the person themselves and to the administrators of us
 
 **When the server cannot be reached.** If the app opens while the server is restarting or the network
 is down, it says «سرور در دسترس نیست» and tries again by itself; your session is kept, so there is
-no need to sign in again.
+no need to sign in again. Anything you send meanwhile — signing in, saving a form — says the same
+(«سرور در دسترس نیست؛ چند لحظهٔ دیگر دوباره تلاش کنید.») rather than an error number; try again once
+the server is back.
 
 **The screen.** The menu on the side can fold to a column of icons with the button beside the
 logo; hover over an icon to see its name. Each person's choice is remembered on their device. On a

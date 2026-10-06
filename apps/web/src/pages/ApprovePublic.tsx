@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Checkbox, Field, Input, Textarea } from '../components/ui';
 import { formatDateTime, formatNumber, localDigits } from '../lib/format';
 import { locale, tr, trx } from '../i18n';
+import { fallbackMessage } from '../lib/api';
 
 /*
  * Roadmap #35 — the page a client opens from the approval link. No account and no session: the
@@ -30,7 +31,7 @@ const CLOSED_FA: Record<string, string> = {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/v1/public/approvals/${path}`, { ...init, headers: { 'accept-language': locale(), ...(init?.body ? { 'content-type': 'application/json' } : {}) } });
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw Object.assign(new Error(trx(body?.error?.message) || tr('خطای {0}', res.status)), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(trx(body?.error?.message) || fallbackMessage(res.status)), { status: res.status });
   return body as T;
 }
 
@@ -73,7 +74,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
   const download = async (f: View['files'][number]) => {
     try {
       const res = await api.file(f.id);
-      if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(trx(b?.error?.message) || tr('خطای {0}', res.status)); }
+      if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(trx(b?.error?.message) || fallbackMessage(res.status)); }
       const href = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
       a.href = href; a.download = f.fileName;

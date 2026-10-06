@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Checkbox, Field, Input, Textarea } from '../components/ui';
 import { formatDateTime } from '../lib/format';
 import { locale, tr, trx } from '../i18n';
+import { fallbackMessage } from '../lib/api';
 
 /*
  * Roadmap #36 — the e-signature sandbox's signing page. It stands in for a provider's page so the
@@ -19,7 +20,7 @@ interface View {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/v1/esign/sandbox/${path}`, { ...init, headers: { 'accept-language': locale(), ...(init?.body ? { 'content-type': 'application/json' } : {}) } });
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw Object.assign(new Error(trx(body?.error?.message) || tr('خطای {0}', res.status)), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(trx(body?.error?.message) || fallbackMessage(res.status)), { status: res.status });
   return body as T;
 }
 
@@ -37,7 +38,7 @@ export default function ESignSandbox({ token }: { token: string }) {
 
   const download = async () => {
     const res = await fetch(`/api/v1/esign/sandbox/${token}/document`);
-    if (!res.ok) { setNote(tr('خطای {0}', res.status)); return; }
+    if (!res.ok) { setNote(fallbackMessage(res.status)); return; }
     const href = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
     a.href = href; a.download = view?.document.fileName ?? 'contract.pdf';
