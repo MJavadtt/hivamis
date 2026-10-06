@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet } from '../lib/api';
@@ -149,11 +150,13 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
     tr('حاشیهٔ سود پروژه‌های بسته‌شدهٔ این فصل چقدر بوده است؟'),
   ];
 
-  return (
-    <div className="fixed inset-0 z-[60] flex justify-end bg-ink-900/30" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <section ref={panel} className="flex h-full w-full max-w-md flex-col bg-surface shadow-xl" data-testid="assistant">
+  // At the root of the page: opened from the top bar, which is glass — and glass is the containing
+  // box of anything fixed inside it.
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex justify-end bg-ink-900/25 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <section ref={panel} className="bg-panel flex h-full w-full max-w-md flex-col shadow-2xl ring-1 ring-edge" data-testid="assistant">
         {/* Two rows: on a phone the title, the model and three controls do not fit on one. */}
-        <header className="border-b border-ink-200 px-4 py-3">
+        <header className="border-b border-ink-200/70 px-4 py-3">
           <div className="flex items-center gap-2">
             <OwlSvg size={30} mood={busy ? 'think' : 'idle'} />
             <div className="min-w-0 flex-1">
@@ -186,7 +189,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
                 <p className="text-sm text-ink-600">{tr('سلام! از کارها، پرونده‌ها، عددها یا حافظهٔ سازمان بپرسید. هرچه شما می‌بینید، من هم می‌بینم — نه بیشتر.')}</p>
                 {starters.map((s) => (
                   <button key={s} type="button" disabled={busy || !status?.ready} onClick={() => void send(s)}
-                    className="block w-full rounded-lg bg-ink-50 px-3 py-2 text-start text-sm text-ink-700 ring-1 ring-inset ring-ink-200 hover:bg-brand-50 hover:text-brand-800 disabled:opacity-50">
+                    className="block w-full rounded-lg bg-surface px-3 py-2 text-start text-sm text-ink-700 ring-1 ring-inset ring-ink-200 hover:bg-brand-50 hover:text-brand-800 disabled:opacity-50">
                     {s}
                   </button>
                 ))}
@@ -194,7 +197,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
             )}
             {messages.map((m, i) => (
               <div key={i} className={cx('flex', m.role === 'user' ? 'justify-start' : 'justify-end')}>
-                <div className={cx('max-w-[85%] rounded-2xl px-3.5 py-2.5', m.role === 'user' ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-800 ring-1 ring-inset ring-ink-200')}>
+                <div className={cx('max-w-[85%] rounded-2xl px-3.5 py-2.5', m.role === 'user' ? 'btn-accent' : 'bg-surface text-ink-800 ring-1 ring-inset ring-ink-200')}>
                   {m.tools.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap gap-1">
                       {[...new Set(m.tools)].filter((t) => TOOL_FA[t]).map((t) => <span key={t} className="rounded-full bg-surface px-2 py-0.5 text-[12px] text-ink-500 ring-1 ring-inset ring-ink-200">{TOOL_FA[t]}</span>)}
@@ -226,7 +229,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
             value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} dir="auto" maxLength={4000}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(draft); } }}
             placeholder={page.entity ? tr('دربارهٔ همین پرونده یا هر چیز دیگری بپرسید…') : tr('بپرسید…')} aria-label={tr('پیام به دستیار')}
-            className="min-h-10 flex-1 resize-none rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 focus:border-brand-400 focus:outline-none"
+            className="min-h-10 flex-1 resize-none rounded-lg bg-surface px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
           {busy
             ? <Button type="button" variant="secondary" onClick={() => abort.current?.abort()}>{tr('توقف')}</Button>
@@ -234,7 +237,8 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
         </form>
       </section>
       <OpenForm suggestion={form} onClose={() => setForm(null)} />
-    </div>
+    </div>,
+    document.body,
   );
 }
 

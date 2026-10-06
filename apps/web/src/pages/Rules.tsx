@@ -13,7 +13,7 @@ export default function Rules() {
   return (
     <>
       <PageHeader title={tr('قوانین سازمان')} subtitle={tr('قوانینی که بر گردش کار حاکم است — از Doc_H، از افزونه‌های نصب‌شده، و آنچه سازمان خودش نوشته')} />
-      <div className="border-b border-ink-200 bg-surface px-2">
+      <div className="mx-3 mt-3 rounded-xl bg-surface px-2 shadow-sm ring-1 ring-edge sm:mx-5 lg:mx-0 [&>[role=tablist]]:border-b-0">
         <Tabs active={tab} onChange={setTab} tabs={[{ key: 'org', label: tr('قوانین سازمان') }, { key: 'code', label: tr('Doc_H و افزونه‌ها') }]} />
       </div>
       <PageBody>

@@ -1,61 +1,90 @@
 # Design system
 
-Hivamis task 3. The interface follows the Figma community kit the organisation chose, "Main
-Dashboard" (Constructor X). The file was read directly: its variables (`Color Mode` in Light and
-Dark, `Radius`, `Font Size`, `Font Weight`, `Spacing`) are the source of the values below, and its
-dashboard frames (1600, 768 and 360 wide, light and dark) are the reference for layout.
+The interface has two sources:
+
+- **Structure.** The Figma community kit the organisation chose, "Main Dashboard" (Constructor X;
+  Hivamis task 3). The file was read directly. Its variables (`Color Mode` in Light and Dark,
+  `Radius`, `Font Size`, `Font Weight`, `Spacing`) and its dashboard frames (1600, 768 and 360 wide,
+  light and dark) set the layout and the components.
+- **Look.** The refresh asked for on the third list (item 7): glass over a soft pastel light, in
+  both themes.
 
 All values live as tokens in `apps/web/src/index.css`. Dark mode redefines the tokens only, so no
 component carries its own dark style. The status tints are the one exception (see below).
 
+## Light and glass
+
+- **The light.** Five pastel glows (lavender, blush, mint, sky, apricot) are painted once, fixed,
+  behind everything (`body::before`), over a pale `canvas`. At night the canvas is a deep indigo and
+  the same glows are turned low.
+- **Glass.** Cards and panels are `bg-surface`: white at 58% (night: indigo at 55%), blurred and
+  saturated over the light (`backdrop-filter`), with a bright `edge` ring and a soft violet-tinted
+  shadow (`shadow-glass`). Every `rounded-xl bg-surface` element, and anything marked `.glass`, is
+  blurred.
+- **Overlays** (dialogs, drawers, menus, popovers, the owl's panels) use `bg-panel`: white at 90%
+  (night: 94%). Over a dimmed page, the text keeps its contrast.
+- **Transparency** turns solid where the reader has asked for less transparency
+  (`prefers-reduced-transparency`) or the browser cannot blur.
+- **Containing box.** Blur makes a panel the containing box of anything `fixed` inside it. So every
+  full-screen overlay is rendered at the root of the page: `Modal`, the assistant, the written guide.
+
 ## Colour
 
-| Token | Light | Dark | From the kit |
+| Token | Light | Dark | Use |
 |---|---|---|---|
-| `canvas`: the page | `#ffffff` | `#010101` | Background/background-0 |
-| `surface`: cards, panels, inputs | `#ffffff` | `#1a1a1a` | Base/base-0 |
-| `ink-50` / `ink-100`: subtle fills, hover, table header | `#f7f7f7` / `#f2f2f2` | `#1f1f1f` / `#262626` | base-30, base-50 |
-| `ink-200`: every border and divider | `#e6e6e6` | `#333333` | base-100 |
-| `ink-400`: placeholders, quiet icons | `#999999` | `#808080` | base-400 |
-| `ink-500`: secondary text | `#737373` | `#a6a6a6` | base-550, one step darker than the kit's base-500, so small grey text keeps 4.5:1 on white |
-| `ink-600` … `ink-800`: body text | `#666666` … `#333333` | `#cccccc` … `#f2f2f2` | base-600 … base-800 |
-| `ink-900`: headings, and the main button | `#010101` | `#ffffff` | base-900 |
-| `brand-*`: links, focus, selection, charts | blue, `brand-600` = `#2563eb` | lifted, `brand-600` = `#3b82f6` | Primary (Blue mode) |
-
-The kit offers other primaries (Pink, Indigo, Emerald) and grey themes (Blue Gray, Yellow Gray).
-Changing the `brand-*` or `ink-*` values in `index.css` switches the whole interface to one of them.
+| `canvas` | `#f5f3fb` | `#0d0c1a` | the page, under the light |
+| `surface` | white 58% | indigo 55% | glass: cards, panels, controls |
+| `panel` | white 90% | indigo 94% | overlays |
+| `edge` | white 85% | white 9% | the lit edge of glass |
+| `ink-50` … `ink-900` | `#f7f6fc` … `#16142a` | `#1c1a30` … `#ffffff` | neutrals with a breath of violet; `ink-500` keeps 4.5:1 on the glass |
+| `brand-*` | periwinkle, `brand-600` = `#5d4ee0` | lifted, `brand-600` = `#988cff` | links, focus, selection, tints |
+| `--grad-accent` | violet `#6c5bf0` → blue `#3f84e8` | the same | the main action (`.btn-accent`), the logo, the user's chat bubble |
+| `--grad-soft` | the accent at 16% → 10% | at 24% → 14% | the chosen item (`.soft-selected`): menu, tab, guide section |
 
 ## Shape, type and elevation
 
-- **Cards are square**, with a 1px `ink-200` border and the kit's one shadow (`0 1px 2px` grey at
-  10%). In Tailwind terms `rounded-xl` is the card radius, and it is 0. Controls keep 8px
-  (`rounded-lg`), small marks 6px and 4px, avatars and icon buttons are round.
-- **Controls are 32px.** Buttons are 32 (28 small). The main action is the kit's dark button:
-  black on light, white on dark, with a faint blue glow. Others are outlined (`secondary`) or bare
-  (`ghost`). Inputs are 32 with the shadow.
+- **Glass is rounded.** Cards are 20px (`rounded-xl`), controls 12px (`rounded-lg`), small marks 8px.
+  Status badges are pills. The kit's cards were square; the glass refresh replaced that.
+- **Controls** are 32–36px. The main action is the accent gradient with white text. Others are glass
+  with an edge (`secondary`) or bare (`ghost`). Fields are glass and turn near-opaque while focused.
+  Search is a pill.
 - **Type.** The typeface is Ray (Maryamsoft; the organisation holds the licence), one variable font
-  for Persian and Latin, weights 300–950, served from `public/fonts/Ray-VF.woff`; Vazirmatn
-  (self-hosted, SIL OFL) is the fallback. The kit's typeface is Inter, which has no Persian. The kit
-  sets small labels at 10–12px; Persian at that size was hard to read, so the floor is 12px and the
-  scale is raised: `text-xs` 13px on a 20px line, `text-sm` 15px on 24px. No component sets a size
-  below 12px.
-- **Layers.** Page popovers sit at z-50; the owl and its tour at 54–56; drawers (the assistant, the
-  written guide) at z-[60], above the owl; dialogs at z-[70], rendered into the document body so a
-  dialog opened from the sidebar is never confined to the sidebar; toasts at z-[80].
-- **Tabs** are bold grey labels; the selected one sits in an outlined box, with no underline.
+  for Persian and Latin, weights 300–950, served from `public/fonts/Ray-VF.woff`. Vazirmatn
+  (self-hosted, SIL OFL) is the fallback. The scale is raised: `text-xs` 13px on a 20px line,
+  `text-sm` 15px on 24px. Nothing is set below 12px, and chart labels are set in Ray.
+- **Layers.**
+  - Page popovers: z-50.
+  - The owl and its tour: 54–56.
+  - Drawers (the assistant, the written guide): z-[60], above the owl.
+  - Dialogs: z-[70], rendered into the document body.
+  - Toasts: z-[80].
+- **Tabs** are bold grey labels; the chosen one sits in the soft wash of the accent. Page-level tabs
+  sit on a glass strip of their own.
 - **Status colours** keep the platform's one status scale (neutral, blue, amber, green, red). The
-  rose, amber, emerald and sky palettes are tokens too: in the dark their tints (50–200) are the
-  colour washed over the card and their text shades (700–900) light, so every badge and notice box
-  reads there. Fills (600) keep their colour.
+  rose, amber, emerald and sky palettes are tokens too. In the dark, their tints (50–200) are the
+  colour washed over the card and their text shades (700–900) are light, so every badge and notice
+  box reads there. Fills (600) keep their colour.
 
-## Layout
+## Layout and the kit's components
 
-- **Sidebar**, 248px: the logo, navigation in labelled groups (32px items with 18px icons), and the
-  person's card at the foot. On a desktop it folds to a 64px rail of icons; each viewer's choice is
-  remembered on their device.
-- **Top bar**, 64px: search at the start, icon buttons and the dark «+» at the end. On a phone the bar shows the menu, the logo and the essential icons, and search
-  opens over the bar.
-- **Content** is a centred column (up to 1400px). Each page starts with a head line (title,
-  subtitle, actions) over a hairline.
+- **Sidebar**, 248px: the logo, navigation in labelled groups, and the person's card at the foot.
+  - On a desktop it is a floating pane of glass and folds to a 64px rail of icons; each viewer's
+    choice is remembered on their device.
+  - As in the kit, an item shows a count where something waits: «کارهای من» shows everything in the
+    queue, «فرم‌ها» the forms waiting for the person's decision. The counts come from the same query
+    the queue reads, kept fresh by the live channel.
+- **Top bar**, 64px, a pane of glass: search at the start, icon buttons and the gradient «+» at the
+  end. On a phone the bar shows the menu, the logo and the essential icons, and search opens over
+  the bar.
+- **Page head.** As in the kit's "Name Project" box, each page starts with its title, subtitle and
+  actions in a pane of their own.
+- **Metric tiles.** The icon sits on a pastel tile in the tone's colour, then the label and the
+  figure; the hint sits in a footer row under a hairline, where the kit sets its trend line.
+- **Cards.** A header (title, subtitle, action) and, as in the kit, an optional footer bar
+  ("View more" and the like), held to the bottom when the card is stretched to its row. The
+  dashboard's tasks and projects cards use it.
+- **Page footer.** As in the kit: the product, the year (Solar Hijri in Persian), and links to the
+  guide, the organisation's rules and the person's own page. Its far end is left clear for the owl.
+- **Content** is a centred column, up to 1400px.
 - **Charts** follow the kit's cards. The half gauge (`components/Gauge.tsx`) shows a share with a
   legend of dots; the dashboard uses it for the deadlines on track.

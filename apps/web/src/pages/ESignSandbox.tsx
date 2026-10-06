@@ -51,7 +51,7 @@ export default function ESignSandbox({ token }: { token: string }) {
   };
 
   const shell = (children: React.ReactNode) => (
-    <div className="min-h-full bg-ink-50 px-4 py-8" dir="rtl">
+    <div className="min-h-full px-4 py-8" dir="rtl">
       <main className="mx-auto max-w-2xl space-y-4 rounded-xl bg-surface p-5 shadow-sm ring-1 ring-ink-200 sm:p-7">
         <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900" data-testid="esign-sandbox-banner">{tr('محیط آزمایشی امضای الکترونیکی — آنچه اینجا «امضا» می‌شود امضای حقوقی نیست.')}</p>
         {children}

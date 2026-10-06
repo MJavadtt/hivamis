@@ -44,12 +44,19 @@
 }
 
 /*
-  Design tokens — Hivamis task 3, after the Figma kit the organisation chose ("Main Dashboard",
-  Constructor X): a neutral grey ramp for structure, one blue for interaction, black for the main
-  action, hairline borders and square cards. The values are the kit's own variables (Base/base-*,
-  Primary/primary-*, Background/*), resolved for its Light and Dark modes. One deliberate
-  departure: secondary text (ink-500) is one step darker than the kit's base-500, so small grey
-  text on white keeps a 4.5:1 contrast.
+  Design tokens. The structure is the Figma kit the organisation chose ("Main Dashboard",
+  Constructor X; Hivamis task 3): the sidebar and its rail, the top bar, the metric tiles with their
+  footer, cards with a header and a footer, the half gauge. The look is the refresh asked for on
+  the third list: glass over a soft pastel light.
+
+  - The page is a pale wash with pastel glows (lavender, blush, mint, sky, apricot) painted once,
+    behind everything (`body::before`).
+  - Cards and panels are frosted glass: a translucent `surface` blurred over the glow, a bright
+    edge, and a soft violet-tinted shadow. Overlays (dialogs, drawers, menus) use `panel`, nearly
+    opaque, so text over a dimmed page keeps its contrast.
+  - The neutrals lean faintly violet; the accent is a periwinkle that holds 4.5:1 for text on the
+    glass. The main action is a violet-to-blue gradient.
+  - Dark mode keeps the same idea at night: a deep indigo with the glows turned low.
 */
 @theme {
   --font-sans: 'Ray', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -60,52 +67,68 @@
   --text-sm: 0.9375rem;
   --text-sm--line-height: 1.5rem;
 
-  /* Primary/primary-* — the kit's Blue mode. */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
+  /* The accent: periwinkle. 600 and 700 are the text and link shades; 50–200 the pastel tints. */
+  --color-brand-50: #f4f2ff;
+  --color-brand-100: #e9e5ff;
+  --color-brand-200: #d6cfff;
+  --color-brand-300: #b8acff;
+  --color-brand-400: #9686fb;
+  --color-brand-500: #7a69f2;
+  --color-brand-600: #5d4ee0;
+  --color-brand-700: #4b3ec4;
+  --color-brand-800: #3b3299;
+  --color-brand-900: #2d2874;
 
-  /* Base/base-* — Neutral Gray, light mode. */
-  --color-ink-50: #f7f7f7;
-  --color-ink-100: #f2f2f2;
-  --color-ink-200: #e6e6e6;
-  --color-ink-300: #cccccc;
-  --color-ink-400: #999999;
-  --color-ink-500: #737373;
-  --color-ink-600: #666666;
-  --color-ink-700: #4d4d4d;
-  --color-ink-800: #333333;
-  --color-ink-900: #010101;
+  /* Neutrals with a breath of violet, from the lightest fill to the darkest text. */
+  --color-ink-50: #f7f6fc;
+  --color-ink-100: #efedf8;
+  --color-ink-200: #e3e0f1;
+  --color-ink-300: #cac6de;
+  --color-ink-400: #9a96b5;
+  --color-ink-500: #696584;
+  --color-ink-600: #57536f;
+  --color-ink-700: #423e59;
+  --color-ink-800: #2c2942;
+  --color-ink-900: #16142a;
 
-  /* Cards and panels (Base/base-0), and the page beneath them (Background/background-0). A token
-     rather than bare `bg-white`, so dark mode redefines one value instead of forking every component. */
-  --color-surface: #ffffff;
-  --color-canvas: #ffffff;
+  /* The page, the glass over it, the near-opaque glass of overlays, and the bright glass edge. */
+  --color-canvas: #f5f3fb;
+  --color-surface: rgb(255 255 255 / 0.58);
+  --color-panel: rgb(255 255 255 / 0.9);
+  --color-edge: rgb(255 255 255 / 0.85);
+  /* Text on the main-action gradient and on the dark logo tile. */
+  --color-on-accent: #ffffff;
 
-  /* The kit's one shadow (Shadows/shadow-base): a hairline lift under cards, inputs and buttons. */
-  --shadow-sm: 0 1px 2px 0 rgb(128 128 128 / 0.1);
+  /* A lit top edge and a soft, violet-tinted lift. */
+  --shadow-sm: inset 0 1px 0 0 rgb(255 255 255 / 0.55), 0 1px 2px 0 rgb(70 56 160 / 0.06), 0 10px 28px -14px rgb(70 56 160 / 0.22);
+  --shadow-glass: inset 0 1px 0 0 rgb(255 255 255 / 0.7), 0 1px 2px 0 rgb(70 56 160 / 0.05), 0 18px 48px -20px rgb(70 56 160 / 0.28);
 
-  /* Cards are square in the kit (its Radius "Default" mode): rounded-xl is the card radius here.
-     Controls keep 8px (rounded-lg), small marks 6px and 4px. */
-  --radius-xl: 0rem;
+  /* Glass is rounded: cards 20px, controls 12px, small marks 8px. */
+  --radius-xl: 1.25rem;
+  --radius-lg: 0.75rem;
+  --radius-md: 0.625rem;
+  --radius-sm: 0.5rem;
 }
 
 :root {
   color-scheme: light;
+  /* The glows behind the glass. */
+  --glow-1: rgb(196 182 255 / 0.95);
+  --glow-2: rgb(255 196 220 / 0.9);
+  --glow-3: rgb(178 238 214 / 0.9);
+  --glow-4: rgb(186 214 255 / 0.95);
+  --glow-5: rgb(255 220 178 / 0.8);
+  /* The main action. */
+  --grad-accent: linear-gradient(135deg, #6c5bf0 0%, #5a6ff2 48%, #3f84e8 100%);
+  --grad-accent-hover: linear-gradient(135deg, #7b6bf5 0%, #6a7ef6 48%, #4b90ee 100%);
+  /* The soft gradient of a selected item. */
+  --grad-soft: linear-gradient(90deg, rgb(122 105 242 / 0.16), rgb(63 132 232 / 0.1));
+  --glass-blur: blur(22px) saturate(1.6);
 }
 
 /*
- * Dark mode redefines TOKENS ONLY — no component style is forked. The ink scale is the neutral
- * ramp from lightest background to darkest text, so inverting it flips the whole interface:
- * bg-ink-50 becomes a dark surface and text-ink-800 becomes light, with every ring, border and
- * muted-text class following automatically. The values are the kit's Dark mode.
+ * Dark mode redefines TOKENS ONLY — no component style is forked. The ink scale runs from the
+ * lightest fill to the darkest text, so inverting it flips the whole interface.
  *
  * Driven by data-theme on <html>, set by the theme provider. Three states: light, dark, and
  * system (the attribute is absent, so the prefers-color-scheme block below applies).
@@ -114,34 +137,44 @@
   [data-theme='dark'] {
     color-scheme: dark;
 
-    --color-surface: #1a1a1a;
-    --color-canvas: #010101;
+    --color-canvas: #0d0c1a;
+    --color-surface: rgb(36 33 62 / 0.55);
+    --color-panel: rgb(26 24 47 / 0.94);
+    --color-edge: rgb(255 255 255 / 0.09);
+    --color-on-accent: #ffffff;
 
-    --color-ink-50: #1f1f1f;
-    --color-ink-100: #262626;
-    --color-ink-200: #333333;
-    --color-ink-300: #4d4d4d;
-    --color-ink-400: #808080;
-    --color-ink-500: #a6a6a6;
-    --color-ink-600: #cccccc;
-    --color-ink-700: #e6e6e6;
-    --color-ink-800: #f2f2f2;
+    --color-ink-50: #1c1a30;
+    --color-ink-100: #24223b;
+    --color-ink-200: #34314f;
+    --color-ink-300: #4a4669;
+    --color-ink-400: #7f7ba2;
+    --color-ink-500: #aaa6c8;
+    --color-ink-600: #c8c5e0;
+    --color-ink-700: #dfddef;
+    --color-ink-800: #efedf8;
     --color-ink-900: #ffffff;
 
-    /* The kit lifts its primary in the dark (600 → blue-500); the 50–200 tints are its alpha
-       steps laid over the dark card, so subtle fills stay subtle. */
-    --color-brand-50: #1b212f;
-    --color-brand-100: #1c2944;
-    --color-brand-200: #1d3059;
-    --color-brand-300: #1d4ed8;
-    --color-brand-400: #2563eb;
-    --color-brand-500: #60a5fa;
-    --color-brand-600: #3b82f6;
-    --color-brand-700: #93c5fd;
-    --color-brand-800: #bfdbfe;
-    --color-brand-900: #dbeafe;
+    /* The tints are the accent washed over the dark glass; the text shades are lifted. */
+    --color-brand-50: #221d45;
+    --color-brand-100: #2a2356;
+    --color-brand-200: #372d73;
+    --color-brand-300: #4d40b0;
+    --color-brand-400: #6a5be6;
+    --color-brand-500: #8a7cf6;
+    --color-brand-600: #988cff;
+    --color-brand-700: #bdb4ff;
+    --color-brand-800: #dad5ff;
+    --color-brand-900: #efecff;
 
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-sm: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 12px 30px -16px rgb(0 0 0 / 0.6);
+    --shadow-glass: inset 0 1px 0 0 rgb(255 255 255 / 0.07), 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 20px 50px -24px rgb(0 0 0 / 0.7);
+
+    --glow-1: rgb(108 82 255 / 0.34);
+    --glow-2: rgb(236 72 153 / 0.18);
+    --glow-3: rgb(20 184 166 / 0.18);
+    --glow-4: rgb(59 130 246 / 0.24);
+    --glow-5: rgb(245 158 11 / 0.1);
+    --grad-soft: linear-gradient(90deg, rgb(138 124 246 / 0.24), rgb(63 132 232 / 0.14));
 
     /* The status palettes (Hivamis task 10): a notice box or badge is a pale tint with dark text on
        white; in the dark, the tint is the colour washed over the card and the text its light shade.
@@ -176,32 +209,43 @@
     :root:not([data-theme='light']) {
       color-scheme: dark;
 
-      --color-surface: #1a1a1a;
-      --color-canvas: #010101;
+      --color-canvas: #0d0c1a;
+      --color-surface: rgb(36 33 62 / 0.55);
+      --color-panel: rgb(26 24 47 / 0.94);
+      --color-edge: rgb(255 255 255 / 0.09);
+      --color-on-accent: #ffffff;
 
-      --color-ink-50: #1f1f1f;
-      --color-ink-100: #262626;
-      --color-ink-200: #333333;
-      --color-ink-300: #4d4d4d;
-      --color-ink-400: #808080;
-      --color-ink-500: #a6a6a6;
-      --color-ink-600: #cccccc;
-      --color-ink-700: #e6e6e6;
-      --color-ink-800: #f2f2f2;
+      --color-ink-50: #1c1a30;
+      --color-ink-100: #24223b;
+      --color-ink-200: #34314f;
+      --color-ink-300: #4a4669;
+      --color-ink-400: #7f7ba2;
+      --color-ink-500: #aaa6c8;
+      --color-ink-600: #c8c5e0;
+      --color-ink-700: #dfddef;
+      --color-ink-800: #efedf8;
       --color-ink-900: #ffffff;
 
-      --color-brand-50: #1b212f;
-      --color-brand-100: #1c2944;
-      --color-brand-200: #1d3059;
-      --color-brand-300: #1d4ed8;
-      --color-brand-400: #2563eb;
-      --color-brand-500: #60a5fa;
-      --color-brand-600: #3b82f6;
-      --color-brand-700: #93c5fd;
-      --color-brand-800: #bfdbfe;
-      --color-brand-900: #dbeafe;
+      --color-brand-50: #221d45;
+      --color-brand-100: #2a2356;
+      --color-brand-200: #372d73;
+      --color-brand-300: #4d40b0;
+      --color-brand-400: #6a5be6;
+      --color-brand-500: #8a7cf6;
+      --color-brand-600: #988cff;
+      --color-brand-700: #bdb4ff;
+      --color-brand-800: #dad5ff;
+      --color-brand-900: #efecff;
 
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+      --shadow-sm: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 12px 30px -16px rgb(0 0 0 / 0.6);
+      --shadow-glass: inset 0 1px 0 0 rgb(255 255 255 / 0.07), 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 20px 50px -24px rgb(0 0 0 / 0.7);
+
+      --glow-1: rgb(108 82 255 / 0.34);
+      --glow-2: rgb(236 72 153 / 0.18);
+      --glow-3: rgb(20 184 166 / 0.18);
+      --glow-4: rgb(59 130 246 / 0.24);
+      --glow-5: rgb(245 158 11 / 0.1);
+      --grad-soft: linear-gradient(90deg, rgb(138 124 246 / 0.24), rgb(63 132 232 / 0.14));
 
       /* The status palettes (Hivamis task 10): a notice box or badge is a pale tint with dark text on
          white; in the dark, the tint is the colour washed over the card and the text its light shade.
@@ -234,6 +278,64 @@
   }
 }
 
+/* ── Glass ──────────────────────────────────────────────────────────────── */
+
+/* The light behind the glass: painted once, fixed, under everything. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(44rem 34rem at 92% -8%, var(--glow-1), transparent 62%),
+    radial-gradient(36rem 30rem at -6% 18%, var(--glow-4), transparent 60%),
+    radial-gradient(40rem 32rem at 55% 108%, var(--glow-3), transparent 62%),
+    radial-gradient(30rem 26rem at 8% 96%, var(--glow-2), transparent 60%),
+    radial-gradient(26rem 22rem at 70% 42%, var(--glow-5), transparent 64%),
+    var(--color-canvas);
+}
+
+@layer components {
+  /* Frosted glass: every card and panel, and anything drawn on the near-opaque overlay glass. */
+  .glass,
+  .rounded-xl.bg-surface,
+  .rounded-2xl.bg-surface,
+  .bg-panel {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* The main action: violet into blue, white text, a soft glow of its own colour. */
+  .btn-accent {
+    background-image: var(--grad-accent);
+    color: var(--color-on-accent);
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.25), 0 6px 18px -6px rgb(93 78 224 / 0.55);
+  }
+  .btn-accent:hover {
+    background-image: var(--grad-accent-hover);
+  }
+
+  /* A chosen item in a list or menu: a soft wash of the accent. */
+  .soft-selected {
+    background-image: var(--grad-soft);
+    color: var(--color-brand-800);
+    box-shadow: inset 0 0 0 1px rgb(122 105 242 / 0.18);
+  }
+}
+
+/* Where transparency is unwelcome or unsupported, the glass turns solid. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --color-surface: var(--color-panel);
+    --glass-blur: none;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --color-surface: var(--color-panel);
+  }
+}
+
 html,
 body,
 #root {
@@ -244,6 +346,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   background-color: var(--color-canvas);
+  isolation: isolate;
   color: var(--color-ink-800);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'ss02';
@@ -266,7 +369,7 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-canvas);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-ink-300);

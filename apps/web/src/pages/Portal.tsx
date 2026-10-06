@@ -53,7 +53,7 @@ function useLoad<T>(path: string) {
 
 export default function PortalApp() {
   return (
-    <div className="min-h-full bg-ink-50" dir="rtl">
+    <div className="min-h-full" dir="rtl">
       <Routes>
         <Route path="/portal/login" element={<SignIn />} />
         <Route path="/portal/invite/:token" element={<AcceptInvite />} />

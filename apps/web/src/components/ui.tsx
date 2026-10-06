@@ -39,7 +39,7 @@ export function StateBadge({ state, className }: { state: string; className?: st
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
         TONE_CLASSES[meta.tone],
         className,
       )}
@@ -51,7 +51,7 @@ export function StateBadge({ state, className }: { state: string; className?: st
 
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return (
-    <span className={cx('inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', TONE_CLASSES[tone], className)}>
+    <span className={cx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', TONE_CLASSES[tone], className)}>
       {children}
     </span>
   );
@@ -61,11 +61,11 @@ export function Badge({ children, tone = 'neutral', className }: { children: Rea
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
 
-/* The kit's buttons: the main action is its "Dark Button" — black on light, white on dark, since
-   ink-900 and surface swap with the theme — with a faint blue glow; the rest are outlined or bare. */
+/* The kit's button set — one main action, the rest outlined or bare — in the glass look: the main
+   action is the violet-to-blue gradient with white text; the outlined one is glass with an edge. */
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-ink-900 text-surface ring-1 ring-inset ring-ink-800 hover:bg-ink-800 focus-visible:outline-brand-600 shadow-[0_1px_4px_0_rgb(37_99_235/0.2)]',
-  secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-200 shadow-sm hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
+  primary: 'btn-accent focus-visible:outline-brand-600',
+  secondary: 'bg-surface text-ink-700 ring-1 ring-inset ring-ink-200 shadow-sm hover:bg-panel hover:text-ink-900 focus-visible:outline-brand-600',
   ghost: 'text-ink-600 hover:bg-ink-50 hover:text-ink-900 focus-visible:outline-brand-600',
   danger: 'bg-rose-600 text-white hover:bg-rose-500 focus-visible:outline-rose-600 shadow-sm',
   subtle: 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-100 hover:bg-brand-100 focus-visible:outline-brand-600',
@@ -83,7 +83,7 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
       {...rest}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-colors',
+        'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-[color,background-color,box-shadow,filter]',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         'disabled:opacity-50 disabled:pointer-events-none',
         size === 'sm' ? 'px-2.5 py-1 text-xs leading-5' : 'px-3 py-1.5 text-[14px] leading-5',
@@ -104,23 +104,26 @@ export function Button({ variant = 'secondary', size = 'md', loading, className,
 
 /* ── Surfaces ──────────────────────────────────────────────────────────── */
 
-export function Card({ children, className, title, action, subtitle, tour }: {
+export function Card({ children, className, title, action, subtitle, footer, tour }: {
   children: ReactNode; className?: string; title?: ReactNode; subtitle?: ReactNode; action?: ReactNode;
+  /** The kit's card footer: «View more» and the like, under a hairline. */
+  footer?: ReactNode;
   /** Where the guide's tour may point (Hivamis task 8). */
   tour?: string;
 }) {
   return (
-    <section data-tour={tour} className={cx('rounded-xl bg-surface ring-1 ring-ink-200 shadow-sm', className)}>
+    <section data-tour={tour} className={cx('flex flex-col rounded-xl bg-surface ring-1 ring-edge shadow-glass', className)}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 border-b border-ink-200 px-5 py-3.5">
+        <header className="flex items-start justify-between gap-3 border-b border-ink-200/70 px-5 py-3.5">
           <div className="min-w-0">
-            {title && <h2 className="text-[14px] font-bold text-ink-800">{title}</h2>}
+            {title && <h2 className="text-[15px] font-bold text-ink-800">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-xs font-medium text-ink-500">{subtitle}</p>}
           </div>
           {action}
         </header>
       )}
       {children}
+      {footer && <footer className="mt-auto flex items-center justify-between gap-3 border-t border-ink-200/70 px-5 py-3 text-xs font-semibold text-ink-600">{footer}</footer>}
     </section>
   );
 }
@@ -132,15 +135,23 @@ export function StatTile({ label, value, hint, tone = 'neutral', icon }: {
     neutral: 'text-ink-900', info: 'text-sky-700', progress: 'text-brand-700',
     warning: 'text-amber-700', success: 'text-emerald-700', danger: 'text-rose-700',
   };
-  // The kit's metric card: an outlined round icon, a small bold label, the figure.
+  // Each tone has its own pastel tile behind the icon; a neutral figure takes the accent's.
+  const tile: Record<Tone, string> = {
+    neutral: 'bg-brand-100 text-brand-700', info: 'bg-sky-100 text-sky-700', progress: 'bg-brand-100 text-brand-700',
+    warning: 'bg-amber-100 text-amber-700', success: 'bg-emerald-100 text-emerald-700', danger: 'bg-rose-100 text-rose-700',
+  };
+  // The kit's metric card: the icon, a small bold label, the figure — and the hint in a footer row
+  // under a hairline, as the kit sets its trend line.
   return (
-    <div className="flex h-full items-start gap-4 rounded-xl bg-surface p-5 ring-1 ring-ink-200 shadow-sm">
-      {icon && <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface text-ink-500 ring-1 ring-ink-200 [&>svg]:size-5">{icon}</span>}
-      <div className="min-w-0">
-        <p className="text-xs font-bold text-ink-500">{label}</p>
-        <p className={cx('mt-1 text-xl font-semibold nums', accent[tone])}>{value}</p>
-        {hint && <p className="mt-1 text-xs font-semibold text-ink-500">{hint}</p>}
+    <div className="flex h-full flex-col rounded-xl bg-surface ring-1 ring-edge shadow-glass">
+      <div className="flex flex-1 items-start gap-4 p-5">
+        {icon && <span className={cx('grid size-11 shrink-0 place-items-center rounded-lg shadow-sm [&>svg]:size-5', tile[tone])}>{icon}</span>}
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-ink-500">{label}</p>
+          <p className={cx('mt-1 text-2xl font-bold nums', accent[tone])}>{value}</p>
+        </div>
       </div>
+      {hint && <p className="border-t border-ink-200/70 px-5 py-2.5 text-xs font-semibold text-ink-500">{hint}</p>}
     </div>
   );
 }
@@ -229,7 +240,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role="status"
             className={cx(
-              'animate-in pointer-events-auto rounded-lg px-3.5 py-2.5 text-sm shadow-lg ring-1 ring-inset',
+              'bg-panel animate-in pointer-events-auto rounded-lg px-3.5 py-2.5 text-sm font-semibold shadow-glass ring-1 ring-inset',
               TONE_CLASSES[t.tone],
             )}
           >
@@ -259,7 +270,7 @@ export function Field({ label, required, hint, error, children }: {
   );
 }
 
-const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-1.5 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 disabled:bg-ink-50 disabled:text-ink-500';
+const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-2 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:bg-panel focus:ring-2 focus:ring-inset focus:ring-brand-500 disabled:bg-ink-50 disabled:text-ink-500';
 
 /** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
@@ -315,7 +326,7 @@ export const Td = ({ children, className, title }: { children?: ReactNode; class
 export const Tr = ({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) => (
   <tr
     onClick={onClick}
-    className={cx('border-t border-ink-200', onClick && 'cursor-pointer hover:bg-ink-50', className)}
+    className={cx('border-t border-ink-200/70', onClick && 'cursor-pointer hover:bg-brand-50/60', className)}
   >
     {children}
   </tr>
@@ -358,7 +369,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
   // sidebar slides on a transform) was otherwise confined to that container's box — the messenger
   // opened 200px wide inside the menu (Hivamis, the second sweep). Above drawers, below toasts.
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 pt-12 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink-900/30 p-4 pt-12 backdrop-blur-sm">
       {/* Visual scrim only; dismissal is the hook's outside-click, so there is one path. */}
       <div className="absolute inset-0" aria-hidden />
       <div
@@ -366,16 +377,16 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cx('animate-in relative w-full rounded-xl bg-surface shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
+        className={cx('bg-panel animate-in relative w-full rounded-xl shadow-2xl ring-1 ring-edge', wide ? 'max-w-3xl' : 'max-w-lg')}
       >
-        <header className="flex items-center justify-between border-b border-ink-200 px-5 py-4">
+        <header className="flex items-center justify-between border-b border-ink-200/70 px-5 py-4">
           <h2 className="text-sm font-bold text-ink-800">{title}</h2>
           <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-600" aria-label={tr('بستن')}>
             <IconClose className="size-4" />
           </button>
         </header>
         <div className="max-h-[65vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-ink-200 px-5 py-3">{footer}</footer>}
+        {footer && <footer className="flex justify-end gap-2 border-t border-ink-200/70 px-5 py-3">{footer}</footer>}
       </div>
     </div>,
     document.body,
@@ -402,8 +413,8 @@ export function Tabs({ tabs, active, onChange }: {
     else if (er.right > sr.right) s.scrollLeft += er.right - sr.right;
   }, [active]);
   return (
-    // The kit's tab group: bold grey labels; the chosen one sits in an outlined box.
-    <div ref={strip} data-tour="tabs" className="flex gap-1 overflow-x-auto border-b border-ink-200 px-1 py-2" role="tablist">
+    // The kit's tab group: bold grey labels; the chosen one sits in a soft wash of the accent.
+    <div ref={strip} data-tour="tabs" className="flex gap-1 overflow-x-auto border-b border-ink-200/70 px-1 py-2" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.key}
@@ -411,13 +422,13 @@ export function Tabs({ tabs, active, onChange }: {
           aria-selected={active === t.key}
           onClick={() => onChange(t.key)}
           className={cx(
-            'whitespace-nowrap rounded-md px-3 py-1.5 text-[14px] font-bold transition-colors',
-            active === t.key ? 'bg-surface text-ink-900 shadow-sm ring-1 ring-inset ring-ink-200' : 'text-ink-500 hover:bg-ink-50 hover:text-ink-800',
+            'whitespace-nowrap rounded-lg px-3 py-1.5 text-[14px] font-bold transition-colors',
+            active === t.key ? 'soft-selected' : 'text-ink-500 hover:bg-surface hover:text-ink-800',
           )}
         >
           {t.label}
           {t.count !== undefined && t.count > 0 && (
-            <span className="ms-1.5 rounded-sm bg-ink-100 px-1.5 py-0.5 text-[12.5px] nums text-ink-600">
+            <span className="ms-1.5 rounded-full bg-surface px-1.5 py-0.5 text-[12.5px] nums text-ink-600 ring-1 ring-inset ring-ink-200">
               {localDigits(t.count)}
             </span>
           )}
@@ -429,11 +440,11 @@ export function Tabs({ tabs, active, onChange }: {
 
 export function ProgressBar({ value, tone = 'progress' }: { value: number; tone?: Tone }) {
   const fill: Record<Tone, string> = {
-    neutral: 'bg-ink-400', info: 'bg-sky-500', progress: 'bg-brand-500',
+    neutral: 'bg-ink-400', info: 'bg-sky-500', progress: 'bg-linear-to-l from-brand-500 to-sky-400',
     warning: 'bg-amber-500', success: 'bg-emerald-500', danger: 'bg-rose-500',
   };
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+    <div className="h-2 w-full overflow-hidden rounded-full bg-ink-200/70" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
       <div className={cx('h-full rounded-full transition-[width]', fill[tone])} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </div>
   );
@@ -441,7 +452,7 @@ export function ProgressBar({ value, tone = 'progress' }: { value: number; tone?
 
 /** Definition row used across the 360 views. */
 export const DescRow = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex items-start justify-between gap-4 border-b border-ink-100 py-2 last:border-0">
+  <div className="flex items-start justify-between gap-4 border-b border-ink-200/60 py-2 last:border-0">
     <dt className="shrink-0 text-xs text-ink-500">{label}</dt>
     <dd className="min-w-0 text-end text-sm text-ink-800">{children}</dd>
   </div>

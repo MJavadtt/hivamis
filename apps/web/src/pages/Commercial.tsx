@@ -173,7 +173,7 @@ export function Finance() {
             {can('finance.invoice') && <Button variant="primary" onClick={() => setIssuing(true)}>{tr('صدور سند مالی')}</Button>}
           </div>
         } />
-      <div className="border-b border-ink-200 bg-surface px-2">
+      <div className="mx-3 mt-3 rounded-xl bg-surface px-2 shadow-sm ring-1 ring-edge sm:mx-5 lg:mx-0 [&>[role=tablist]]:border-b-0">
         <Tabs tabs={[{ key: 'docs', label: tr('اسناد و تراکنش‌ها') }, { key: 'moadian', label: tr('سامانهٔ مؤدیان') }, { key: 'accounting', label: tr('خروجی حسابداری') }, { key: 'rates', label: tr('نرخ ارز') }, { key: 'fx', label: tr('اثر نرخ ارز') }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}

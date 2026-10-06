@@ -542,8 +542,8 @@ export default function Mobile() {
   const total = TABS.reduce((n, t) => n + lists[t.key].length, 0);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-ink-50">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-2 bg-ink-900 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
+    <div className="flex min-h-dvh flex-col">
+      <header className="btn-accent sticky top-0 z-30 flex items-center justify-between gap-2 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <div className="min-w-0">
           <h1 className="text-sm font-semibold">{tr('هیوامیس همراه')}</h1>
           <p className="truncate text-[12.5px] text-white/70">
@@ -586,7 +586,7 @@ export default function Mobile() {
         )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-ink-200 bg-surface pb-[env(safe-area-inset-bottom)]" aria-label={tr('سه کار')}>
+      <nav className="bg-panel fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-ink-200/70 pb-[env(safe-area-inset-bottom)]" aria-label={tr('سه کار')}>
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)} aria-current={active === t.key ? 'page' : undefined}
             className={cx('flex flex-col items-center gap-0.5 py-2.5 text-xs', active === t.key ? 'font-semibold text-brand-700' : 'text-ink-500')}>

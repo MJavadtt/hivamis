@@ -277,7 +277,7 @@ export function OwlGuide() {
           </button>
         )}
         {greeting && !open && !tour && (
-          <div role="status" className="animate-in fixed z-[55] w-64 rounded-2xl bg-surface p-3 text-sm leading-6 text-ink-700 shadow-xl ring-1 ring-ink-200"
+          <div role="status" className="bg-panel animate-in fixed z-[55] w-64 rounded-2xl p-3 text-sm leading-6 text-ink-700 shadow-glass ring-1 ring-edge"
             style={{ insetInlineEnd: GAP + size * 0.4, bottom: GAP + size + 6 }}>
             {tr('سلام! من هیوا هستم. هر جا سؤالی داشتید، روی من بزنید تا راهنمای همان صفحه را بگویم.')}
             <div className="mt-2 flex justify-end">
@@ -365,7 +365,7 @@ function TourCard({ tour, style, missing, onMove, onPlay, onDone, onClose, onRep
 
   return (
     <div ref={box} role="dialog" aria-label={tr('راهنمای «{0}»', gt(section.title))} data-testid="tour"
-      className="animate-in fixed z-[56] rounded-2xl bg-surface p-4 pt-5 shadow-2xl ring-1 ring-ink-200" style={style}>
+      className="bg-panel animate-in fixed z-[56] rounded-2xl p-4 pt-5 shadow-2xl ring-1 ring-edge" style={style}>
       {done ? (
         <div className="space-y-3 text-center">
           <p className="text-sm font-semibold text-ink-900">{tr('پایان راهنمای «{0}»', gt(section.title))}</p>
@@ -418,7 +418,7 @@ function GuidePanel({ section, bottom, hidden, onHide, onClose, onTour, onManual
 
   return (
     <section role="dialog" aria-label={tr('راهنمای هیوا')} data-testid="owl-panel"
-      className="animate-in fixed z-[55] flex max-h-[70vh] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl ring-1 ring-ink-200"
+      className="animate-in fixed z-[55] flex max-h-[70vh] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl bg-panel shadow-2xl ring-1 ring-edge"
       style={{ bottom, insetInlineEnd: GAP }}>
       <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-2.5">
         <OwlSvg size={28} />
@@ -458,7 +458,7 @@ function GuidePanel({ section, bottom, hidden, onHide, onClose, onTour, onManual
         <div className="space-y-2">
           <label className="block text-xs font-medium text-ink-600" htmlFor="owl-ask">{tr('از هیوا بپرسید')}</label>
           <input id="owl-ask" value={q} onChange={(e) => setQ(e.target.value)} dir="auto" placeholder={tr('مثلاً: چطور فرمی را تأیید کنم؟')}
-            className="w-full rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 focus:border-brand-400 focus:outline-none" />
+            className="w-full rounded-lg bg-surface px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500" />
           {q.trim().length >= 2 && (
             <div className="space-y-1.5" data-testid="owl-answers">
               {answers.length ? answers.map((m, i) => {

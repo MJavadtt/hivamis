@@ -76,10 +76,10 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-ink-100 p-4">
+    <div className="flex min-h-full items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-lg bg-ink-900 text-xl font-bold text-surface">{tr('ه')}</span>
+          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl btn-accent text-xl font-bold">{tr('ه')}</span>
           <h1 className="text-xl font-semibold text-ink-900">{tr('هیوامیس')}</h1>
           {/* Whose sign-in this is — on an installation with several organisations, the one of this address (roadmap #50). */}
           {methods?.organization && <p className="mt-1 text-sm font-bold text-ink-700" dir="auto" data-testid="login-org">{methods.organization}</p>}

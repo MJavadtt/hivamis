@@ -9,7 +9,7 @@ import { useLocale, type Locale } from '../lib/locale';
 import { OwlGuide } from './owl/OwlGuide';
 import { guideBus } from '../lib/guide';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
-import { formatRelative, localDigits } from '../lib/format';
+import { formatRelative, formatYear, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
 import { MessengerMenuItem } from './Messenger';
 import {
@@ -139,12 +139,23 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => setMobileOpen(false), [location.pathname]);
   const compact = rail && isDesktop;
 
+  // The kit's item counts: what is waiting in «کارهای من», and forms waiting for this person's decision.
+  // The same query «کارهای من» reads, kept fresh by the live channel.
+  const live = useLiveStatus();
+  const { data: work } = useQuery<{ items?: unknown[]; counts?: Record<string, number> }>({
+    queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), enabled: !!user, staleTime: 30_000,
+    refetchInterval: fallbackInterval(live, 120_000),
+  });
+  const counts: Record<string, number> = { '/my-work': work?.items?.length ?? 0, '/forms': work?.counts?.formApproval ?? 0 };
+
   const visibleGroups = NAV
     .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }))
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="flex h-full">
+    // Glass panels float over the pastel light: on a desktop the sidebar and the top bar stand off the
+    // edges of the window; on a phone they meet them.
+    <div className="flex h-full lg:gap-3 lg:p-3">
       {mobileOpen && (
         <div className="fixed inset-0 z-30 bg-ink-900/40 lg:hidden" onClick={() => setMobileOpen(false)} aria-hidden />
       )}
@@ -162,14 +173,14 @@ export function Shell({ children }: { children: ReactNode }) {
         aria-label={tr('منوی اصلی')}
         inert={!mobileOpen && !isDesktop ? true : undefined}
         className={cx(
-          'fixed inset-y-0 right-0 z-40 flex w-[248px] flex-col border-e border-ink-200 bg-canvas transition-[transform,width] lg:static lg:translate-x-0',
+          'bg-panel fixed inset-y-0 right-0 z-40 flex w-[248px] flex-col shadow-glass ring-1 ring-edge transition-[transform,width] lg:static lg:translate-x-0 lg:rounded-xl lg:bg-surface',
           mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0',
           compact && 'lg:w-16',
         )}
       >
         <div className={cx('flex h-16 shrink-0 items-center gap-2 px-3', compact ? 'justify-center' : 'justify-between')}>
           <Link to="/" className="flex min-w-0 items-center gap-2.5" title={tr('هیوامیس')}>
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink-900 text-sm font-bold text-surface">{tr('ه')}</span>
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg btn-accent text-sm font-bold">{tr('ه')}</span>
             {!compact && <span className="truncate text-[14px] font-bold text-ink-800">{tr('هیوامیس')}</span>}
           </Link>
           <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden" onClick={() => setMobileOpen(false)} aria-label={tr('بستن منو')}>
@@ -208,13 +219,18 @@ export function Shell({ children }: { children: ReactNode }) {
                           'flex h-8 items-center gap-3 rounded-lg text-[14px] font-semibold transition-colors',
                           compact ? 'justify-center' : 'px-3',
                           isActive
-                            ? 'bg-ink-100 text-ink-900'
-                            : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
+                            ? 'soft-selected'
+                            : 'text-ink-600 hover:bg-surface hover:text-ink-900',
                         )
                       }
                     >
                       <item.icon className="size-[18px] shrink-0" />
                       {!compact && <span className="truncate">{item.label}</span>}
+                      {!compact && !!counts[item.to] && (
+                        <span className="ms-auto min-w-5 rounded-full bg-surface px-1.5 text-center text-[12px] font-bold nums text-brand-700 ring-1 ring-inset ring-brand-200">
+                          {localDigits(counts[item.to]!)}
+                        </span>
+                      )}
                     </NavLink>
                   </li>
                 ))}
@@ -223,9 +239,9 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className={cx('shrink-0 space-y-1 border-t border-ink-200', compact ? 'p-2' : 'p-3')}>
+        <div className={cx('shrink-0 space-y-1 border-t border-ink-200/70', compact ? 'p-2' : 'p-3')}>
           <Link to="/me" data-tour="me" title={tr('صفحهٔ من')}
-            className={cx('flex items-center gap-3 rounded-lg bg-surface shadow-sm ring-1 ring-ink-200 hover:bg-ink-50', compact ? 'justify-center p-1.5' : 'p-2')}>
+            className={cx('flex items-center gap-3 rounded-lg bg-surface shadow-sm ring-1 ring-edge hover:bg-panel', compact ? 'justify-center p-1.5' : 'p-2')}>
             {user && <Avatar name={user.fullName} unit={user.department?.code} size="sm" />}
             {!compact && (
               <>
@@ -251,11 +267,14 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:gap-3">
         <TopBar onMenu={() => setMobileOpen(true)} menuOpen={mobileOpen} />
-        <main className="flex-1 overflow-y-auto bg-canvas">
+        <main className="flex-1 overflow-y-auto lg:rounded-xl">
           {/* The kit's content column: centred, so a wide screen does not stretch a page into lines. */}
-          <div className="mx-auto w-full max-w-[1400px] pb-10">{children}</div>
+          <div className="mx-auto flex min-h-full w-full max-w-[1400px] flex-col">
+            <div className="flex-1 pb-6">{children}</div>
+            <PageFooter />
+          </div>
         </main>
       </div>
       <OwlGuide />
@@ -282,7 +301,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
   // On a phone the kit's bar is the menu, the logo and a few icons; search opens over it.
   const [searching, setSearching] = useState(false);
   return (
-    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b border-ink-200 bg-canvas px-3 sm:gap-3 sm:px-4 lg:px-6">
+    <header className="glass relative z-20 flex h-16 shrink-0 items-center gap-2 bg-surface px-3 shadow-sm ring-1 ring-edge sm:gap-3 sm:px-4 lg:rounded-xl lg:px-5">
       <button className="rounded-lg p-1.5 text-ink-600 shadow-sm ring-1 ring-ink-200 hover:bg-ink-50 lg:hidden" onClick={onMenu} aria-label={tr('منو')}
           aria-controls="app-sidebar"
           aria-expanded={menuOpen}>
@@ -290,14 +309,14 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
           <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
         </svg>
       </button>
-      <Link to="/" className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink-900 text-sm font-bold text-surface lg:hidden" aria-label={tr('هیوامیس')}>{tr('ه')}</Link>
+      <Link to="/" className="grid size-8 shrink-0 place-items-center rounded-lg btn-accent text-sm font-bold lg:hidden" aria-label={tr('هیوامیس')}>{tr('ه')}</Link>
       <div className="hidden flex-1 sm:contents"><GlobalSearch /></div>
       <button type="button" onClick={() => setSearching(true)} aria-label={tr('جستجو')}
         className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900 sm:hidden">
         <IconSearch className="size-[18px]" />
       </button>
       {searching && (
-        <div className="absolute inset-0 z-30 flex items-center gap-2 bg-canvas px-3 sm:hidden">
+        <div className="bg-panel absolute inset-0 z-30 flex items-center gap-2 px-3 sm:hidden">
           <GlobalSearch autoFocus />
           <button type="button" onClick={() => setSearching(false)} aria-label={tr('بستن')} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50">
             <IconClose className="size-4" />
@@ -417,7 +436,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder={tr('جستجوی سراسری… (Ctrl+K)')}
-          className="w-full rounded-lg border-0 bg-surface py-1.5 ps-9 pe-3 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:ring-2 focus:ring-inset focus:ring-brand-600"
+          className="w-full rounded-full border-0 bg-surface py-2 ps-9 pe-4 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:bg-panel focus:ring-2 focus:ring-inset focus:ring-brand-500"
         />
         {isFetching && <Spinner className="absolute inset-y-0 end-3 my-auto size-4" />}
       </div>
@@ -427,7 +446,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
           id="search-results"
           role="listbox"
           aria-label={tr('نتایج جستجو')}
-          className="animate-in absolute inset-x-0 top-full z-50 mt-1 max-h-96 overflow-y-auto rounded-xl bg-surface p-1.5 shadow-xl ring-1 ring-ink-200"
+          className="bg-panel animate-in absolute inset-x-0 top-full z-50 mt-2 max-h-96 overflow-y-auto rounded-xl p-1.5 shadow-glass ring-1 ring-edge"
         >
           {!data || data.total === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-ink-500" role="status">{tr('نتیجه‌ای یافت نشد.')}</p>
@@ -586,8 +605,8 @@ function Notifications() {
       </button>
 
       {open && (
-        <div className="animate-in absolute end-0 top-full z-50 mt-1 w-80 rounded-xl bg-surface shadow-xl ring-1 ring-ink-200">
-          <div className="flex items-center justify-between border-b border-ink-100 px-3 py-2">
+        <div className="bg-panel animate-in absolute end-0 top-full z-50 mt-2 w-80 rounded-xl shadow-glass ring-1 ring-edge">
+          <div className="flex items-center justify-between border-b border-ink-200/70 px-3 py-2">
             <p className="text-sm font-semibold text-ink-800">{tr('اعلان‌ها')}</p>
             {!!data?.unread && (
               <button onClick={() => void markAll()} className="text-xs text-brand-600 hover:underline">{tr('خوانده‌شدن همه')}</button>
@@ -598,13 +617,13 @@ function Notifications() {
               <p className="px-3 py-8 text-center text-sm text-ink-500">{tr('اعلانی وجود ندارد.')}</p>
             ) : (
               data.items.slice(0, 20).map((n) => (
-                <div key={n.id} className={cx('border-b border-ink-100 px-3 py-2.5 last:border-0', !n.readAt && 'bg-brand-50/40')}>
+                <div key={n.id} className={cx('border-b border-ink-200/60 px-3 py-2.5 last:border-0', !n.readAt && 'bg-brand-50/60')}>
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-ink-800">{n.title}</p>
+                    <p className="text-sm font-medium text-ink-800">{trx(n.title)}</p>
                     {n.severity === 'CRITICAL' && <Badge tone="danger">{tr('بحرانی')}</Badge>}
                     {n.severity === 'WARNING' && <Badge tone="warning">{tr('هشدار')}</Badge>}
                   </div>
-                  {n.body && <p className="mt-0.5 text-xs text-ink-500">{n.body}</p>}
+                  {n.body && <p className="mt-0.5 text-xs text-ink-500">{trx(n.body)}</p>}
                   <p className="mt-1 text-[12.5px] text-ink-400">{formatRelative(n.createdAt)}</p>
                 </div>
               ))
@@ -621,11 +640,12 @@ export function PageHeader({ title, subtitle, actions, badge }: {
   title: string; subtitle?: ReactNode; actions?: ReactNode; badge?: ReactNode;
 }) {
   return (
-    // The kit's head line: the title and its actions over a hairline, on the page itself.
-    <div data-tour="page-header" className="mx-5 flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 pb-5 pt-7">
+    // The kit's page head ("Name Project"): the title and its actions in a box of their own — here a
+    // pane of glass.
+    <div data-tour="page-header" className="mx-3 mt-3 flex flex-wrap items-start justify-between gap-3 rounded-xl bg-surface px-5 py-4 shadow-glass ring-1 ring-edge sm:mx-5 sm:mt-5 lg:mx-0 lg:mt-0">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-base font-bold text-ink-900">{title}</h1>
+          <h1 className="text-lg font-bold text-ink-900">{title}</h1>
           {badge}
         </div>
         {subtitle && <div className="mt-1 text-xs font-semibold text-ink-500">{subtitle}</div>}
@@ -636,5 +656,20 @@ export function PageHeader({ title, subtitle, actions, badge }: {
 }
 
 export const PageBody = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <div className={cx('p-5', className)}>{children}</div>
+  <div className={cx('px-3 py-5 sm:px-5 lg:px-0', className)}>{children}</div>
 );
+
+/** The kit's page footer: the product, the year, and where to read more. */
+function PageFooter() {
+  return (
+    // The far end is left clear for the owl, which perches in that corner.
+    <footer className="mx-3 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-3 pe-20 text-xs font-semibold text-ink-500 sm:mx-5 sm:pe-28 lg:mx-0 lg:mb-0" data-testid="page-footer">
+      <span>{tr('هیوامیس — سیستم‌عامل سازمانی · {0}', formatYear(new Date()))}</span>
+      <nav aria-label={tr('پیوندهای پایین صفحه')} className="flex items-center gap-1">
+        <button type="button" onClick={() => guideBus.emit({ type: 'open' })} className="rounded-full px-2.5 py-1 hover:bg-surface hover:text-ink-800">{tr('راهنما')}</button>
+        <Link to="/rules" className="rounded-full px-2.5 py-1 hover:bg-surface hover:text-ink-800">{tr('قوانین سازمان')}</Link>
+        <Link to="/me" className="rounded-full px-2.5 py-1 hover:bg-surface hover:text-ink-800">{tr('صفحهٔ من')}</Link>
+      </nav>
+    </footer>
+  );
+}

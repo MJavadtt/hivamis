@@ -105,6 +105,14 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   return d ? (isEnglish() ? gregorianDateTime : jalaliDateTime).format(d) : '—';
 }
 
+/** The year alone: Solar Hijri in Persian (۱۴۰۵), Gregorian in English (2026). */
+export function formatYear(value: string | Date | null | undefined): string {
+  const d = asDate(value);
+  if (!d) return '—';
+  return isEnglish() ? String(d.getFullYear()) : jalaliYear.format(d);
+}
+const jalaliYear = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric' });
+
 /** Signed day distance from today; negative means overdue. */
 export function daysFromNow(value: string | Date | null | undefined): number | null {
   const d = asDate(value);

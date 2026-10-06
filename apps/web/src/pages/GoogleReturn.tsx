@@ -29,7 +29,7 @@ export default function GoogleReturn() {
       .catch((e) => setError((e as Error).message));
   }, []);
   return (
-    <main className="grid min-h-screen place-items-center bg-ink-100 p-4">
+    <main className="grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl bg-surface p-6 text-center shadow-sm ring-1 ring-ink-200" data-testid="google-return">
         {error ? (
           <>

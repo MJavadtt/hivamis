@@ -29,12 +29,12 @@ export function QuickForms() {
     <div ref={box} data-tour="quick-forms" className="relative">
       <button
         type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={tr('فرم تازه')} title={tr('فرم تازه')}
-        className="grid size-8 place-items-center rounded-lg bg-ink-900 text-surface shadow-[0_1px_4px_0_rgb(37_99_235/0.2)] ring-1 ring-inset ring-ink-800 hover:bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        className="btn-accent grid size-8 place-items-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
       >
         <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
       </button>
       {open && (
-        <div role="menu" aria-label={tr('فرم تازه')} className="absolute end-0 top-10 z-40 w-72 rounded-xl bg-surface py-2 shadow-lg ring-1 ring-ink-200" data-testid="quick-forms">
+        <div role="menu" aria-label={tr('فرم تازه')} className="bg-panel absolute end-0 top-10 z-40 w-72 rounded-xl py-2 shadow-glass ring-1 ring-edge" data-testid="quick-forms">
           <p className="px-3 pb-1 text-[12.5px] font-medium text-ink-500">{tr('فرم‌هایی که بیشتر می‌فرستید')}</p>
           {(data?.forms ?? []).map((f) => (
             <button key={f.code} type="button" role="menuitem" onClick={() => { setOpen(false); setForm(f); }}

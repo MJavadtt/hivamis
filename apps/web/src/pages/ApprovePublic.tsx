@@ -188,7 +188,7 @@ function Plain({ children }: { org?: string; children: React.ReactNode }) {
 
 function Page({ org, children }: { org?: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-full bg-ink-50 px-4 py-8" dir="rtl">
+    <div className="min-h-full px-4 py-8" dir="rtl">
       <main className="mx-auto max-w-2xl space-y-5 rounded-xl bg-surface p-5 shadow-sm ring-1 ring-ink-200 sm:p-7">
         {org && <p className="text-xs font-medium text-brand-700">{tr('{0} — درخواست تأیید', org)}</p>}
         {children}

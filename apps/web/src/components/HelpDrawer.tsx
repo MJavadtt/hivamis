@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../lib/auth';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import {
@@ -42,15 +43,17 @@ export function HelpDrawer({
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex justify-start bg-ink-900/40 backdrop-blur-[2px]">
+  // At the root of the page: it is opened from inside cards, and a glass card is the containing box
+  // of anything fixed inside it.
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex justify-start bg-ink-900/30 backdrop-blur-[2px]">
       <div className="absolute inset-0" aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={tr('راهنمای کاربری')}
-        className="animate-in relative flex h-full w-full max-w-xl flex-col bg-surface shadow-2xl"
+        className="bg-panel animate-in relative flex h-full w-full max-w-xl flex-col shadow-2xl ring-1 ring-edge"
       >
         <header className="flex shrink-0 items-center justify-between border-b border-ink-100 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-ink-800">{tr('راهنمای کاربری')}</h2>
@@ -74,7 +77,7 @@ export function HelpDrawer({
                   className={cx(
                     'rounded-lg px-2.5 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500',
                     active?.title === s.title
-                      ? 'bg-brand-600 font-medium text-white'
+                      ? 'soft-selected font-semibold'
                       : 'text-ink-600 hover:bg-ink-100',
                   )}
                 >
@@ -96,7 +99,7 @@ export function HelpDrawer({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
-

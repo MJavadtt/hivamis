@@ -66,7 +66,7 @@ describe('The dashboard', () => {
     const row = screen.getByText('کمپین نوروزی').closest('tr')!;
     expect(within(row).getByText('شرکت نمونه')).toBeTruthy();
     expect(screen.getByText('کمپین نوروزی').closest('a')!.getAttribute('href')).toBe('/opportunities/o-1');
-    expect(screen.getByText('همه فرصت‌ها').getAttribute('href')).toBe('/opportunities');
+    expect(screen.getByRole('link', { name: /همه فرصت‌ها/ }).getAttribute('href')).toBe('/opportunities');
     expect(screen.queryByText('بازطراحی هویت')).toBeNull();
   });
 

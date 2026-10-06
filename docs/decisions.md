@@ -1852,3 +1852,45 @@ nothing between frames.
 - «پرسش از داده‌ها» still reads questions in Persian only; in English it says so and offers its
   examples.
 - Ray is served as WOFF, not WOFF2, because no Brotli encoder was available when it was converted.
+
+## ADR-066 — The kit applied in full, then glass over a pastel light
+
+**Decision.** (Hivamis, the third list, item 7.)
+
+- **The kit's missing pieces.** ADR-062 took the kit's tokens and its main components. These are
+  now added as well:
+  - the metric tile's footer row;
+  - the card's footer bar;
+  - the sidebar's counts (the queue and the approvals waiting);
+  - the page head in a box of its own;
+  - the page footer.
+- **The look.**
+  - **Glass.** Cards and panels are translucent and blurred, with a lit edge and a soft
+    violet-tinted shadow. Overlays use a near-opaque glass of their own.
+  - **Light.** Five pastel glows are painted once behind the whole page.
+  - **Accent.** Periwinkle, and the main action is a violet-to-blue gradient.
+  - **Shape.** Corners are rounded and status marks are pills.
+  - **Night.** The same at night: a deep indigo with the glows turned low.
+- **Structure stays tokens.** A component asks for `bg-surface` or `bg-panel`, `ring-edge`,
+  `shadow-glass`, `.btn-accent` or `.soft-selected`, and dark mode redefines the values only.
+- **Overlays render at the root of the page.** A blurred panel is the containing box of anything
+  `fixed` inside it (the same trap as the sidebar's transform in ADR-065). So the assistant and the
+  written guide render into the document body, as dialogs already did.
+
+**Rationale.** The person asked to apply the kit "correctly and completely" first, then refresh it
+"with a glassy look and attractive pastel colours". Building the glass from the existing tokens
+changed the whole interface from a stylesheet and a handful of shared components. A second set of
+components would have drifted.
+
+Contrast decided the details:
+- Text stays on glass at least 58% white; secondary text (`ink-500`) holds 4.5:1 there.
+- Overlays, which sit over a dimmed page, use the 90% glass.
+- Where transparency is unwelcome or the browser cannot blur, the glass turns solid.
+
+**Limits.**
+
+- Blur costs something on old devices. It is applied to panels and cards, not to every control.
+- The kit's square cards gave way to rounded glass. The structure is the kit's; the shape is the
+  refresh's.
+- A few pages still draw their own inner boxes with `bg-ink-50`. On the glass they read as a soft
+  wash, which suits them, but they are not glass themselves.

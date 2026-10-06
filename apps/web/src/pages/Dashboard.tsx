@@ -11,7 +11,7 @@ import {
 } from '../components/ui';
 import { formatCurrency, formatDate, formatRelative, localDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
-import { loc, tr, trx } from '../i18n';
+import { flow, loc, tr, trx } from '../i18n';
 import { HalfGauge } from '../components/Gauge';
 
 interface MyDashboard {
@@ -101,7 +101,10 @@ export default function Dashboard() {
                 className="xl:col-span-2"
                 title={tr('وظایف من')}
                 subtitle={tr('مرتب‌شده بر اساس نزدیک‌ترین مهلت')}
-                action={<Link to="/tasks" className="text-xs text-brand-600 hover:underline">{tr('همه وظایف')}</Link>}
+                footer={<>
+                  <span className="nums">{tr('{0} از {1} وظیفهٔ باز', localDigits(Math.min(8, data.tasks.items.length)), localDigits(data.tasks.total))}</span>
+                  <Link to="/tasks" className="text-brand-700 hover:underline">{tr('همه وظایف')} {flow()}</Link>
+                </>}
               >
                 {!data.tasks.items.length ? (
                   <EmptyState title={tr('وظیفه بازی ندارید')} description={tr('وظایف تخصیص‌یافته اینجا نمایش داده می‌شوند.')} />
@@ -195,7 +198,11 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <Card tour="my-projects" title={tr('پروژه‌های من')} action={<Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-xs text-brand-600 hover:underline">{projectsTab === 'sales' ? tr('همه فرصت‌ها') : tr('همه پروژه‌ها')}</Link>}>
+            <Card tour="my-projects" title={tr('پروژه‌های من')}
+              footer={<>
+                <span />
+                <Link to={projectsTab === 'sales' ? '/opportunities' : '/projects'} className="text-brand-700 hover:underline">{projectsTab === 'sales' ? tr('همه فرصت‌ها') : tr('همه پروژه‌ها')} {flow()}</Link>
+              </>}>
               {data.opportunities && (
                 <Tabs
                   active={projectsTab}

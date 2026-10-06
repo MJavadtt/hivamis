@@ -56,7 +56,7 @@ export default function Admin() {
   return (
     <>
       <PageHeader title={tr('مدیریت سیستم')} subtitle={tr('کاربران، نقش‌ها، سیاست‌های SLA و رهگیری حسابرسی')} />
-      <div className="border-b border-ink-200 bg-surface px-2">
+      <div className="mx-3 mt-3 rounded-xl bg-surface px-2 shadow-sm ring-1 ring-edge sm:mx-5 lg:mx-0 [&>[role=tablist]]:border-b-0">
         <Tabs active={tab} onChange={setTab} tabs={tabs.map(({ key, label }) => ({ key, label }))} />
       </div>
       <PageBody>
