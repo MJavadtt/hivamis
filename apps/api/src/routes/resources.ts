@@ -8,6 +8,8 @@ import { actorFrom, parse } from '../lib/http.js';
 import { businessHoursBetween, DEFAULT_CALENDAR } from '../lib/business-calendar.js';
 import { loadCalendar } from '../sla/engine.js';
 import { notFound } from '../lib/errors.js';
+import { audit } from '../lib/audit.js';
+import { assertOwnReferences, organizationWhere } from '../lib/scope.js';
 import { personLoads } from '../reports/capacity.js';
 
 const resourceRoutes: FastifyPluginAsync = async (app) => {
@@ -83,12 +85,18 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
     return ranked.slice(0, Math.min(Number(limit ?? 5) || 5, 20));
   });
 
+  /**
+   * Allocations have no organisation column: they reach one through their project, and every route
+   * here scopes through it (audit SEC-2 — before, these served and changed every organisation's).
+   */
   app.get('/allocations', {
     preHandler: [app.authenticate, app.requirePermissions('resource.read')],
   }, async (req) => {
+    const actor = actorFrom(req);
     const { projectId, userId, from, to } = req.query as Record<string, string | undefined>;
     return prisma.allocation.findMany({
       where: {
+        ...organizationWhere('allocation', actor.organizationId),
         ...(projectId ? { projectId } : {}), ...(userId ? { userId } : {}),
         ...(from && to ? { fromDate: { lte: new Date(to) }, toDate: { gte: new Date(from) } } : {}),
       },
@@ -105,8 +113,15 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createAllocationSchema, req.body);
-    const allocation = await prisma.allocation.create({
-      data: { ...input, createdById: actor.id },
+    // The person and the project both belong to the caller's organisation, or neither exists for it.
+    await assertOwnReferences('allocation', input, actor.organizationId);
+    const allocation = await prisma.$transaction(async (tx) => {
+      const made = await tx.allocation.create({ data: { ...input, createdById: actor.id } });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'allocation',
+        entityId: made.id, after: made, ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return made;
     });
     return reply.code(201).send(allocation);
   });
@@ -114,8 +129,17 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
   app.delete('/allocations/:id', {
     preHandler: [app.authenticate, app.requirePermissions('resource.allocate')],
   }, async (req, reply) => {
+    const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    await prisma.allocation.delete({ where: { id } });
+    const before = await prisma.allocation.findFirst({ where: { id, ...organizationWhere('allocation', actor.organizationId) } });
+    if (!before) throw notFound('تخصیص');
+    await prisma.$transaction(async (tx) => {
+      await tx.allocation.delete({ where: { id } });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'allocation',
+        entityId: id, before, ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+    });
     return reply.code(204).send();
   });
 

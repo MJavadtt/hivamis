@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import { z } from 'zod';
-import { closeApp, get, patch, post } from './helpers.js';
+import { call, closeApp, get, patch, post } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { tenancy } from '../src/lib/tenant.js';
 import { registerCrud } from '../src/lib/crud.js';
@@ -10,7 +10,8 @@ import { twoOrgs, type TwoOrgs } from './helpers/two-orgs.js';
 
 /**
  * Audit SEC-1 and SEC-12: the generic CRUD routes keep every model to its own organisation, and a
- * write cannot point at another organisation's record.
+ * write cannot point at another organisation's record. Audit SEC-2: allocations, which reach their
+ * organisation through their project, likewise.
  */
 
 describe('CRUD scoping (audit SEC-1, SEC-12)', () => {
@@ -71,5 +72,31 @@ describe('CRUD scoping (audit SEC-1, SEC-12)', () => {
     expect(organizationWhere('milestone', 'o')).toEqual({ project: { organizationId: 'o' } });
     expect(organizationWhere('role', 'o')).toBeNull();
     expect(organizationWhere('organization', 'o')).toEqual({ id: 'o' });
+  });
+
+  it('keeps allocations to their organisation: listed, created and deleted (audit SEC-2)', async () => {
+    const bProject = await prisma.project.findFirstOrThrow({ where: { organizationId: orgs.b.id } });
+    const bUser = await prisma.user.findFirstOrThrow({ where: { organizationId: orgs.b.id } });
+    const bAllocation = await prisma.allocation.create({
+      data: { projectId: bProject.id, userId: bUser.id, fromDate: new Date('2026-11-01'), toDate: new Date('2026-11-30'), hoursPerDay: 4, createdById: bUser.id },
+    });
+    const listed = await get('/allocations', orgs.a.full.token);
+    expect(listed.status).toBe(200);
+    expect(listed.body.map((x: { id: string }) => x.id)).not.toContain(bAllocation.id);
+    // Filtering by B's project finds nothing, rather than B's rows.
+    expect((await get('/allocations', orgs.a.full.token, { projectId: bProject.id })).body).toEqual([]);
+
+    const made = await post('/allocations', orgs.a.full.token, { projectId: bProject.id, userId: bUser.id, fromDate: '2026-11-01', toDate: '2026-11-02', hoursPerDay: 2 });
+    expect(made.status).toBe(422);
+    expect(made.body.error.code).toBe('UNKNOWN_REFERENCE');
+
+    expect((await call('DELETE', `/allocations/${bAllocation.id}`, { token: orgs.a.full.token })).status).toBe(404);
+    expect(await prisma.allocation.count({ where: { id: bAllocation.id } })).toBe(1);
+
+    // B's own, through the route: created and removed, each with an audit row.
+    const own = await post('/allocations', orgs.b.full.token, { projectId: bProject.id, userId: bUser.id, fromDate: '2026-12-01', toDate: '2026-12-02', hoursPerDay: 2 });
+    expect(own.status).toBe(201);
+    expect((await call('DELETE', `/allocations/${own.body.id}`, { token: orgs.b.full.token })).status).toBe(204);
+    expect(await prisma.auditEvent.count({ where: { entityType: 'allocation', entityId: own.body.id, organizationId: orgs.b.id } })).toBe(2);
   });
 });

@@ -35,12 +35,10 @@ const UNKNOWN = '00000000-0000-4000-8000-000000000000';
  * empty. The test fails both ways — on a leak not listed, and on a listed one that no longer leaks —
  * so a fix cannot forget to say so, and a regression cannot hide behind the list.
  */
-const KNOWN_READ: string[] = [
-  'GET /api/v1/allocations',
-];
+const KNOWN_READ: string[] = [];
 const KNOWN_WRITE: string[] = [];
 const KNOWN_CHANGED: string[] = [
-  'allocations', 'closure_checklists', 'messenger_messages',
+  'closure_checklists', 'messenger_messages',
 ];
 const keysOf = (lines: string[]) => [...new Set(lines.map((l) => l.split(/ as |\?/)[0]!))].sort();
 
