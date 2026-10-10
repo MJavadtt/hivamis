@@ -580,7 +580,7 @@ describe('Upload content verification', () => {
     const res = await upload(T.accountManager, 'ok.pdf', 'application/pdf', realPdf, {
       projectId: '00000000-0000-4000-8000-0000000000ff',
     });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(422);
     expect(res.json().error.code).toBe('UNKNOWN_REFERENCE');
   });
 });

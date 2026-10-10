@@ -278,7 +278,7 @@ const contactsPlanner: Planner = async (tx, actor, rows) => {
       line, label: v.fullName || `ردیف ${line}`, status, issues, notes, values: v,
       ...(status === 'CREATE' ? {
         write: async (t: Tx) => {
-          const c = await t.contact.create({ data: { companyId: company!.id, fullName: v.fullName!, jobTitle: v.jobTitle || null, email: email || null, phone: v.phone ? latin(v.phone) : null, isPrimary: YES.has((v.isPrimary ?? '').toLowerCase()) } });
+          const c = await t.contact.create({ data: { organizationId: actor.organizationId, companyId: company!.id, fullName: v.fullName!, jobTitle: v.jobTitle || null, email: email || null, phone: v.phone ? latin(v.phone) : null, isPrimary: YES.has((v.isPrimary ?? '').toLowerCase()) } });
           await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'contact', entityId: c.id, after: { companyId: company!.id, fullName: c.fullName, source: 'onboarding' }, ipAddress: actor.ipAddress, requestId: actor.requestId }, t);
           return { id: c.id };
         },

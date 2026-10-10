@@ -130,7 +130,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const replaced = replacesId
       ? await prisma.document.findFirst({ where: { id: replacesId, organizationId: actor.organizationId, deletedAt: null } })
       : null;
-    if (replacesId && !replaced) return fail('UNKNOWN_REFERENCE', 'فایلی که نسخهٔ تازه‌اش را می‌فرستید پیدا نشد.');
+    if (replacesId && !replaced) return fail('UNKNOWN_REFERENCE', 'فایلی که نسخهٔ تازه‌اش را می‌فرستید پیدا نشد.', 422);
     if (replaced?.supersededAt) return fail('DOCUMENT_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل پیش‌تر بارگذاری شده است؛ روی آخرین نسخه کار کنید.', 409);
     if (replaced?.qcReviewId) return fail('QC_EVIDENCE_FIXED', 'عکس شاهد بررسی کیفیت نسخهٔ تازه نمی‌گیرد؛ آنچه آن روز دیده شد همان می‌ماند.', 409);
 
@@ -156,7 +156,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const qcReviewId = replaced ? replaced.qcReviewId : val('qcReviewId');
     if (qcReviewId && !replaced) {
       const review = await prisma.qcReview.findFirst({ where: { id: qcReviewId, organizationId: actor.organizationId }, select: { reviewerId: true, reviewedAt: true } });
-      if (!review) return fail('UNKNOWN_REFERENCE', 'بررسی کیفیتی که عکس برایش است پیدا نشد.');
+      if (!review) return fail('UNKNOWN_REFERENCE', 'بررسی کیفیتی که عکس برایش است پیدا نشد.', 422);
       if (review.reviewerId !== actor.id) return fail('FORBIDDEN', 'عکس شاهد را فقط کسی می‌افزاید که بررسی را ثبت کرده است.', 403);
       if (Date.now() - review.reviewedAt.getTime() > 24 * 3_600_000) return fail('QC_EVIDENCE_LATE', 'عکس شاهد تا یک روز پس از ثبت بررسی پذیرفته می‌شود.', 409);
       if (!mimeType.startsWith('image/')) return fail('QC_EVIDENCE_IMAGE', 'شاهد بررسی کیفیت باید عکس باشد.');
@@ -173,7 +173,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       });
       if (found === 0) {
         await unlink(target).catch(() => undefined);
-        throw badRequest('UNKNOWN_REFERENCE', `ارجاع «${field}» نامعتبر است.`);
+        // One answer for "no such record" and "another organisation's record": 422, as registerCrud gives.
+        throw new AppError(422, 'UNKNOWN_REFERENCE', `ارجاع «${field}» نامعتبر است.`);
       }
     }
 

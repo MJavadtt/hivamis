@@ -210,6 +210,7 @@ async function seedDemo(
     });
     await prisma.contact.create({
       data: {
+        organizationId: c.organizationId,
         companyId: c.id,
         fullName: 'مدیر بازاریابی ' + spec.brandName,
         jobTitle: 'مدیر بازاریابی',

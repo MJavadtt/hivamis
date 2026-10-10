@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/db.js';
 
 export const DEV_PASSWORD = 'Hiva@Dev2026!';
@@ -158,3 +159,9 @@ export const directLead = (channel: 'PHONE' | 'EXHIBITION' | 'EVENT' | 'CAMPAIGN
   ({ source: 'DIRECT', sourceChannel: channel, phone: mobile() });
 /** A lead a partner company sent, named for the first time or again. */
 export const partnerLead = (name = 'شرکت معرف آزمون') => ({ source: 'PARTNER', sourcePartnerName: name, phone: mobile() });
+
+/** A contact carries its company's organisation (ADR-067); a test creating one directly takes it from there. */
+export async function createContact(data: Omit<Prisma.ContactUncheckedCreateInput, 'organizationId'>) {
+  const { organizationId } = await prisma.company.findUniqueOrThrow({ where: { id: data.companyId }, select: { organizationId: true } });
+  return prisma.contact.create({ data: { ...data, organizationId } });
+}

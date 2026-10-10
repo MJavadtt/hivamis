@@ -9,6 +9,7 @@ import { notFound } from '../lib/errors.js';
 import { actorFrom, orderBy, page, parse } from './http.js';
 import { allowedFor } from '../workflow/engine.js';
 import { nextCode } from './codes.js';
+import { assertOwnReferences, hasOrganizationColumn } from './scope.js';
 
 export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   /** URL segment, e.g. "projects". */
@@ -22,6 +23,12 @@ export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   updateSchema: U;
   /** Fields the client may sort by. */
   sortable?: string[];
+  /**
+   * How a model without its own `organizationId` reaches one, as a Prisma `where` — e.g.
+   * `(organizationId) => ({ project: { organizationId } })`. Required for such a model: one with
+   * neither is refused at registration, so an unscoped model fails to boot rather than leak.
+   */
+  scope?: (organizationId: string) => Record<string, unknown>;
   /** Fields included in the `q` free-text filter. */
   searchable?: string[];
   /** Relations included on list responses. */
@@ -54,6 +61,13 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
 ): void {
   const model = () => (prisma as any)[opts.model];
   const sortable = opts.sortable ?? ['createdAt', 'updatedAt'];
+  // Every read and write below goes through this. Audit SEC-1: contacts had no organisation column,
+  // so nothing scoped them and every organisation saw every other's.
+  const tenant: (organizationId: string) => Record<string, unknown> = hasOrganizationColumn(opts.model)
+    ? (organizationId) => ({ organizationId })
+    : opts.scope ?? (() => {
+        throw new Error(`registerCrud: "${opts.model}" has no organizationId and no scope; it would serve every organisation's rows`);
+      })();
 
   app.get(`/${opts.path}`, { preHandler: [app.authenticate, app.requirePermissions(opts.permissions.read)] },
     async (req) => {
@@ -62,8 +76,8 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       const where: Record<string, unknown> = {
         ...(opts.filter?.(req) ?? {}),
         ...(opts.softDelete ? { deletedAt: null } : {}),
+        ...tenant(actor.organizationId),
       };
-      if (fieldsOf(opts.model).has('organizationId')) where.organizationId = actor.organizationId;
       if (q.q && opts.searchable?.length) {
         where.OR = opts.searchable.map((f) => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
       }
@@ -96,11 +110,8 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
    * in the predicate. A record belonging to another organisation returns 404 rather than 403:
    * a 403 would confirm the id exists, which is itself the thing tenancy withholds.
    */
-  const findScoped = async (id: string, organizationId: string, include?: unknown) => {
-    const where: Record<string, unknown> = { id };
-    if (fieldsOf(opts.model).has('organizationId')) where.organizationId = organizationId;
-    return model().findFirst({ where, ...(include ? { include } : {}) });
-  };
+  const findScoped = async (id: string, organizationId: string, include?: unknown) =>
+    model().findFirst({ where: { id, ...tenant(organizationId) }, ...(include ? { include } : {}) });
 
   app.get(`/${opts.path}/:id`, { preHandler: [app.authenticate, app.requirePermissions(opts.permissions.read)] },
     async (req) => {
@@ -124,6 +135,8 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       if (fields.has('organizationId')) data.organizationId = actor.organizationId;
       if (opts.codeScope && fields.has('code')) data.code = await nextCode(prisma, opts.codeScope);
       if (fields.has('createdById') && data.createdById == null) data.createdById = actor.id;
+      // Audit SEC-12: a foreign key must name a record of the caller's own organisation.
+      await assertOwnReferences(opts.model, data, actor.organizationId);
 
       const record = await model().create({ data });
       await opts.afterCreate?.(record, actor);
@@ -145,6 +158,7 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       // `state` is owned exclusively by the workflow engine.
       const { state: _ignored, ...safe } = input as Record<string, unknown>;
       const data = opts.toUpdate ? await opts.toUpdate(safe, before, actor) : safe;
+      await assertOwnReferences(opts.model, data, actor.organizationId);
       const record = await model().update({ where: { id }, data });
       await audit({
         organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',

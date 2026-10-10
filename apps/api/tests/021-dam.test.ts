@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { Prisma } from '@prisma/client';
-import { app, call, closeApp, get, login, post, put, upload, expectOk } from './helpers.js';
+import { app, call, closeApp, get, login, post, put, upload, expectOk, createContact } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { nextCode } from '../src/lib/codes.js';
@@ -115,7 +115,7 @@ describe('Versions of a file, and a client’s brand library', () => {
     const project = await prisma.project.findFirstOrThrow({ where: { deletedAt: null } });
     deliverableId = (await prisma.deliverable.create({ data: { organizationId: org, code: await nextCode(prisma, 'deliverable'), projectId: project.id, name: 'پوستر پاییز', departmentCode: 'CR', state: 'IN_QC' } })).id;
     companyId = (await prisma.company.create({ data: { organizationId: org, legalName: 'شرکت برند آزمون', accountOwnerId: owner.id } })).id;
-    contactId = (await prisma.contact.create({ data: { companyId, fullName: 'مریم احمدی', email: 'maryam@brand.example' } })).id;
+    contactId = (await createContact({ companyId, fullName: 'مریم احمدی', email: 'maryam@brand.example' })).id;
     contractId = (await prisma.contract.create({
       data: { organizationId: org, code: await nextCode(prisma, 'contract'), companyId, title: 'قرارداد نسخه‌ها', contractValue: 1_000_000_000, startDate: new Date(), endDate: new Date(Date.now() + 90 * 86_400_000), state: 'PENDING_SIGNATURE', createdById: owner.id },
     })).id;

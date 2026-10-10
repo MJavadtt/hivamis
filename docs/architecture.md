@@ -218,6 +218,15 @@ rules, forms, SLA policies and records.
   lookup: list, detail, update, delete, workflow transitions, PDF export and AI grounding. Form and
   SLA codes are unique per organisation, so each has the whole catalogue under the same codes. A
   cross-tenant read returns 404 rather than 403, since a 403 would confirm the record exists.
+  - `registerCrud` scopes a model by its `organizationId`, or by a `scope` it is given for a model
+    reached through a parent. It refuses at boot to register a model with neither (audit SEC-1).
+  - Every foreign key a create or update sets must name a record of the caller's organisation,
+    checked generically from the schema (`lib/scope.ts`). A record elsewhere answers as one that
+    does not exist: `422 UNKNOWN_REFERENCE` (audit SEC-12).
+  - A contact carries its company's organisation, and a composite key to `companies(id,
+    organizationId)` makes the database refuse any other (ADR-067).
+  - `tests/037-tenant-isolation` calls every route as one organisation with another's ids and
+    checks that nothing of the other's is read or changed.
 - **Resolution.** A signed-in request takes its organisation from its token. An anonymous one
   (sign-in, asking to join, the sign-in page) takes it from the host name in `TENANT_MODE=multi`, or
   is the one organisation in `single`. A person signs in only at their organisation's address or at

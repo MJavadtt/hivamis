@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
 import { PDFDocument } from 'pdf-lib';
-import { app, call, closeApp, get, login, move, post, upload, tinyPdf, expectOk } from './helpers.js';
+import { app, call, closeApp, get, login, move, post, upload, tinyPdf, expectOk, createContact } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { nextCode } from '../src/lib/codes.js';
@@ -73,7 +73,7 @@ describe('A contract signed electronically', () => {
     legalId = (await prisma.user.findFirstOrThrow({ where: { email: 'legal@hiva.local' } })).id;
     designerId = (await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } })).id;
     companyId = (await prisma.company.create({ data: { organizationId: org.id, legalName: 'شرکت امضای آزمون', accountOwnerId: owner.id } })).id;
-    contactId = (await prisma.contact.create({ data: { companyId, fullName: 'مریم احمدی', email: 'maryam@sign.example' } })).id;
+    contactId = (await createContact({ companyId, fullName: 'مریم احمدی', email: 'maryam@sign.example' })).id;
     pdf = await onePager();
     for (const [key, state] of [['main', 'PENDING_SIGNATURE'], ['declined', 'PENDING_SIGNATURE'], ['http', 'PENDING_SIGNATURE'], ['lapse', 'PENDING_SIGNATURE'], ['draft', 'DRAFTING']] as const) {
       contracts[key] = (await prisma.contract.create({

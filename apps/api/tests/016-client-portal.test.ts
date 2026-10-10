@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { call, closeApp, get, login, post, upload, tinyPdf, expectOk, patch } from './helpers.js';
+import { call, closeApp, get, login, post, upload, tinyPdf, expectOk, patch, createContact } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { nextCode } from '../src/lib/codes.js';
 import { clientMail } from '../src/mail/client.js';
@@ -36,7 +36,7 @@ describe('The client portal', () => {
     ] });
     deliverableId = (await prisma.deliverable.create({ data: { organizationId: org.id, code: await nextCode(prisma, 'deliverable'), projectId, name: 'تیزر ۳۰ ثانیه', departmentCode: 'CR', version: 'v2', state: 'DELIVERED', deliveredAt: new Date() } })).id;
     await prisma.deliverable.create({ data: { organizationId: org.id, code: await nextCode(prisma, 'deliverable'), projectId, name: 'پوستر', departmentCode: 'CR', state: 'IN_QC' } });
-    const contact = (fullName: string, email: string | null) => prisma.contact.create({ data: { companyId, fullName, email } }).then((c) => c.id);
+    const contact = (fullName: string, email: string | null) => createContact({ companyId, fullName, email }).then((c) => c.id);
     maryam = await contact('مریم احمدی', 'Maryam@Portalia.example');
     ali = await contact('علی رضایی', 'ali@portalia.example');
     noEmail = await contact('بی‌ایمیل', null);

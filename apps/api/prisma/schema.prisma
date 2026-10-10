@@ -381,13 +381,18 @@ model Company {
   formSubmissions FormSubmission[]
 
   @@index([organizationId])
+  // What a contact's composite key points at: a contact's organisation is its company's (ADR-067).
+  @@unique([id, organizationId])
   @@map("companies")
 }
 
 model Contact {
   id        String   @id @default(uuid())
+  /// The company's organisation, held on the contact too so every query scopes on it directly
+  /// (audit SEC-1, ADR-067). The composite key below makes the database refuse any other.
+  organizationId String
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId, organizationId], references: [id, organizationId], onDelete: Cascade)
   fullName  String
   jobTitle  String?
   email     String?
@@ -401,6 +406,7 @@ model Contact {
   deletedAt DateTime?
 
   @@index([companyId])
+  @@index([organizationId, companyId])
   @@map("contacts")
 }
 

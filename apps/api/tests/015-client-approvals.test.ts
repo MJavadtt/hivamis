@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { call, closeApp, get, login, move, post, upload, tinyPdf, expectOk } from './helpers.js';
+import { call, closeApp, get, login, move, post, upload, tinyPdf, expectOk, createContact } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { nextCode } from '../src/lib/codes.js';
@@ -46,11 +46,11 @@ describe('Asking the client, and the client deciding', () => {
     })).id;
     deliverableId = await mk('استوری‌بورد تیزر');
     otherDeliverableId = await mk('پوستر');
-    contactId = (await prisma.contact.create({ data: { companyId: project.companyId, fullName: 'مریم احمدی', email: 'maryam@client.example' } })).id;
+    contactId = (await createContact({ companyId: project.companyId, fullName: 'مریم احمدی', email: 'maryam@client.example' })).id;
     const brief = await prisma.brief.findFirstOrThrow({ where: { opportunity: { companyId: project.companyId } } }).catch(() => null)
       ?? await prisma.brief.findFirstOrThrow();
     const briefCompany = (await prisma.opportunity.findUniqueOrThrow({ where: { id: brief.opportunityId } })).companyId;
-    if (briefCompany !== project.companyId) await prisma.contact.create({ data: { companyId: briefCompany, fullName: 'مریم احمدی', email: 'maryam@client.example' } });
+    if (briefCompany !== project.companyId) await createContact({ companyId: briefCompany, fullName: 'مریم احمدی', email: 'maryam@client.example' });
     proposalId = (await prisma.proposal.create({
       data: { organizationId: org.id, code: await nextCode(prisma, 'proposal'), briefId: brief.id, title: 'کمپین نوروزی', state: 'PRESENTED_TO_CLIENT', executiveSummary: 'سه موج رسانه‌ای', salePrice: 2_500_000_000, totalCost: 1_700_000_000, marginPercent: 32 },
     })).id;
@@ -62,9 +62,9 @@ describe('Asking the client, and the client deciding', () => {
     const base = { subjectType: 'DELIVERABLE', subjectId: deliverableId, contactId };
     expect((await post('/client-approvals', T.designer, base)).status).toBe(403);
     expect((await post('/client-approvals', T.am, { ...base, subjectId: otherDeliverableId })).body.error.code).toBe('CLIENT_APPROVAL_NO_FILES');
-    const stranger = await prisma.contact.create({ data: { companyId: (await prisma.company.create({ data: { organizationId: (await prisma.organization.findFirstOrThrow()).id, legalName: 'شرکت دیگر', accountOwnerId: (await prisma.user.findFirstOrThrow()).id } })).id, fullName: 'غریبه', email: 'x@other.example' } });
+    const stranger = await createContact({ companyId: (await prisma.company.create({ data: { organizationId: (await prisma.organization.findFirstOrThrow()).id, legalName: 'شرکت دیگر', accountOwnerId: (await prisma.user.findFirstOrThrow()).id } })).id, fullName: 'غریبه', email: 'x@other.example' });
     expect((await post('/client-approvals', T.am, { ...base, contactId: stranger.id })).body.error.code).toBe('CLIENT_APPROVAL_CONTACT');
-    const noMail = await prisma.contact.create({ data: { companyId: (await prisma.deliverable.findUniqueOrThrow({ where: { id: deliverableId }, include: { project: true } })).project.companyId, fullName: 'بی‌ایمیل' } });
+    const noMail = await createContact({ companyId: (await prisma.deliverable.findUniqueOrThrow({ where: { id: deliverableId }, include: { project: true } })).project.companyId, fullName: 'بی‌ایمیل' });
     expect((await post('/client-approvals', T.am, { ...base, contactId: noMail.id })).body.error.code).toBe('CLIENT_APPROVAL_CONTACT_EMAIL');
   });
 

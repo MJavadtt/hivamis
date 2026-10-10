@@ -1894,3 +1894,45 @@ Contrast decided the details:
   refresh's.
 - A few pages still draw their own inner boxes with `bg-ink-50`. On the glass they read as a soft
   wash, which suits them, but they are not glass themselves.
+
+## ADR-067 — Contacts carry their organisation, and generic writes check their references
+
+**Decision.** (Audit SEC-1, SEC-12.)
+
+- **Contacts carry their organisation.** `Contact` gains `organizationId`, backfilled from its
+  company. Its relation to the company is a composite key, `(companyId, organizationId)` →
+  `companies(id, organizationId)`, so the database itself refuses a contact whose organisation is
+  not its company's.
+- **`registerCrud` always scopes.**
+  - A model with an `organizationId` scopes on it.
+  - A model reached through a parent must be given `scope`, a Prisma `where` such as
+    `{ project: { organizationId } }`.
+  - A model with neither throws at registration.
+  - The scope applies to list, detail, update and delete alike.
+- **Every reference is checked.**
+  - On create and update, every foreign key in the data must name a record of the caller's
+    organisation.
+  - `lib/scope.ts` works out from Prisma's model description how each target reaches its
+    organisation. A child is reached through the shortest chain of required relations; a shared
+    model (a role) is not constrained.
+  - A foreign or missing record is the same `422 UNKNOWN_REFERENCE`, now used by uploads too.
+
+**Rationale.** Contacts were the one CRUD model without an organisation column. `registerCrud`
+scoped only when it found one, so with several organisations every contact was visible and editable
+by every organisation.
+
+- **Why the column, not only a scope.** Scoping through the company would have closed the hole too.
+  But the column makes every contact query scope directly, indexes it, and lets the database enforce
+  the invariant rather than trusting each caller. Contacts are created in three places, all now
+  setting it.
+- **Why a refusal at boot.** A future model without an organisation fails to start, instead of
+  leaking.
+- **Why the generic reference check.** It closes the related gap (SEC-12) of a project or a task
+  filed under another organisation's client, without each route remembering to look.
+
+**Limits.**
+
+- The reference check covers relations held by one column, and a composite one whose other half is
+  `organizationId`. Nested creates are left to the routes that build them.
+- A route that does not use `registerCrud` still scopes by hand. The isolation test is what catches
+  one that forgets.
