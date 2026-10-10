@@ -7,15 +7,17 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
+    "prepare:code": "pnpm --filter @hiva/contracts build && pnpm --filter @hiva/api db:generate",
+    "contracts": "pnpm --filter @hiva/contracts build",
+    "dev": "pnpm prepare:code && pnpm -r --parallel dev",
     "build": "pnpm --filter @hiva/contracts build && pnpm --filter @hiva/api build && pnpm --filter @hiva/web build",
     "db:generate": "pnpm --filter @hiva/api db:generate",
     "db:migrate": "pnpm --filter @hiva/api db:migrate",
     "db:push": "pnpm --filter @hiva/api db:push",
-    "db:seed": "pnpm --filter @hiva/api db:seed",
-    "db:reset": "pnpm --filter @hiva/api db:reset",
-    "test": "pnpm --filter @hiva/api test && pnpm --filter @hiva/web test",
-    "typecheck": "pnpm -r typecheck",
+    "db:seed": "pnpm contracts && pnpm --filter @hiva/api db:seed",
+    "db:reset": "pnpm contracts && pnpm --filter @hiva/api db:reset",
+    "test": "pnpm prepare:code && pnpm --filter @hiva/api test && pnpm --filter @hiva/web test",
+    "typecheck": "pnpm prepare:code && pnpm -r typecheck",
     "start": "pnpm --filter @hiva/api start",
     "bench": "node bench/run.mjs"
   },

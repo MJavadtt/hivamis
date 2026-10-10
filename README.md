@@ -116,6 +116,7 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 | Command | Purpose |
 |---|---|
 | `pnpm dev` | Run API and web together |
+| `pnpm prepare:code` | Build `@hiva/contracts` and generate the Prisma client — what `dev`, `test` and `typecheck` run first, so a fresh clone works without remembering it |
 | `pnpm build` | Type-check and build every package |
 | `pnpm test` | Run both test suites — API and frontend |
 | `HIVA_TEST_ISOLATION=shared pnpm test` | Run the API suite on one shared database instead of a schema per file — faster inner loop, keeps the rows a run creates |
