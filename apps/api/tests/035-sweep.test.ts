@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { app, call, closeApp, login } from './helpers.js';
 import { prisma } from '../src/db.js';
+import { routesOf } from './helpers/two-orgs.js';
 
 /**
  * Hivamis task 10 — the sweep. Every GET the API answers, asked by people in every kind of role:
@@ -9,24 +10,6 @@ import { prisma } from '../src/db.js';
  * given a real one, taken from the list beside them. The test reads the routes from the server
  * itself, so a route added later is swept too.
  */
-
-interface Route { method: string; url: string }
-
-/** Fastify's route tree, flattened: a child's path is its parent's plus its own segment. */
-function routesOf(server: FastifyInstance): Route[] {
-  const out: Route[] = [];
-  const stack: string[] = [];
-  for (const line of server.printRoutes({ commonPrefix: false }).split('\n')) {
-    const m = /^((?:│ {3}| {4})*)(?:├── |└── )(.*?)(?: \(([^)]*)\))?$/.exec(line);
-    if (!m) continue;
-    const depth = m[1]!.length / 4;
-    stack.length = depth;
-    const full = (stack[depth - 1] ?? '') + m[2];
-    stack[depth] = full;
-    for (const method of m[3]?.split(', ') ?? []) out.push({ method, url: full });
-  }
-  return out;
-}
 
 const ROLES = ['admin@hiva.local', 'ceo@hiva.local', 'pmo@hiva.local', 'sales@hiva.local', 'account@hiva.local', 'designer@hiva.local', 'finance@hiva.local', 'legal@hiva.local'];
 /** Long-lived streams and the redirect into Google answer by never finishing or by leaving. */
@@ -37,7 +20,7 @@ const MAY_BE_UNAVAILABLE = [/\/pdf\//];
 describe('The sweep', () => {
   let server: FastifyInstance;
   let tokens: Record<string, string>;
-  let routes: Route[];
+  let routes: ReturnType<typeof routesOf>;
 
   beforeAll(async () => {
     server = await app();
