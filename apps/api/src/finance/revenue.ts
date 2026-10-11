@@ -76,8 +76,13 @@ export interface RevenueData {
   rates: Map<string, number | null>;
   paymentsOut: Map<string, { amount: number; occurredAt: Date }[]>;
   declared: Map<string, number>;
-  /** Base totals, and the pass-through share of each (media billed for a vendor, #31). */
-  invoices: Map<string, { total: number; passThrough: number; issueDate: Date }[]>;
+  /**
+   * What each invoice billed for the agency's own work, in base currency: less what it billed on a
+   * vendor's behalf (#31), and with or without VAT as the contract values are (audit CALC-1).
+   */
+  invoices: Map<string, { billed: number; issueDate: Date }[]>;
+  /** Whether contract values — and so `billed` — include VAT (audit CALC-1). */
+  contractValueIncludesTax: boolean;
   /** Media orders (#31): the agency's revenue on each, earned when the media ran. */
   media: Map<string, { agencyRevenue: number; airedAt: Date | null }[]>;
 }
@@ -90,7 +95,8 @@ const group = <T, K>(rows: T[], key: (r: T) => K) => {
 
 export async function loadRevenueData(tx: Tx, organizationId: string, projectIds?: string[]): Promise<RevenueData> {
   const scope = projectIds ? { in: projectIds } : undefined;
-  const [projects, amendments, milestones, tasks, entries, users, payments, declarations, invoices, media] = await Promise.all([
+  const [org, projects, amendments, milestones, tasks, entries, users, payments, declarations, invoices, media] = await Promise.all([
+    tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { contractValueIncludesTax: true } }),
     tx.project.findMany({
       where: { organizationId, deletedAt: null, ...(scope ? { id: scope } : {}) },
       select: { id: true, code: true, name: true, state: true, revenueMethod: true, contractValue: true, closedAt: true, createdAt: true, company: { select: { legalName: true } } },
@@ -106,7 +112,7 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     // A payment to a media vendor is a pass-through (#31): it is the client's media, not the project's cost.
     tx.payment.findMany({ where: { organizationId, direction: 'OUT', mediaOrderId: null, projectId: scope ?? { not: null } }, select: { projectId: true, amount: true, occurredAt: true } }),
     tx.costDeclaration.findMany({ where: { organizationId, workOrder: scope ? { projectId: scope } : { isNot: null } }, select: { internalCost: true, externalCost: true, workOrder: { select: { projectId: true } } } }),
-    tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, total: true, issueDate: true, lines: true, fxRate: true } }),
+    tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, subtotal: true, taxPercent: true, total: true, issueDate: true, lines: true, fxRate: true } }),
     tx.mediaOrder.findMany({ where: { organizationId, state: { not: 'CANCELLED' }, ...(scope ? { projectId: scope } : {}) }, select: { projectId: true, agencyRevenue: true, airedAt: true } }),
   ]);
   const declared = new Map<string, number>();
@@ -120,9 +126,23 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     rates: new Map(users.map((u) => [u.id, u.hourlyCost != null ? num(u.hourlyCost) : u.department?.hourlyCost != null ? num(u.department.hourlyCost) : null])),
     paymentsOut: group(payments.map((p) => ({ projectId: p.projectId!, amount: num(p.amount), occurredAt: p.occurredAt })), (p) => p.projectId),
     declared,
-    invoices: group(invoices.map((i) => ({ projectId: i.projectId!, total: num(i.total), passThrough: passThroughOf(i.lines, i.fxRate), issueDate: i.issueDate })), (i) => i.projectId),
+    invoices: group(invoices.map((i) => ({ projectId: i.projectId!, billed: billedOf(i, org.contractValueIncludesTax), issueDate: i.issueDate })), (i) => i.projectId),
+    contractValueIncludesTax: org.contractValueIncludesTax,
     media: group(media.map((m) => ({ projectId: m.projectId, agencyRevenue: num(m.agencyRevenue), airedAt: m.airedAt })), (m) => m.projectId),
   };
+}
+
+/**
+ * What an invoice billed for the agency's own work, on the same footing as the contract value (audit
+ * CALC-1): its subtotal when contract values are written without VAT — the usual practice — or its
+ * total when with; either way less the pass-through lines, and their VAT with them when VAT counts.
+ * Comparing a total with VAT to revenue earned without it made every invoiced project look ahead.
+ */
+export function billedOf(i: { subtotal: unknown; taxPercent: unknown; total: unknown; lines: unknown; fxRate: unknown }, includesTax: boolean): number {
+  const passThrough = passThroughOf(i.lines, i.fxRate);
+  return includesTax
+    ? r2(num(i.total) - passThrough * (1 + num(i.taxPercent) / 100))
+    : r2(num(i.subtotal) - passThrough);
 }
 
 /** The base value of an invoice's pass-through lines — media billed on a vendor's behalf (#31). */
@@ -165,8 +185,8 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
   const p = data.projects.find((x) => x.id === projectId)!;
   const method = (REVENUE_METHODS as readonly string[]).includes(p.revenueMethod) ? p.revenueMethod as RevenueMethod : 'EFFORT';
   const notesFa: string[] = [];
-  // Billed, less what was billed on a vendor's behalf: pass-through is never the agency's (#31).
-  const invoiced = r2((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).reduce((s, i) => s + i.total - i.passThrough, 0));
+  // Billed for the agency's own work, on the contract value's footing (#31, audit CALC-1).
+  const invoiced = r2((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).reduce((s, i) => s + i.billed, 0));
   // Media commission is earned when the media runs (#31) — on top of the service contract.
   const closedBy = p.state === 'CLOSED' && before(p.closedAt, at);
   const mediaOrders = data.media.get(projectId) ?? [];
@@ -273,7 +293,7 @@ export function monthFlows(data: RevenueData, m: { start: Date; end: Date }) {
   const allEntries = [...data.entries.values()].flat().filter((e) => inMonth(e.workedOn));
   const labour = labourCost(data, allEntries);
   return {
-    invoiced: r2([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).reduce((s, i) => s + i.total - i.passThrough, 0)),
+    invoiced: r2([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).reduce((s, i) => s + i.billed, 0)),
     labourCost: labour.cost, unpricedHours: labour.unpricedHours,
     externalCost: r2([...data.paymentsOut.values()].flat().filter((x) => inMonth(x.occurredAt)).reduce((s, x) => s + x.amount, 0)),
   };
@@ -316,6 +336,7 @@ export async function revenueReport(tx: Tx, organizationId: string, count: numbe
 
   const measured = projects.filter((p) => p.wip != null);
   return {
+    contractValueIncludesTax: data.contractValueIncludesTax,
     months,
     lastClosed: fz.last?.period ?? null,
     nextToClose: fz.last ? nextMonth(parsePeriod(fz.last.period)).period : null,

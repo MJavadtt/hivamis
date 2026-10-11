@@ -4,6 +4,7 @@ import type { AccessTokenClaims } from '../auth/tokens.js';
 import { guard, redactionFor } from './access.js';
 import { chip, date, dateTime, deptFa, esc, field, money, num, percent, stateFa, table, text, yesNo } from './fmt.js';
 import { docHeader, routingBand, ruleNote, section, signatures, stateTrail } from './sections.js';
+import { billedOf } from '../finance/revenue.js';
 import type { BuiltDocument } from './templates.js';
 
 /* ══════════════════════════ Project 360 ══════════════════════════ */
@@ -513,7 +514,9 @@ export async function buildClosureReport(id: string, orgId: string, user: Access
   const invoiced = p.invoices.reduce((s, i) => s + Number(i.total), 0);
   const received = p.payments.filter((x) => x.direction === 'IN').reduce((s, x) => s + Number(x.amount), 0);
   const spent = p.payments.filter((x) => x.direction === 'OUT').reduce((s, x) => s + Number(x.amount), 0);
-  const margin = invoiced > 0 ? ((invoiced - spent) / invoiced) * 100 : null;
+  // The margin on what was earned: VAT is owed to the state, and pass-through is the vendor's (audit CALC-1).
+  const earned = p.invoices.filter((i) => i.kind === 'INVOICE' && i.state !== 'CANCELLED').reduce((s, i) => s + billedOf(i, false), 0);
+  const margin = earned > 0 ? ((earned - spent) / earned) * 100 : null;
 
   const html = [
     docHeader({ title: `گزارش پایان پروژه — ${p.name}`, code: p.code, subtitle: p.company.legalName, state: p.state }),

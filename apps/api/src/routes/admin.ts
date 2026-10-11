@@ -478,7 +478,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const updated = await prisma.organization.update({ where: { id: actor.organizationId }, data });
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'organization', entityId: actor.organizationId,
-      before: { name: before.name, workingDays: before.workingDays, workStartHour: before.workStartHour, workEndHour: before.workEndHour, breakHours: before.breakHours },
+      before: { name: before.name, workingDays: before.workingDays, workStartHour: before.workStartHour, workEndHour: before.workEndHour, breakHours: before.breakHours, contractValueIncludesTax: before.contractValueIncludesTax },
       after: data, ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     // The SLA engine caches the calendar; invalidate it so new hours take effect immediately.

@@ -2627,5 +2627,10 @@
   "حساب گوگل {0} همان نشانی حساب {1} در هیوامیس است. برای وصل کردنش، یک بار ثابت کنید که این حساب از آنِ شماست.": "The Google account {0} has the same address as {1}’s Hivamis account. To link it, prove once that this account is yours.",
   "رمز عبور هیوامیس": "Hivamis password",
   "وصل کن و وارد شو": "Link and sign in",
-  "فرستادن کد به {0}": "Send a code to {0}"
+  "فرستادن کد به {0}": "Send a code to {0}",
+  "مبنای مقایسهٔ فاکتورها به‌روز شد.": "The basis for comparing invoices was updated.",
+  "ارزش قراردادها با مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها با جمع کل‌شان سنجیده می‌شوند.": "Contract values are recorded with VAT; invoices are compared on their total.",
+  "ارزش قراردادها بدون مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها بدون مالیات سنجیده می‌شوند.": "Contract values are recorded without VAT; invoices are compared without VAT.",
+  "قراردادها بدون مالیات‌اند": "Contracts are without VAT",
+  "قراردادها با مالیات‌اند": "Contracts include VAT"
 }

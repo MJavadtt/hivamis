@@ -598,6 +598,8 @@ export const updateOrganizationSchema = z.object({
   workStartHour: z.number().int().min(0).max(23).optional(),
   workEndHour: z.number().int().min(1).max(24).optional(),
   breakHours: z.number().min(0).max(4).optional(),
+  /** Audit CALC-1: whether contract values are written with VAT; invoices are compared on the same footing. */
+  contractValueIncludesTax: z.boolean().optional(),
 }).refine((o) => o.workStartHour == null || o.workEndHour == null || o.workStartHour < o.workEndHour, { message: 'ساعت پایان کار باید پس از شروع باشد', path: ['workEndHour'] });
 
 export const updateSlaPolicySchema = z.object({

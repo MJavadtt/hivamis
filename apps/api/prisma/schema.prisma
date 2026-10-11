@@ -23,6 +23,9 @@ model Organization {
   workStartHour Int      @default(9)
   workEndHour   Int      @default(18)
   breakHours    Int      @default(1)
+  /// Audit CALC-1: whether contract values are written with VAT. Off — the usual practice — invoices are
+  /// compared with what has been earned on their subtotal; on, on their total.
+  contractValueIncludesTax Boolean @default(false)
   settings      Json     @default("{}")
   /// Roadmap #50: the organisation's short name, and the host names that open it.
   slug          String?  @unique

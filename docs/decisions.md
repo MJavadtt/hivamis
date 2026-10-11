@@ -2169,7 +2169,31 @@ anyway: deliveries are unique per (subscription, transition).
 
 **Limits.**
 
-- One long transaction holds back every webhook until it ends. That is the price of not losing its
-  rows, and those rows are what the receiver is waiting for.
+- One long *write* transaction holds back every webhook until it ends. Transaction ids are shared by
+  the whole database server, so this counts a transaction in any database on it. That is the price of
+  not losing its rows, and those rows are what the receiver is waiting for. Read-only transactions,
+  `pg_dump` included, take no transaction id and hold nothing back.
 - Rows from before this change carry `txid = 0`. Existing subscriptions read them once more from the
   start, de-duplicated, with `cursorAt` as the floor.
+
+## ADR-076 — Invoices are compared with earned revenue on the contract value's own footing
+
+**Decision.** (Audit CALC-1.)
+
+- **The organisation says how contract values are written.** A new setting,
+  `contractValueIncludesTax`, defaults to false, the usual Iranian practice.
+- **Invoices are compared on that footing.** Each invoice counts toward "invoiced" in work in progress
+  as follows:
+  - With the setting off, its `subtotal`, less pass-through.
+  - With the setting on, its `total`, less pass-through and that pass-through's VAT.
+  - The same figure is used in `positionAt`, `monthFlows` and the period close.
+- **Closed months stay frozen.** A change to the setting moves only what is still open.
+- **The closure report's margin never counts VAT.** It uses billed work without VAT, whatever the
+  setting, because VAT is owed to the state and is never the agency's.
+
+**Rationale.** `invoiced` summed `total`, which includes VAT. `recognised` came from a contract value
+written without it. So every invoiced project looked about 10% billed ahead of its work. Receivables
+("outstanding") rightly stay gross, since the client pays the VAT.
+
+**Open.** Which footing this organisation uses is the owner's answer (asked at the end of Phase 3).
+Until then, the default applies.

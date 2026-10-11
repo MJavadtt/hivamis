@@ -41,6 +41,21 @@ describe('Revenue recognition', () => {
     expect(posted[0].body).toEqual({ period: '1405-06' });
   });
 
+  it('says on what footing invoices are compared, and lets the administrator change it (audit CALC-1)', async () => {
+    const patched: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') { patched.push({ url: String(input), body: JSON.parse(String(init.body)) }); return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }); }
+      return new Response(JSON.stringify({ ...report, contractValueIncludesTax: false }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={qc}><MemoryRouter><RevenueReport /></MemoryRouter></QueryClientProvider>);
+    const basis = await screen.findByTestId('tax-basis');
+    expect(basis.textContent).toContain('بدون مالیات سنجیده می‌شوند');
+    fireEvent.click(screen.getByText('قراردادها با مالیات‌اند'));
+    await waitFor(() => expect(patched).toHaveLength(1));
+    expect(patched[0]).toMatchObject({ url: expect.stringContaining('/api/v1/organization'), body: { contractValueIncludesTax: true } });
+  });
+
   it('names work in progress for what it is', () => {
     const { container, rerender } = render(<WipLabel wip={300_000_000} />);
     expect(container.textContent).toContain('کار انجام‌شدهٔ صورت‌حساب‌نشده');

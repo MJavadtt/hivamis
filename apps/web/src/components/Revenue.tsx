@@ -133,6 +133,7 @@ interface ReportMonth {
   labourCost: number; externalCost: number; unpricedHours: number; margin: number; billingMargin: number;
 }
 interface RevenueReportData {
+  contractValueIncludesTax: boolean;
   months: ReportMonth[]; lastClosed: string | null; nextToClose: string | null;
   wip: { unbilled: number; deferred: number };
   projects: { id: string; code: string; name: string; client: string; methodFa: string; contractValue: number | null; progress: number | null; recognised: number | null; invoiced: number; wip: number | null; reasonFa: string | null; expectedLoss: number | null }[];
@@ -140,9 +141,19 @@ interface RevenueReportData {
 
 export function RevenueReport() {
   const { can } = useAuth();
+  const qc = useQueryClient();
+  const toast = useToast();
   const { data } = useQuery<RevenueReportData>({ queryKey: ['/reports/revenue'], queryFn: () => apiGet('/reports/revenue', { months: 12 }) });
   const [closing, setClosing] = useState<ReportMonth | null>(null);
   if (!data) return null;
+  // Audit CALC-1: invoices are compared with what was earned on the contract values' own footing.
+  const setTaxBasis = async (includes: boolean) => {
+    try {
+      await apiPatch('/organization', { contractValueIncludesTax: includes });
+      await qc.invalidateQueries({ queryKey: ['/reports/revenue'] });
+      toast(tr('مبنای مقایسهٔ فاکتورها به‌روز شد.'));
+    } catch (e: any) { toast(e?.message ?? tr('ذخیره ناموفق بود.'), 'danger'); }
+  };
   // The first close may be any finished month; after that, only the next one in order.
   // The last row is the month in progress, which cannot be closed. After the first close only the
   // next month in order can be; the first close is offered on the latest finished month, where
@@ -158,6 +169,16 @@ export function RevenueReport() {
       <div className="grid grid-cols-2 gap-3">
         <StatTile label={tr('کار انجام‌شدهٔ صورت‌حساب‌نشده')} value={formatCurrency(data.wip.unbilled)} hint={tr('درآمدی که به‌دست آمده و هنوز فاکتور نشده')} tone="warning" />
         <StatTile label={tr('پیش‌صورت‌حساب (درآمد انتقالی)')} value={formatCurrency(data.wip.deferred)} hint={tr('فاکتورشده پیش از انجام کار')} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-600" data-testid="tax-basis">
+        <span>{data.contractValueIncludesTax
+          ? tr('ارزش قراردادها با مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها با جمع کل‌شان سنجیده می‌شوند.')
+          : tr('ارزش قراردادها بدون مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها بدون مالیات سنجیده می‌شوند.')}</span>
+        {can('admin.settings') && (
+          <Button size="sm" variant="ghost" onClick={() => void setTaxBasis(!data.contractValueIncludesTax)}>
+            {data.contractValueIncludesTax ? tr('قراردادها بدون مالیات‌اند') : tr('قراردادها با مالیات‌اند')}
+          </Button>
+        )}
       </div>
       <Card title={tr('سودآوری ماهانه — درآمد شناسایی‌شده در برابر صورت‌حساب')}
         subtitle={tr('ستون «حاشیه» با درآمد به‌دست‌آمده حساب می‌شود؛ «حاشیه به روش فاکتور» همان ماه را آن‌طور نشان می‌دهد که پیش از شناسایی درآمد دیده می‌شد.')}
