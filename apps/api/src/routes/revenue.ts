@@ -31,7 +31,7 @@ const revenueRoutes: FastifyPluginAsync = async (app) => {
       const recognisedToDate = entry ? Number(entry.recognisedToDate) : cumulativeAt(data, fz, id, end);
       const start = cumulativeAt(data, fz, id, m.start);
       return {
-        period: m.period, labelFa: m.labelFa, closed: fz.periods.some((p) => p.period === m.period),
+        period: m.period, labelFa: m.labelFa, closed: fz.byPeriod.has(m.period),
         recognised: entry ? Number(entry.amount) : recognisedToDate == null ? null : money(recognisedToDate).sub(money(start)).toNumber(),
         recognisedToDate, invoiced: monthFlows(data, { start: m.start, end }).invoiced,
       };

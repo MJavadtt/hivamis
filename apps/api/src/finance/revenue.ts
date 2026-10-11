@@ -81,8 +81,18 @@ export function lastMonths(count: number, now: Date): Month[] {
 
 /* ── The records ───────────────────────────────────────────────────────── */
 
+type RevenueProject = { id: string; code: string; name: string; state: string; revenueMethod: string; contractValue: unknown; closedAt: Date | null; createdAt: Date; company: { legalName: string } };
+
 export interface RevenueData {
-  projects: { id: string; code: string; name: string; state: string; revenueMethod: string; contractValue: unknown; closedAt: Date | null; createdAt: Date; company: { legalName: string } }[];
+  projects: RevenueProject[];
+  /** Audit PERF-3: each project by id — a report of 2,000 projects looked each one up by scanning the list. */
+  byId: Map<string, RevenueProject>;
+  /**
+   * Audit PERF-3: a position once worked out, kept for this load — a month's end is the next month's
+   * start, and the last month ends now, which the project list reads again. The data does not change
+   * while it is held, so neither does a position.
+   */
+  positions: Map<string, Position>;
   amendments: Map<string, { valueDelta: Money; effectiveDate: Date }[]>;
   milestones: Map<string, { id: string; name: string; revenueShare: Money | null; completedAt: Date | null; dueDate: Date }[]>;
   /**
@@ -142,6 +152,8 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
   for (const d of declarations) declared.set(d.workOrder!.projectId, (declared.get(d.workOrder!.projectId) ?? ZERO).add(money(d.internalCost)).add(money(d.externalCost)));
   return {
     projects,
+    byId: new Map(projects.map((p) => [p.id, p])),
+    positions: new Map(),
     amendments: group(amendments.map((a) => ({ projectId: a.contract.projectId!, valueDelta: money(a.valueDelta), effectiveDate: a.effectiveDate })), (a) => a.projectId),
     milestones: group(milestones.map((m) => ({ id: m.id, projectId: m.projectId, name: m.name, revenueShare: m.revenueShare == null ? null : money(m.revenueShare), completedAt: m.completedAt, dueDate: m.dueDate })), (m) => m.projectId),
     tasks: group(tasks.map((t) => ({ id: t.id, projectId: t.projectId, estimateHours: t.estimateHours == null ? null : money(t.estimateHours), state: t.state, createdAt: t.createdAt, moves: movesOf.get(t.id) ?? [] })), (t) => t.projectId),
@@ -205,7 +217,16 @@ export function labourCost(data: RevenueData, entries: { hours: Money; userId: s
 }
 
 export function positionAt(data: RevenueData, projectId: string, at: Date): Position {
-  const p = data.projects.find((x) => x.id === projectId)!;
+  const key = `${projectId}:${at.getTime()}`;
+  const known = data.positions.get(key);
+  if (known) return known;
+  const position = measure(data, projectId, at);
+  data.positions.set(key, position);
+  return position;
+}
+
+function measure(data: RevenueData, projectId: string, at: Date): Position {
+  const p = data.byId.get(projectId)!;
   const method = (REVENUE_METHODS as readonly string[]).includes(p.revenueMethod) ? p.revenueMethod as RevenueMethod : 'EFFORT';
   const notesFa: string[] = [];
   // Billed for the agency's own work, on the contract value's footing (#31, audit CALC-1).
@@ -287,7 +308,7 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
 
 /** Declared cost above the contract value: a contract expected to lose money, said as soon as it is known. */
 export function expectedLoss(data: RevenueData, projectId: string): number | null {
-  const p = data.projects.find((x) => x.id === projectId)!;
+  const p = data.byId.get(projectId)!;
   const declared = data.declared.get(projectId) ?? ZERO;
   const value = money(p.contractValue);
   return value.gt(0) && declared.gt(value) ? toMoney(declared.sub(value)) : null;
@@ -302,7 +323,10 @@ export async function frozen(tx: Tx, organizationId: string) {
   ]);
   const byProject = new Map<string, Map<string, (typeof entries)[number]>>();
   for (const e of entries) (byProject.get(e.projectId) ?? byProject.set(e.projectId, new Map()).get(e.projectId)!).set(e.period, e);
-  return { periods, byProject, last: periods.at(-1) ?? null };
+  // Indexed by end and by name (audit PERF-3): asked once per project per month boundary.
+  const byEnd = new Map(periods.map((p) => [p.periodEnd.getTime(), p]));
+  const byPeriod = new Map(periods.map((p) => [p.period, p]));
+  return { periods, byProject, byEnd, byPeriod, last: periods.at(-1) ?? null };
 }
 
 /**
@@ -310,7 +334,7 @@ export async function frozen(tx: Tx, organizationId: string) {
  * otherwise measured. So the first open month after a close starts where the books left it.
  */
 export function cumulativeAt(data: RevenueData, fz: Awaited<ReturnType<typeof frozen>>, projectId: string, at: Date): number | null {
-  const closedHere = fz.periods.find((p) => p.periodEnd.getTime() === at.getTime());
+  const closedHere = fz.byEnd.get(at.getTime());
   if (closedHere) {
     const e = fz.byProject.get(projectId)?.get(closedHere.period);
     if (e) return Number(e.recognisedToDate);
@@ -334,7 +358,7 @@ export async function revenueReport(tx: Tx, organizationId: string, count: numbe
   const data = await loadRevenueData(tx, organizationId);
   const fz = await frozen(tx, organizationId);
   const months = lastMonths(count, now).map((m) => {
-    const closed = fz.periods.find((p) => p.period === m.period);
+    const closed = fz.byPeriod.get(m.period);
     if (closed) {
       const t = closed.totals as Record<string, number>;
       return { ...m, closed: true, recognised: t.recognised ?? 0, invoiced: t.invoiced ?? 0, labourCost: t.labourCost ?? 0, externalCost: t.externalCost ?? 0, unpricedHours: t.unpricedHours ?? 0 };

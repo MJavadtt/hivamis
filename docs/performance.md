@@ -112,6 +112,32 @@ them — the browser was previously leaked on each restart because nothing calle
 Deciding between the two behaviours is a capacity question, not a correctness one: raise the
 limit alongside the container's memory, since each simultaneous render costs roughly 150MB.
 
+## Revenue report at 2,000 projects (audit PERF-3)
+
+`pnpm bench:revenue [projects]` (`bench/revenue.mts`) runs the real `revenueReport` on synthetic
+records served by a stand-in for the database, so what it times is the calculation alone. Each project
+has 8 tasks, 32 time entries, 3 invoices, 3 milestones and a payment; a quarter of them run media. The
+report covers 12 months. Median of five runs after a warm-up, on the development laptop (Apple
+silicon, Node 22):
+
+| Projects | Before | After |
+|---|---|---|
+| 500 | 254 ms | 165 ms |
+| 2,000 (16,000 tasks, 64,000 entries) | 1,187 ms | 679 ms |
+
+**What changed.**
+
+- Each position is worked out once per (project, instant) for a load. A month's end is the next
+  month's start, and the last month ends now, which the project list reads again.
+- Projects are looked up by id in a `Map` rather than by scanning the list for each of them.
+- Closed periods are indexed by end and by name.
+
+The growth was faster than linear before (×4.7 for ×4 projects) and is about linear now (×4.1).
+
+**What remains.** The decimal arithmetic CALC-2 brought is the main cost now; it is the price of
+exact money. Past several thousand projects, the next step would be computing month boundaries
+incrementally per project.
+
 ## Bottleneck, and what is next
 
 The remaining ceiling on the read endpoints is JSON serialisation, not the database:
