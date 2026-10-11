@@ -2540,5 +2540,10 @@
   "۵ — عالی": "5 — excellent",
   "⛔️ رد شد.": "⛔️ Rejected.",
   "✅ تأیید شد.": "✅ Approved.",
-  "✅ تأیید شما ثبت شد؛ فرم به مرحلهٔ بعد رفت.": "✅ Your approval is recorded; the form moved to the next step."
+  "✅ تأیید شما ثبت شد؛ فرم به مرحلهٔ بعد رفت.": "✅ Your approval is recorded; the form moved to the next step.",
+  "این ورود در مرورگر دیگری آغاز شده است؛ از همین مرورگر دوباره با گوگل وارد شوید.": "This sign-in began in another browser; sign in with Google again from this one.",
+  "این درخواست اتصال منقضی شده است؛ دوباره با گوگل وارد شوید.": "This link request has expired; sign in with Google again.",
+  "این حساب شمارهٔ همراه تأییدشده ندارد.": "This account has no verified mobile number.",
+  "رمز یا کد درست نیست.": "The password or code is not right.",
+  "این حساب گوگل به حساب دیگری وصل است.": "This Google account is linked to another account."
 }

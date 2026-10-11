@@ -116,7 +116,7 @@ come from `tenant:create`, as the installer does.
 | `SMS_MODE` | no | `sandbox` outside production, `off` in production | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages for an administrator to read (Admin → Users); `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
 | `SMS_API_KEY`, `SMS_TEMPLATE`, `SMS_URL` | with `kavenegar` / `http` | — | The provider's key; Kavenegar's verify template (one token, the code); the `http` endpoint |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for Google sign-in | — | An OAuth client of type "Web application"; register `PUBLIC_APP_URL` (or the first `CORS_ORIGIN`) + `/api/v1/auth/google/callback` as its redirect URI. Unset: no Google button |
-| `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains allowed to ask to join with Google; signing in with an already-linked account is unaffected |
+| `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains a Google account must be on — to ask to join, to sign in, and to be linked (audit SEC-5). Empty: any domain |
 | `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
 | `MESSENGER_API_URL` | no | the provider's | Bot API base, e.g. a proxy in front of it |
 | `MESSENGER_BOT_USERNAME` | no | — | Shown to people linking, and used for Telegram deep links |

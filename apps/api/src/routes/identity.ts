@@ -16,7 +16,9 @@ import { grantsOf } from '../auth/grants.js';
 import { issueSession, countFailure } from '../auth/session.js';
 import { checkCode, issueCode } from '../auth/otp.js';
 import { sendCode, smsAvailable } from '../auth/sms.js';
-import { createTicket, finishGoogle, google, googleConfigured, redeemTicket, startGoogle } from '../auth/google.js';
+import { createTicket, finishGoogle, google, googleConfigured, liveOffer, offerLink, redeemTicket, startGoogle } from '../auth/google.js';
+import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js';
+import { verifyPassword } from '../auth/password.js';
 
 /**
  * Signing in with a mobile number or a Google account, and asking to join (Hivamis task 4).
@@ -111,14 +113,19 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   /* ── by Google ───────────────────────────────────────────────────────── */
 
-  app.get('/auth/google/start', { config: RATE }, async (req) => {
+  app.get('/auth/google/start', { config: RATE }, async (req, reply) => {
     const { mode } = req.query as { mode?: string };
+    let started: { url: string; binding: string };
     if (mode === 'signup') {
       const s = await signupState(req);
       if (!s.google) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با گوگل در این سازمان باز نیست.');
-      return { url: await startGoogle('SIGNUP', null, s.org.id) };
+      started = await startGoogle('SIGNUP', null, s.org.id);
+    } else {
+      started = await startGoogle('LOGIN');
     }
-    return { url: await startGoogle('LOGIN') };
+    // Audit SEC-5: the answer is honoured only in this browser.
+    setOAuthCookie(reply, started.binding);
+    return { url: started.url };
   });
 
   /** Where Google sends the browser back. It answers with a page address, never with a token. */
@@ -126,9 +133,11 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const q = req.query as { code?: string; state?: string; error?: string };
     const back = (path: string, fragment: Record<string, string>) =>
       reply.redirect(`${appUrl(path)}#${new URLSearchParams(fragment).toString()}`);
+    const binding = oauthCookie(req);
+    clearOAuthCookie(reply);
     if (q.error || !q.code || !q.state) return back('/auth/google', { error: 'CANCELLED' });
     try {
-      const { mode, userId, organizationId, profile } = await finishGoogle(q.code, q.state);
+      const { mode, userId, organizationId, profile } = await finishGoogle(q.code, q.state, binding);
       return await googleOutcome(req, mode, userId, organizationId, profile, back);
     } catch (e) {
       return back('/auth/google', { error: e instanceof AppError ? e.code : 'GOOGLE_FAILED' });
@@ -142,8 +151,11 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
   ) {
     const ip = req.ip;
     const identity = await prisma.userIdentity.findUnique({ where: { provider_subject: { provider: 'google', subject: profile.sub } }, include: { user: true } });
+    // Audit SEC-5: the organisation's allowed domains hold for every way a Google account comes in.
+    const domainRefused = google.allowedDomains.length > 0 && !google.allowedDomains.includes(profile.domain);
 
     if (mode === 'LINK') {
+      if (domainRefused) return back('/me', { error: 'DOMAIN' });
       if (identity && identity.userId !== linkUserId) return back('/me', { error: 'LINKED_ELSEWHERE' });
       const me = await prisma.user.findUniqueOrThrow({ where: { id: linkUserId! } });
       if (!identity) {
@@ -154,14 +166,15 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (mode === 'LOGIN') {
-      let user = identity?.user ?? null;
+      if (domainRefused) return back('/auth/google', { error: 'DOMAIN' });
+      const user = identity?.user ?? null;
       if (!user) {
-        // A verified Google address that is someone's work address: that someone, linked from now on.
+        // A verified Google address that is someone's work address is not yet that someone (audit
+        // SEC-5): whoever holds the address at Google is offered the link, and proves the account once.
         const byEmail = await prisma.user.findUnique({ where: { email: profile.email } });
         if (byEmail && byEmail.isActive && !byEmail.deletedAt) {
-          const made = await prisma.userIdentity.create({ data: { userId: byEmail.id, provider: 'google', subject: profile.sub, email: profile.email } });
-          await audit({ organizationId: byEmail.organizationId, actorId: byEmail.id, action: 'CREATE', entityType: 'userIdentity', entityId: made.id, after: { provider: 'google', email: profile.email }, reason: 'google linked at sign-in', ipAddress: ip });
-          user = byEmail;
+          if (byEmail.lockedUntil && byEmail.lockedUntil > new Date()) return back('/auth/google', { error: 'LOCKED' });
+          return back('/auth/google', { link: await offerLink(byEmail.id, profile) });
         }
       }
       if (!user || !user.isActive || user.deletedAt) return back('/auth/google', { error: 'NO_ACCOUNT' });
@@ -173,7 +186,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     // SIGNUP
     const s = await signupState(req, organizationId);
     if (!s.google) return back('/signup', { error: 'SIGNUP_CLOSED' });
-    if (google.allowedDomains.length && !google.allowedDomains.includes(profile.domain)) return back('/signup', { error: 'DOMAIN' });
+    if (domainRefused) return back('/signup', { error: 'DOMAIN' });
     if (identity || await prisma.user.findUnique({ where: { email: profile.email } })) return back('/signup', { error: 'HAS_ACCOUNT' });
     const pending = await prisma.signupRequest.findFirst({ where: { organizationId: s.org.id, email: profile.email, status: 'PENDING' } });
     if (pending) return back('/signup', { done: 'pending' });
@@ -184,6 +197,69 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     await notifyAdmins(s.org.id, `درخواست عضویت: ${request.fullName}`, `${request.email} — با حساب گوگل`, request.id);
     return back('/signup', { done: 'sent' });
   }
+
+  /* ── linking a Google account by its address, after proof (audit SEC-5) ── */
+
+  const offerGone = () => new AppError(410, 'OFFER_GONE', 'این درخواست اتصال منقضی شده است؛ دوباره با گوگل وارد شوید.');
+  const tokenOf = (req: FastifyRequest) => ((req.body ?? {}) as { token?: unknown }).token as string;
+  const masked = (phone: string) => `${'•'.repeat(Math.max(0, phone.length - 2))}${phone.slice(-2)}`;
+  const phoneOf = (u: { phone: string | null; phoneVerifiedAt: Date | null }) => (u.phone && u.phoneVerifiedAt && smsAvailable() ? u.phone : null);
+
+  /** Whose account the offer is for, and the proofs it can take. The person reached it from Google with that address. */
+  app.post('/auth/google/offer', { config: RATE }, async (req) => {
+    const offer = await liveOffer(tokenOf(req));
+    if (!offer || !offer.user.isActive || offer.user.deletedAt) throw offerGone();
+    const phone = phoneOf(offer.user);
+    return { email: offer.email, fullName: offer.user.fullName, password: hasPassword(offer.user.passwordHash), phone: phone ? masked(phone) : null };
+  });
+
+  app.post('/auth/google/offer/code', { config: RATE }, async (req, reply) => {
+    const offer = await liveOffer(tokenOf(req));
+    if (!offer || !offer.user.isActive || offer.user.deletedAt) throw offerGone();
+    const phone = phoneOf(offer.user);
+    if (!phone) throw badRequest('NO_PHONE', 'این حساب شمارهٔ همراه تأییدشده ندارد.');
+    const issued = await issueCode({ purpose: 'LOGIN', phone, userId: offer.user.id, ipAddress: req.ip });
+    if ('code' in issued) void sendCode(phone, issued.code, 'LOGIN').catch((e) => req.log.warn({ err: e }, 'sms not sent'));
+    return reply.code(202).send({ sent: true, resendAfterSeconds: 'retryAfterSeconds' in issued ? issued.retryAfterSeconds : SENT_FOR });
+  });
+
+  /** The proof: the account's password, or a code sent to its mobile. Then the link, and a session. */
+  app.post('/auth/google/offer/confirm', { config: RATE }, async (req, reply) => {
+    const { password, code } = (req.body ?? {}) as { password?: unknown; code?: unknown };
+    const offer = await liveOffer(tokenOf(req));
+    if (!offer || !offer.user.isActive || offer.user.deletedAt) throw offerGone();
+    const u = offer.user;
+    if (u.lockedUntil && u.lockedUntil > new Date()) throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
+    let proof: 'password' | 'phone' | null = null;
+    if (typeof password === 'string' && password && hasPassword(u.passwordHash)) {
+      if (await verifyPassword(u.passwordHash, password)) proof = 'password';
+    } else if (typeof code === 'string' && code && phoneOf(u)) {
+      const ok = await checkCode({ purpose: 'LOGIN', phone: u.phone!, code });
+      if (ok && ok.userId === u.id) proof = 'phone';
+    }
+    if (!proof) {
+      // A wrong proof costs what a wrong password does, and the offer has five.
+      await prisma.identityLinkOffer.update({ where: { id: offer.id }, data: { attempts: { increment: 1 } } });
+      await countFailure(u.id, req, 'google-link-proof');
+      throw unauthorized('رمز یا کد درست نیست.');
+    }
+    const linked = await prisma.$transaction(async (tx) => {
+      // Spent once, even if two tabs confirm at the same moment.
+      const spent = await tx.identityLinkOffer.updateMany({ where: { id: offer.id, consumedAt: null }, data: { consumedAt: new Date() } });
+      if (spent.count !== 1) return 'gone' as const;
+      const taken = await tx.userIdentity.findUnique({ where: { provider_subject: { provider: 'google', subject: offer.subject } } });
+      if (taken) return taken.userId === u.id ? 'linked' as const : 'elsewhere' as const;
+      const made = await tx.userIdentity.create({ data: { userId: u.id, provider: 'google', subject: offer.subject, email: offer.email, lastUsedAt: new Date() } });
+      await audit({
+        organizationId: u.organizationId, actorId: u.id, action: 'CREATE', entityType: 'userIdentity', entityId: made.id,
+        after: { provider: 'google', email: offer.email, proof }, reason: 'google linked after proof', ipAddress: req.ip,
+      }, tx);
+      return 'linked' as const;
+    });
+    if (linked === 'gone') throw offerGone();
+    if (linked === 'elsewhere') throw conflict('LINKED_ELSEWHERE', 'این حساب گوگل به حساب دیگری وصل است.');
+    return issueSession(u.id, req, reply, 'google');
+  });
 
   app.post('/auth/ticket', { config: RATE }, async (req, reply) => {
     const { ticket } = (req.body ?? {}) as { ticket?: string };

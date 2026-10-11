@@ -119,6 +119,25 @@ describe('Back from Google', () => {
     vi.unstubAllGlobals();
   });
 
+  it('asks the owner of a work address to prove the account once before linking Google to it (audit SEC-5)', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { ...window.location, hash: '#link=offer-1', pathname: '/auth/google', replace });
+    const sent = mount(<GoogleReturn />, (p) => {
+      if (p === '/auth/google/offer') return json({ email: 'legal@hiva.local', fullName: 'سعید تقوی', password: true, phone: '•••••••••01' });
+      if (p === '/auth/google/offer/confirm') return json({ accessToken: 'g' });
+      return undefined;
+    });
+    expect(await screen.findByText(/همان نشانی حساب سعید تقوی/)).toBeDefined();
+    // Nothing is linked, and nobody signed in, by the address alone.
+    expect(sent.some((x) => x.path === '/auth/ticket')).toBe(false);
+    fireEvent.change(screen.getByLabelText('رمز عبور هیوامیس'), { target: { value: 'Hiva@Dev2026!' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'وصل کن و وارد شو' })[0]!);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
+    expect(sent.find((x) => x.path === '/auth/google/offer/confirm')!.body).toEqual({ token: 'offer-1', password: 'Hiva@Dev2026!' });
+    expect(wasSignedIn()).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
   it('explains an account Google knows but Hivamis does not', async () => {
     vi.stubGlobal('location', { ...window.location, hash: '#error=NO_ACCOUNT', pathname: '/auth/google', replace: vi.fn() });
     mount(<GoogleReturn />, () => undefined);

@@ -267,6 +267,7 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('AUTH', [
     "auth/claims.ts#claimsFor",
     "auth/claims.ts#withDelegations",
+    "auth/google.ts#liveOffer",
     "auth/session.ts#countFailure",
     "auth/session.ts#issueSession",
     "auth/standing.ts#read",
@@ -280,6 +281,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/auth.ts#POST /auth/login",
     "routes/auth.ts#reused",
     "routes/auth.ts#rotate",
+    "routes/identity.ts#POST /auth/google/offer/confirm",
     "routes/identity.ts#POST /auth/phone/start",
     "routes/identity.ts#POST /auth/phone/verify",
     "routes/identity.ts#POST /auth/signup",

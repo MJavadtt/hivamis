@@ -2036,3 +2036,32 @@ was true only of the access token.
   legacy token has expired, and the route can be removed.
 - The portal keeps its own tab-scoped token in `sessionStorage` (ADR-043). It has no refresh token,
   so nothing changes for it.
+
+## ADR-071 — Google sign-in is bound to its browser, and links an account only after proof
+
+**Decision.** (Audit SEC-5.)
+
+1. **Bound to the browser.** Starting a Google flow sets `hiva_oauth`, a random nonce in a ten-minute
+   `HttpOnly` cookie. The cookie is `SameSite=Lax`, because Google's answer is a top-level navigation
+   from another site. The nonce's hash is stored with the state. The callback refuses, with
+   `GOOGLE_BROWSER`, a request whose cookie is missing or does not match. It does so before spending
+   the state, so the browser that did ask can still finish.
+2. **Allowed domains everywhere.** `GOOGLE_ALLOWED_DOMAINS` applies to signing in and to linking, as
+   well as to asking to join.
+3. **No silent linking by address.** Sign-in with an unlinked Google account whose verified address is
+   a person's work address no longer links it. It returns a ten-minute, single-use, five-try
+   `IdentityLinkOffer`. The person proves the account is theirs once, by its password or by a code
+   texted to its verified mobile. Only then is the identity linked, audited with the proof used, and a
+   session issued. A wrong proof counts against the account as a wrong password does.
+
+**Rationale.**
+
+- **Login CSRF.** The state lived only in the database. An attacker could start a flow with their own
+  Google account and hand the victim the callback URL. The victim's browser would then be signed into
+  the attacker's account, and everything the victim did there would go to the attacker.
+- **Silent linking.** Linking by verified address trusted Google about who holds a mailbox *today*. A
+  recycled address, a domain that changed hands, or a Workspace admin creating the same address would
+  each have walked into the account.
+
+**Limits.** Starting a second Google flow in the same browser before the first returns replaces the
+cookie, so the first is refused. The person simply starts again.

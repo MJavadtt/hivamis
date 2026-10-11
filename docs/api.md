@@ -35,9 +35,12 @@ A request that spends the cookie (`/auth/refresh`, `/auth/refresh/legacy`, `/aut
 | `GET /auth/methods` | Public — which ways in this installation offers (`password`, `phone`, `google`) and whether asking to join is open |
 | `POST /auth/phone/start` `{ phone }` | Public — texts a six-digit code if the number is an active person's verified mobile; answers `202` the same either way. One code a minute and five an hour per number |
 | `POST /auth/phone/verify` `{ phone, code }` | Public — signs in; five wrong tries spend the code and count against the account like wrong passwords |
-| `GET /auth/google/start?mode=login\|signup` | Public — `{ url }` to send the browser to (state, nonce and PKCE kept server-side, ten minutes, one use) |
+| `GET /auth/google/start?mode=login\|signup` | Public — `{ url }` to send the browser to (state, nonce and PKCE kept server-side, ten minutes, one use). Sets `hiva_oauth`, a ten-minute `HttpOnly` `SameSite=Lax` cookie: the callback is honoured only in this browser (audit SEC-5), otherwise `#error=GOOGLE_BROWSER` |
 | `GET /auth/google/callback` | Google's redirect. Answers with a redirect to `/auth/google#ticket=…` (or `#error=CODE`), `/signup#done=sent`, or `/me#linked=google` — never with a token in a URL |
 | `POST /auth/ticket` `{ ticket }` | Public — trades the minute-long, single-use ticket for a session |
+| `POST /auth/google/offer` `{ token }` | Public — a Google account whose verified address is a person's work address comes back as `/auth/google#link=…`, not linked (audit SEC-5). This shows whose account it is and which proofs it takes (`password`, a masked `phone`) |
+| `POST /auth/google/offer/code` `{ token }` | Public — texts a sign-in code to the account's verified mobile |
+| `POST /auth/google/offer/confirm` `{ token, password }` or `{ token, code }` | Public — the proof. Links the Google account (audited, with the proof used) and signs in. A wrong proof counts as a wrong password; five spend the offer (`410 OFFER_GONE`) |
 | `GET /auth/signup/options`, `POST /auth/signup/phone/start`, `POST /auth/signup` `{ fullName, email, phone, code, departmentCode?, note? }` | Public — asking to join; records a request, grants nothing |
 | `GET /signup-requests`, `POST /signup-requests/:id/approve` `{ departmentCode, roles, jobTitle? }`, `POST /signup-requests/:id/reject` `{ note }` | `admin.users` — the administrator creates the account with the unit and roles they choose; never `SUPER_ADMIN` |
 | `GET` / `PATCH /settings/signup` `{ enabled }` | `admin.settings` — open or close asking to join |

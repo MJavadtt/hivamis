@@ -59,3 +59,19 @@ export function assertFromTheApp(req: FastifyRequest): void {
   if (ALLOWED.has(url.origin) || url.hostname.toLowerCase() === requestHost(req)) return;
   throw refuse();
 }
+
+/**
+ * Audit SEC-5: the nonce that binds a Google sign-in to the browser that began it. Lax, not Strict:
+ * Google's answer arrives as a top-level navigation from another site, and Strict would keep it out.
+ */
+export const OAUTH_COOKIE = 'hiva_oauth';
+const OAUTH_PATH = '/api/v1/auth/google';
+
+export function setOAuthCookie(reply: FastifyReply, binding: string): void {
+  reply.setCookie(OAUTH_COOKIE, binding, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', path: OAUTH_PATH, maxAge: 600 });
+}
+export function clearOAuthCookie(reply: FastifyReply): void {
+  reply.clearCookie(OAUTH_COOKIE, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', path: OAUTH_PATH });
+}
+export const oauthCookie = (req: FastifyRequest): string | undefined => req.cookies?.[OAUTH_COOKIE] || undefined;
+

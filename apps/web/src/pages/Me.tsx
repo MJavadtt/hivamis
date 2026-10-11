@@ -39,6 +39,8 @@ export default function Me() {
     const back = new URLSearchParams(window.location.hash.slice(1));
     if (back.get('linked')) toast(tr('حساب گوگل وصل شد.'));
     if (back.get('error') === 'LINKED_ELSEWHERE') toast(tr('این حساب گوگل به حساب دیگری در هیوامیس وصل است.'), 'danger');
+    else if (back.get('error') === 'DOMAIN') toast(tr('حساب‌های گوگلِ این دامنه در این سازمان پذیرفته نیستند؛ با حساب گوگل کاری‌تان وارد شوید.'), 'danger');
+    else if (back.get('error') === 'GOOGLE_BROWSER') toast(tr('این ورود در مرورگر دیگری آغاز شده است؛ از همین مرورگر دوباره با گوگل وارد شوید.'), 'danger');
     else if (back.get('error')) toast(tr('وصل کردن حساب گوگل انجام نشد.'), 'danger');
     if (window.location.hash) history.replaceState(null, '', window.location.pathname);
   }, [toast]);

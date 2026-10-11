@@ -253,30 +253,106 @@ describe('Signing in with Google', () => {
     new SignJWT({ nonce, email_verified: true, ...claims }).setProtectedHeader({ alg: 'RS256', kid: 'k1' })
       .setIssuer('https://accounts.google.com').setAudience('test-client').setIssuedAt().setExpirationTime('5m').sign(privateKey);
 
+  const bindingOf = (res: { headers: Record<string, unknown> }) => {
+    const raw = res.headers['set-cookie'];
+    const line = (Array.isArray(raw) ? raw : [String(raw ?? '')]).find((c) => c.startsWith('hiva_oauth='));
+    return line?.split(';')[0]!.slice('hiva_oauth='.length);
+  };
+  /** Google's answer arriving in a browser: this one's cookie, another's, or none. */
+  const callback = (state: string, binding: string | undefined) =>
+    app().then((a) => a.inject({ method: 'GET', url: `/api/v1/auth/google/callback?code=c&state=${state}`, headers: binding ? { cookie: `hiva_oauth=${binding}` } : {} }));
+  const where = (res: { headers: Record<string, unknown> }) => {
+    const location = new URL(res.headers.location as string);
+    return { path: location.pathname, fragment: new URLSearchParams(location.hash.slice(1)) };
+  };
+
   /** Starts a flow, lets "Google" answer with these claims, and returns where the browser is sent. */
-  async function roundTrip(start: () => Promise<{ status: number; body: any }>, claims: Record<string, unknown>, tamper?: (nonce: string) => string) {
-    const url = new URL(expectOk(await start(), 'start').url);
+  async function roundTrip(start: () => Promise<{ status: number; body: any; headers: Record<string, unknown> }>, claims: Record<string, unknown>, tamper?: (nonce: string) => string, browser?: (own: string) => string | undefined) {
+    const started = await start();
+    const url = new URL(expectOk(started, 'start').url);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    const own = bindingOf(started)!;
+    expect(own).toBeTruthy();
     const state = url.searchParams.get('state')!;
     lastNonce = tamper ? tamper(url.searchParams.get('nonce')!) : url.searchParams.get('nonce')!;
     nextToken = idToken(claims);
-    const res = await (await app()).inject({ method: 'GET', url: `/api/v1/auth/google/callback?code=c&state=${state}` });
+    const res = await callback(state, browser ? browser(own) : own);
     expect(res.statusCode).toBe(302);
-    const location = new URL(res.headers.location as string);
-    return { path: location.pathname, fragment: new URLSearchParams(location.hash.slice(1)), state };
+    return { ...where(res), state, binding: own };
   }
 
-  it('signs in a person whose work address Google has verified, linking the account, with no token in the URL', async () => {
+  it('links a work address Google has verified only once its owner proves the account — then signs in by ticket', async () => {
     const out = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-legal', email: 'Legal@Hiva.local', name: 'Legal' });
     expect(out.path).toBe('/auth/google');
-    const ticket = out.fragment.get('ticket')!;
-    const session = expectOk(await call('POST', '/auth/ticket', { payload: { ticket } }), 'ticket');
+    // Audit SEC-5: not linked on the address alone, and nobody signed in yet.
+    expect(out.fragment.get('ticket')).toBeNull();
+    const link = out.fragment.get('link')!;
+    expect(await prisma.userIdentity.count({ where: { provider: 'google', subject: 'g-legal' } })).toBe(0);
+    expect(expectOk(await call('POST', '/auth/google/offer', { payload: { token: link } }), 'offer')).toMatchObject({ email: 'legal@hiva.local', password: true });
+
+    const wrong = await call('POST', '/auth/google/offer/confirm', { payload: { token: link, password: 'not-it-at-all' } });
+    expect(wrong.status).toBe(401);
+    const raw = await call('POST', '/auth/google/offer/confirm', { payload: { token: link, password: 'Hiva@Dev2026!' } });
+    const session = expectOk(raw, 'confirm');
     expect(session.user.email).toBe('legal@hiva.local');
+    expect(refreshCookieOf(raw)).toBeTruthy();
+    const identity = await prisma.userIdentity.findUniqueOrThrow({ where: { provider_subject: { provider: 'google', subject: 'g-legal' } } });
+    const trail = await prisma.auditEvent.findFirstOrThrow({ where: { entityType: 'userIdentity', entityId: identity.id } });
+    expect(trail).toMatchObject({ action: 'CREATE', reason: 'google linked after proof', after: { provider: 'google', email: 'legal@hiva.local', proof: 'password' } });
+    // Spent.
+    expect((await call('POST', '/auth/google/offer/confirm', { payload: { token: link, password: 'Hiva@Dev2026!' } })).status).toBe(410);
+
+    // Linked now: the next sign-in with Google goes straight through, by a ticket — no token in the URL.
+    const next = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-legal', email: 'legal@hiva.local', name: 'Legal' });
+    const ticket = next.fragment.get('ticket')!;
+    expect(expectOk(await call('POST', '/auth/ticket', { payload: { ticket } }), 'ticket').user.email).toBe('legal@hiva.local');
     expect((await call('POST', '/auth/ticket', { payload: { ticket } })).status).toBe(401);
-    expect(await prisma.userIdentity.count({ where: { provider: 'google', subject: 'g-legal' } })).toBe(1);
     // The state is spent with the first answer.
-    const again = await (await app()).inject({ method: 'GET', url: `/api/v1/auth/google/callback?code=c&state=${out.state}` });
-    expect(new URLSearchParams(new URL(again.headers.location as string).hash.slice(1)).get('error')).toBe('GOOGLE_STATE');
+    expect(where(await callback(next.state, next.binding)).fragment.get('error')).toBe('GOOGLE_STATE');
+  });
+
+  it('honours Google’s answer only in the browser that asked — someone else’s link lands nobody anywhere', async () => {
+    const elsewhere = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-legal', email: 'legal@hiva.local' }, undefined, () => 'another-browsers-nonce');
+    expect(elsewhere.fragment.get('error')).toBe('GOOGLE_BROWSER');
+    const none = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-legal', email: 'legal@hiva.local' }, undefined, () => undefined);
+    expect(none.fragment.get('error')).toBe('GOOGLE_BROWSER');
+    // Refused before anything was spent: the browser that did ask can still finish.
+    expect(where(await callback(none.state, none.binding)).fragment.get('ticket')).toBeTruthy();
+  });
+
+  it('holds the allowed domains at sign-in and at linking, not only at asking to join', async () => {
+    google.allowedDomains = ['hiva.local'];
+    try {
+      const outside = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-legal', email: 'legal@hiva.local' });
+      expect(outside.fragment.get('ticket')).toBeTruthy();
+      const gmail = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-gmail', email: 'someone@gmail.com' });
+      expect(gmail.fragment.get('error')).toBe('DOMAIN');
+      const media = await login('media@hiva.local');
+      const linking = await roundTrip(() => post('/me/google/link', media), { sub: 'g-media', email: 'media.private@gmail.com' });
+      expect([linking.path, linking.fragment.get('error')]).toEqual(['/me', 'DOMAIN']);
+    } finally { google.allowedDomains = []; }
+  });
+
+  it('takes a code to the account’s mobile as proof, and five wrong proofs spend the offer', async () => {
+    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    expect(pmo.phoneVerifiedAt).not.toBeNull(); // proved in «Signing in by mobile» above
+    const out = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-pmo', email: 'pmo@hiva.local' });
+    const link = out.fragment.get('link')!;
+    expect(expectOk(await call('POST', '/auth/google/offer', { payload: { token: link } }), 'offer').phone).toMatch(/^•+01$/);
+    await ageCodes(pmo.phone!);
+    const since = new Date(Date.now() - 1);
+    expect((await call('POST', '/auth/google/offer/code', { payload: { token: link } })).status).toBe(202);
+    const code = await codeSentAfter(pmo.phone!, since);
+    expect(expectOk(await call('POST', '/auth/google/offer/confirm', { payload: { token: link, code } }), 'confirm').user.email).toBe('pmo@hiva.local');
+    expect(await prisma.userIdentity.count({ where: { provider: 'google', subject: 'g-pmo' } })).toBe(1);
+
+    const again = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-creative', email: 'creative@hiva.local' });
+    const offer = again.fragment.get('link')!;
+    for (let i = 0; i < 5; i++) expect((await call('POST', '/auth/google/offer/confirm', { payload: { token: offer, password: `wrong-${i}` } })).status).toBe(401);
+    expect((await call('POST', '/auth/google/offer/confirm', { payload: { token: offer, password: 'Hiva@Dev2026!' } })).status).toBe(410);
+    expect(await prisma.userIdentity.count({ where: { provider: 'google', subject: 'g-creative' } })).toBe(0);
+    // The wrong proofs counted against the account as wrong passwords do; clear the lock for the tests after.
+    await prisma.user.update({ where: { email: 'creative@hiva.local' }, data: { failedLoginCount: 0, lockedUntil: null } });
   });
 
   it('refuses an answer that is not for this request, or an address Google has not verified', async () => {

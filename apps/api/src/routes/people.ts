@@ -5,6 +5,7 @@ import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { forgetStanding } from '../auth/standing.js';
+import { setOAuthCookie } from '../auth/cookie.js';
 import { hashPassword } from '../auth/password.js';
 import { checkCode, issueCode } from '../auth/otp.js';
 import { sendCode, smsAvailable } from '../auth/sms.js';
@@ -140,9 +141,12 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     return { phone: me.phone, phoneVerified: false };
   });
 
-  app.post('/me/google/link', { preHandler: [app.authenticate] }, async (req) => {
+  app.post('/me/google/link', { preHandler: [app.authenticate] }, async (req, reply) => {
     const actor = actorFrom(req);
-    return { url: await startGoogle('LINK', actor.id) };
+    const started = await startGoogle('LINK', actor.id);
+    // Audit SEC-5: Google's answer is honoured only in the browser that asked.
+    setOAuthCookie(reply, started.binding);
+    return { url: started.url };
   });
 
   app.delete('/me/identities/:id', { preHandler: [app.authenticate] }, async (req) => {

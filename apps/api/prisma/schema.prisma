@@ -305,6 +305,7 @@ model User {
   identities           UserIdentity[]
   otpCodes             OtpCode[]
   oauthStates          OAuthState[]
+  identityLinkOffers   IdentityLinkOffer[]
   loginTickets         LoginTicket[]
   signupDecisions      SignupRequest[]     @relation("SignupDecider")
   signupAccounts       SignupRequest[]     @relation("SignupAccount")
@@ -2835,11 +2836,34 @@ model OAuthState {
   /// Roadmap #50: the organisation an «ask to join with Google» began in — the callback returns to
   /// the installation's one address, which names no organisation.
   organizationId String?
+  /// Audit SEC-5: the hash of a nonce kept in a cookie of the browser that began the flow. The callback
+  /// is honoured only in that browser, so nobody can hand another person the end of their own sign-in.
+  bindingHash  String?
   expiresAt    DateTime
   consumedAt   DateTime?
   createdAt    DateTime  @default(now())
 
   @@map("oauth_states")
+}
+
+/// Audit SEC-5: a Google account whose verified address is a person's work address. It is not linked —
+/// and signs nobody in — until that person proves the account is theirs once, by password or a code to
+/// their mobile. Ten minutes, one use, five tries.
+model IdentityLinkOffer {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String
+  subject    String
+  email      String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("identity_link_offers")
 }
 
 /// The hand-off from a provider's redirect to the app: a single-use ticket, a minute long, that the
