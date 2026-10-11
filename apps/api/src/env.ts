@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GENERATED_SECRETS, VENDOR_SECRETS, databaseUrlProblem, secretProblem } from './lib/secrets.js';
 
 /**
  * `<number><s|m|h|d>`. Validated here rather than at use: ttlToMs used to fall back to seven
@@ -194,6 +195,17 @@ if (!parsed.success) {
   // Fail fast and loudly — a mis-set secret must never silently fall back to a default.
   console.error('Invalid environment configuration:');
   console.error(parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+// Audit SEC-7: a placeholder or a hand-typed secret stops the API, with the command that makes a real one.
+const weak = [...GENERATED_SECRETS, ...VENDOR_SECRETS]
+  .map((name) => secretProblem(name, (parsed.data as Record<string, unknown>)[name] as string | undefined))
+  .concat(databaseUrlProblem(parsed.data.DATABASE_URL))
+  .filter((p): p is string => p !== null);
+if (weak.length) {
+  console.error('Invalid environment configuration:');
+  for (const p of weak) console.error(`  ${p}`);
   process.exit(1);
 }
 

@@ -80,7 +80,7 @@ come from `tenant:create`, as the installer does.
 | Variable | Required | Default | Notes |
 |---|---|---|---|
 | `DATABASE_URL` | yes | — | PostgreSQL connection string |
-| `JWT_SECRET` | yes | — | ≥32 chars. The process refuses to start otherwise |
+| `JWT_SECRET` | yes | — | ≥32 chars, at least 16 distinct, not a placeholder from an example file. The process refuses to start otherwise (audit SEC-7) |
 | `PORT` / `HOST` | no | 4000 / 0.0.0.0 | |
 | `NODE_ENV` | no | development | |
 | `LOG_LEVEL` | no | info | `fatal`…`trace`, or `silent` |
@@ -255,7 +255,11 @@ curl -s localhost:4000/health/ready    # demoAccounts must be 0
 A non-zero count is also logged at `fatal` on startup, naming each account. Deactivate with
 `POST /api/v1/users/:id/deactivate` (this revokes their sessions).
 
-**2. `JWT_SECRET` rotated.** It must not be `CHANGE_ME` or any value from an example file.
+**2. `JWT_SECRET` rotated.** It must not be `CHANGE_ME` or any value from an example file — the API
+refuses to start on one, and on any generated secret (`JWT_SECRET`, `ESIGN_WEBHOOK_SECRET`,
+`MESSENGER_WEBHOOK_SECRET`) with fewer than 16 distinct characters, and on a database password still
+`CHANGE_ME`. A vendor's key (`SMS_API_KEY`, `GOOGLE_CLIENT_SECRET`, …) is refused only when it is the
+placeholder.
 Rotating it invalidates every existing session, which is the intent on first deploy:
 
 ```bash
@@ -305,8 +309,10 @@ response, so a user-reported failure maps to exactly one log line.
 ## Troubleshooting
 
 **API will not start — "Invalid environment configuration".**
-The message names the offending variables. `JWT_SECRET` shorter than 32 characters is the usual
-cause. This is intentional: a mis-set secret must never silently fall back to a default.
+The message names the offending variables, and for a secret says how to make one
+(`openssl rand -base64 48`). A `JWT_SECRET` shorter than 32 characters, still the example file's
+`CHANGE_ME…`, or typed by hand (fewer than 16 distinct characters) are the usual causes. This is
+intentional: a mis-set secret must never silently fall back to a default.
 
 **A transition returns 422.**
 A Doc_H rule blocked it. `error.details.rule` names the clause and `error.message` says what is
