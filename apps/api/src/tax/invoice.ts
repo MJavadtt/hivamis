@@ -7,6 +7,7 @@
  * amounts in whole rials. An invoice in another currency (#28) is reported in rials at the rate it
  * was booked at; the export pattern with currency fields is not implemented.
  */
+import { money, toMoney } from '../lib/money.js';
 export type TaxSubject = 'ORIGINAL' | 'CORRECTION' | 'CANCELLATION';
 const INS: Record<TaxSubject, number> = { ORIGINAL: 1, CORRECTION: 2, CANCELLATION: 3 };
 
@@ -23,7 +24,8 @@ export interface Problem { field: string; messageFa: string }
 
 const digits = (v: string | null | undefined) => (v ?? '').replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0)).replace(/\D/g, '');
 const num = (v: unknown) => (v == null ? 0 : Number(v));
-const rial = (v: number) => Math.round(v);
+/** A whole rial from an exact product: half away from zero (audit CALC-2), as the authority rounds. */
+const rial = (v: unknown) => toMoney(v, 0);
 
 interface Line { description: string; quantity: number; unitPrice: number; serviceCode?: string }
 const linesOf = (raw: unknown): Line[] =>
@@ -77,10 +79,10 @@ export function buildTaxInvoice(inv: InvoiceForTax, buyer: Buyer, seller: Seller
   const rate = num(inv.fxRate) || 1;
   const vra = num(inv.taxPercent);
   const body = linesOf(inv.lines).map((l) => {
-    const fee = rial(l.unitPrice * rate);
-    const prdis = rial(l.quantity * fee);
+    const fee = rial(money(l.unitPrice).mul(rate));
+    const prdis = rial(money(l.quantity).mul(fee));
     const adis = prdis;
-    const vam = rial((adis * vra) / 100);
+    const vam = rial(money(adis).mul(vra).div(100));
     return {
       sstid: digits(l.serviceCode ?? seller.defaultServiceCode), sstt: l.description.slice(0, 400), am: l.quantity, mu: digits(seller.defaultUnitCode),
       fee, prdis, dis: 0, adis, vra, vam, odam: 0, tsstam: adis + vam,

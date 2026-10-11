@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { audit } from '../lib/audit.js';
 import { AppError, notFound } from '../lib/errors.js';
+import { money, toMoney } from '../lib/money.js';
 import {
   closePeriod, cumulativeAt, expectedLoss, frozen, lastMonths, loadRevenueData, METHOD_FA, monthFlows,
   positionAt, revenueReport,
@@ -11,7 +12,6 @@ import {
 
 const FA = '۰۱۲۳۴۵۶۷۸۹';
 const fa = (v: string | number) => String(v).replace(/\d/g, (c) => FA[Number(c)]!);
-const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Revenue recognition and work in progress (roadmap #29). */
 const revenueRoutes: FastifyPluginAsync = async (app) => {
@@ -32,7 +32,7 @@ const revenueRoutes: FastifyPluginAsync = async (app) => {
       const start = cumulativeAt(data, fz, id, m.start);
       return {
         period: m.period, labelFa: m.labelFa, closed: fz.periods.some((p) => p.period === m.period),
-        recognised: entry ? Number(entry.amount) : recognisedToDate == null ? null : r2(recognisedToDate - (start ?? 0)),
+        recognised: entry ? Number(entry.amount) : recognisedToDate == null ? null : money(recognisedToDate).sub(money(start)).toNumber(),
         recognisedToDate, invoiced: monthFlows(data, { start: m.start, end }).invoiced,
       };
     });
@@ -61,7 +61,7 @@ const revenueRoutes: FastifyPluginAsync = async (app) => {
       for (const s of input.shares) next.set(s.milestoneId, s.revenueShare ?? 0);
       const total = [...next.values()].reduce((a, b) => a + b, 0);
       if (total > 100.0001) {
-        throw new AppError(422, 'REVENUE_SHARES_OVER_100', `جمع سهم درآمد نقاط عطف ${fa(r2(total))}٪ می‌شود؛ بیش از صد درصد قرارداد شناسایی نمی‌شود.`, { total });
+        throw new AppError(422, 'REVENUE_SHARES_OVER_100', `جمع سهم درآمد نقاط عطف ${fa(toMoney(total))}٪ می‌شود؛ بیش از صد درصد قرارداد شناسایی نمی‌شود.`, { total });
       }
     }
     const before = { method: project.revenueMethod, shares: project.milestones.map((m) => ({ id: m.id, revenueShare: m.revenueShare })) };

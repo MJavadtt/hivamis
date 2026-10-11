@@ -10,19 +10,21 @@
  *                to exchange gain or loss; a receipt with no invoice is a client advance
  *   payment out  Dr project cost — or media clearing, for a media vendor (#31)  /  Cr bank or cash
  */
+import { money as decimal, sumOf, toMoney } from '../lib/money.js';
 import type { AccountKey } from '@hiva/contracts';
 
 export interface VoucherLine { account: AccountKey; detail: string | null; description: string; debit: number; credit: number }
 export interface Voucher { kind: 'INVOICE' | 'REVERSAL' | 'RECEIPT' | 'PAYMENT'; sourceId: string; reference: string; date: Date; description: string; lines: VoucherLine[] }
 
-const rial = (v: unknown) => Math.round(Number(v ?? 0));
+/** Whole rials, half away from zero, from an exact figure (audit CALC-2): Math.round took −2.5 to −2. */
+const rial = (v: unknown) => toMoney(v, 0);
 const dr = (account: AccountKey, amount: number, detail: string | null, description: string): VoucherLine => ({ account, detail, description, debit: amount, credit: 0 });
 const cr = (account: AccountKey, amount: number, detail: string | null, description: string): VoucherLine => ({ account, detail, description, debit: 0, credit: amount });
 
 /** The base value of an invoice's pass-through lines (#31). */
 export function passThroughBase(lines: unknown, fxRate: unknown): number {
   if (!Array.isArray(lines)) return 0;
-  return rial(lines.filter((l: any) => l?.passThrough).reduce((s: number, l: any) => s + Number(l.quantity ?? 1) * Number(l.unitPrice ?? 0), 0) * Number(fxRate ?? 1));
+  return rial(sumOf(lines.filter((l: any) => l?.passThrough).map((l: any) => decimal(l.quantity ?? 1).mul(decimal(l.unitPrice)))).mul(decimal(fxRate ?? 1)));
 }
 
 export interface InvoiceRow { id: string; code: string; number: string; issueDate: Date; total: unknown; taxAmount: unknown; lines: unknown; fxRate: unknown; companyId: string; company: { legalName: string } }
@@ -78,7 +80,7 @@ export function paymentVoucher(p: PaymentRow, clientCodes: Record<string, string
     const what = `دریافت بابت فاکتور ${p.invoice.number} — ${p.invoice.company.legalName}${ref}`;
     // A foreign invoice was booked at its own rate; the receivable is cleared at that rate, and the
     // difference from what actually arrived is an exchange gain or loss (#28).
-    const booked = p.invoice.currency !== base && p.settledOriginal != null ? rial(Number(p.settledOriginal) * Number(p.invoice.fxRate)) : amount;
+    const booked = p.invoice.currency !== base && p.settledOriginal != null ? rial(decimal(p.settledOriginal).mul(decimal(p.invoice.fxRate))) : amount;
     const diff = amount - booked;
     return {
       kind: 'RECEIPT', sourceId: p.id, reference: p.reference ?? p.id.slice(0, 8), date: p.occurredAt, description: what,

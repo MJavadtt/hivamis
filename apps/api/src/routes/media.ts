@@ -9,11 +9,11 @@ import { AppError, forbidden, notFound } from '../lib/errors.js';
 import { allowedFor } from '../workflow/engine.js';
 import { MEDIA_BUYING_UNITS, mediaTolerance } from '../workflow/guards.js';
 import { convertMany, D } from '../finance/fx.js';
+import { money, rounded, sumOf, toMoney } from '../lib/money.js';
 
 const FA = '۰۱۲۳۴۵۶۷۸۹';
 const fa = (v: string | number) => String(v).replace(/\d/g, (c) => FA[Number(c)]!);
 const n = (v: unknown) => (v == null ? 0 : Number(v));
-const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /**
  * The media order's money, from the vendor's quote (roadmap #31).
@@ -135,7 +135,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     if (!before) throw notFound('سفارش رسانه');
     if (!['BOOKED', 'AIRED'].includes(before.state)) throw new AppError(422, 'MEDIA_ORDER_NOT_OPEN', 'صورت‌حساب رسانه برای سفارش رزروشده یا اجراشده ثبت می‌شود.');
     const expected = n(before.originalNetAmount ?? before.netAmount);
-    const difference = r2(input.amount - expected);
+    const difference = toMoney(money(input.amount).sub(money(expected)));
     const updated = await prisma.mediaOrder.update({
       where: { id },
       data: { vendorInvoiceNumber: input.number, vendorInvoiceAmount: input.amount, vendorInvoiceDate: input.invoiceDate, discrepancyNote: input.discrepancyNote ?? null },
@@ -172,7 +172,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
       const client = n(o.originalClientAmount ?? o.clientAmount), net = n(o.originalNetAmount ?? o.netAmount);
       return [
         { description: `${MEDIA_CHANNEL_LABELS[o.channel as MediaChannel] ?? o.channel} — ${o.placement} (هزینهٔ عبوری رسانه، ${o.code})`, quantity: 1, unitPrice: net, passThrough: true, mediaOrderId: o.id },
-        { description: `${o.pricingModel === 'COMMISSION' ? 'کمیسیون' : 'کارمزد'} آژانس — ${o.code} (${fa(n(o.commissionPercent))}٪)`, quantity: 1, unitPrice: r2(client - net), passThrough: false, mediaOrderId: o.id },
+        { description: `${o.pricingModel === 'COMMISSION' ? 'کمیسیون' : 'کارمزد'} آژانس — ${o.code} (${fa(n(o.commissionPercent))}٪)`, quantity: 1, unitPrice: toMoney(money(client).sub(money(net))), passThrough: false, mediaOrderId: o.id },
       ];
     });
     const subtotal = lines.reduce((s, l) => s.add(l.unitPrice), D(0));
@@ -216,8 +216,10 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     });
     const now = new Date();
     const sum = (xs: typeof orders) => {
-      const client = xs.reduce((s, o) => s + n(o.clientAmount), 0), net = xs.reduce((s, o) => s + n(o.netAmount), 0);
-      return { orders: xs.length, billings: r2(client), passThrough: r2(net), revenue: r2(client - net), effectivePercent: client ? r2(((client - net) / client) * 100) : null };
+      // Decimals (audit CALC-2): each figure rounded once, revenue as the difference of the two printed.
+      const client = rounded(sumOf(xs.map((o) => o.clientAmount))), net = rounded(sumOf(xs.map((o) => o.netAmount)));
+      const revenue = client.sub(net);
+      return { orders: xs.length, billings: client.toNumber(), passThrough: net.toNumber(), revenue: revenue.toNumber(), effectivePercent: client.isZero() ? null : toMoney(revenue.div(client).mul(100)) };
     };
     const by = (key: (o: (typeof orders)[number]) => string, label: (o: (typeof orders)[number]) => string) =>
       [...new Set(orders.map(key))].map((k) => ({ key: k, labelFa: label(orders.find((o) => key(o) === k)!), ...sum(orders.filter((o) => key(o) === k)) }))

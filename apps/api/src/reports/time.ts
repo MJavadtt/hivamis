@@ -8,6 +8,7 @@
  * loop. Hours become money through an hourly cost, the person's own or their unit's default.
  */
 import type { Tx } from '../db.js';
+import { money, sumOf, toMoney, ZERO } from '../lib/money.js';
 import { badRequest } from '../lib/errors.js';
 
 export const MAX_HOURS_PER_ENTRY = 24;
@@ -90,23 +91,24 @@ export async function costAccuracy(tx: Tx, organizationId: string, window: { fro
   const perOrder = [];
   const perUnit = new Map<string, CostAccuracyRow & { errors: number[] }>();
   for (const o of orders) {
-    const declared = o.costDeclarations.reduce((s, c) => s + Number(c.internalCost), 0);
-    let hours = 0, priced = 0, unpricedHours = 0, anyRate = false;
+    // Money and hours as decimals (audit CALC-2); rounded once in the row.
+    const declared = toMoney(sumOf(o.costDeclarations.map((c) => c.internalCost)), 0);
+    let hoursD = ZERO, priced = ZERO, unpricedD = ZERO, anyRate = false;
     const errors: number[] = [];
     for (const t of o.tasks) {
       for (const e of t.timeEntries) {
-        const h = Number(e.hours); hours += h;
+        const h = money(e.hours); hoursD = hoursD.add(h);
         const rate = await rateFor(e.userId);
-        if (rate == null) unpricedHours += h; else { priced += h * rate; anyRate = true; }
+        if (rate == null) unpricedD = unpricedD.add(h); else { priced = priced.add(h.mul(rate)); anyRate = true; }
       }
       if (t.estimateHours != null && t.actualHours != null && Number(t.estimateHours) > 0) {
         errors.push(Math.abs(Number(t.actualHours) - Number(t.estimateHours)) / Number(t.estimateHours));
       }
     }
-    const actualCost = anyRate ? Math.round(priced) : null;
+    const actualCost = anyRate ? toMoney(priced, 0) : null;
     const row = {
       workOrderId: o.id, code: o.code, title: o.title, departmentCode: o.targetDepartmentCode,
-      declared: Math.round(declared), hours: r2(hours), actualCost, unpricedHours: r2(unpricedHours),
+      declared, hours: toMoney(hoursD), actualCost, unpricedHours: toMoney(unpricedD),
       ratio: actualCost != null && declared > 0 ? r2(actualCost / declared) : null,
       estimateErrorPercent: errors.length ? Math.round((errors.reduce((a, b) => a + b, 0) / errors.length) * 100) : null,
       tasksWithBoth: errors.length,

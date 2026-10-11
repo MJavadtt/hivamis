@@ -10,6 +10,7 @@ import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
 import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, SETTLED_EPSILON } from '../finance/fx.js';
+import { money, sumOf, toMoney, type Money } from '../lib/money.js';
 import { assertOwnReferences } from '../lib/scope.js';
 
 const commercialRoutes: FastifyPluginAsync = async (app) => {
@@ -268,13 +269,14 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
           const agg = await tx.payment.aggregate({
             where: { invoiceId: linked.id, direction: 'IN' }, _sum: { amount: true },
           });
-          const paid = Number(agg._sum.amount ?? 0);
-          const total = Number(linked.total);
+          // Decimals (audit CALC-2): a float sum of payments could fall a hair short of the total.
+          const paid = money(agg._sum.amount);
+          const total = money(linked.total);
           await tx.invoice.update({
             where: { id: linked.id },
             data: {
               paidAmount: paid,
-              state: paid >= total ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : linked.state,
+              state: paid.gte(total) ? 'PAID' : paid.gt(0) ? 'PARTIALLY_PAID' : linked.state,
             },
           });
         }
@@ -304,10 +306,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const invoices = await prisma.invoice.findMany({
       where: { projectId: id, state: { not: 'CANCELLED' } },
     });
-    const totalInvoiced = invoices.reduce((s, i) => s + Number(i.total), 0);
-    const totalReceived = invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
-    const balance = totalInvoiced - totalReceived;
-    const status = balance === 0 && totalInvoiced > 0 ? 'FULLY_SETTLED' : balance > 0 ? 'PARTIAL' : 'DISPUTED';
+    // Decimals (audit CALC-2): a float balance of exactly-paid invoices could be 5e-17 — never zero.
+    const totalInvoiced = sumOf(invoices.map((i) => i.total));
+    const totalReceived = sumOf(invoices.map((i) => i.paidAmount));
+    const balance = totalInvoiced.sub(totalReceived);
+    const status = balance.isZero() && totalInvoiced.gt(0) ? 'FULLY_SETTLED' : balance.gt(0) ? 'PARTIAL' : 'DISPUTED';
 
     const settlement = await prisma.$transaction(async (tx) => {
       const s = await tx.settlement.upsert({
@@ -352,24 +355,23 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       prisma.settlement.findUnique({ where: { projectId: id } }),
     ]);
 
-    const byUnit: Record<string, number> = {};
-    for (const c of costs) {
-      byUnit[c.departmentCode] =
-        (byUnit[c.departmentCode] ?? 0) + Number(c.internalCost) + Number(c.externalCost);
-    }
-    const actualCost = Object.values(byUnit).reduce((a, b) => a + b, 0);
-    const revenue = Number(project.contractValue ?? 0);
-    const invoiced = invoices.filter((i) => i.state !== 'CANCELLED').reduce((s, i) => s + Number(i.total), 0);
-    const received = invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
-    const budget = Number(project.plannedBudget ?? 0);
+    // Decimals (audit CALC-2), each figure rounded once where it leaves.
+    const units: Record<string, Money> = {};
+    for (const c of costs) units[c.departmentCode] = (units[c.departmentCode] ?? money(0)).add(money(c.internalCost)).add(money(c.externalCost));
+    const byUnit = Object.fromEntries(Object.entries(units).map(([k, v]) => [k, toMoney(v)]));
+    const actual = sumOf(Object.values(units));
+    const revenue = money(project.contractValue);
+    const invoiced = sumOf(invoices.filter((i) => i.state !== 'CANCELLED').map((i) => i.total));
+    const received = sumOf(invoices.map((i) => i.paidAmount));
+    const budget = money(project.plannedBudget);
 
     return {
-      budget, actualCost, revenue,
-      margin: revenue - actualCost,
-      marginPercent: revenue > 0 ? Number((((revenue - actualCost) / revenue) * 100).toFixed(2)) : null,
-      budgetVariance: budget - actualCost,
-      budgetVariancePercent: budget > 0 ? Number((((budget - actualCost) / budget) * 100).toFixed(2)) : null,
-      invoiced, received, outstanding: invoiced - received,
+      budget: toMoney(budget), actualCost: toMoney(actual), revenue: toMoney(revenue),
+      margin: toMoney(revenue.sub(actual)),
+      marginPercent: revenue.gt(0) ? toMoney(revenue.sub(actual).div(revenue).mul(100)) : null,
+      budgetVariance: toMoney(budget.sub(actual)),
+      budgetVariancePercent: budget.gt(0) ? toMoney(budget.sub(actual).div(budget).mul(100)) : null,
+      invoiced: toMoney(invoiced), received: toMoney(received), outstanding: toMoney(invoiced.sub(received)),
       costByUnit: byUnit, invoices, payments, settlement,
     };
   });

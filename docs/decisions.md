@@ -2197,3 +2197,36 @@ written without it. So every invoiced project looked about 10% billed ahead of i
 
 **Open.** Which footing this organisation uses is the owner's answer (asked at the end of Phase 3).
 Until then, the default applies.
+
+## ADR-077 — Money stays a decimal until it leaves, and is rounded once, half away from zero
+
+**Decision.** (Audit CALC-2.) Money is computed with `Prisma.Decimal`, through `lib/money.ts`:
+
+- `money()` makes a decimal from whatever holds the amount.
+- `sumOf()` adds them.
+- `rounded()` and `toMoney()` round to two places, or to whole rials for the authority and the books,
+  half away from zero. That happens once, where a figure leaves the calculation.
+
+A difference of two reported figures is taken between the rounded ones, so a column adds up as
+printed. Converted to this:
+
+- revenue recognition and work in progress;
+- the project and executive finance figures, and settlement;
+- payment state;
+- the media billing figures;
+- the budget and cost-accuracy reports;
+- the e-invoice lines sent to the tax authority, and the accounting vouchers;
+- the sums in "ask your data";
+- the closure report's sums.
+
+**Rationale.** Amounts came out of the database as decimals and were turned into floats to be added
+up. The consequences were real:
+
+- 0.1 + 0.2 is not 0.3, so an exactly-paid project could settle as "PARTIAL".
+- `Math.round(1.005 * 100) / 100` is 1.
+- `Math.round(-2.5)` is −2, so a reversal rounded the wrong way.
+- 1.005 × 100 is 100.49999999999999, so an e-invoice line in a foreign currency could be a rial short
+  of what the authority computes.
+
+**Limits.** Ratios (progress, percentages) are still floats where they are ratios, and are rounded for
+display. Hours are decimals where they are summed for cost.

@@ -16,6 +16,7 @@ import { DEPARTMENT_LABELS, REVISION_REASON_LABELS, stateLabelFa, WORKFLOWS } fr
 import type { Prisma } from '@prisma/client';
 import type { Tx } from '../db.js';
 import { loadCalendar } from '../sla/engine.js';
+import { money as decimal, toMoney } from '../lib/money.js';
 import { mine } from '../reports/mining.js';
 
 export type Dim = 'unit' | 'client' | 'project' | 'person' | 'month' | 'reason' | 'policy' | 'state';
@@ -151,7 +152,7 @@ export const METRICS: MetricSpec[] = [
         select: { internalCost: true, externalCost: true, workOrder: { select: { projectId: true } } },
       });
       const costOf = new Map<string, number>();
-      for (const c of costs) costOf.set(c.workOrder!.projectId, (costOf.get(c.workOrder!.projectId) ?? 0) + num(c.internalCost) + num(c.externalCost));
+      for (const c of costs) costOf.set(c.workOrder!.projectId, toMoney(decimal(costOf.get(c.workOrder!.projectId)).add(decimal(c.internalCost)).add(decimal(c.externalCost))));
       return projects.map((p) => {
         const revenue = num(p.contractValue);
         return {
@@ -266,8 +267,8 @@ export const METRICS: MetricSpec[] = [
         },
         select: { id: true, code: true, number: true, total: true, paidAmount: true, dueDate: true, issueDate: true, company: { select: { id: true, legalName: true } }, project: { select: { id: true, code: true, name: true } } },
       });
-      return invoices.filter((i) => num(i.total) - num(i.paidAmount) > 0).map((i) => {
-        const rest = num(i.total) - num(i.paidAmount);
+      return invoices.filter((i) => decimal(i.total).gt(decimal(i.paidAmount))).map((i) => {
+        const rest = toMoney(decimal(i.total).sub(decimal(i.paidAmount)));
         return {
           dims: { client: clientDim(i.company), project: projectDim(i.project) },
           m: { value: rest, overdue: i.dueDate && i.dueDate < now ? rest : 0, invoices: 1 }, at: i.issueDate,
@@ -303,7 +304,7 @@ export const METRICS: MetricSpec[] = [
       });
       return rows.map((c) => ({
         dims: { unit: unitDim(c.departmentCode), client: clientDim(c.workOrder?.project.company), project: c.workOrder ? projectDim(c.workOrder.project) : { key: '-', labelFa: 'پروپوزال (پیش از پروژه)' } },
-        m: { value: num(c.internalCost) + num(c.externalCost), declarations: 1 }, at: c.createdAt,
+        m: { value: toMoney(decimal(c.internalCost).add(decimal(c.externalCost))), declarations: 1 }, at: c.createdAt,
         ref: c.workOrder
           ? { entity: 'workOrder', id: c.workOrder.id, label: `${c.workOrder.code} — ${c.workOrder.title}`, href: `/work-orders/${c.workOrder.id}` }
           : { entity: 'proposal', id: c.proposal?.id ?? c.id, label: c.proposal?.code ?? 'پروپوزال', href: c.proposal ? `/proposals/${c.proposal.id}` : '/proposals' },

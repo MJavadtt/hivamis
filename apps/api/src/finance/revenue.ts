@@ -20,9 +20,14 @@
  * logged (#14) at each person's or unit's hourly cost, payments out, cost declarations, invoices,
  * amendments — as of any instant, so a month can be read as it stood at its end. A closed month is
  * frozen (`revenue_entries`); what changes after it lands in the next open month as a catch-up.
+ *
+ * Amounts and hours are decimals throughout (audit CALC-2) and each reported figure is rounded once,
+ * as it leaves; a difference of two reported figures is taken between the rounded ones, so a column
+ * adds up as printed.
  */
 import type { Tx } from '../db.js';
 import { AppError, conflict } from '../lib/errors.js';
+import { maxOf, money, rounded, sumOf, toMoney, ZERO, type Money } from '../lib/money.js';
 import { jalaliMonthLabel, jalaliOf, jalaliStart } from '../lib/jalali.js';
 
 export const REVENUE_METHODS = ['MILESTONE', 'EFFORT', 'COST'] as const;
@@ -35,8 +40,6 @@ export const METHOD_FA: Record<RevenueMethod, string> = {
 
 const FA = '۰۱۲۳۴۵۶۷۸۹';
 const fa = (v: string | number) => String(v).replace(/\d/g, (c) => FA[Number(c)]!);
-const r2 = (n: number) => Math.round(n * 100) / 100;
-const num = (v: unknown) => (v == null ? 0 : Number(v));
 const before = (d: Date | null | undefined, at: Date) => !!d && d < at;
 
 /* ── Months ────────────────────────────────────────────────────────────── */
@@ -68,23 +71,23 @@ export function lastMonths(count: number, now: Date): Month[] {
 
 export interface RevenueData {
   projects: { id: string; code: string; name: string; state: string; revenueMethod: string; contractValue: unknown; closedAt: Date | null; createdAt: Date; company: { legalName: string } }[];
-  amendments: Map<string, { valueDelta: number; effectiveDate: Date }[]>;
-  milestones: Map<string, { id: string; name: string; revenueShare: number | null; completedAt: Date | null; dueDate: Date }[]>;
+  amendments: Map<string, { valueDelta: Money; effectiveDate: Date }[]>;
+  milestones: Map<string, { id: string; name: string; revenueShare: Money | null; completedAt: Date | null; dueDate: Date }[]>;
   /** `doneAt`: when the task was finished — closed, or failing that submitted, for a task approved or closed. */
-  tasks: Map<string, { id: string; estimateHours: number | null; state: string; doneAt: Date | null; createdAt: Date }[]>;
-  entries: Map<string, { taskId: string; hours: number; workedOn: Date; userId: string }[]>;
-  rates: Map<string, number | null>;
-  paymentsOut: Map<string, { amount: number; occurredAt: Date }[]>;
-  declared: Map<string, number>;
+  tasks: Map<string, { id: string; estimateHours: Money | null; state: string; doneAt: Date | null; createdAt: Date }[]>;
+  entries: Map<string, { taskId: string; hours: Money; workedOn: Date; userId: string }[]>;
+  rates: Map<string, Money | null>;
+  paymentsOut: Map<string, { amount: Money; occurredAt: Date }[]>;
+  declared: Map<string, Money>;
   /**
    * What each invoice billed for the agency's own work, in base currency: less what it billed on a
    * vendor's behalf (#31), and with or without VAT as the contract values are (audit CALC-1).
    */
-  invoices: Map<string, { billed: number; issueDate: Date }[]>;
+  invoices: Map<string, { billed: Money; issueDate: Date }[]>;
   /** Whether contract values — and so `billed` — include VAT (audit CALC-1). */
   contractValueIncludesTax: boolean;
   /** Media orders (#31): the agency's revenue on each, earned when the media ran. */
-  media: Map<string, { agencyRevenue: number; airedAt: Date | null }[]>;
+  media: Map<string, { agencyRevenue: Money; airedAt: Date | null }[]>;
 }
 
 const group = <T, K>(rows: T[], key: (r: T) => K) => {
@@ -115,20 +118,20 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, subtotal: true, taxPercent: true, total: true, issueDate: true, lines: true, fxRate: true } }),
     tx.mediaOrder.findMany({ where: { organizationId, state: { not: 'CANCELLED' }, ...(scope ? { projectId: scope } : {}) }, select: { projectId: true, agencyRevenue: true, airedAt: true } }),
   ]);
-  const declared = new Map<string, number>();
-  for (const d of declarations) declared.set(d.workOrder!.projectId, (declared.get(d.workOrder!.projectId) ?? 0) + num(d.internalCost) + num(d.externalCost));
+  const declared = new Map<string, Money>();
+  for (const d of declarations) declared.set(d.workOrder!.projectId, (declared.get(d.workOrder!.projectId) ?? ZERO).add(money(d.internalCost)).add(money(d.externalCost)));
   return {
     projects,
-    amendments: group(amendments.map((a) => ({ projectId: a.contract.projectId!, valueDelta: num(a.valueDelta), effectiveDate: a.effectiveDate })), (a) => a.projectId),
-    milestones: group(milestones.map((m) => ({ id: m.id, projectId: m.projectId, name: m.name, revenueShare: m.revenueShare == null ? null : num(m.revenueShare), completedAt: m.completedAt, dueDate: m.dueDate })), (m) => m.projectId),
-    tasks: group(tasks.map((t) => ({ id: t.id, projectId: t.projectId, estimateHours: t.estimateHours == null ? null : num(t.estimateHours), state: t.state, doneAt: t.closedAt ?? (['APPROVED', 'CLOSED'].includes(t.state) ? t.submittedAt : null), createdAt: t.createdAt })), (t) => t.projectId),
-    entries: group(entries.map((e) => ({ taskId: e.taskId, projectId: e.task.projectId, hours: num(e.hours), workedOn: e.workedOn, userId: e.userId })), (e) => e.projectId),
-    rates: new Map(users.map((u) => [u.id, u.hourlyCost != null ? num(u.hourlyCost) : u.department?.hourlyCost != null ? num(u.department.hourlyCost) : null])),
-    paymentsOut: group(payments.map((p) => ({ projectId: p.projectId!, amount: num(p.amount), occurredAt: p.occurredAt })), (p) => p.projectId),
+    amendments: group(amendments.map((a) => ({ projectId: a.contract.projectId!, valueDelta: money(a.valueDelta), effectiveDate: a.effectiveDate })), (a) => a.projectId),
+    milestones: group(milestones.map((m) => ({ id: m.id, projectId: m.projectId, name: m.name, revenueShare: m.revenueShare == null ? null : money(m.revenueShare), completedAt: m.completedAt, dueDate: m.dueDate })), (m) => m.projectId),
+    tasks: group(tasks.map((t) => ({ id: t.id, projectId: t.projectId, estimateHours: t.estimateHours == null ? null : money(t.estimateHours), state: t.state, doneAt: t.closedAt ?? (['APPROVED', 'CLOSED'].includes(t.state) ? t.submittedAt : null), createdAt: t.createdAt })), (t) => t.projectId),
+    entries: group(entries.map((e) => ({ taskId: e.taskId, projectId: e.task.projectId, hours: money(e.hours), workedOn: e.workedOn, userId: e.userId })), (e) => e.projectId),
+    rates: new Map(users.map((u) => [u.id, u.hourlyCost != null ? money(u.hourlyCost) : u.department?.hourlyCost != null ? money(u.department.hourlyCost) : null])),
+    paymentsOut: group(payments.map((p) => ({ projectId: p.projectId!, amount: money(p.amount), occurredAt: p.occurredAt })), (p) => p.projectId),
     declared,
     invoices: group(invoices.map((i) => ({ projectId: i.projectId!, billed: billedOf(i, org.contractValueIncludesTax), issueDate: i.issueDate })), (i) => i.projectId),
     contractValueIncludesTax: org.contractValueIncludesTax,
-    media: group(media.map((m) => ({ projectId: m.projectId, agencyRevenue: num(m.agencyRevenue), airedAt: m.airedAt })), (m) => m.projectId),
+    media: group(media.map((m) => ({ projectId: m.projectId, agencyRevenue: money(m.agencyRevenue), airedAt: m.airedAt })), (m) => m.projectId),
   };
 }
 
@@ -138,19 +141,19 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
  * total when with; either way less the pass-through lines, and their VAT with them when VAT counts.
  * Comparing a total with VAT to revenue earned without it made every invoiced project look ahead.
  */
-export function billedOf(i: { subtotal: unknown; taxPercent: unknown; total: unknown; lines: unknown; fxRate: unknown }, includesTax: boolean): number {
+export function billedOf(i: { subtotal: unknown; taxPercent: unknown; total: unknown; lines: unknown; fxRate: unknown }, includesTax: boolean): Money {
   const passThrough = passThroughOf(i.lines, i.fxRate);
   return includesTax
-    ? r2(num(i.total) - passThrough * (1 + num(i.taxPercent) / 100))
-    : r2(num(i.subtotal) - passThrough);
+    ? money(i.total).sub(passThrough.mul(money(i.taxPercent).div(100).add(1)))
+    : money(i.subtotal).sub(passThrough);
 }
 
 /** The base value of an invoice's pass-through lines — media billed on a vendor's behalf (#31). */
-function passThroughOf(lines: unknown, fxRate: unknown): number {
-  if (!Array.isArray(lines)) return 0;
-  const orig = lines.filter((l) => l && (l as { passThrough?: boolean }).passThrough)
-    .reduce((s, l) => s + num((l as { quantity?: number }).quantity ?? 1) * num((l as { unitPrice?: number }).unitPrice), 0);
-  return r2(orig * num(fxRate ?? 1));
+function passThroughOf(lines: unknown, fxRate: unknown): Money {
+  if (!Array.isArray(lines)) return ZERO;
+  const orig = sumOf(lines.filter((l) => l && (l as { passThrough?: boolean }).passThrough)
+    .map((l) => money((l as { quantity?: number }).quantity ?? 1).mul(money((l as { unitPrice?: number }).unitPrice))));
+  return orig.mul(money(fxRate ?? 1));
 }
 
 /* ── A project's position at an instant ────────────────────────────────── */
@@ -171,14 +174,14 @@ export interface Position {
   notesFa: string[];
 }
 
-/** Labour cost of time entries, at each person's (or their unit's) hourly cost. */
-export function labourCost(data: RevenueData, entries: { hours: number; userId: string }[]) {
-  let cost = 0, unpricedHours = 0;
+/** Labour cost of time entries, at each person's (or their unit's) hourly cost. Exact; rounded by the caller. */
+export function labourCost(data: RevenueData, entries: { hours: Money; userId: string }[]) {
+  let cost = ZERO, unpricedHours = ZERO;
   for (const e of entries) {
     const rate = data.rates.get(e.userId);
-    if (rate == null) unpricedHours += e.hours; else cost += e.hours * rate;
+    if (rate == null) unpricedHours = unpricedHours.add(e.hours); else cost = cost.add(e.hours.mul(rate));
   }
-  return { cost: r2(cost), unpricedHours: r2(unpricedHours) };
+  return { cost, unpricedHours };
 }
 
 export function positionAt(data: RevenueData, projectId: string, at: Date): Position {
@@ -186,43 +189,48 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
   const method = (REVENUE_METHODS as readonly string[]).includes(p.revenueMethod) ? p.revenueMethod as RevenueMethod : 'EFFORT';
   const notesFa: string[] = [];
   // Billed for the agency's own work, on the contract value's footing (#31, audit CALC-1).
-  const invoiced = r2((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).reduce((s, i) => s + i.billed, 0));
+  const invoiced = rounded(sumOf((data.invoices.get(projectId) ?? []).filter((i) => before(i.issueDate, at)).map((i) => i.billed)));
   // Media commission is earned when the media runs (#31) — on top of the service contract.
   const closedBy = p.state === 'CLOSED' && before(p.closedAt, at);
   const mediaOrders = data.media.get(projectId) ?? [];
-  const media = r2(mediaOrders.filter((m) => before(m.airedAt, at)).reduce((s, m) => s + m.agencyRevenue, 0));
-  const out = (progress: number | null, basis: Record<string, unknown>, reasonFa: string | null = null, contractValue: number | null = null): Position => {
-    const service = progress == null || contractValue == null ? null : r2(contractValue * progress);
+  const media = sumOf(mediaOrders.filter((m) => before(m.airedAt, at)).map((m) => m.agencyRevenue));
+  const out = (progress: Money | null, basis: Record<string, unknown>, reasonFa: string | null = null, contractValue: Money | null = null): Position => {
+    const service = progress == null || contractValue == null ? null : contractValue.mul(progress);
     // Commission on media that ran is earned whatever the service side can be measured as; when
     // the service side cannot be, the media alone is recognised and the note says so.
-    const recognised = service != null ? r2(service + media) : mediaOrders.length ? media : null;
+    const exact = service != null ? service.add(media) : mediaOrders.length ? media : null;
+    const recognised = exact == null ? null : rounded(exact);
     if (service == null && mediaOrders.length && reasonFa) notesFa.push('فقط کمیسیون رسانه شناسایی شد؛ بخش خدمات سنجیده نشد.');
     return {
-      projectId, method, at, contractValue, progress: progress == null ? null : Math.round(progress * 1e6) / 1e6, recognised, invoiced,
-      wip: recognised == null ? null : r2(recognised - invoiced), basis: mediaOrders.length ? { ...basis, mediaCommission: media } : basis, reasonFa, notesFa,
+      projectId, method, at, contractValue: contractValue == null ? null : toMoney(contractValue),
+      progress: progress == null ? null : progress.toDecimalPlaces(6).toNumber(),
+      recognised: recognised == null ? null : recognised.toNumber(), invoiced: invoiced.toNumber(),
+      // Between the two figures as reported, so the three add up as printed.
+      wip: recognised == null ? null : recognised.sub(invoiced).toNumber(),
+      basis: mediaOrders.length ? { ...basis, mediaCommission: toMoney(media) } : basis, reasonFa, notesFa,
     };
   };
 
   // The contract value in force then: today's, less amendments that took effect afterwards.
-  const later = (data.amendments.get(projectId) ?? []).filter((a) => a.effectiveDate >= at).reduce((s, a) => s + a.valueDelta, 0);
-  const value = p.contractValue == null ? null : r2(num(p.contractValue) - later);
-  if (!value || value <= 0) {
+  const later = sumOf((data.amendments.get(projectId) ?? []).filter((a) => a.effectiveDate >= at).map((a) => a.valueDelta));
+  const value = p.contractValue == null ? null : money(p.contractValue).sub(later);
+  if (!value || value.lte(0)) {
     // A media-only project earns its commission and nothing else.
-    if (mediaOrders.length) { notesFa.push('قرارداد خدمات ثبت نشده؛ فقط کمیسیون رسانه شناسایی می‌شود.'); return out(0, {}, null, 0); }
+    if (mediaOrders.length) { notesFa.push('قرارداد خدمات ثبت نشده؛ فقط کمیسیون رسانه شناسایی می‌شود.'); return out(ZERO, {}, null, ZERO); }
     return out(null, {}, 'ارزش قرارداد ثبت نشده است؛ درآمدی برای شناسایی نیست.');
   }
-  if (at <= p.createdAt) return out(0, { reason: 'NOT_STARTED' }, null, value);
-  if (closedBy) return out(1, { closedAt: p.closedAt }, null, value);
+  if (at <= p.createdAt) return out(ZERO, { reason: 'NOT_STARTED' }, null, value);
+  if (closedBy) return out(money(1), { closedAt: p.closedAt }, null, value);
 
   if (method === 'MILESTONE') {
     const ms = data.milestones.get(projectId) ?? [];
-    const shared = ms.filter((m) => (m.revenueShare ?? 0) > 0);
-    const totalShare = shared.reduce((s, m) => s + m.revenueShare!, 0);
-    if (!totalShare) return out(null, {}, 'برای نقاط عطف سهم درآمد تعیین نشده است.', value);
-    if (totalShare < 100) notesFa.push(`جمع سهم نقاط عطف ${fa(totalShare)}٪ است؛ بقیه هنگام بستن پروژه شناسایی می‌شود.`);
-    const done = shared.filter((m) => before(m.completedAt, at));
-    return out(Math.min(1, done.reduce((s, m) => s + m.revenueShare!, 0) / 100), {
-      milestones: shared.map((m) => ({ id: m.id, name: m.name, share: m.revenueShare, done: before(m.completedAt, at) })), totalShare,
+    const shared = ms.filter((m) => m.revenueShare != null && m.revenueShare.gt(0));
+    const totalShare = sumOf(shared.map((m) => m.revenueShare));
+    if (totalShare.isZero()) return out(null, {}, 'برای نقاط عطف سهم درآمد تعیین نشده است.', value);
+    if (totalShare.lt(100)) notesFa.push(`جمع سهم نقاط عطف ${fa(totalShare.toString())}٪ است؛ بقیه هنگام بستن پروژه شناسایی می‌شود.`);
+    const done = sumOf(shared.filter((m) => before(m.completedAt, at)).map((m) => m.revenueShare)).div(100);
+    return out(done.gt(1) ? money(1) : done, {
+      milestones: shared.map((m) => ({ id: m.id, name: m.name, share: m.revenueShare!.toNumber(), done: before(m.completedAt, at) })), totalShare: totalShare.toNumber(),
     }, null, value);
   }
 
@@ -230,37 +238,38 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
   if (method === 'EFFORT') {
     // The work as it stood then: tasks that existed, less those already closed.
     const tasks = (data.tasks.get(projectId) ?? []).filter((t) => t.state !== 'CANCELLED' && before(t.createdAt, at));
-    const loggedOn = new Map<string, number>();
-    for (const e of entries) loggedOn.set(e.taskId, (loggedOn.get(e.taskId) ?? 0) + e.hours);
-    const logged = entries.reduce((s, e) => s + e.hours, 0);
-    let remaining = 0, unestimated = 0;
+    const loggedOn = new Map<string, Money>();
+    for (const e of entries) loggedOn.set(e.taskId, (loggedOn.get(e.taskId) ?? ZERO).add(e.hours));
+    const logged = sumOf(entries.map((e) => e.hours));
+    let remaining = ZERO, unestimated = 0;
     for (const t of tasks) {
       if (before(t.doneAt, at)) continue;
       if (t.estimateHours == null) { unestimated++; continue; }
-      remaining += Math.max(0, t.estimateHours - (loggedOn.get(t.id) ?? 0));
+      remaining = remaining.add(maxOf(ZERO, t.estimateHours.sub(loggedOn.get(t.id) ?? ZERO)));
     }
     if (unestimated) notesFa.push(`${fa(unestimated)} وظیفهٔ باز برآورد ساعت ندارد و باقی‌ماندهٔ آن صفر فرض شد.`);
-    if (logged + remaining <= 0) return out(null, {}, 'نه ساعتی ثبت شده و نه برآورد ساعتی برای وظایف هست.', value);
-    return out(logged / (logged + remaining), { loggedHours: r2(logged), remainingHours: r2(remaining), unestimatedTasks: unestimated }, null, value);
+    const total = logged.add(remaining);
+    if (total.lte(0)) return out(null, {}, 'نه ساعتی ثبت شده و نه برآورد ساعتی برای وظایف هست.', value);
+    return out(logged.div(total), { loggedHours: toMoney(logged), remainingHours: toMoney(remaining), unestimatedTasks: unestimated }, null, value);
   }
 
   // COST
   const labour = labourCost(data, entries);
-  const external = r2((data.paymentsOut.get(projectId) ?? []).filter((x) => before(x.occurredAt, at)).reduce((s, x) => s + x.amount, 0));
-  const incurred = labour.cost + external;
-  const declared = data.declared.get(projectId) ?? 0;
-  if (labour.unpricedHours) notesFa.push(`${fa(labour.unpricedHours)} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینه حساب نشد.`);
-  if (!declared && !incurred) return out(null, {}, 'نه هزینهٔ تمام‌شده‌ای اعلام شده و نه هزینه‌ای رخ داده است.', value);
-  if (!declared) notesFa.push('هزینهٔ تمام‌شده اعلام نشده؛ پیشرفت با هزینهٔ رخ‌داده به‌تنهایی سنجیده شد.');
-  return out(incurred / Math.max(declared, incurred), { labourCost: labour.cost, externalCost: external, incurred: r2(incurred), declared: r2(declared) }, null, value);
+  const external = sumOf((data.paymentsOut.get(projectId) ?? []).filter((x) => before(x.occurredAt, at)).map((x) => x.amount));
+  const incurred = labour.cost.add(external);
+  const declared = data.declared.get(projectId) ?? ZERO;
+  if (!labour.unpricedHours.isZero()) notesFa.push(`${fa(toMoney(labour.unpricedHours))} ساعت کار بدون نرخ ساعتی ثبت شده و در هزینه حساب نشد.`);
+  if (declared.isZero() && incurred.isZero()) return out(null, {}, 'نه هزینهٔ تمام‌شده‌ای اعلام شده و نه هزینه‌ای رخ داده است.', value);
+  if (declared.isZero()) notesFa.push('هزینهٔ تمام‌شده اعلام نشده؛ پیشرفت با هزینهٔ رخ‌داده به‌تنهایی سنجیده شد.');
+  return out(incurred.div(maxOf(declared, incurred)), { labourCost: toMoney(labour.cost), externalCost: toMoney(external), incurred: toMoney(incurred), declared: toMoney(declared) }, null, value);
 }
 
 /** Declared cost above the contract value: a contract expected to lose money, said as soon as it is known. */
 export function expectedLoss(data: RevenueData, projectId: string): number | null {
   const p = data.projects.find((x) => x.id === projectId)!;
-  const declared = data.declared.get(projectId) ?? 0;
-  const value = num(p.contractValue);
-  return value > 0 && declared > value ? r2(declared - value) : null;
+  const declared = data.declared.get(projectId) ?? ZERO;
+  const value = money(p.contractValue);
+  return value.gt(0) && declared.gt(value) ? toMoney(declared.sub(value)) : null;
 }
 
 /* ── Months, frozen and open ───────────────────────────────────────────── */
@@ -293,9 +302,9 @@ export function monthFlows(data: RevenueData, m: { start: Date; end: Date }) {
   const allEntries = [...data.entries.values()].flat().filter((e) => inMonth(e.workedOn));
   const labour = labourCost(data, allEntries);
   return {
-    invoiced: r2([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).reduce((s, i) => s + i.billed, 0)),
-    labourCost: labour.cost, unpricedHours: labour.unpricedHours,
-    externalCost: r2([...data.paymentsOut.values()].flat().filter((x) => inMonth(x.occurredAt)).reduce((s, x) => s + x.amount, 0)),
+    invoiced: toMoney(sumOf([...data.invoices.values()].flat().filter((i) => inMonth(i.issueDate)).map((i) => i.billed))),
+    labourCost: toMoney(labour.cost), unpricedHours: toMoney(labour.unpricedHours),
+    externalCost: toMoney(sumOf([...data.paymentsOut.values()].flat().filter((x) => inMonth(x.occurredAt)).map((x) => x.amount))),
   };
 }
 
@@ -310,19 +319,19 @@ export async function revenueReport(tx: Tx, organizationId: string, count: numbe
       return { ...m, closed: true, recognised: t.recognised ?? 0, invoiced: t.invoiced ?? 0, labourCost: t.labourCost ?? 0, externalCost: t.externalCost ?? 0, unpricedHours: t.unpricedHours ?? 0 };
     }
     const end = m.end < now ? m.end : now;
-    let recognised = 0;
+    let recognised = ZERO;
     for (const p of data.projects) {
       const a = cumulativeAt(data, fz, p.id, m.start) ?? 0;
       const b = cumulativeAt(data, fz, p.id, end);
-      if (b != null) recognised += b - a;
+      if (b != null) recognised = recognised.add(money(b).sub(money(a)));
     }
-    return { ...m, closed: false, recognised: r2(recognised), ...monthFlows(data, { start: m.start, end }) };
+    return { ...m, closed: false, recognised: toMoney(recognised), ...monthFlows(data, { start: m.start, end }) };
   }).map((m) => ({
     ...m,
     /** Earned − cost: the month's real margin. */
-    margin: r2(m.recognised - m.labourCost - m.externalCost),
+    margin: money(m.recognised).sub(money(m.labourCost)).sub(money(m.externalCost)).toNumber(),
     /** Billed − cost: what the month looked like before recognition. */
-    billingMargin: r2(m.invoiced - m.labourCost - m.externalCost),
+    billingMargin: money(m.invoiced).sub(money(m.labourCost)).sub(money(m.externalCost)).toNumber(),
   }));
 
   const projects = data.projects.filter((p) => p.state !== 'CANCELLED').map((p) => {
@@ -341,8 +350,8 @@ export async function revenueReport(tx: Tx, organizationId: string, count: numbe
     lastClosed: fz.last?.period ?? null,
     nextToClose: fz.last ? nextMonth(parsePeriod(fz.last.period)).period : null,
     wip: {
-      unbilled: r2(measured.filter((p) => p.wip! > 0).reduce((s, p) => s + p.wip!, 0)),
-      deferred: r2(measured.filter((p) => p.wip! < 0).reduce((s, p) => s - p.wip!, 0)),
+      unbilled: sumOf(measured.filter((p) => p.wip! > 0).map((p) => p.wip)).toNumber(),
+      deferred: sumOf(measured.filter((p) => p.wip! < 0).map((p) => -p.wip!)).toNumber(),
     },
     projects,
   };
@@ -374,7 +383,7 @@ export async function closePeriod(tx: Tx, organizationId: string, period: string
     // What earlier closes froze; the first close starts from the position at the month's start.
     const prevEntry = fz.last ? fz.byProject.get(p.id)?.get(fz.last.period) : undefined;
     const opening = fz.last ? Number(prevEntry?.recognisedToDate ?? 0) : (positionAt(data, p.id, m.start).recognised ?? 0);
-    const amount = r2(pos.recognised - opening);
+    const amount = money(pos.recognised).sub(money(opening)).toNumber();
     await tx.revenueEntry.create({
       data: {
         organizationId, projectId: p.id, period, periodEnd: m.end, method: pos.method,
@@ -386,7 +395,7 @@ export async function closePeriod(tx: Tx, organizationId: string, period: string
     rows.push({ projectId: p.id, code: p.code, amount });
   }
   const flows = monthFlows(data, m);
-  const totals = { recognised: r2(rows.reduce((s, r) => s + r.amount, 0)), ...flows, projects: rows.length, unmeasured: unmeasured.length };
+  const totals = { recognised: sumOf(rows.map((r) => r.amount)).toNumber(), ...flows, projects: rows.length, unmeasured: unmeasured.length };
   const closed = await tx.revenuePeriod.create({
     data: { organizationId, period, periodStart: m.start, periodEnd: m.end, closedById: actorId, totals },
   });

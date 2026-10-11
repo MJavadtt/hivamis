@@ -22,6 +22,7 @@ import {
   type Dim, type Fact, type FactCtx, type Filters, type MetricSpec, type Ref,
 } from './catalog.js';
 import { parseQuestion, type Clarify, type Vocab } from './parse.js';
+import { money, toMoney, ZERO, type Money } from '../lib/money.js';
 import { ALL_TIME, previousPeriod, resolvePeriod, type Period } from './periods.js';
 
 export interface AskActor {
@@ -343,10 +344,14 @@ function describe(spec: MetricSpec, f: Filters, period: Period, groupBy: Dim | n
   return out;
 }
 
+/**
+ * Each measure summed as a decimal and rounded once (audit CALC-2): an answer that adds a few thousand
+ * amounts must not drift. Counts are whole, so they come out as they went in.
+ */
 function sum(facts: Fact[]): Record<string, number> {
-  const m: Record<string, number> = {};
-  for (const f of facts) for (const [k, v] of Object.entries(f.m)) m[k] = (m[k] ?? 0) + v;
-  return m;
+  const m: Record<string, Money> = {};
+  for (const f of facts) for (const [k, v] of Object.entries(f.m)) m[k] = (m[k] ?? ZERO).add(money(v));
+  return Object.fromEntries(Object.entries(m).map(([k, v]) => [k, toMoney(v)]));
 }
 
 function group(spec: MetricSpec, facts: Fact[], dim: Dim, sort: 'desc' | 'asc' | null): AskRow[] {

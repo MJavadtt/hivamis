@@ -5,6 +5,7 @@ import { guard, redactionFor } from './access.js';
 import { chip, date, dateTime, deptFa, esc, field, money, num, percent, stateFa, table, text, yesNo } from './fmt.js';
 import { docHeader, routingBand, ruleNote, section, signatures, stateTrail } from './sections.js';
 import { billedOf } from '../finance/revenue.js';
+import { sumOf } from '../lib/money.js';
 import type { BuiltDocument } from './templates.js';
 
 /* ══════════════════════════ Project 360 ══════════════════════════ */
@@ -32,9 +33,9 @@ export async function buildProject(id: string, orgId: string, user: AccessTokenC
   if (!p || p.organizationId !== orgId) throw notFound('پروژه');
   const red = redactionFor(user);
 
-  const invoiced = p.invoices.reduce((s, i) => s + Number(i.total), 0);
-  const received = p.payments.filter((x) => x.direction === 'IN').reduce((s, x) => s + Number(x.amount), 0);
-  const spent = p.payments.filter((x) => x.direction === 'OUT').reduce((s, x) => s + Number(x.amount), 0);
+  const invoiced = sumOf(p.invoices.map((i) => i.total)).toNumber();
+  const received = sumOf(p.payments.filter((x) => x.direction === 'IN').map((x) => x.amount)).toNumber();
+  const spent = sumOf(p.payments.filter((x) => x.direction === 'OUT').map((x) => x.amount)).toNumber();
   const openTasks = p.tasks.filter((t) => !['CLOSED', 'CANCELLED', 'APPROVED'].includes(t.state)).length;
   const overdue = p.tasks.filter(
     (t) => t.dueDate && t.dueDate < new Date() && !['CLOSED', 'CANCELLED', 'APPROVED'].includes(t.state),
@@ -144,8 +145,8 @@ export async function buildCompany(id: string, orgId: string, user: AccessTokenC
     orderBy: { createdAt: 'desc' }, take: 20,
   });
 
-  const invoiced = c.invoices.reduce((s, i) => s + Number(i.total), 0);
-  const paid = c.invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
+  const invoiced = sumOf(c.invoices.map((i) => i.total)).toNumber();
+  const paid = sumOf(c.invoices.map((i) => i.paidAmount)).toNumber();
 
   const html = [
     docHeader({ title: `پرونده مشتری — ${c.legalName}`, code: c.nationalId ?? undefined, subtitle: c.industry ?? undefined }),
@@ -511,12 +512,14 @@ export async function buildClosureReport(id: string, orgId: string, user: Access
   ];
   const met = CONDITIONS.filter(([, v]) => v).length;
 
-  const invoiced = p.invoices.reduce((s, i) => s + Number(i.total), 0);
-  const received = p.payments.filter((x) => x.direction === 'IN').reduce((s, x) => s + Number(x.amount), 0);
-  const spent = p.payments.filter((x) => x.direction === 'OUT').reduce((s, x) => s + Number(x.amount), 0);
-  // The margin on what was earned: VAT is owed to the state, and pass-through is the vendor's (audit CALC-1).
-  const earned = p.invoices.filter((i) => i.kind === 'INVOICE' && i.state !== 'CANCELLED').reduce((s, i) => s + billedOf(i, false), 0);
-  const margin = earned > 0 ? ((earned - spent) / earned) * 100 : null;
+  // Summed as decimals (audit CALC-2); the margin on what was earned: VAT is owed to the state, and
+  // pass-through is the vendor's (audit CALC-1).
+  const invoiced = sumOf(p.invoices.map((i) => i.total)).toNumber();
+  const received = sumOf(p.payments.filter((x) => x.direction === 'IN').map((x) => x.amount)).toNumber();
+  const spentD = sumOf(p.payments.filter((x) => x.direction === 'OUT').map((x) => x.amount));
+  const spent = spentD.toNumber();
+  const earned = sumOf(p.invoices.filter((i) => i.kind === 'INVOICE' && i.state !== 'CANCELLED').map((i) => billedOf(i, false)));
+  const margin = earned.gt(0) ? earned.sub(spentD).div(earned).mul(100).toNumber() : null;
 
   const html = [
     docHeader({ title: `گزارش پایان پروژه — ${p.name}`, code: p.code, subtitle: p.company.legalName, state: p.state }),

@@ -7,6 +7,7 @@ import { mine } from '../reports/mining.js';
 import { costAccuracy } from '../reports/time.js';
 import { isWorkflowEntity } from '@hiva/contracts';
 import { businessHoursBetween } from '../lib/business-calendar.js';
+import { money, sumOf, toMoney } from '../lib/money.js';
 import { actorFrom } from '../lib/http.js';
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -120,18 +121,20 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
             AND "dueDate" IS NOT NULL AND "dueDate" < ${now} AND "paidAmount" < total`
       : null;
 
-    const costByProject = new Map(costRows.map((r) => [r.projectId, Number(r.cost)]));
+    const costByProject = new Map(costRows.map((r) => [r.projectId, money(r.cost)]));
     const lateByProjectMap = new Map(lateByProject.map((r) => [r.projectId, Number(r.late)]));
 
+    // Money summed as decimals and rounded once (audit CALC-2).
     const sumBy = <T extends { state: string }>(
-      rows: T[], pick: (r: T) => number, match: (s: string) => boolean,
-    ) => rows.filter((r) => match(r.state)).reduce((acc, r) => acc + pick(r), 0);
+      rows: T[], pick: (r: T) => unknown, match: (s: string) => boolean,
+    ) => toMoney(sumOf(rows.filter((r) => match(r.state)).map(pick)));
 
     const countBy = (rows: { state: string; _count: { _all: number } }[], match: (s: string) => boolean) =>
       rows.filter((r) => match(r.state)).reduce((acc, r) => acc + r._count._all, 0);
 
-    const contractedRevenue = projByState.reduce((acc, r) => acc + num(r._sum.contractValue), 0);
-    const totalCost = [...costByProject.values()].reduce((a, b) => a + b, 0);
+    const contractedRevenueD = sumOf(projByState.map((r) => r._sum.contractValue));
+    const totalCostD = sumOf(costByProject.values());
+    const contractedRevenue = toMoney(contractedRevenueD), totalCost = toMoney(totalCostD);
 
     // Only the projects that appear in the health list are loaded, and only the columns it shows.
     const healthProjects = await prisma.project.findMany({
@@ -145,17 +148,17 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
 
     const projectHealth = healthProjects.map((p) => {
       const late = lateByProjectMap.get(p.id) ?? 0;
-      const cost = costByProject.get(p.id) ?? 0;
-      const revenue = num(p.contractValue);
+      const cost = money(costByProject.get(p.id));
+      const revenue = money(p.contractValue);
       const overdueProject = p.plannedEnd != null && p.plannedEnd < now && p.state !== 'COMPLETED';
-      const status = late > 2 || overdueProject ? 'RED' : late > 0 || cost > num(p.plannedBudget) ? 'AMBER' : 'GREEN';
+      const status = late > 2 || overdueProject ? 'RED' : late > 0 || cost.gt(money(p.plannedBudget)) ? 'AMBER' : 'GREEN';
       return {
         id: p.id, code: p.code, name: p.name, state: p.state,
         company: p.company.legalName, plannedEnd: p.plannedEnd,
         overdueTasks: late, isOverdue: overdueProject,
-        cost, revenue,
-        margin: revenue - cost,
-        marginPercent: revenue > 0 ? Number((((revenue - cost) / revenue) * 100).toFixed(1)) : null,
+        cost: toMoney(cost), revenue: toMoney(revenue),
+        margin: toMoney(revenue.sub(cost)),
+        marginPercent: revenue.gt(0) ? toMoney(revenue.sub(cost).div(revenue).mul(100), 1) : null,
         status,
       };
     });
@@ -165,14 +168,15 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const closedCount = countBy(oppByState, (s) => ['WON', 'LOST'].includes(s));
     const totalTasks = taskByState.reduce((acc, r) => acc + r._count._all, 0);
     const onTime = Number(onTimeDone[0]?.n ?? 0);
-    const invoiced = num(invoiceAgg?._sum.total);
-    const received = num(invoiceAgg?._sum.paidAmount);
+    const invoicedD = money(invoiceAgg?._sum.total);
+    const receivedD = money(invoiceAgg?._sum.paidAmount);
+    const invoiced = toMoney(invoicedD), received = toMoney(receivedD);
 
     return {
       pipeline: {
         openOpportunities: openOpps,
-        pipelineValue: sumBy(oppByState, (r) => num(r._sum.estimatedValue), (s) => !['WON', 'LOST'].includes(s)),
-        wonValue: sumBy(oppByState, (r) => num(r._sum.estimatedValue), (s) => s === 'WON'),
+        pipelineValue: sumBy(oppByState, (r) => r._sum.estimatedValue, (s) => !['WON', 'LOST'].includes(s)),
+        wonValue: sumBy(oppByState, (r) => r._sum.estimatedValue, (s) => s === 'WON'),
         winRate: closedCount ? Math.round((wonCount / closedCount) * 100) : null,
       },
       projects: {
@@ -188,11 +192,11 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
       finance: canSeeFinance
         ? {
             contractedRevenue, totalCost,
-            grossMargin: contractedRevenue - totalCost,
-            marginPercent: contractedRevenue > 0
-              ? Number((((contractedRevenue - totalCost) / contractedRevenue) * 100).toFixed(1))
+            grossMargin: toMoney(contractedRevenueD.sub(totalCostD)),
+            marginPercent: contractedRevenueD.gt(0)
+              ? toMoney(contractedRevenueD.sub(totalCostD).div(contractedRevenueD).mul(100), 1)
               : null,
-            invoiced, received, outstanding: invoiced - received,
+            invoiced, received, outstanding: toMoney(invoicedD.sub(receivedD)),
             overdueInvoices: Number(overdueInvoices?.[0]?.n ?? 0),
           }
         : null,
@@ -341,7 +345,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     for (const o of opportunities) {
       const key = o.owner?.id ?? 'unassigned';
       const row = byOwner.get(key) ?? { name: o.owner?.fullName ?? 'نامشخص', open: 0, won: 0, value: 0 };
-      if (o.state === 'WON') { row.won++; row.value += num(o.estimatedValue); }
+      if (o.state === 'WON') { row.won++; row.value = toMoney(money(row.value).add(money(o.estimatedValue))); }
       else if (!['LOST'].includes(o.state)) row.open++;
       byOwner.set(key, row);
     }
@@ -365,10 +369,9 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         winRate: won.length + lost.length ? Math.round((won.length / (won.length + lost.length)) * 100) : null,
       },
       value: {
-        pipeline: opportunities.filter((o) => !['WON', 'LOST'].includes(o.state))
-          .reduce((s, o) => s + num(o.estimatedValue), 0),
-        won: won.reduce((s, o) => s + num(o.estimatedValue), 0),
-        averageDealSize: won.length ? won.reduce((s, o) => s + num(o.estimatedValue), 0) / won.length : 0,
+        pipeline: toMoney(sumOf(opportunities.filter((o) => !['WON', 'LOST'].includes(o.state)).map((o) => o.estimatedValue))),
+        won: toMoney(sumOf(won.map((o) => o.estimatedValue))),
+        averageDealSize: won.length ? toMoney(sumOf(won.map((o) => o.estimatedValue)).div(won.length)) : 0,
       },
       salesCycleDays: cycleDays.length
         ? Number((cycleDays.reduce((a, b) => a + b, 0) / cycleDays.length).toFixed(1)) : null,
@@ -472,7 +475,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const onTime = new Map(taskOnTime.map((r) => [r.departmentCode, Number(r.n)]));
     const rev = byResp(revTotals), revOpenMap = byResp(revOpen);
     const qcMap = new Map(qcRows.map((r) => [r.departmentCode, { passed: Number(r.passed), total: Number(r.total) }]));
-    const cost = new Map(costTotals.map((r) => [r.departmentCode, num(r._sum.internalCost) + num(r._sum.externalCost)]));
+    const cost = new Map(costTotals.map((r) => [r.departmentCode, toMoney(money(r._sum.internalCost).add(money(r._sum.externalCost)))]));
     const wo = byTarget(woTotals), woOk = byTarget(woAccepted);
 
     return units.map((unit) => {
