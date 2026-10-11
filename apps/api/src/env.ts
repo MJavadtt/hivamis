@@ -66,6 +66,12 @@ const envSchema = z.object({
    */
   WEBHOOK_ALLOW_PRIVATE: z.string().transform((v) => v === 'true').default('false'),
   /**
+   * Audit SEC-8: production refuses to start while a demo account (@hiva.local) is active. `true`
+   * starts it anyway, and says so at fatal on every boot — for the hour it takes to clear them, not
+   * as a setting to keep.
+   */
+  ALLOW_DEMO_ACCOUNTS: z.string().transform((v) => v === 'true').default('false'),
+  /**
    * Roadmap #32 — سامانهٔ مؤدیان. `off`: e-invoices are prepared and queued, nothing is sent.
    * `sandbox`: an in-process stand-in (not the tax authority). `live`: the direct API, which needs
    * the taxpayer's registered private key (and certificate) — see docs/operations.md.

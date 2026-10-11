@@ -66,6 +66,10 @@ cmd_install() {
   done
   [ -n "$org_name" ] && [ -n "$org_slug" ] && [ -n "$admin_email" ] && [ -n "$admin_name" ] \
     || die "install needs --org-name, --org-slug, --admin-email and --admin-name"
+  # Audit SEC-8: that domain is the demo seed's; an administrator on it would stop the API's next start.
+  case "$(printf '%s' "$admin_email" | tr '[:upper:]' '[:lower:]')" in
+    *@hiva.local) die "--admin-email: @hiva.local is the demo accounts' domain — give the administrator's real address" ;;
+  esac
   need_tools
   command -v openssl >/dev/null || die "openssl is needed to generate the secrets."
   # An existing settings file holds the database password and the token key: never overwritten.
@@ -81,6 +85,8 @@ cmd_install() {
       -e "s|^CORS_ORIGIN=.*|CORS_ORIGIN=$origin|" \
       -e "s|^PUBLIC_APP_URL=.*|PUBLIC_APP_URL=$origin|" \
       -e "s|^TENANT_MODE=.*|TENANT_MODE=$mode|" \
+      -e "s|^SEED_DEMO_DATA=.*|SEED_DEMO_DATA=false|" \
+      -e "s|^ALLOW_DEMO_ACCOUNTS=.*|ALLOW_DEMO_ACCOUNTS=false|" \
       "$ROOT/.env.docker.example" > "$ENV_FILE"
   printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
 
@@ -91,7 +97,8 @@ cmd_install() {
   say "→ creating the organisation and its first administrator"
   local hosts=()
   [ -n "$domain" ] && hosts=(--host "$domain")
-  cli tenant:create --name "$org_name" --slug "$org_slug" --admin-email "$admin_email" --admin-name "$admin_name" "${hosts[@]}"
+  # ${a[@]+…}: bash 3.2 (macOS) calls an empty array unbound under set -u, so install without --domain failed.
+  cli tenant:create --name "$org_name" --slug "$org_slug" --admin-email "$admin_email" --admin-name "$admin_name" ${hosts[@]+"${hosts[@]}"}
   say ""
   say "✓ Hivamis is running at $origin"
   say "  The administrator sets their password from the link above (valid seven days, once)."

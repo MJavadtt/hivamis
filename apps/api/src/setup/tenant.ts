@@ -7,6 +7,8 @@ import { createActivation, PENDING_PREFIX, sendActivation } from '../onboarding/
 import { syncReference, type OrganizationSync } from './reference.js';
 import { APP_VERSION } from '../version.js';
 import { tenancy } from '../lib/tenant.js';
+import { env } from '../env.js';
+import { isDemoEmail } from '../lib/demo-accounts.js';
 
 /**
  * Organisations on one installation (roadmap #50). Provisioning one is the whole of it: the
@@ -62,6 +64,8 @@ export async function provisionOrganization(input: ProvisionInput, db: PrismaCli
   if (!name) throw badRequest('NAME_REQUIRED', 'نام سازمان لازم است.');
   if (!SLUG.test(slug)) throw badRequest('BAD_SLUG', 'نام کوتاه سازمان فقط حروف کوچک لاتین، رقم و خط تیره است (۲ تا ۴۰ نویسه).');
   if (!EMAIL.test(email)) throw badRequest('BAD_EMAIL', 'ایمیل مدیر سیستم درست نیست.');
+  // Audit SEC-8: in production the demo domain is the seed's; an administrator there would stop the next start.
+  if (env.NODE_ENV === 'production' && isDemoEmail(email)) throw badRequest('DEMO_EMAIL', 'دامنهٔ hiva.local مخصوص حساب‌های نمایشی است؛ ایمیل واقعی مدیر را بدهید.');
   if (!fullName) throw badRequest('NAME_REQUIRED', 'نام مدیر سیستم لازم است.');
   const hosts = cleanHosts(input.hosts);
   // Everything is checked before anything is written: a half-made organisation helps nobody.

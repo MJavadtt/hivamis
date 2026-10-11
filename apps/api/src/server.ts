@@ -2,12 +2,22 @@ import { buildApp } from './app.js';
 import { env } from './env.js';
 import { prisma } from './db.js';
 import { startJobs } from './jobs/runner.js';
-import { warnOnDemoAccounts } from './lib/demo-accounts.js';
+import { demoAccountGate } from './lib/demo-accounts.js';
 import { shutdownPdfEngine } from './pdf/renderer.js';
 import { syncReference } from './setup/reference.js';
 import { APP_VERSION } from './version.js';
 
 const app = await buildApp();
+
+// Audit SEC-8: before anything runs — the reference sync, the jobs, the listener.
+if (env.NODE_ENV === 'production') {
+  const gate = await demoAccountGate(app.log, env.ALLOW_DEMO_ACCOUNTS);
+  if (gate.refuse) {
+    await app.close().catch(() => undefined);
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+}
 
 // Roadmap #50: an upgraded installation brings its reference data up to the code before it serves.
 // A failure is loud but not fatal — the system runs on the reference data it already has.
@@ -37,10 +47,6 @@ const shutdown = async (signal: string) => {
 };
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
-
-if (env.NODE_ENV === 'production') {
-  await warnOnDemoAccounts(app.log).catch(() => undefined);
-}
 
 try {
   await app.listen({ port: env.PORT, host: env.HOST });

@@ -57,6 +57,8 @@ Start the API again (`pnpm dev`, or `pnpm --filter @hiva/api dev`).
 
 The seed creates fifteen demo accounts across every role. They share the password
 `Hiva@Dev2026!` and exist **only for local development** — never deploy this seed to production.
+A production API refuses to start while any of them is active (see the readiness checklist in
+[docs/operations.md](docs/operations.md)).
 
 | Account | Role | Use it to see |
 |---|---|---|

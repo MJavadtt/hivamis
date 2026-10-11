@@ -8,9 +8,12 @@
  *   tenant:list            the organisations on this installation
  *   tenant:create          --name --slug --admin-email --admin-name [--host h]… [--legal-name] [--currency] [--timezone]
  *   tenant:update          --slug [--name] [--add-host h]… [--remove-host h]… [--suspend | --resume]
+ *   demo:deactivate        deactivate every demo account (@hiva.local) and end its sessions — what a
+ *                          production API that refuses to start asks for (audit SEC-8)
  */
 import { prisma } from './db.js';
 import { AppError } from './lib/errors.js';
+import { deactivateDemoAccounts } from './lib/demo-accounts.js';
 import { syncReference } from './setup/reference.js';
 import { listOrganizations, provisionOrganization, systemStatus, updateOrganization } from './setup/tenant.js';
 import { APP_VERSION } from './version.js';
@@ -62,9 +65,11 @@ export async function run(argv: string[]): Promise<unknown> {
         name: one(flags, 'name'), addHosts: flags['add-host'], removeHosts: flags['remove-host'],
         active: flags.suspend ? false : flags.resume ? true : undefined,
       });
+    case 'demo:deactivate':
+      return deactivateDemoAccounts();
     default:
       return {
-        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume]',
+        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] | demo:deactivate',
       };
   }
 }

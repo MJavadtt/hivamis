@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import { prisma } from '../db.js';
+import { prisma, type Tx } from '../db.js';
 import { env } from '../env.js';
 import { audit } from '../lib/audit.js';
 import { generateRefreshToken, signAccessToken, ttlToMs } from './tokens.js';
@@ -62,3 +62,21 @@ export async function countFailure(userId: string, req: FastifyRequest, reason: 
 
 export const MAX_FAILED = 5;
 export const LOCK_MS = 15 * 60_000;
+
+/**
+ * Deactivates one account and ends its sessions, with the audit row in the same transaction. The
+ * admin route and `demo:deactivate` both come here, so the two cannot drift apart.
+ */
+export async function deactivateUser(
+  tx: Tx,
+  user: { id: string; organizationId: string },
+  actor: { id: string | null; ipAddress?: string | null; requestId?: string | null },
+  reason: string,
+): Promise<void> {
+  await tx.user.update({ where: { id: user.id }, data: { isActive: false } });
+  await tx.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
+  await audit({
+    organizationId: user.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: user.id,
+    before: { isActive: true }, after: { isActive: false }, reason, ipAddress: actor.ipAddress, requestId: actor.requestId,
+  }, tx);
+}

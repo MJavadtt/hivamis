@@ -92,6 +92,7 @@ come from `tenant:create`, as the installer does.
 | `EXTENSIONS_DIR` | no | unset | Modules that add guards and effects to the workflow engine (roadmap #47). Loaded at boot; a broken one stops the boot. See [Extensions](#extensions) |
 | `MAX_UPLOAD_MB` | no | 25 | |
 | `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
+| `ALLOW_DEMO_ACCOUNTS` | no | `false` | In production the API refuses to start while a demo account (`@hiva.local`) is active. `true` starts it anyway and logs that at `fatal` on every boot — for the time it takes to clear them, not to keep. See the readiness checklist, item 1. |
 | `MAIL_ENABLED` | no | `false` | Outbound email. Off by default; notifications stay in-app and nothing throws. Requires `SMTP_HOST` and `SMTP_FROM` to actually engage — the flag alone is not enough. |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` | no | — / 587 / false | Relay to send through. |
 | `SMTP_USER` / `SMTP_PASS` | no | — | Omit both for an unauthenticated relay. |
@@ -245,15 +246,28 @@ rules, forms, records and address.
 Every item is checkable; none is advisory.
 
 **1. No demo accounts.** The seed's demo phase requires `SEED_DEMO_DATA=true` *and* a
-non-production `NODE_ENV`, so a production seed cannot create them. Verify anyway — a database
-restored from a development dump carries them:
+non-production `NODE_ENV`, so a production seed cannot create them, and the installer
+(`infrastructure/hivamis`) never runs the seed: the container starts with migrations and the
+reference data only, and the settings file it writes has `SEED_DEMO_DATA=false`. It also refuses an
+administrator address on `@hiva.local`.
+
+A database restored from a development dump still carries them, so the API checks at every start
+(audit SEC-8): with `NODE_ENV=production` and any active `@hiva.local` account, it logs the accounts
+at `fatal` and **refuses to start**. Clear them with a one-off container — it needs no running API:
+
+```bash
+docker compose run --rm api node dist/cli.js demo:deactivate
+```
+
+Each account is deactivated, its sessions ended, and the change written to the audit trail as the
+system's. Outside Docker: `pnpm --filter @hiva/api cli demo:deactivate`. To start with them anyway
+— to sign in once and move data off one, say — set `ALLOW_DEMO_ACCOUNTS=true`: the API starts and
+logs at `fatal`, on every boot, that it did. Remove the flag when they are gone. The count stays on
+the readiness probe for monitoring:
 
 ```bash
 curl -s localhost:4000/health/ready    # demoAccounts must be 0
 ```
-
-A non-zero count is also logged at `fatal` on startup, naming each account. Deactivate with
-`POST /api/v1/users/:id/deactivate` (this revokes their sessions).
 
 **2. `JWT_SECRET` rotated.** It must not be `CHANGE_ME` or any value from an example file — the API
 refuses to start on one, and on any generated secret (`JWT_SECRET`, `ESIGN_WEBHOOK_SECRET`,

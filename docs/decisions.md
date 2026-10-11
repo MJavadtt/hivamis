@@ -1936,3 +1936,31 @@ by every organisation.
   `organizationId`. Nested creates are left to the routes that build them.
 - A route that does not use `registerCrud` still scopes by hand. The isolation test is what catches
   one that forgets.
+
+## ADR-068 — Production refuses to start with demo accounts active
+
+**Decision.** (Audit SEC-8.) With `NODE_ENV=production`, the API checks for active `@hiva.local`
+accounts before anything else runs. If there are any, it logs them at `fatal` and exits.
+
+- **The way out needs no running API.** `node dist/cli.js demo:deactivate` deactivates every demo
+  account, ends its sessions and audits each change. It runs in a one-off container.
+- **An escape hatch, said out loud.** `ALLOW_DEMO_ACCOUNTS=true` starts the API anyway. It logs that
+  at `fatal` on every boot, so the choice is never silent and cannot quietly become permanent.
+- **The installer never makes one.** It writes `SEED_DEMO_DATA=false`, and it refuses an
+  administrator on the demo domain. So does `tenant:create` in production.
+
+**Rationale.** This reverses the earlier choice to warn and keep running. That choice reasoned that
+a running service can be fixed through its own admin API, while one that will not start cannot. But
+the warning went to a log, and the accounts kept working the whole time it sat there. Their password
+is in the README.
+
+The objection that a refusal turns a mistake into an outage is met by the command. It needs nothing
+but the database, and it takes a minute. The flag covers the rare case where someone must sign in as
+a demo account once.
+
+**Limits.**
+
+- The check matches the email domain. It does not compare password hashes.
+- A demo account whose password was changed still blocks the start. It should be renamed or
+  deactivated anyway.
+- A failed lookup does not refuse. If the database is unreachable, the next step reports it.

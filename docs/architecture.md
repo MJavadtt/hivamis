@@ -259,7 +259,7 @@ backs up, restores and upgrades a Compose installation.
 | Upload | MIME allow-list verified against the file's magic bytes (the declared Content-Type is client-controlled), size cap, generated storage names, path-traversal check, attachment targets validated against the caller's organisation, `Content-Disposition: attachment` with `nosniff`. SVG is not accepted |
 | Transport headers | Helmet on the API; CSP, HSTS-ready headers, `X-Frame-Options: DENY` at nginx |
 | Error handling | Internal detail logged, never returned; every response carries a request id |
-| Secrets | Environment-only, validated at boot; the process refuses to start on a missing or short `JWT_SECRET` |
+| Secrets | Environment-only, validated at boot; the process refuses to start on a missing or short `JWT_SECRET`, on a value copied from an example file, and in production on any active demo account (`ALLOW_DEMO_ACCOUNTS=true` overrides, loudly; ADR-068) |
 
 Verified by the security suite in [`apps/api/tests/003-security.test.ts`](../apps/api/tests/003-security.test.ts).
 

@@ -460,6 +460,7 @@
   "ایمیل این حساب گوگل تأییدشده نیست.": "This Google account's email isn't verified.",
   "ایمیل سازمانی؛ نام کاربری او همین است": "Work email; it's their username",
   "ایمیل مدیر سیستم درست نیست.": "The administrator’s email is not valid.",
+  "دامنهٔ hiva.local مخصوص حساب‌های نمایشی است؛ ایمیل واقعی مدیر را بدهید.": "hiva.local is the demo accounts’ domain; give the administrator’s real email.",
   "ایمیل معتبر نیست": "The email isn't valid",
   "ایمیل کاربر": "User's email",
   "ایمیل کاربر یا شناسه": "User's email or ID",

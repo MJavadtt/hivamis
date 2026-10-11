@@ -56,7 +56,6 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/admin.ts#PATCH /users/:id/rate",
     "routes/admin.ts#POST /sla-clocks/:id/pause",
     "routes/admin.ts#POST /sla-clocks/:id/resume",
-    "routes/admin.ts#POST /users/:id/deactivate",
     "routes/annotations.ts#DELETE /annotations/:id",
     "routes/annotations.ts#GET /deliverables/:id/annotations",
     "routes/annotations.ts#PATCH /annotations/:id",
@@ -184,6 +183,7 @@ export const REVIEWED: Record<string, Verdict> = {
   ]),
   ...of('CALLER', [
     "annotations/service.ts#nextNumber",
+    "auth/session.ts#deactivateUser",
     "brand/kit.ts#kitOf",
     "esign/sandbox.ts#create",
     "esign/sandbox.ts#signedDocument",
@@ -252,6 +252,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "integrations/webhooks.ts#enqueueDeliveries",
     "integrations/webhooks.ts#sendDue",
     "jobs/runner.ts#startJobs",
+    "lib/demo-accounts.ts#deactivateDemoAccounts",
     "lib/demo-accounts.ts#findActiveDemoAccounts",
     "memory/index.ts#reindexMemory",
     "push/service.ts#deliver",

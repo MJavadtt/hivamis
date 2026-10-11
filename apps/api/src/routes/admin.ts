@@ -11,6 +11,7 @@ import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
+import { deactivateUser } from '../auth/session.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
@@ -171,19 +172,11 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     if (id === actor.id) throw badRequest('SELF_DEACTIVATE', 'غیرفعال‌سازی حساب خودتان مجاز نیست.');
     const target = await prisma.user.findFirst({
       where: { id, organizationId: actor.organizationId },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
     if (!target) throw notFound('کاربر');
-    const user = await prisma.$transaction(async (tx) => {
-      const u = await tx.user.update({ where: { id }, data: { isActive: false } });
-      await tx.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
-      return u;
-    });
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
-      entityType: 'user', entityId: id, after: { isActive: false }, reason: 'deactivated',
-    });
-    return { id: user.id, isActive: user.isActive };
+    await prisma.$transaction((tx) => deactivateUser(tx, target, actor, 'deactivated'));
+    return { id, isActive: false };
   });
 
   /* ── Reference data ──────────────────────────────────────────────────── */

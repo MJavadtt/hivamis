@@ -44,6 +44,8 @@ services:
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_MODEL: ${AI_MODEL:-claude-sonnet-4-5}
       JOBS_ENABLED: 'true'
+      # Audit SEC-8: production refuses to start with demo accounts active; this starts it anyway, loudly.
+      ALLOW_DEMO_ACCOUNTS: ${ALLOW_DEMO_ACCOUNTS:-false}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
       LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
       # Chromium ships in the image; pinned so the renderer never probes the filesystem.
