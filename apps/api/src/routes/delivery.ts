@@ -25,8 +25,16 @@ import { suggestAssignees } from '../reports/capacity.js';
 import { estimateFor } from '../reports/estimate.js';
 import { convert } from '../finance/fx.js';
 import { notify } from '../mail/notify.js';
+import { assertOwnReferences } from '../lib/scope.js';
 
 const deliveryRoutes: FastifyPluginAsync = async (app) => {
+  /** The project in the caller's organisation, or 404: what a project's sub-records are reached through (audit SEC-2b). */
+  const ownProject = async (id: string, organizationId: string) => {
+    const project = await prisma.project.findFirst({ where: { id, organizationId }, select: { id: true } });
+    if (!project) throw notFound('پروژه');
+    return project;
+  };
+
   /* ── Briefs ──────────────────────────────────────────────────────────── */
   registerCrud(app, {
     path: 'briefs', model: 'brief', workflowEntity: 'brief', codeScope: 'brief',
@@ -128,6 +136,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(declareCostSchema, req.body);
+    // Every id the request names must be the caller's organisation's (audit SEC-12).
+    await assertOwnReferences('costDeclaration', input, actor.organizationId);
 
     const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
@@ -266,6 +276,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(authorizeProjectSchema, req.body);
+    await assertOwnReferences('executionAuthorization', input, actor.organizationId);
 
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!project) throw notFound('پروژه');
@@ -307,8 +318,13 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(createRaciSchema, { ...(req.body as object), projectId: id });
+    // The matrix replaces the project's whole RACI: the project, and everyone named in it, must be the
+    // caller's organisation's (audit SEC-2b — this checked neither).
+    await ownProject(id, actor.organizationId);
+    for (const e of input.entries) if (e.userId) await assertOwnReferences('raciAssignment', { userId: e.userId }, actor.organizationId);
 
     const entries = await prisma.$transaction(async (tx) => {
+      const before = await tx.raciAssignment.findMany({ where: { projectId: id } });
       await tx.raciAssignment.deleteMany({ where: { projectId: id } });
       await tx.raciAssignment.createMany({
         data: input.entries.map((e) => ({
@@ -316,12 +332,13 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
           raciRole: e.raciRole, userId: e.userId ?? null,
         })),
       });
-      return tx.raciAssignment.findMany({ where: { projectId: id } });
-    });
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
-      entityType: 'raciAssignment', entityId: id, after: { count: entries.length },
-      ipAddress: actor.ipAddress, requestId: actor.requestId,
+      const after = await tx.raciAssignment.findMany({ where: { projectId: id } });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'raciAssignment', entityId: id, before: { count: before.length }, after: { count: after.length },
+        ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      return after;
     });
     return reply.code(201).send(entries);
   });
@@ -343,6 +360,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('project.read')],
   }, async (req) => {
     const { id } = req.params as { id: string };
+    await ownProject(id, actorFrom(req).organizationId);
     const checklist = await prisma.closureChecklist.findUnique({ where: { projectId: id } });
     const labels: Record<string, string> = {
       allDeliverablesDelivered: 'تحویل تمام خروجی‌ها',
@@ -369,6 +387,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
+    await ownProject(id, actor.organizationId);
     const body = (req.body ?? {}) as Record<string, boolean | string>;
     const allowed = [
       'allDeliverablesDelivered', 'finalQcDone', 'clientApprovalRecorded', 'closureReportDone',
@@ -378,10 +397,18 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     for (const key of allowed) if (key in body) data[key] = Boolean(body[key]);
     if (typeof body.notes === 'string') data.notes = body.notes;
 
-    return prisma.closureChecklist.upsert({
-      where: { projectId: id },
-      create: { projectId: id, ...data } as never,
-      update: data,
+    return prisma.$transaction(async (tx) => {
+      const before = await tx.closureChecklist.findUnique({ where: { projectId: id } });
+      const after = await tx.closureChecklist.upsert({
+        where: { projectId: id },
+        create: { projectId: id, ...data } as never,
+        update: data,
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'closureChecklist',
+        entityId: after.id, before, after, ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      }, tx);
+      return after;
     });
   });
 
@@ -408,7 +435,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     if (!project) throw notFound('پروژه');
 
     const [workOrders, tasks, deliverables, changeRequests, risks, issues, decisions, meetings,
-           statusReports, revisions, invoices, payments, allocations, documents, slaClocks] =
+           statusReports, revisions, invoices, payments, allocations, documents] =
       await Promise.all([
         prisma.workOrder.findMany({ where: { projectId: id }, include: { owner: { select: { fullName: true } } } }),
         prisma.task.findMany({
@@ -432,11 +459,21 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
           where: { projectId: id }, include: { user: { select: { id: true, fullName: true } } },
         }),
         prisma.document.findMany({ where: { projectId: id, deletedAt: null, supersededAt: null }, orderBy: { createdAt: 'desc' } }),
-        prisma.slaClock.findMany({
-          where: { entityType: { in: ['project', 'task', 'deliverable', 'workOrder'] }, state: { in: ['RUNNING', 'AT_RISK', 'BREACHED'] } },
-          include: { policy: true }, take: 100,
-        }),
       ]);
+    // This project's clocks and its records' — asked for by id, in this organisation. (Before, the first
+    // hundred clocks of every organisation were read and filtered here, which could miss this one's.)
+    const slaClocks = await prisma.slaClock.findMany({
+      where: {
+        organizationId: actor.organizationId, state: { in: ['RUNNING', 'AT_RISK', 'BREACHED'] },
+        OR: [
+          { entityType: 'project', entityId: id },
+          { entityType: 'task', entityId: { in: tasks.map((t) => t.id) } },
+          { entityType: 'deliverable', entityId: { in: deliverables.map((d) => d.id) } },
+          { entityType: 'workOrder', entityId: { in: workOrders.map((w) => w.id) } },
+        ],
+      },
+      include: { policy: true },
+    });
 
     const actualCost = canSeeFinance
       ? (await prisma.costDeclaration.aggregate({
@@ -457,7 +494,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     return {
       project, workOrders, tasks, deliverables, changeRequests, risks, issues, decisions,
       meetings, statusReports, revisions, allocations, documents,
-      slaClocks: slaClocks.filter((c) => c.entityId === id || tasks.some((t) => t.id === c.entityId)),
+      slaClocks,
       finance: canSeeFinance
         ? {
             invoices, payments,

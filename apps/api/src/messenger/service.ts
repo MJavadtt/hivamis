@@ -13,6 +13,7 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { AppError } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { tenancy } from '../lib/tenant.js';
 import { decideForm } from '../forms/engine.js';
 import { claimsFor } from '../routes/auth.js';
 import { configuredProvider, messengerMode, type Button, type MessengerProvider } from './provider.js';
@@ -142,23 +143,39 @@ export interface Update {
 /** What happened, for the sandbox page to show; a live bot is answered through the provider. */
 export interface Handled { reply?: string; answer?: string }
 
-async function say(p: MessengerProvider, organizationId: string, userId: string | null, chatId: string, text: string) {
-  await queue(p, { organizationId, userId, chatId, text });
+/** A reply. A chat that belongs to no organisation is answered directly and filed nowhere. */
+async function say(p: MessengerProvider, organizationId: string | null, userId: string | null, chatId: string, text: string) {
+  if (organizationId) await queue(p, { organizationId, userId, chatId, text });
+  else await p.send(chatId, text).catch(() => undefined);
   return text;
 }
 
-export async function handleUpdate(p: MessengerProvider, update: Update): Promise<Handled> {
+/**
+ * One message or button press from the bot.
+ *
+ * Whose chat it is decides where it is filed: the linked account's organisation; else the signed-in
+ * person's, for the sandbox page (`caller`); else, for a link code from an unlinked chat, the code's;
+ * else, on a one-organisation installation, that one. A stranger's chat on a several-organisation
+ * installation belongs to nobody, and is answered without being filed. (Before, it was filed under
+ * whichever organisation came first — audit SEC-2b.)
+ */
+export async function handleUpdate(p: MessengerProvider, update: Update, caller?: { organizationId: string }): Promise<Handled> {
   const chatId = String(update.message?.chat.id ?? update.callback_query?.message?.chat.id ?? '');
   if (!chatId) return {};
   const link = await prisma.messengerLink.findUnique({ where: { provider_chatId: { provider: p.name, chatId } } });
-  const orgId = link?.organizationId ?? (await prisma.organization.findFirst({ select: { id: true } }))?.id ?? '';
   const text = update.message?.text?.trim() ?? '';
+  const sentCode = /(?:^\/(?:start|link)\s+)?(HV-[A-Z0-9]{6})$/i.exec(text)?.[1]?.toUpperCase();
+  const codeOrg = !link && !caller && sentCode
+    ? (await prisma.messengerAction.findUnique({ where: { token: sentCode }, select: { organizationId: true } }))?.organizationId
+    : undefined;
+  const orgId = link?.organizationId ?? caller?.organizationId ?? codeOrg
+    ?? (tenancy.mode === 'single' ? (await prisma.organization.findFirst({ select: { id: true } }))?.id ?? null : null);
   // A press is logged as the button it was, not its token.
   const pressedToken = /^a:([\w-]{6,40})$/.exec(update.callback_query?.data ?? '')?.[1];
   const pressedAction = pressedToken ? await prisma.messengerAction.findUnique({ where: { token: pressedToken }, select: { payload: true } }) : null;
   const decisionFa = { APPROVE: 'تأیید', REJECT: 'رد' }[(pressedAction?.payload as { decision?: string } | null)?.decision ?? ''] ?? 'دکمه';
   const logged = update.callback_query ? `«${decisionFa}» زده شد` : text;
-  await prisma.messengerMessage.create({ data: { organizationId: orgId, userId: link?.userId ?? null, provider: p.name, chatId, direction: 'IN', text: logged.slice(0, 2000), status: 'RECEIVED' } });
+  if (orgId) await prisma.messengerMessage.create({ data: { organizationId: orgId, userId: link?.userId ?? null, provider: p.name, chatId, direction: 'IN', text: logged.slice(0, 2000), status: 'RECEIVED' } });
 
   if (update.callback_query) {
     const answer = await pressed(p, link, update.callback_query.data ?? '');
@@ -166,7 +183,7 @@ export async function handleUpdate(p: MessengerProvider, update: Update): Promis
     return { answer };
   }
   if (!update.message?.text) return {};
-  const code = /(?:^\/(?:start|link)\s+)?(HV-[A-Z0-9]{6})$/i.exec(text)?.[1]?.toUpperCase();
+  const code = sentCode;
   if (code) return { reply: await say(p, orgId, link?.userId ?? null, chatId, await linkChat(p, chatId, code, update.message.from?.username)) };
   if (link) {
     const waiting = await prisma.messengerAction.findFirst({ where: { userId: link.userId, state: 'AWAITING_REASON', chatId, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });

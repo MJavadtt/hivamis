@@ -13,6 +13,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { transitionWithin } from '../workflow/engine.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { composeCorrection } from '../annotations/service.js';
+import { assertOwnReferences } from '../lib/scope.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
 const LEVEL_PERMISSION = { UNIT: 'qc.unit', ACCOUNT: 'qc.account', FINAL: 'qc.final' } as const;
@@ -59,6 +60,8 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createQcReviewSchema, req.body);
+    // Every id the request names must be the caller's organisation's (audit SEC-12).
+    await assertOwnReferences('qcReview', input, actor.organizationId);
 
     const needed = LEVEL_PERMISSION[input.level];
     if (!actor.permissions.includes(needed)) {

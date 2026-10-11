@@ -13,6 +13,7 @@ import { findDuplicates, referrerName, refuseDuplicate, resolveLeadSource } from
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
 import { transitionWithin } from '../workflow/engine.js';
+import { assertOwnReferences } from '../lib/scope.js';
 
 const crmRoutes: FastifyPluginAsync = async (app) => {
   registerCrud(app, {
@@ -286,6 +287,8 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createActivitySchema, req.body);
+    // Every record the activity is filed against must be the caller's organisation's (audit SEC-12).
+    await assertOwnReferences('activity', input, actor.organizationId);
     const activity = await prisma.activity.create({
       data: { ...input, organizationId: actor.organizationId, createdById: actor.id },
     });

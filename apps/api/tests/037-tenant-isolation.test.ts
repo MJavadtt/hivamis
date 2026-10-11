@@ -37,9 +37,7 @@ const UNKNOWN = '00000000-0000-4000-8000-000000000000';
  */
 const KNOWN_READ: string[] = [];
 const KNOWN_WRITE: string[] = [];
-const KNOWN_CHANGED: string[] = [
-  'closure_checklists', 'messenger_messages',
-];
+const KNOWN_CHANGED: string[] = [];
 const keysOf = (lines: string[]) => [...new Set(lines.map((l) => l.split(/ as |\?/)[0]!))].sort();
 
 describe('Tenant isolation (audit P0-1)', () => {
@@ -181,6 +179,17 @@ describe('Tenant isolation (audit P0-1)', () => {
       reason: 'الف', comment: 'الف', body: 'الف', text: 'الف', content: 'الف', label: 'الف', amount: 1, hours: 1, quantity: 1,
       value: 1, email: 'x@alef.test', phone: '09121234567', date: '2026-10-10', dueDate: '2026-12-01', startDate: '2026-10-10',
       endDate: '2026-12-01', ids: Object.values(fk), userIds: Object.values(fk),
+      // What the stricter schemas require, so their handlers run rather than stopping at validation.
+      csat: 4, nps: 8, decision: 'APPROVE', verdict: 'FAILED', level: 'ACCOUNT', checklist: {}, findings: 'الف',
+      entries: [{ activity: 'الف', departmentCode: 'A', raciRole: 'R', userId: fk.userId }],
+      lines: [{ description: 'الف', quantity: 1, unitPrice: 1 }], taxPercent: 0, kind: 'INVOICE', number: '1',
+      issueDate: '2026-10-10', occurredAt: '2026-10-10', direction: 'IN', method: 'CASH', subject: 'الف',
+      heldAt: '2026-10-10T08:00:00Z', attendees: [], actions: [], basis: 'CONTRACT', referenceDocument: 'الف',
+      shares: [], annotationIds: [], internalCost: 1, externalCost: 0, externalCurrency: 'IRR', departmentCode: 'A',
+      fromDate: '2026-10-10', toDate: '2026-10-11', hoursPerDay: 1, prerequisiteId: fk.taskId, formCode: 'A01_LEAD',
+      data: { projectId: fk.projectId, companyId: fk.companyId }, permissions: ['task.read'], roles: [],
+      startsAt: '2026-10-10T00:00:00Z', endsAt: '2026-10-12T00:00:00Z', fromUserId: fk.userId, toUserId: fk.userId,
+      activity: 'الف', type: 'CALL', recommendation: 'الف', category: 'PROCESS',
     };
     let traced = before;
     for (const c of concrete.filter((x) => x.method !== 'GET')) {

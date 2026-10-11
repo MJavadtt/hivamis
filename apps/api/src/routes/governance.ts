@@ -10,6 +10,7 @@ import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
+import { assertOwnReferences } from '../lib/scope.js';
 
 const governanceRoutes: FastifyPluginAsync = async (app) => {
   registerCrud(app, {
@@ -82,6 +83,8 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createMeetingSchema, req.body);
+    // Every id the request names must be the caller's organisation's (audit SEC-12).
+    await assertOwnReferences('meeting', input, actor.organizationId);
     const meeting = await prisma.meeting.create({
       data: {
         organizationId: actor.organizationId,
@@ -151,6 +154,8 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createFeedbackSchema, req.body);
+    // The project is the caller's, or the checklist below would be another organisation's (audit SEC-2b).
+    await assertOwnReferences('feedback', input, actor.organizationId);
     const feedback = await prisma.$transaction(async (tx) => {
       const created = await tx.feedback.create({
         data: { ...input, organizationId: actor.organizationId, recordedById: actor.id },
@@ -190,6 +195,8 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createLessonLearnedSchema, req.body);
+    // The project is the caller's, or the checklist below would be another organisation's (audit SEC-2b).
+    await assertOwnReferences('lessonLearned', input, actor.organizationId);
     const lesson = await prisma.$transaction(async (tx) => {
       const created = await tx.lessonLearned.create({
         data: { ...input, organizationId: actor.organizationId, recordedById: actor.id },

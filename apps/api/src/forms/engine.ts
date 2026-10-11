@@ -2,7 +2,8 @@ import { DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting, buildStages, currentSt
 import { prisma } from '../db.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { AppError, badRequest, forbidden, notFound } from '../lib/errors.js';
+import { assertOwnReferences, organizationWhere } from '../lib/scope.js';
 import { startSla, stopSla } from '../sla/engine.js';
 import { validateFormData } from './validator.js';
 import { FORM_HANDLERS } from './handlers.js';
@@ -44,6 +45,34 @@ const BYPASS_ROLES = new Set(FORM_SENDER_BYPASS_ROLES);
  * Sender is checked against the definition, the receiver determines routing, an approval task is
  * created for the approver roles, and the declared SLA clock starts on submission.
  */
+/** What a reference field names: its entity, or the person for a `user` field. */
+const REFERENCE_MODEL: Record<string, string> = { marketer: 'leadReferrer', partner: 'leadReferrer' };
+
+/**
+ * Every record and person a submission names must belong to the submitter's organisation (audit
+ * SEC-2b). The validator checks only that an id looks like one; without this, a form naming another
+ * organisation's project reached it — the closure checklist, the brief review, the supplier's rating
+ * are all written by the form's binding. Table rows are checked column by column.
+ */
+async function assertReferencesInOrganization(fields: readonly FieldDef[], data: Record<string, unknown>, organizationId: string) {
+  for (const field of fields) {
+    const value = data[field.key];
+    if (value === undefined || value === null || value === '') continue;
+    if (field.type === 'table' && Array.isArray(value)) {
+      for (const row of value) await assertReferencesInOrganization(field.columns ?? [], (row ?? {}) as Record<string, unknown>, organizationId);
+      continue;
+    }
+    if (field.type !== 'entityRef' && field.type !== 'user') continue;
+    const model = field.type === 'user' ? 'user' : REFERENCE_MODEL[field.entity ?? ''] ?? field.entity ?? '';
+    const scope = model ? organizationWhere(model, organizationId) : null;
+    if (!scope) continue;
+    for (const id of Array.isArray(value) ? value : [value]) {
+      const found = await (prisma as any)[model].count({ where: { id: String(id), ...scope } });
+      if (!found) throw new AppError(422, 'UNKNOWN_REFERENCE', `ارجاع «${field.labelFa}» نامعتبر است.`, { field: field.key });
+    }
+  }
+}
+
 export async function submitForm(input: SubmitFormInput) {
   const { actor } = input;
 
@@ -87,6 +116,12 @@ export async function submitForm(input: SubmitFormInput) {
 
   const fields = definition.schema as unknown as FieldDef[];
   const clean = validateFormData(fields, input.data, { partial: input.asDraft === true });
+  await assertReferencesInOrganization(fields, clean, actor.organizationId);
+  // The submission's own links: given directly, or taken from the form's fields.
+  await assertOwnReferences('formSubmission', {
+    projectId: input.projectId ?? clean.projectId, companyId: input.companyId ?? clean.companyId,
+    opportunityId: input.opportunityId ?? clean.opportunityId, assignedToId: input.assignedToId,
+  }, actor.organizationId);
 
   /**
    * Who has to approve *these values* (roadmap #17). Doc_H's approverRoles are the floor; the
@@ -293,8 +328,10 @@ export interface DecideFormInput {
 
 /** Approve, reject or return a submitted form; stops the form's SLA clock either way. */
 export async function decideForm(input: DecideFormInput) {
-  const submission = await prisma.formSubmission.findUnique({
-    where: { id: input.submissionId },
+  // In the decider's organisation, or not at all: an approver role in one organisation decides
+  // nothing in another's (audit SEC-2b — this read the submission by its id alone).
+  const submission = await prisma.formSubmission.findFirst({
+    where: { id: input.submissionId, organizationId: input.actor.organizationId },
     include: { definition: true },
   });
   if (!submission) throw notFound('فرم');

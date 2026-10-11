@@ -35,14 +35,14 @@ const messengerRoutes: FastifyPluginAsync = async (app) => {
     sandboxOnly();
     const me = actorFrom(req);
     const { text } = parse(sandboxSendSchema, req.body);
-    return handleUpdate(sandboxProvider, { message: { chat: { id: sandboxChat(me.id) }, text } });
+    return handleUpdate(sandboxProvider, { message: { chat: { id: sandboxChat(me.id) }, text } }, me);
   });
 
   app.post('/messenger/sandbox/press', signedIn, async (req) => {
     sandboxOnly();
     const me = actorFrom(req);
     const { action } = parse(sandboxPressSchema, req.body);
-    return handleUpdate(sandboxProvider, { callback_query: { id: randomBytes(6).toString('hex'), data: `a:${action}`, message: { chat: { id: sandboxChat(me.id) } } } });
+    return handleUpdate(sandboxProvider, { callback_query: { id: randomBytes(6).toString('hex'), data: `a:${action}`, message: { chat: { id: sandboxChat(me.id) } } } }, me);
   });
 
   /* ── the bot's webhook: a secret in the path, and the Bot API's secret header when it sends one ── */

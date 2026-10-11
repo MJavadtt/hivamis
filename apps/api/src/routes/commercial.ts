@@ -10,6 +10,7 @@ import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
 import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, SETTLED_EPSILON } from '../finance/fx.js';
+import { assertOwnReferences } from '../lib/scope.js';
 
 const commercialRoutes: FastifyPluginAsync = async (app) => {
   /* ── Contracts ───────────────────────────────────────────────────────── */
@@ -139,6 +140,8 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createInvoiceSchema, req.body);
+    // Every id the request names must be the caller's organisation's (audit SEC-12).
+    await assertOwnReferences('invoice', input, actor.organizationId);
     // Totals are computed server-side; a client-supplied total is never trusted. Lines are in the
     // invoice's currency; the base totals use the rate in force on the issue date (roadmap #28).
     const subtotal = input.lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice)), D(0));
@@ -197,6 +200,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(createPaymentSchema, req.body);
+    await assertOwnReferences('payment', input, actor.organizationId);
     const base = await baseCurrency(prisma, actor.organizationId);
     const linked = input.invoiceId
       ? await prisma.invoice.findFirst({ where: { id: input.invoiceId, organizationId: actor.organizationId } })

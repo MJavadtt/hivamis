@@ -44,6 +44,10 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
     if (fromUserId !== actor.id && !hasPermission(req, 'admin.users')) {
       throw forbidden('فقط می‌توانید اختیارات خودتان را تفویض کنید');
     }
+    // Someone else's authority is lent only from within the organisation (audit SEC-2b).
+    if (fromUserId !== actor.id && !await prisma.user.findFirst({ where: { id: fromUserId, organizationId: actor.organizationId }, select: { id: true } })) {
+      throw notFound('کاربر');
+    }
     if (!body.toUserId) throw badRequest('DELEGATE_REQUIRED', 'گیرندهٔ تفویض مشخص نشده است');
     if (body.toUserId === fromUserId) throw badRequest('SELF_DELEGATION', 'تفویض به خود معنایی ندارد');
     if (!body.reason?.trim()) throw badRequest('REASON_REQUIRED', 'دلیل تفویض الزامی است');
