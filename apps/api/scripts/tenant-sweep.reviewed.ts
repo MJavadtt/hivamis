@@ -248,6 +248,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/notices.ts#noticesAfter",
   ]),
   ...of('SYSTEM', [
+    "ai/retention.ts#pruneAiToolRows",
     "auth/grants.ts#grantSnapshot",
     "documents/backfill.ts#backfillMetadata",
     "documents/storage.ts#purgeDeletedFiles",

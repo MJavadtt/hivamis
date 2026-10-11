@@ -69,6 +69,8 @@ const envSchema = z.object({
   WEBHOOK_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(8),
   /** Audit LOG-5: days a deleted document's file is kept before it is removed from disk. */
   FILE_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  /** Audit PERF-5: days the assistant's tool results are kept with a conversation. */
+  AI_HISTORY_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
   /**
    * Audit SEC-8: production refuses to start while a demo account (@hiva.local) is active. `true`
    * starts it anyway, and says so at fatal on every boot — for the hour it takes to clear them, not
