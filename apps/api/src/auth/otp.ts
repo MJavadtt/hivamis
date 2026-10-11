@@ -21,27 +21,37 @@ const mac = (purpose: CodePurpose, phone: string, code: string) =>
 
 export type Issued = { code: string } | { retryAfterSeconds: number };
 
-export async function issueCode(input: { purpose: CodePurpose; phone: string; userId?: string | null; ipAddress?: string | null }): Promise<Issued> {
-  const now = Date.now();
-  const recent = await prisma.otpCode.findMany({
-    where: { phone: input.phone, purpose: input.purpose, createdAt: { gt: new Date(now - 3_600_000) } },
-    orderBy: { createdAt: 'desc' }, select: { createdAt: true },
-  });
-  const last = recent[0]?.createdAt.getTime();
-  if (last && now - last < RESEND_MS) return { retryAfterSeconds: Math.ceil((RESEND_MS - (now - last)) / 1000) };
-  if (recent.length >= MAX_PER_HOUR) return { retryAfterSeconds: Math.ceil((recent[recent.length - 1]!.createdAt.getTime() + 3_600_000 - now) / 1000) };
+/** The advisory-lock namespace for issuing codes; the second key is the (purpose, number) pair's hash. */
+const ISSUE_LOCK = 0x4f545031; // 'OTP1'
 
-  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  await prisma.$transaction([
-    prisma.otpCode.updateMany({ where: { phone: input.phone, purpose: input.purpose, consumedAt: null }, data: { consumedAt: new Date(now) } }),
-    prisma.otpCode.create({
+/**
+ * Audit LOG-2: the check ("none in the last minute, under five this hour") and the new code are one step.
+ * They were two: two requests a moment apart both read "none yet", and the number got two codes —
+ * both texted, the first spent by the second. Now a lock on the (purpose, number) pair, held for the
+ * transaction, makes the second wait for the first and then see its code.
+ */
+export async function issueCode(input: { purpose: CodePurpose; phone: string; userId?: string | null; ipAddress?: string | null }): Promise<Issued> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ISSUE_LOCK}::int, hashtext(${`${input.purpose}:${input.phone}`}))`;
+    const now = Date.now();
+    const recent = await tx.otpCode.findMany({
+      where: { phone: input.phone, purpose: input.purpose, createdAt: { gt: new Date(now - 3_600_000) } },
+      orderBy: { createdAt: 'desc' }, select: { createdAt: true },
+    });
+    const last = recent[0]?.createdAt.getTime();
+    if (last && now - last < RESEND_MS) return { retryAfterSeconds: Math.ceil((RESEND_MS - (now - last)) / 1000) };
+    if (recent.length >= MAX_PER_HOUR) return { retryAfterSeconds: Math.ceil((recent[recent.length - 1]!.createdAt.getTime() + 3_600_000 - now) / 1000) };
+
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    await tx.otpCode.updateMany({ where: { phone: input.phone, purpose: input.purpose, consumedAt: null }, data: { consumedAt: new Date(now) } });
+    await tx.otpCode.create({
       data: {
         purpose: input.purpose, phone: input.phone, userId: input.userId ?? null, codeHash: mac(input.purpose, input.phone, code),
-        expiresAt: new Date(now + CODE_TTL_MS), ipAddress: input.ipAddress ?? null,
+        createdAt: new Date(now), expiresAt: new Date(now + CODE_TTL_MS), ipAddress: input.ipAddress ?? null,
       },
-    }),
-  ]);
-  return { code };
+    });
+    return { code };
+  });
 }
 
 /**
