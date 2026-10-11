@@ -4,6 +4,7 @@ import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { forgetStanding } from '../auth/standing.js';
 import { hashPassword } from '../auth/password.js';
 import { checkCode, issueCode } from '../auth/otp.js';
 import { sendCode, smsAvailable } from '../auth/sms.js';
@@ -87,6 +88,8 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me/profile', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
     const sid = req.user?.sid;
+    // This device is its sign-in, whichever rotation of it the token was issued for (audit SEC-3).
+    const family = sid ? (await prisma.session.findUnique({ where: { id: sid }, select: { familyId: true } }))?.familyId : undefined;
     const me = await prisma.user.findUniqueOrThrow({
       where: { id: actor.id },
       include: { identities: { orderBy: { createdAt: 'asc' } }, sessions: { where: { revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } } },
@@ -94,7 +97,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     return {
       id: me.id, phone: me.phone, phoneVerified: !!me.phoneVerifiedAt, hasPassword: hasPassword(me.passwordHash),
       identities: me.identities.map((i) => ({ id: i.id, provider: i.provider, email: i.email, createdAt: i.createdAt, lastUsedAt: i.lastUsedAt })),
-      sessions: me.sessions.map((s) => ({ id: s.id, userAgent: s.userAgent, ipAddress: s.ipAddress, createdAt: s.createdAt, current: s.id === sid })),
+      sessions: me.sessions.map((s) => ({ id: s.id, userAgent: s.userAgent, ipAddress: s.ipAddress, createdAt: s.createdAt, current: s.familyId === family })),
       available: { phone: smsAvailable(), google: googleConfigured() },
     };
   });
@@ -160,8 +163,12 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     const { newPassword } = parse(setPasswordSchema, req.body);
     const me = await prisma.user.findUniqueOrThrow({ where: { id: actor.id } });
     if (hasPassword(me.passwordHash)) throw conflict('HAS_PASSWORD', 'رمز عبور پیش‌تر گذاشته شده است؛ برای تغییر آن، رمز فعلی لازم است.');
-    await prisma.user.update({ where: { id: actor.id }, data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false } });
-    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: actor.id, reason: 'first password set', ipAddress: actor.ipAddress });
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.$transaction(async (tx) => {
+      // A first way in by password, not a changed one: nothing anyone holds loses its footing.
+      await tx.user.update({ where: { id: actor.id }, data: { passwordHash, mustChangePassword: false } });
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: actor.id, reason: 'first password set', ipAddress: actor.ipAddress }, tx);
+    });
     return reply.code(204).send();
   });
 
@@ -170,6 +177,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const done = await prisma.session.updateMany({ where: { id, userId: actor.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' } });
     if (done.count !== 1) throw notFound('نشست');
+    forgetStanding(actor.id);
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'LOGOUT', entityType: 'user', entityId: actor.id, reason: 'device signed out', after: { sessionId: id }, ipAddress: actor.ipAddress });
     return { id, revoked: true };
   });
@@ -177,7 +185,10 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
   app.post('/me/sessions/revoke-others', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
     const sid = req.user?.sid;
-    const done = await prisma.session.updateMany({ where: { userId: actor.id, revokedAt: null, ...(sid ? { id: { not: sid } } : {}) }, data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' } });
+    // Every sign-in but this device's — matched by family, since another tab may have rotated it since.
+    const family = sid ? (await prisma.session.findUnique({ where: { id: sid }, select: { familyId: true } }))?.familyId : undefined;
+    const done = await prisma.session.updateMany({ where: { userId: actor.id, revokedAt: null, ...(family ? { familyId: { not: family } } : {}) }, data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' } });
+    forgetStanding(actor.id);
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'LOGOUT', entityType: 'user', entityId: actor.id, reason: 'other devices signed out', after: { revoked: done.count }, ipAddress: actor.ipAddress });
     return { revoked: done.count };
   });

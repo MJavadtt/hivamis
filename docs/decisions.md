@@ -1964,3 +1964,40 @@ a demo account once.
 - A demo account whose password was changed still blocks the start. It should be renamed or
   deactivated anyway.
 - A failed lookup does not refuse. If the database is unreachable, the next step reports it.
+
+## ADR-069 — An access token stands only while its sign-in and its holder do
+
+**Decision.** (Audit SEC-3.) `authenticate` checks every request against the database:
+
+- **The sign-in is live.** The session the token names is live. If that session was *rotated*, a
+  later row of its `familyId` must be live instead.
+- **The holder is usable.** They are active, not deleted, and not locked.
+- **The version matches.** The token's `av` equals the holder's `authVersion`.
+
+Otherwise the request gets `401 SESSION_REVOKED`.
+
+- **What raises `authVersion`.** `endSessions` raises it and ends the sessions in one step. It runs on
+  a role change, a deactivation, a password change and a delegation's end.
+- **Caching.** The answer is cached per session for five seconds. The process that makes a change
+  forgets its copy, then reads fresh for the next five seconds, so a request already in flight cannot
+  cache the old state.
+
+**Rationale.**
+
+- **Why a family, not the session row.** Each refresh rotates the row. Refusing a token whose row was
+  rotated would sign out every other tab whenever one tab refreshed, and the tabs would then take
+  turns refreshing each other out. A family is what a person means by "this device": signing it out
+  ends every token issued along it.
+- **Why five seconds.** One indexed lookup per request is cheap, but not free on a busy list page.
+  Five seconds bounds how long another process can lag. The process that made the change does not
+  lag at all.
+- **Why not a first password.** Setting a first password (`/me/password`, account activation) adds a
+  way in. Nobody loses anything, so nothing is dated.
+
+**Limits.**
+
+- Tokens issued before this change carry no `av`. They are read as `0`, which is every account's
+  starting value, so they keep working until they expire.
+- A session rotated before the migration is its own family. A token issued for it is refused once,
+  and its holder refreshes.
+- API keys are checked by their own revocation, not by this check.

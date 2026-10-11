@@ -184,6 +184,7 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('CALLER', [
     "annotations/service.ts#nextNumber",
     "auth/session.ts#deactivateUser",
+    "auth/session.ts#endSessions",
     "brand/kit.ts#kitOf",
     "esign/sandbox.ts#create",
     "esign/sandbox.ts#signedDocument",
@@ -268,6 +269,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "auth/claims.ts#withDelegations",
     "auth/session.ts#countFailure",
     "auth/session.ts#issueSession",
+    "auth/standing.ts#read",
     "integrations/keys.ts#authenticateKey",
     "portal/auth.ts#portalUser",
     "portal/service.ts#accept",

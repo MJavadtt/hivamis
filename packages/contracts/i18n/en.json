@@ -2121,6 +2121,7 @@
   "نشانی‌های شبکهٔ داخلی (localhost، بازه‌های خصوصی، link-local) برای Webhook پذیرفته نیست": "Internal network addresses (localhost, private ranges, link-local) aren't accepted for a webhook",
   "نشست": "Session",
   "نشست نامعتبر است. دوباره وارد شوید.": "Invalid session. Sign in again.",
+  "نشست شما پایان یافته است؛ دوباره وارد شوید.": "Your session has ended; sign in again.",
   "نشست پورتال به پایان رسیده است؛ دوباره وارد شوید.": "The portal session has ended; sign in again.",
   "نشست پورتال معتبر نیست؛ دوباره وارد شوید.": "The portal session isn't valid; sign in again.",
   "نظرات": "Comments",

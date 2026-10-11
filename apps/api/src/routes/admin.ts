@@ -11,7 +11,7 @@ import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
-import { deactivateUser } from '../auth/session.js';
+import { deactivateUser, endSessions } from '../auth/session.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
@@ -130,37 +130,33 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     ).map((r) => r.role.code).sort();
 
     let rolesChanged = false;
+    let rolesNow: string[] | undefined;
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({ where: { id }, data });
       if (input.roleCodes) {
         const roles = await tx.role.findMany({ where: { code: { in: input.roleCodes } } });
-        rolesChanged =
-          JSON.stringify(roles.map((r) => r.code).sort()) !== JSON.stringify(currentRoles);
+        rolesNow = roles.map((r) => r.code).sort();
+        rolesChanged = JSON.stringify(rolesNow) !== JSON.stringify(currentRoles);
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.createMany({ data: roles.map((r) => ({ userId: id, roleId: r.id })) });
 
         /**
          * Permissions are carried in the access token, so a demotion would otherwise leave the
-         * old grants usable until it expires. Fifteen minutes is too long a window for a
-         * privilege that has just been taken away; revoking here forces an immediate re-auth.
-         * Follows the precedent already set by change-password and deactivate.
+         * old grants usable until it expires. Ending the sessions and dating the tokens (audit
+         * SEC-3) takes them away on the next request, as change-password and deactivate do.
          */
-        if (rolesChanged) {
-          await tx.session.updateMany({
-            where: { userId: id, revokedAt: null },
-            data: { revokedAt: new Date(), revokedReason: 'ROLES_CHANGED' },
-          });
-        }
+        if (rolesChanged) await endSessions(tx, id, 'ROLES_CHANGED');
       }
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'user', entityId: id, before: { ...before, roles: currentRoles },
+        after: { ...updated, ...(rolesNow ? { roles: rolesNow } : {}) },
+        reason: rolesChanged ? 'roles changed — sessions revoked' : undefined,
+        ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
       return updated;
     });
 
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
-      entityType: 'user', entityId: id, before, after: user,
-      reason: rolesChanged ? 'roles changed — sessions revoked' : undefined,
-      ipAddress: actor.ipAddress, requestId: actor.requestId,
-    });
     return { id: user.id, email: user.email, fullName: user.fullName };
   });
 

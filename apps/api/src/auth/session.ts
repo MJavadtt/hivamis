@@ -1,10 +1,12 @@
 import type { FastifyRequest } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { prisma, type Tx } from '../db.js';
 import { env } from '../env.js';
 import { audit } from '../lib/audit.js';
 import { generateRefreshToken, signAccessToken, ttlToMs } from './tokens.js';
 import { claimsFor } from './claims.js';
 import { assertSignInHere } from '../lib/tenant.js';
+import { forgetStanding } from './standing.js';
 
 /** How a person proved who they are; recorded with every sign-in. */
 export type SignInMethod = 'password' | 'phone' | 'google';
@@ -18,10 +20,12 @@ export async function issueSession(userId: string, req: FastifyRequest, method: 
   const { user, claims } = await claimsFor(userId);
   await assertSignInHere(req, user.organizationId);
   const refresh = generateRefreshToken();
+  // A sign-in starts a family; every rotation of it carries the same id (audit SEC-3).
+  const id = randomUUID();
   const [session] = await prisma.$transaction([
     prisma.session.create({
       data: {
-        userId: user.id, refreshTokenHash: refresh.hash,
+        id, familyId: id, userId: user.id, refreshTokenHash: refresh.hash,
         userAgent: req.headers['user-agent'] ?? null, ipAddress: req.ip,
         expiresAt: new Date(Date.now() + ttlToMs(env.REFRESH_TOKEN_TTL)),
       },
@@ -74,9 +78,21 @@ export async function deactivateUser(
   reason: string,
 ): Promise<void> {
   await tx.user.update({ where: { id: user.id }, data: { isActive: false } });
-  await tx.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
+  await endSessions(tx, user.id, 'DEACTIVATED');
   await audit({
     organizationId: user.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: user.id,
     before: { isActive: true }, after: { isActive: false }, reason, ipAddress: actor.ipAddress, requestId: actor.requestId,
   }, tx);
+}
+
+/**
+ * Audit SEC-3: everything this person holds stops now — their sessions end, and every access token they
+ * carry is dated by a new `authVersion`. A role change, a deactivation, a password change and a
+ * delegation's end all come here.
+ */
+export async function endSessions(tx: Tx, userId: string, reason: string): Promise<number> {
+  await tx.user.update({ where: { id: userId }, data: { authVersion: { increment: 1 } } });
+  const { count } = await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: reason } });
+  forgetStanding(userId);
+  return count;
 }

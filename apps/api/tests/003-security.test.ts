@@ -71,8 +71,9 @@ describe('Authentication', () => {
   });
 
   it('rotates the refresh token and invalidates the presented one', async () => {
+    // Not an account this file holds a token for: the replay below signs it out everywhere, at once.
     const first = expectOk(
-      await call('POST', '/auth/login', { payload: { email: 'sales@hiva.local', password: 'Hiva@Dev2026!' } }),
+      await call('POST', '/auth/login', { payload: { email: 'sales.manager@hiva.local', password: 'Hiva@Dev2026!' } }),
       'login',
     );
     const refreshed = expectOk(
@@ -82,6 +83,8 @@ describe('Authentication', () => {
     expect(refreshed.refreshToken).not.toBe(first.refreshToken);
     const replay = await call('POST', '/auth/refresh', { payload: { refreshToken: first.refreshToken } });
     expect(replay.status).toBe(401);
+    // Audit SEC-3: the access tokens of the account stop with its sessions, not fifteen minutes later.
+    expect((await get('/auth/me', refreshed.accessToken)).body.error.code).toBe('SESSION_REVOKED');
   });
 
   it('rejects weak passwords on change', async () => {
@@ -871,7 +874,8 @@ describe('Time-boxed delegation', () => {
     const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
     const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
     const form = expectOk(await post('/forms/submissions', T.sales, { formCode: 'B10_BRIEF_COMPLETION', data: { briefId: brief.id, addedInformation: 'x' } }), 'submit');
-    expect((await post(`/forms/submissions/${form.id}/decision`, T.designer, { decision: 'APPROVE' })).status).toBe(403);
+    // A fresh sign-in: the delegation revoked above ended the designer's sessions, and with them T.designer.
+    expect((await post(`/forms/submissions/${form.id}/decision`, await login('designer@hiva.local'), { decision: 'APPROVE' })).status).toBe(403);
 
     expectOk(await post('/delegations', T.accountManager, {
       toUserId: designer.id, permissions: ['form.approve'], roles: ['ACCOUNT_MANAGER'], endsAt: days(1), reason: 'تأیید فرم‌ها در غیاب من',

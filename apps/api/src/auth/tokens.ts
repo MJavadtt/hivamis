@@ -23,6 +23,8 @@ export interface AccessTokenClaims {
   gv?: Record<string, number>;
   /** The session this token was issued for, so a person can tell this device from their others (Hivamis task 4). */
   sid?: string;
+  /** The holder's `authVersion` when it was issued (audit SEC-3): a role, password or status change dates it. */
+  av?: number;
 }
 
 export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {

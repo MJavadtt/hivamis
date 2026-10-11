@@ -4,6 +4,7 @@ import type { Permission } from '@hiva/contracts';
 import { verifyAccessToken, type AccessTokenClaims } from './tokens.js';
 import { AppError, forbidden, unauthorized } from '../lib/errors.js';
 import { grantsOf, staleFor } from './grants.js';
+import { revokedBecause } from './standing.js';
 import { audit } from '../lib/audit.js';
 import { requestContext } from '../lib/request-context.js';
 import { authenticateKey, HUMAN_ONLY_PREFIXES } from '../integrations/keys.js';
@@ -58,6 +59,11 @@ const authPlugin: FastifyPluginAsync = async (app) => {
       claims = await verifyAccessToken(token);
     } catch {
       throw unauthorized('توکن نامعتبر یا منقضی شده است');
+    }
+    // Audit SEC-3: signed and unexpired is not enough — the sign-in and the person behind it must still
+    // stand. A refusal sends the client to refresh, which fails for a session that is over.
+    if (await revokedBecause(claims)) {
+      throw new AppError(401, 'SESSION_REVOKED', 'نشست شما پایان یافته است؛ دوباره وارد شوید.');
     }
     // One of the holder's roles was granted anew since this token was issued (Hivamis task 6): it no
     // longer says what its holder may do. Refused, so the client takes a fresh one at once — a permission taken

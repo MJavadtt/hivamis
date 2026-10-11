@@ -9,6 +9,7 @@ import { APP_VERSION } from '../version.js';
 import { tenancy } from '../lib/tenant.js';
 import { env } from '../env.js';
 import { isDemoEmail } from '../lib/demo-accounts.js';
+import { forgetStanding } from '../auth/standing.js';
 
 /**
  * Organisations on one installation (roadmap #50). Provisioning one is the whole of it: the
@@ -136,6 +137,7 @@ export async function updateOrganization(slug: string, change: {
   // A suspended organisation's sessions end now, not at their next refresh.
   if (change.active === false) {
     await db.session.updateMany({ where: { revokedAt: null, user: { organizationId: org.id } }, data: { revokedAt: new Date(), revokedReason: 'SUSPENDED' } });
+    forgetStanding();
   }
   return updated;
 }

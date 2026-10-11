@@ -8,7 +8,8 @@ import { generateRefreshToken, hashToken, signAccessToken, ttlToMs } from '../au
 import { audit } from '../lib/audit.js';
 import { env } from '../env.js';
 import { claimsFor } from '../auth/claims.js';
-import { issueSession, countFailure } from '../auth/session.js';
+import { issueSession, countFailure, endSessions } from '../auth/session.js';
+import { forgetStanding } from '../auth/standing.js';
 
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
 export { claimsFor };
@@ -79,6 +80,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: session.userId, revokedAt: null },
         data: { revokedAt: new Date(), revokedReason: 'REUSE' },
       });
+      forgetStanding(session.userId);
       const owner = await prisma.user.findUnique({
         where: { id: session.userId },
         select: { organizationId: true },
@@ -108,6 +110,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     // keeps minting access tokens until the refresh token expires days later.
     if (!sessionUser.isActive || sessionUser.deletedAt) {
       await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date(), revokedReason: 'DEACTIVATED' } });
+      forgetStanding(session.userId);
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
     // Rotate: the presented refresh token is single-use — and only one request may spend it. Two
@@ -122,7 +125,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       if (!count) return null;
       return tx.session.create({
         data: {
-          userId: session.userId, refreshTokenHash: next.hash,
+          userId: session.userId, familyId: session.familyId, refreshTokenHash: next.hash,
           userAgent: req.headers['user-agent'] ?? null, ipAddress: req.ip,
           expiresAt: new Date(Date.now() + ttlToMs(env.REFRESH_TOKEN_TTL)),
         },
@@ -146,6 +149,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         where: { userId: actor.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'SIGNED_OUT' },
       });
     }
+    forgetStanding(actor.id);
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'LOGOUT',
       entityType: 'user', entityId: actor.id, ipAddress: actor.ipAddress,
@@ -177,17 +181,15 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     if (!user || !(await verifyPassword(user.passwordHash, currentPassword))) {
       throw badRequest('BAD_CREDENTIALS', 'رمز عبور فعلی نادرست است.');
     }
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false },
-      }),
-      // Force re-authentication everywhere after a password change.
-      prisma.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'PASSWORD_CHANGED' } }),
-    ]);
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
-      entityType: 'user', entityId: actor.id, reason: 'password changed',
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: false } });
+      // Re-authentication everywhere, this device included: the tokens stop now, not in fifteen minutes.
+      await endSessions(tx, user.id, 'PASSWORD_CHANGED');
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE',
+        entityType: 'user', entityId: actor.id, reason: 'password changed', ipAddress: actor.ipAddress,
+      }, tx);
     });
     return reply.code(204).send();
   });

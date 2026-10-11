@@ -26,6 +26,7 @@ export async function claimsFor(userId: string) {
       roles: allRoles,
       permissions,
       gv: versionsFor(grants, allRoles),
+      av: user.authVersion,
       ...(Object.keys(delegated).length ? { delegated } : {}),
       ...(Object.keys(delegatedRoles).length ? { delegatedRoles } : {}),
     },

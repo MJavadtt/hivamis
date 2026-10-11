@@ -258,6 +258,9 @@ model User {
   lastLoginAt         DateTime?
   failedLoginCount    Int          @default(0)
   lockedUntil         DateTime?
+  /// Audit SEC-3: raised on a role change, deactivation or password change. Every access token carries
+  /// the value it was issued under (`av`); one that differs is refused at once, not when it expires.
+  authVersion         Int          @default(0)
   locale              String       @default("fa")
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
@@ -335,9 +338,13 @@ model Session {
   /// Why it ended (Hivamis task 4): only ROTATED — or a row from before this was recorded — makes a
   /// second presentation of its token a sign of theft.
   revokedReason    String?
+  /// Audit SEC-3: the sign-in this row continues — the first session's id, carried through every
+  /// rotation. An access token issued before a rotation stays good while its family has a live row.
+  familyId         String
   createdAt        DateTime @default(now())
 
   @@index([userId])
+  @@index([familyId])
   @@map("sessions")
 }
 

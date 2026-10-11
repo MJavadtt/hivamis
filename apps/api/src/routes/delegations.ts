@@ -5,6 +5,7 @@ import { actorFrom } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { endSessions } from '../auth/session.js';
 import { permissionsFor } from '../auth/grants.js';
 
 /** A delegation may not run longer than this; a longer absence is a role change, not a delegation. */
@@ -127,15 +128,15 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
     if (d.revokedAt) return d;
     const revoked = await prisma.$transaction(async (tx) => {
       const row = await tx.delegation.update({ where: { id }, data: { revokedAt: new Date(), revokedById: actor.id } });
-      // The borrowed permissions live in the delegate's token until it expires; end the
-      // sessions so the revocation is immediate — the precedent set by role changes.
-      await tx.session.updateMany({ where: { userId: d.toUserId, revokedAt: null }, data: { revokedAt: new Date(), revokedReason: 'DELEGATION_REVOKED' } });
+      // The borrowed permissions live in the delegate's token; ending the sessions and dating the
+      // tokens takes them on the next request — the precedent set by role changes.
+      await endSessions(tx, d.toUserId, 'DELEGATION_REVOKED');
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'DELEGATION_REVOKED',
+        entityType: 'delegation', entityId: id, before: { toUserId: d.toUserId, endsAt: d.endsAt, revokedAt: null },
+        after: { revokedAt: row.revokedAt }, ipAddress: actor.ipAddress,
+      }, tx);
       return row;
-    });
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'DELEGATION_REVOKED',
-      entityType: 'delegation', entityId: id, before: { toUserId: d.toUserId, endsAt: d.endsAt },
-      ipAddress: actor.ipAddress,
     });
     return revoked;
   });
