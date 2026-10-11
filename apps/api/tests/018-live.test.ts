@@ -10,9 +10,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let base: string;
 
 /** A reader of the stream, as the page's fetch-based client reads it. */
-async function stream(token: string) {
+async function stream(token: string, extra: Record<string, string> = {}) {
   const ctrl = new AbortController();
-  const res = await fetch(`${base}/api/v1/events`, { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: ctrl.signal });
+  const res = await fetch(`${base}/api/v1/events`, { headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra }, signal: ctrl.signal });
   const events: { event: string; data: any }[] = [];
   if (res.ok) {
     const reader = res.body!.getReader();
@@ -61,6 +61,17 @@ describe('Live updates', () => {
     await designer.until((e) => e.event === 'ready');
   });
   afterAll(async () => { am?.close(); designer?.close(); await closeApp(); });
+
+  it('carries the CORS and security headers every other answer does (audit PERF-6)', async () => {
+    const s = await stream(T.designer, { origin: 'http://localhost:5173' });
+    expect(s.res.status).toBe(200);
+    expect(s.res.headers.get('content-type')).toContain('text/event-stream');
+    // Set on the reply by @fastify/cors and @fastify/helmet before the stream took it over.
+    expect(s.res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+    expect(s.res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(s.res.headers.get('x-frame-options')).toBeTruthy();
+    s.close();
+  });
 
   it('opens only with a session, and says when it is listening', async () => {
     expect((await stream('')).res.status).toBe(401);

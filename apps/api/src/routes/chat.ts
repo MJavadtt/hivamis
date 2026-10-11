@@ -6,6 +6,7 @@ import { actorFrom, parse } from '../lib/http.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { requestLocale } from '../lib/i18n.js';
 import { modelStatus, ollama, Turns, type ChatMessage } from '../ai/ollama.js';
+import { openEventStream } from '../lib/sse.js';
 import { runTurn, type ChatAction } from '../ai/agent.js';
 
 /**
@@ -73,9 +74,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     });
     await prisma.aiMessage.create({ data: { conversationId: conversation.id, role: 'user', content: input.message } });
 
-    reply.hijack();
-    const out = reply.raw;
-    out.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+    const out = openEventStream(reply);
     const send = (event: string, data: unknown) => { if (!out.writableEnded) out.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
     const controller = new AbortController();
     req.raw.on('close', () => { if (!out.writableEnded) controller.abort(); });

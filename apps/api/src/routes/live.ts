@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { WORKFLOW_READ_PERMISSION } from '@hiva/contracts';
 import { actorFrom } from '../lib/http.js';
 import { AppError } from '../lib/errors.js';
+import { openEventStream } from '../lib/sse.js';
 import { liveBus, type LiveEvent } from '../live/bus.js';
 
 const HEARTBEAT_MS = 25_000;
@@ -32,15 +33,7 @@ const liveRoutes: FastifyPluginAsync = async (app) => {
       return !!need && may.has(need);
     };
 
-    reply.hijack();
-    const res = reply.raw;
-    res.writeHead(200, {
-      'content-type': 'text/event-stream; charset=utf-8',
-      'cache-control': 'no-cache, no-transform',
-      connection: 'keep-alive',
-      // nginx would otherwise hold the stream in its buffer (infrastructure/docker/nginx.conf).
-      'x-accel-buffering': 'no',
-    });
+    const res = openEventStream(reply);
     const send = (event: string, data: object) => { if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); };
     res.write('retry: 5000\n\n');
 
