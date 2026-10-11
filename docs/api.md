@@ -26,7 +26,7 @@ A request that spends the cookie (`/auth/refresh`, `/auth/refresh/legacy`, `/aut
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /auth/login` | Sign in. Rate-limited; the account locks for 15 minutes after 5 failures |
+| `POST /auth/login` | Sign in. Rate-limited. Wrong passwords slow down the network they come from, for that address — three free, then a doubling wait, then fifteen minutes blocked at ten (`429 TOO_MANY_TRIES` with `retryAfterSeconds`). The account is never locked (audit SEC-10) |
 | `POST /auth/refresh` | Rotate the cookie's refresh token; answers `{ accessToken }` |
 | `POST /auth/refresh/legacy` `{ refreshToken }` | Once per browser: trades a refresh token an older build kept in `localStorage` for the cookie. Old tokens expire with `REFRESH_TOKEN_TTL`, after which this route has nothing left to trade |
 | `POST /auth/logout` | Revoke this device's session (from its cookie) and clear the cookie; every session when there is no cookie |
@@ -34,7 +34,7 @@ A request that spends the cookie (`/auth/refresh`, `/auth/refresh/legacy`, `/aut
 | `POST /auth/change-password` | Change password; revokes every session |
 | `GET /auth/methods` | Public — which ways in this installation offers (`password`, `phone`, `google`) and whether asking to join is open |
 | `POST /auth/phone/start` `{ phone }` | Public — texts a six-digit code if the number is an active person's verified mobile; answers `202` the same either way. One code a minute and five an hour per number |
-| `POST /auth/phone/verify` `{ phone, code }` | Public — signs in; five wrong tries spend the code and count against the account like wrong passwords |
+| `POST /auth/phone/verify` `{ phone, code }` | Public — signs in; five wrong tries spend the code, and wrong codes slow their network down for that number as wrong passwords do |
 | `GET /auth/google/start?mode=login\|signup` | Public — `{ url }` to send the browser to (state, nonce and PKCE kept server-side, ten minutes, one use). Sets `hiva_oauth`, a ten-minute `HttpOnly` `SameSite=Lax` cookie: the callback is honoured only in this browser (audit SEC-5), otherwise `#error=GOOGLE_BROWSER` |
 | `GET /auth/google/callback` | Google's redirect. Answers with a redirect to `/auth/google#ticket=…` (or `#error=CODE`), `/signup#done=sent`, or `/me#linked=google` — never with a token in a URL |
 | `POST /auth/ticket` `{ ticket }` | Public — trades the minute-long, single-use ticket for a session |

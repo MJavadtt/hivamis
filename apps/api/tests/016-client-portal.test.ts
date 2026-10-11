@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { call, closeApp, get, login, post, upload, tinyPdf, expectOk, patch, createContact } from './helpers.js';
+import { app, call, closeApp, get, login, post, upload, tinyPdf, expectOk, patch, createContact } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { nextCode } from '../src/lib/codes.js';
 import { clientMail } from '../src/mail/client.js';
@@ -69,15 +69,25 @@ describe('The client portal', () => {
     expect((await pget('/portal/home', '')).status).toBe(401);
   });
 
-  it('signs in by email and password, the same answer for every failure, and locks after five', async () => {
+  it('signs in by email and password, the same answer for every failure, and slows wrong tries without locking anyone out', async () => {
     expectOk(await ppost('/portal/auth/login', '', { email: 'MARYAM@portalia.example', password: PASSWORD }), 'login');
     const unknown = await ppost('/portal/auth/login', '', { email: 'nobody@portalia.example', password: PASSWORD });
     const wrong = await ppost('/portal/auth/login', '', { email: 'ali@portalia.example', password: 'Wrong-Password-1' });
     expect([unknown.status, wrong.status]).toEqual([401, 401]);
     expect(unknown.body.error.message).toBe(wrong.body.error.message);
-    for (let i = 0; i < 4; i++) await ppost('/portal/auth/login', '', { email: 'ali@portalia.example', password: 'Wrong-Password-1' });
-    expect((await ppost('/portal/auth/login', '', { email: 'ali@portalia.example', password: PASSWORD })).body.error.message).toContain('قفل');
-    await prisma.portalUser.update({ where: { email: 'ali@portalia.example' }, data: { lockedUntil: null, failedLogins: 0 } });
+    // Audit SEC-10: this network slows down for the address — the same for one with no account.
+    const tries = async (email: string) => {
+      const out: number[] = [];
+      for (let i = 0; i < 4; i++) out.push((await ppost('/portal/auth/login', '', { email, password: 'Wrong-Password-1' })).status);
+      return out;
+    };
+    expect(await tries('ali@portalia.example')).toEqual([401, 401, 401, 429]);
+    expect(await tries('nobody@portalia.example')).toEqual([401, 401, 401, 429]);
+    // Ali, from their own network, is not locked out.
+    const elsewhere = await (await app()).inject({ method: 'POST', url: '/api/v1/portal/auth/login', remoteAddress: '198.51.100.20', payload: { email: 'ali@portalia.example', password: PASSWORD } });
+    expect(elsewhere.statusCode).toBe(200);
+    expect((await prisma.portalUser.findUniqueOrThrow({ where: { email: 'ali@portalia.example' } })).lockedUntil).toBeNull();
+    await prisma.signInFailure.deleteMany({ where: { identifier: { startsWith: 'portal:' } } });
   });
 
   it('shows only the company’s authorised projects, and none of what is internal', async () => {

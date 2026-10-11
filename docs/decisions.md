@@ -2084,3 +2084,32 @@ to people in another. A stand-in for a provider is useful on a developer's machi
 
 **Limits.** In the sandbox the full text is still stored, so the database holds the code for its five
 minutes. That is the sandbox's purpose, and why it is now refused anywhere it would matter.
+
+## ADR-073 — Wrong tries slow down their network, never lock the account
+
+**Decision.** (Audit SEC-10.)
+
+- **Keyed on the pair.** Each wrong password, sign-in code or link proof is kept against the pair
+  (*what was typed*, *the client's /24 or /64*), in `sign_in_failures`.
+  - Three tries are free. After that, each try must wait twice as long as the last (1s, 2s, 4s …).
+  - At ten failures within fifteen minutes, the pair is blocked for fifteen minutes.
+  - The check runs before any password is read.
+  - A success clears the pair.
+- **The account is never locked.** `failedLoginCount` and the portal's `failedLogins` are gone.
+  `lockedUntil` remains, for a lock someone sets on purpose.
+- **An alert instead of a lock.** Fifty failures on one account in an hour, from anywhere, raise a
+  `LOGIN_FAILURES` alert through the existing detectors.
+- **Unknown addresses look the same.** The pair is keyed on the identifier as typed, so an address with
+  no account is slowed exactly like one with an account. When there is no password to check, a dummy
+  Argon2 verify runs, so the answer takes as long either way.
+
+**Rationale.** Five wrong passwords locked an account for fifteen minutes, from anywhere. Anyone who
+knew a manager's address could keep them out for good, with a minute's work every quarter of an hour.
+The cheaper login path for an unknown address also told a stopwatch who had an account.
+
+**Limits.**
+
+- An attacker with many networks gets ten tries per network per quarter-hour. That is what the
+  account-wide alert is for.
+- The throttle is only as good as `TRUST_PROXY`. Behind a misconfigured proxy, every client is one
+  network.

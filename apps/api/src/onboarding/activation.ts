@@ -69,7 +69,7 @@ export async function activate(token: string, password: string, meta: { ipAddres
     const spent = await tx.accountActivation.updateMany({ where: { id: row.id, usedAt: null, revokedAt: null }, data: { usedAt: new Date() } });
     if (spent.count !== 1) throw new AppError(410, 'ACTIVATION_USED', 'با این پیوند پیش‌تر رمز گذاشته شده است.');
     await tx.accountActivation.updateMany({ where: { userId: user.id, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
-    await tx.user.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: false, failedLoginCount: 0, lockedUntil: null } });
+    await tx.user.update({ where: { id: user.id }, data: { passwordHash, mustChangePassword: false } });
     await audit({ organizationId: user.organizationId, actorId: user.id, action: 'ACCOUNT_ACTIVATED', entityType: 'user', entityId: user.id, ipAddress: meta.ipAddress }, tx);
   });
   return { email: user.email };

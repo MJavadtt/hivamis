@@ -19,6 +19,7 @@ import { maskCode, sendCode, smsAvailable } from '../auth/sms.js';
 import { createTicket, finishGoogle, google, googleConfigured, liveOffer, offerLink, redeemTicket, startGoogle } from '../auth/google.js';
 import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js';
 import { verifyPassword } from '../auth/password.js';
+import { assertMayTry, clearFailures } from '../auth/throttle.js';
 
 /**
  * Signing in with a mobile number or a Google account, and asking to join (Hivamis task 4).
@@ -100,14 +101,20 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/auth/phone/verify', { config: RATE }, async (req, reply) => {
     const { phone, code } = parse(phoneVerifySchema, req.body);
+    // Audit SEC-10: the same as a password — the number and the network slow down, not the account.
+    await assertMayTry(phone, req.ip);
     const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null, ...(await hereOnly(req)) } });
-    if (!user) throw unauthorized('کد درست نیست یا منقضی شده است.');
+    if (!user) {
+      await countFailure(phone, req, null, 'phone-code');
+      throw unauthorized('کد درست نیست یا منقضی شده است.');
+    }
     if (user.lockedUntil && user.lockedUntil > new Date()) throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
     const ok = await checkCode({ purpose: 'LOGIN', phone, code });
     if (!ok || ok.userId !== user.id) {
-      await countFailure(user.id, req, 'phone-code');
+      await countFailure(phone, req, user, 'phone-code');
       throw unauthorized('کد درست نیست یا منقضی شده است.');
     }
+    await clearFailures(phone, req.ip);
     return issueSession(user.id, req, reply, 'phone');
   });
 
@@ -229,6 +236,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const offer = await liveOffer(tokenOf(req));
     if (!offer || !offer.user.isActive || offer.user.deletedAt) throw offerGone();
     const u = offer.user;
+    await assertMayTry(u.email, req.ip);
     if (u.lockedUntil && u.lockedUntil > new Date()) throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
     let proof: 'password' | 'phone' | null = null;
     if (typeof password === 'string' && password && hasPassword(u.passwordHash)) {
@@ -240,7 +248,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     if (!proof) {
       // A wrong proof costs what a wrong password does, and the offer has five.
       await prisma.identityLinkOffer.update({ where: { id: offer.id }, data: { attempts: { increment: 1 } } });
-      await countFailure(u.id, req, 'google-link-proof');
+      await countFailure(u.email, req, u, 'google-link-proof');
       throw unauthorized('رمز یا کد درست نیست.');
     }
     const linked = await prisma.$transaction(async (tx) => {
@@ -258,6 +266,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     });
     if (linked === 'gone') throw offerGone();
     if (linked === 'elsewhere') throw conflict('LINKED_ELSEWHERE', 'این حساب گوگل به حساب دیگری وصل است.');
+    await clearFailures(u.email, req.ip);
     return issueSession(u.id, req, reply, 'google');
   });
 

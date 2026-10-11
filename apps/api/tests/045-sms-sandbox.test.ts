@@ -24,7 +24,7 @@ describe('The SMS sandbox (audit SEC-6)', () => {
   afterAll(async () => { await closeApp(); });
 
   it('is refused at start in production and with several organisations, and is not their default', () => {
-    for (const env of [{ NODE_ENV: 'production' }, { TENANT_MODE: 'multi' }]) {
+    for (const env of [{ NODE_ENV: 'production' }, { TENANT_MODE: 'multi' }] as Record<string, string>[]) {
       const refused = start({ ...env, SMS_MODE: 'sandbox' });
       expect(refused.code).toBe(1);
       expect(refused.out).toContain('SMS_MODE=sandbox');

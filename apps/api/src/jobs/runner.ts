@@ -6,6 +6,7 @@ import { tickSlaClocks } from '../sla/engine.js';
 import { notifyPredictedBreaches } from '../sla/predict.js';
 import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
+import { pruneFailures } from '../auth/throttle.js';
 import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { runMoadian } from '../tax/submit.js';
 import { runESign } from '../esign/service.js';
@@ -113,6 +114,8 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     // The audit trail read as it accumulates, not after the fact (roadmap #26).
     const result = await scanAll();
     if (result.created) logger.warn({ ...result }, 'security alerts raised');
+    // Sign-in throttle state older than any window that reads it (audit SEC-10).
+    await pruneFailures().catch((err) => logger.error({ err }, 'sign-in failures not pruned'));
   });
 
   await boss.work('webhooks:dispatch', async () => {

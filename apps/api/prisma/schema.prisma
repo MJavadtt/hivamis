@@ -256,7 +256,7 @@ model User {
   timeEntries         TimeEntry[]
   weeklyCapacityHours Decimal      @default(40) @db.Decimal(6, 2)
   lastLoginAt         DateTime?
-  failedLoginCount    Int          @default(0)
+  /// A lock set on purpose. Wrong passwords no longer set it (audit SEC-10): they slow their network down.
   lockedUntil         DateTime?
   /// Audit SEC-3: raised on a role change, deactivation or password change. Every access token carries
   /// the value it was issued under (`av`); one that differs is refused at once, not when it expires.
@@ -2386,7 +2386,6 @@ model PortalUser {
   inviteExpiresAt DateTime?
   invitedById     String
   invitedBy       User      @relation(fields: [invitedById], references: [id])
-  failedLogins    Int       @default(0)
   lockedUntil     DateTime?
   /// Raised to end every session at once — on disabling, or a new password.
   tokenVersion    Int       @default(0)
@@ -2983,3 +2982,18 @@ model SystemUpgrade {
   @@map("system_upgrades")
 }
 
+/// Audit SEC-10: a wrong password or code, kept against what was typed and the network it came from —
+/// not against the account. Throttle state, not evidence: the audit trail keeps LOGIN_FAILED, and a
+/// success clears its pair.
+model SignInFailure {
+  id         String   @id @default(uuid())
+  /// The email or mobile as typed (normalised), prefixed `portal:` for the client portal.
+  identifier String
+  /// The client's /24 (IPv4) or /64 (IPv6).
+  network    String
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, network, createdAt])
+  @@index([createdAt])
+  @@map("sign_in_failures")
+}

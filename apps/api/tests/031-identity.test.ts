@@ -79,15 +79,23 @@ describe('Signing in by mobile', () => {
     expect((await call('POST', '/auth/phone/verify', { payload: { phone: '09139999999', code: '123456' } })).status).toBe(401);
   });
 
-  it('spends a code after five wrong tries, and counts them against the account', async () => {
+  it('spends a code after five wrong tries, and slows the network down — without locking the account', async () => {
     await ageCodes(phone);
     const code = await signInCode(phone);
     const wrong = code === '000000' ? '111111' : '000000';
-    for (let i = 0; i < MAX_ATTEMPTS; i++) expect((await call('POST', '/auth/phone/verify', { payload: { phone, code: wrong } })).status).toBe(401);
-    expect((await call('POST', '/auth/phone/verify', { payload: { phone, code } })).status).toBe(401);
+    const verify = (c: string, remoteAddress?: string) => app().then((a) => a.inject({ method: 'POST', url: '/api/v1/auth/phone/verify', payload: { phone, code: c }, ...(remoteAddress ? { remoteAddress } : {}) }));
+    // Each wrong try from its own network, so the code's five tries are what is spent here.
+    for (let i = 0; i < MAX_ATTEMPTS; i++) expect((await verify(wrong, `203.0.${i}.1`)).statusCode).toBe(401);
+    expect((await verify(code, '203.0.9.1')).statusCode).toBe(401);
     const me = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
-    expect(me.lockedUntil).not.toBeNull();
-    await prisma.user.update({ where: { id: me.id }, data: { failedLoginCount: 0, lockedUntil: null } });
+    expect(me.lockedUntil).toBeNull();
+    // Audit SEC-10: from one network, the fourth wrong try in a row is made to wait.
+    await ageCodes(phone);
+    await signInCode(phone);
+    const statuses: number[] = [];
+    for (let i = 0; i < 5; i++) statuses.push((await verify(wrong, '203.0.113.9')).statusCode);
+    expect(statuses).toEqual([401, 401, 401, 401, 429]);
+    await prisma.signInFailure.deleteMany({ where: { identifier: phone } });
   });
 
   it('sends one code a minute to a number, whoever asks', async () => {
@@ -348,11 +356,14 @@ describe('Signing in with Google', () => {
 
     const again = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-creative', email: 'creative@hiva.local' });
     const offer = again.fragment.get('link')!;
-    for (let i = 0; i < 5; i++) expect((await call('POST', '/auth/google/offer/confirm', { payload: { token: offer, password: `wrong-${i}` } })).status).toBe(401);
-    expect((await call('POST', '/auth/google/offer/confirm', { payload: { token: offer, password: 'Hiva@Dev2026!' } })).status).toBe(410);
+    // Each from its own network: one network is slowed down sooner (audit SEC-10); this is the offer's own limit.
+    const confirm = (password: string, remoteAddress: string) =>
+      app().then((a) => a.inject({ method: 'POST', url: '/api/v1/auth/google/offer/confirm', remoteAddress, payload: { token: offer, password } }));
+    for (let i = 0; i < 5; i++) expect((await confirm(`wrong-${i}`, `198.18.${i}.1`)).statusCode).toBe(401);
+    expect((await confirm('Hiva@Dev2026!', '198.18.9.1')).statusCode).toBe(410);
     expect(await prisma.userIdentity.count({ where: { provider: 'google', subject: 'g-creative' } })).toBe(0);
-    // The wrong proofs counted against the account as wrong passwords do; clear the lock for the tests after.
-    await prisma.user.update({ where: { email: 'creative@hiva.local' }, data: { failedLoginCount: 0, lockedUntil: null } });
+    // The wrong proofs slowed this network down as wrong passwords do; clear that for the tests after.
+    await prisma.signInFailure.deleteMany({ where: { identifier: 'creative@hiva.local' } });
   });
 
   it('refuses an answer that is not for this request, or an address Google has not verified', async () => {

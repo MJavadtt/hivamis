@@ -8,6 +8,7 @@ import { claimsFor } from './claims.js';
 import { assertSignInHere } from '../lib/tenant.js';
 import { forgetStanding } from './standing.js';
 import { setRefreshCookie } from './cookie.js';
+import { recordFailure } from './throttle.js';
 
 /** How a person proved who they are; recorded with every sign-in. */
 export type SignInMethod = 'password' | 'phone' | 'google';
@@ -31,7 +32,7 @@ export async function issueSession(userId: string, req: FastifyRequest, reply: F
         expiresAt: new Date(Date.now() + ttlToMs(env.REFRESH_TOKEN_TTL)),
       },
     }),
-    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null } }),
+    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
   ]);
   await audit({
     organizationId: user.organizationId, actorId: user.id, action: 'LOGIN', entityType: 'user', entityId: user.id,
@@ -51,23 +52,19 @@ export async function issueSession(userId: string, req: FastifyRequest, reply: F
   };
 }
 
-/** A failed proof counts against the account as a wrong password does; five lock it for a while. */
-export async function countFailure(userId: string, req: FastifyRequest, reason: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { organizationId: true, failedLoginCount: true, lockedUntil: true } });
+/**
+ * A wrong password or code. Its network slows down for what was typed (audit SEC-10) — the account is
+ * not locked — and when it was someone's account, the audit trail says so, for the detectors that
+ * raise an alert on an account tried from everywhere.
+ */
+export async function countFailure(identifier: string, req: FastifyRequest, user: { id: string; organizationId: string } | null, reason: string): Promise<void> {
+  await recordFailure(identifier, req.ip);
   if (!user) return;
-  const failed = user.failedLoginCount + 1;
-  await prisma.user.update({
-    where: { id: userId },
-    data: { failedLoginCount: failed, lockedUntil: failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MS) : user.lockedUntil },
-  });
   await audit({
-    organizationId: user.organizationId, actorId: userId, action: 'LOGIN_FAILED', entityType: 'user', entityId: userId,
+    organizationId: user.organizationId, actorId: user.id, action: 'LOGIN_FAILED', entityType: 'user', entityId: user.id,
     reason, ipAddress: req.ip, userAgent: req.headers['user-agent'] ?? null,
   }).catch(() => undefined);
 }
-
-export const MAX_FAILED = 5;
-export const LOCK_MS = 15 * 60_000;
 
 /**
  * Deactivates one account and ends its sessions, with the audit row in the same transaction. The

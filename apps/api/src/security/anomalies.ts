@@ -44,6 +44,7 @@ export const THRESHOLDS = {
   denialsMultiple: 4,
   loginFailuresPerIp: 10,    // failed logins from one address in an hour
   loginAccountsPerIp: 3,     // …or this many different accounts from one address
+  loginFailuresPerAccount: 50, // failed sign-ins on one account in an hour, from anywhere (audit SEC-10)
 } as const;
 
 const DAY = 86_400_000;
@@ -221,6 +222,25 @@ export async function detectAnomalies(tx: Tx, organizationId: string, opts: Scan
         ? `${fa(mine.length)} ورود ناموفق از نشانی ${ip} برای ${fa(accounts.size)} حساب متفاوت در یک ساعت — الگوی امتحان رمزهای فهرست‌شده`
         : `${fa(mine.length)} ورود ناموفق از نشانی ${ip} در یک ساعت`,
       fingerprint: `LOGIN_FAILURES:${ip}:${dayKey(now)}T${now.getHours()}`,
+    });
+  }
+
+  // ── 5b. One account tried from everywhere (audit SEC-10) ────────────────────────────────────
+  // Wrong tries no longer lock an account — that let anyone keep its owner out — so an account under
+  // a spread-out attack is a matter for whoever watches security, not a lock.
+  const byAccount = new Map<string, typeof failures>();
+  for (const f of recent.filter((e) => e.action === 'LOGIN_FAILED' && e.createdAt >= hourAgo && e.entityId)) {
+    (byAccount.get(f.entityId!) ?? byAccount.set(f.entityId!, []).get(f.entityId!)!).push(f);
+  }
+  for (const [account, mine] of byAccount) {
+    if (mine.length < THRESHOLDS.loginFailuresPerAccount) continue;
+    const addresses = new Set(mine.map((e) => e.ipAddress).filter(Boolean));
+    alerts.push({
+      kind: 'LOGIN_FAILURES', severity: 'HIGH',
+      actorId: account, ipAddress: null, windowStart: hourAgo, windowEnd: now,
+      evidence: { count: mine.length, addresses: addresses.size, sample: [...addresses].slice(0, 20) },
+      messageFa: `${fa(mine.length)} ورود ناموفق به یک حساب از ${fa(addresses.size)} نشانی در یک ساعت — حساب قفل نشده است؛ اگر صاحبش نبوده، رمزش را عوض کنید`,
+      fingerprint: `LOGIN_FAILURES:account:${account}:${dayKey(now)}T${now.getHours()}`,
     });
   }
 

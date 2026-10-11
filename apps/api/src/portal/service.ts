@@ -12,6 +12,7 @@ import { stateLabelFa } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { AppError, conflict, notFound, unauthorized } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
+import { assertMayTry, clearFailures, recordFailure, spendPasswordTime } from '../auth/throttle.js';
 import { hashToken } from '../auth/tokens.js';
 import { audit } from '../lib/audit.js';
 import { clientMail } from '../mail/client.js';
@@ -22,8 +23,6 @@ import { invitationToken, signPortalToken } from './auth.js';
 
 const DAY = 86_400_000;
 const INVITE_DAYS = 7;
-const MAX_FAILED = 5;
-const LOCK_MS = 15 * 60_000;
 /** A project the client knows about: authorised onward, and not withdrawn. */
 export const PORTAL_PROJECT_STATES = ['AUTHORIZED', 'PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'PENDING_CLOSURE', 'CLOSED'];
 
@@ -58,7 +57,7 @@ export async function invite(actor: StaffActor, contactId: string) {
   const { token, hash } = invitationToken();
   const data = {
     email, status: 'INVITED', passwordHash: null, inviteTokenHash: hash, inviteExpiresAt: new Date(Date.now() + INVITE_DAYS * DAY),
-    invitedById: actor.id, failedLogins: 0, lockedUntil: null,
+    invitedById: actor.id, lockedUntil: null,
   };
   const user = contact.portalUser
     ? await prisma.portalUser.update({ where: { id: contact.portalUser.id }, data: { ...data, tokenVersion: { increment: 1 } } })
@@ -98,27 +97,29 @@ export async function accept(token: string, password: string, ip: string | null)
   }
   const updated = await prisma.portalUser.update({
     where: { id: u.id },
-    data: { passwordHash: await hashPassword(password), status: 'ACTIVE', inviteTokenHash: null, inviteExpiresAt: null, tokenVersion: { increment: 1 }, lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
+    data: { passwordHash: await hashPassword(password), status: 'ACTIVE', inviteTokenHash: null, inviteExpiresAt: null, tokenVersion: { increment: 1 }, lastLoginAt: new Date() },
   });
   await audit({ organizationId: u.organizationId, actorId: null, action: 'PORTAL_ACTIVATED', entityType: 'portalUser', entityId: u.id, ipAddress: ip });
   return { token: await signPortalToken({ sub: updated.id, organizationId: updated.organizationId, companyId: updated.companyId, v: updated.tokenVersion }) };
 }
 
 export async function login(email: string, password: string, ip: string | null, userAgent: string | null) {
-  const u = await prisma.portalUser.findUnique({ where: { email: email.trim().toLowerCase() } });
+  const address = email.trim().toLowerCase();
+  // Audit SEC-10: as for staff — wrong tries slow their network down for this address; nobody is locked out.
+  const identifier = `portal:${address}`;
+  await assertMayTry(identifier, ip ?? '');
+  const u = await prisma.portalUser.findUnique({ where: { email: address } });
   // One answer for every failure: whether an address has an account is not the caller's business.
   const fail = async (reason: string) => {
-    if (u) {
-      const failed = u.failedLogins + 1;
-      await prisma.portalUser.update({ where: { id: u.id }, data: { failedLogins: failed, lockedUntil: failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MS) : u.lockedUntil } });
-      await audit({ organizationId: u.organizationId, actorId: null, action: 'PORTAL_LOGIN_FAILED', entityType: 'portalUser', entityId: u.id, reason, ipAddress: ip, userAgent }).catch(() => undefined);
-    }
+    await recordFailure(identifier, ip ?? '');
+    if (u) await audit({ organizationId: u.organizationId, actorId: null, action: 'PORTAL_LOGIN_FAILED', entityType: 'portalUser', entityId: u.id, reason, ipAddress: ip, userAgent }).catch(() => undefined);
     throw unauthorized('ایمیل یا رمز عبور نادرست است');
   };
-  if (!u || u.status !== 'ACTIVE' || !u.passwordHash) return fail('inactive-or-missing');
+  if (!u || u.status !== 'ACTIVE' || !u.passwordHash) { await spendPasswordTime(password); return fail('inactive-or-missing'); }
   if (u.lockedUntil && u.lockedUntil > new Date()) throw unauthorized('حساب موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
   if (!(await verifyPassword(u.passwordHash, password))) return fail('bad-password');
-  await prisma.portalUser.update({ where: { id: u.id }, data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null } });
+  await clearFailures(identifier, ip ?? '');
+  await prisma.portalUser.update({ where: { id: u.id }, data: { lastLoginAt: new Date() } });
   await audit({ organizationId: u.organizationId, actorId: null, action: 'PORTAL_LOGIN', entityType: 'portalUser', entityId: u.id, ipAddress: ip, userAgent });
   return { token: await signPortalToken({ sub: u.id, organizationId: u.organizationId, companyId: u.companyId, v: u.tokenVersion }) };
 }

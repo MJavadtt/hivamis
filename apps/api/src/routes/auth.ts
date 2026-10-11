@@ -10,6 +10,8 @@ import { env } from '../env.js';
 import { claimsFor } from '../auth/claims.js';
 import { issueSession, countFailure, endSessions } from '../auth/session.js';
 import { forgetStanding } from '../auth/standing.js';
+import { assertMayTry, clearFailures, spendPasswordTime } from '../auth/throttle.js';
+import { hasPassword } from './identity.js';
 import { assertFromTheApp, clearRefreshCookie, refreshCookie, setRefreshCookie } from '../auth/cookie.js';
 
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
@@ -20,20 +22,28 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     const { email, password } = parse(loginSchema, req.body);
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const identifier = email.trim().toLowerCase();
+    // A network still waiting out its last wrong try is refused before any password is checked (audit SEC-10).
+    await assertMayTry(identifier, req.ip);
+    const user = await prisma.user.findUnique({ where: { email: identifier } });
 
     // Uniform failure response — never reveal whether the address exists.
     const fail = async (reason: string) => {
-      if (user) await countFailure(user.id, req, reason);
+      await countFailure(identifier, req, user, reason);
       throw unauthorized('ایمیل یا رمز عبور نادرست است');
     };
 
-    if (!user || !user.isActive || user.deletedAt) return fail('inactive-or-missing');
+    if (!user || !user.isActive || user.deletedAt || !hasPassword(user.passwordHash)) {
+      // As long as a real check takes, so the timing does not say whether the address has an account.
+      await spendPasswordTime(password);
+      return fail('inactive-or-missing');
+    }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
     }
     if (!(await verifyPassword(user.passwordHash, password))) return fail('bad-password');
 
+    await clearFailures(identifier, req.ip);
     return issueSession(user.id, req, reply, 'password');
   });
 

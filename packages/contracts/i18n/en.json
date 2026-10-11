@@ -2434,6 +2434,8 @@
   "کد تأیید {0}: {1}": "Approval code {0}: {1}",
   "کد تأیید شمارهٔ همراه شما در هیوامیس: {code}": "Your Hivamis mobile verification code: {code}",
   "کد تازه تا {0} ثانیهٔ دیگر.": "A new code in {0} seconds.",
+  "تلاش‌های نادرست زیاد بود؛ {0} ثانیهٔ دیگر دوباره امتحان کنید.": "Too many wrong tries; try again in {0} seconds.",
+  "{0} ورود ناموفق به یک حساب از {1} نشانی در یک ساعت — حساب قفل نشده است؛ اگر صاحبش نبوده، رمزش را عوض کنید": "{0} failed sign-ins to one account from {1} addresses in an hour — the account is not locked; if it was not its owner, change its password",
   "کد تفصیلی": "Detail code",
   "کد تفصیلی این مشتریان تعیین نشده است و ردیف‌هایشان بدون تفصیلی می‌آید: {0}": "No detail code is set for these clients, so their lines come without one: {0}",
   "کد تفصیلی برای مشتری‌ای داده شده که در این سازمان نیست.": "A detail code was given for a client not in this organisation.",
