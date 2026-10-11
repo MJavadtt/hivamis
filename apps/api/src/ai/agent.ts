@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { chat, type ChatMessage, type ToolCall, type ToolSpec } from './ollama.js';
+import { asAgentFor } from '../lib/request-context.js';
 import { dateFor, shape } from './shape.js';
 import { guideFor, searchGuide } from '@hiva/contracts';
 
@@ -23,6 +24,8 @@ export interface ChatAction {
 
 export interface AgentContext {
   app: FastifyInstance;
+  /** Whose reads these are: the rate limit counts them as theirs (audit PERF-1). */
+  userId: string;
   authorization: string;
   locale: 'fa' | 'en';
   /** The organisation's currency: what an amount without one is in. */
@@ -108,10 +111,10 @@ const clip = (value: unknown, max = 6000) => {
 };
 
 async function read(ctx: AgentContext, method: 'GET' | 'POST', url: string, payload?: unknown) {
-  const res = await ctx.app.inject({
+  const res = await asAgentFor(ctx.userId, () => ctx.app.inject({
     method, url: `/api/v1${url}`, payload: payload as never,
     headers: { authorization: ctx.authorization, 'accept-language': ctx.locale },
-  });
+  }));
   let body: unknown = res.body;
   try { body = JSON.parse(res.body); } catch { /* text */ }
   if (res.statusCode >= 400) {

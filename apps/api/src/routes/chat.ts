@@ -87,7 +87,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
       release = await turns.acquire((position) => send('queue', { position }), controller.signal);
       const history: ChatMessage[] = [...earlier.reverse().map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })), { role: 'user', content: input.message }];
       const result = await runTurn(history, {
-        app, authorization: req.headers.authorization ?? '', locale: requestLocale(req.headers['accept-language']), currency: me.organization.currency,
+        app, userId: actor.id, authorization: req.headers.authorization ?? '', locale: requestLocale(req.headers['accept-language']), currency: me.organization.currency,
         person: { fullName: me.fullName, jobTitle: me.jobTitle, unit: actor.departmentCode, roles: actor.roles },
         page: input.context ?? null,
       }, {

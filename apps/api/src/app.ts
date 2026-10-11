@@ -13,7 +13,7 @@ import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
 import { localizeError, requestLocale } from './lib/i18n.js';
 import { LOG_REDACT } from './lib/log.js';
-import { requestContext } from './lib/request-context.js';
+import { rateKey, requestContext } from './lib/request-context.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
 import authRoutes from './routes/auth.js';
@@ -88,7 +88,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // A request-scoped store (roadmap #46): opened here, so everything the request runs sees its own.
-  app.addHook('onRequest', (_req, _reply, done) => requestContext.run({}, done));
+  // An in-process request made by the assistant keeps whom it reads for (audit PERF-1); any other starts clean.
+  app.addHook('onRequest', (_req, _reply, done) => requestContext.run({ agentFor: requestContext.getStore()?.agentFor }, done));
 
   await app.register(helmet, {
     contentSecurityPolicy: false, // the API serves JSON + downloads only; the SPA sets its own CSP
@@ -103,10 +104,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: '1 minute',
-    // Keyed on IP only. @fastify/rate-limit runs in onRequest and authentication runs in
-    // preHandler, so req.user is not yet populated here — a per-user branch would be dead code
-    // that reads as a protection the limiter does not actually provide.
-    keyGenerator: (req) => req.ip,
+    // Keyed on IP. @fastify/rate-limit runs in onRequest and authentication runs in preHandler, so
+    // req.user is not populated here. The one exception is the assistant's own in-process reads,
+    // counted against the person they are for (audit PERF-1) — known from the request's context,
+    // never from anything the request says about itself.
+    keyGenerator: (req) => rateKey(req.ip),
   });
   await app.register(multipart, {
     limits: { fileSize: env.MAX_UPLOAD_MB * 1024 * 1024, files: 1 },
