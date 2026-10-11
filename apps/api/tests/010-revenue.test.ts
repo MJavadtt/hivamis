@@ -70,6 +70,32 @@ describe('Revenue earned as the work is done', () => {
     expect(today).toMatchObject({ progress: 0.5, recognised: 500_000_000, invoiced: 700_000_000, wip: -200_000_000 });
   });
 
+  it('reads a past instant with its tasks as they were then — a month re-read later does not move (audit LOG-3)', async () => {
+    const p = await project('پروژهٔ بازخوانی ماه', 100_000_000);
+    const done = await task(p, 10), late = await task(p, 10), dropped = await task(p, 20);
+    await log(done, 10, at(m2!, 3));
+    const move = (taskId: string, fromState: string, toState: string, action: string, when: Date) =>
+      prisma.stateTransition.create({ data: { organizationId: org, entityType: 'task', entityId: taskId, fromState, toState, action, actorId: ownerId, createdAt: when } });
+    // At the end of last month: one task approved, one submitted but not yet approved, one still open.
+    await move(done, 'IN_PROGRESS', 'SUBMITTED', 'submit', at(m1!, 4));
+    await move(done, 'SUBMITTED', 'APPROVED', 'qc_approve', at(m1!, 5));
+    await move(late, 'IN_PROGRESS', 'SUBMITTED', 'submit', at(m1!, 6));
+    const asThen = positionAt(await loadRevenueData(prisma, org, [p]), p, m1!.end);
+    // 10 logged; 10 + 20 still to do on the two open tasks → a quarter.
+    expect(asThen.progress).toBe(0.25);
+
+    // Since then: the submitted one was approved, and the open one cancelled.
+    await move(late, 'SUBMITTED', 'APPROVED', 'qc_approve', at(cur!, 1));
+    await move(dropped, 'IN_PROGRESS', 'CANCELLED', 'cancel', at(cur!, 1));
+    await prisma.task.update({ where: { id: late }, data: { state: 'APPROVED' } });
+    await prisma.task.update({ where: { id: dropped }, data: { state: 'CANCELLED' } });
+    const reRead = positionAt(await loadRevenueData(prisma, org, [p]), p, m1!.end);
+    // Read with today's states it would have been all done (10 of 10); read as it stood, it is what it was.
+    expect(reRead).toEqual(asThen);
+    // Today, of course, the work is as it is now.
+    expect(positionAt(await loadRevenueData(prisma, org, [p]), p, now).progress).toBe(1);
+  });
+
   it('lets an overrun lower progress instead of pushing it past a hundred per cent', async () => {
     const p = await project('پروژهٔ با کار بیش از برآورد', 100_000_000);
     const a = await task(p, 10);

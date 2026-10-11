@@ -42,6 +42,18 @@ const FA = '۰۱۲۳۴۵۶۷۸۹';
 const fa = (v: string | number) => String(v).replace(/\d/g, (c) => FA[Number(c)]!);
 const before = (d: Date | null | undefined, at: Date) => !!d && d < at;
 
+/**
+ * A task's state at an instant (audit LOG-3): where its last move before then took it, or where its
+ * first move started from. A task never moved through the engine — set directly, before the log
+ * existed — has only the state it has now.
+ */
+export function stateAt(task: { state: string; moves: { at: Date; from: string; to: string }[] }, at: Date): string {
+  let state: string | null = null;
+  for (const m of task.moves) { if (m.at < at) state = m.to; else break; }
+  return state ?? task.moves[0]?.from ?? task.state;
+}
+const DONE = new Set(['APPROVED', 'CLOSED']);
+
 /* ── Months ────────────────────────────────────────────────────────────── */
 
 export interface Month { period: string; labelFa: string; start: Date; end: Date }
@@ -73,8 +85,11 @@ export interface RevenueData {
   projects: { id: string; code: string; name: string; state: string; revenueMethod: string; contractValue: unknown; closedAt: Date | null; createdAt: Date; company: { legalName: string } }[];
   amendments: Map<string, { valueDelta: Money; effectiveDate: Date }[]>;
   milestones: Map<string, { id: string; name: string; revenueShare: Money | null; completedAt: Date | null; dueDate: Date }[]>;
-  /** `doneAt`: when the task was finished — closed, or failing that submitted, for a task approved or closed. */
-  tasks: Map<string, { id: string; estimateHours: Money | null; state: string; doneAt: Date | null; createdAt: Date }[]>;
+  /**
+   * Each task with its moves (audit LOG-3), so its state at any instant can be read back: a month re-read
+   * later shows what it showed then, not what has happened to its tasks since.
+   */
+  tasks: Map<string, { id: string; estimateHours: Money | null; state: string; createdAt: Date; moves: { at: Date; from: string; to: string }[] }[]>;
   entries: Map<string, { taskId: string; hours: Money; workedOn: Date; userId: string }[]>;
   rates: Map<string, Money | null>;
   paymentsOut: Map<string, { amount: Money; occurredAt: Date }[]>;
@@ -109,7 +124,7 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
       select: { valueDelta: true, effectiveDate: true, contract: { select: { projectId: true } } },
     }),
     tx.milestone.findMany({ where: { project: { organizationId, ...(scope ? { id: scope } : {}) } }, orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }] }),
-    tx.task.findMany({ where: { organizationId, ...(scope ? { projectId: scope } : {}) }, select: { id: true, projectId: true, estimateHours: true, state: true, closedAt: true, submittedAt: true, createdAt: true } }),
+    tx.task.findMany({ where: { organizationId, ...(scope ? { projectId: scope } : {}) }, select: { id: true, projectId: true, estimateHours: true, state: true, createdAt: true } }),
     tx.timeEntry.findMany({ where: { organizationId, ...(scope ? { task: { projectId: scope } } : {}) }, select: { taskId: true, hours: true, workedOn: true, userId: true, task: { select: { projectId: true } } } }),
     tx.user.findMany({ where: { organizationId }, select: { id: true, hourlyCost: true, department: { select: { hourlyCost: true } } } }),
     // A payment to a media vendor is a pass-through (#31): it is the client's media, not the project's cost.
@@ -118,13 +133,18 @@ export async function loadRevenueData(tx: Tx, organizationId: string, projectIds
     tx.invoice.findMany({ where: { organizationId, kind: 'INVOICE', state: { not: 'CANCELLED' }, projectId: scope ?? { not: null } }, select: { projectId: true, subtotal: true, taxPercent: true, total: true, issueDate: true, lines: true, fxRate: true } }),
     tx.mediaOrder.findMany({ where: { organizationId, state: { not: 'CANCELLED' }, ...(scope ? { projectId: scope } : {}) }, select: { projectId: true, agencyRevenue: true, airedAt: true } }),
   ]);
+  const taskMoves = await tx.stateTransition.findMany({
+    where: { organizationId, entityType: 'task', ...(scope ? { entityId: { in: tasks.map((t) => t.id) } } : {}) },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { entityId: true, fromState: true, toState: true, createdAt: true },
+  });
+  const movesOf = group(taskMoves.map((m) => ({ taskId: m.entityId, at: m.createdAt, from: m.fromState, to: m.toState })), (m) => m.taskId);
   const declared = new Map<string, Money>();
   for (const d of declarations) declared.set(d.workOrder!.projectId, (declared.get(d.workOrder!.projectId) ?? ZERO).add(money(d.internalCost)).add(money(d.externalCost)));
   return {
     projects,
     amendments: group(amendments.map((a) => ({ projectId: a.contract.projectId!, valueDelta: money(a.valueDelta), effectiveDate: a.effectiveDate })), (a) => a.projectId),
     milestones: group(milestones.map((m) => ({ id: m.id, projectId: m.projectId, name: m.name, revenueShare: m.revenueShare == null ? null : money(m.revenueShare), completedAt: m.completedAt, dueDate: m.dueDate })), (m) => m.projectId),
-    tasks: group(tasks.map((t) => ({ id: t.id, projectId: t.projectId, estimateHours: t.estimateHours == null ? null : money(t.estimateHours), state: t.state, doneAt: t.closedAt ?? (['APPROVED', 'CLOSED'].includes(t.state) ? t.submittedAt : null), createdAt: t.createdAt })), (t) => t.projectId),
+    tasks: group(tasks.map((t) => ({ id: t.id, projectId: t.projectId, estimateHours: t.estimateHours == null ? null : money(t.estimateHours), state: t.state, createdAt: t.createdAt, moves: movesOf.get(t.id) ?? [] })), (t) => t.projectId),
     entries: group(entries.map((e) => ({ taskId: e.taskId, projectId: e.task.projectId, hours: money(e.hours), workedOn: e.workedOn, userId: e.userId })), (e) => e.projectId),
     rates: new Map(users.map((u) => [u.id, u.hourlyCost != null ? money(u.hourlyCost) : u.department?.hourlyCost != null ? money(u.department.hourlyCost) : null])),
     paymentsOut: group(payments.map((p) => ({ projectId: p.projectId!, amount: money(p.amount), occurredAt: p.occurredAt })), (p) => p.projectId),
@@ -236,14 +256,15 @@ export function positionAt(data: RevenueData, projectId: string, at: Date): Posi
 
   const entries = (data.entries.get(projectId) ?? []).filter((e) => before(e.workedOn, at));
   if (method === 'EFFORT') {
-    // The work as it stood then: tasks that existed, less those already closed.
-    const tasks = (data.tasks.get(projectId) ?? []).filter((t) => t.state !== 'CANCELLED' && before(t.createdAt, at));
+    // The work as it stood then: tasks that existed and were not cancelled, in the state they were in
+    // (audit LOG-3) — not as they are today, or a re-read month would move.
+    const tasks = (data.tasks.get(projectId) ?? []).filter((t) => before(t.createdAt, at) && stateAt(t, at) !== 'CANCELLED');
     const loggedOn = new Map<string, Money>();
     for (const e of entries) loggedOn.set(e.taskId, (loggedOn.get(e.taskId) ?? ZERO).add(e.hours));
     const logged = sumOf(entries.map((e) => e.hours));
     let remaining = ZERO, unestimated = 0;
     for (const t of tasks) {
-      if (before(t.doneAt, at)) continue;
+      if (DONE.has(stateAt(t, at))) continue;
       if (t.estimateHours == null) { unestimated++; continue; }
       remaining = remaining.add(maxOf(ZERO, t.estimateHours.sub(loggedOn.get(t.id) ?? ZERO)));
     }
