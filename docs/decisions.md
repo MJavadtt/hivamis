@@ -2065,3 +2065,22 @@ was true only of the access token.
 
 **Limits.** Starting a second Google flow in the same browser before the first returns replaces the
 cookie, so the first is refused. The person simply starts again.
+
+## ADR-072 — The SMS sandbox is a developer's stand-in, and its outbox shows no one else's sign-in code
+
+**Decision.** (Audit SEC-6.)
+
+- **Refused where people sign in for real.** The API will not start with `SMS_MODE=sandbox` under
+  `NODE_ENV=production` or `TENANT_MODE=multi`. Left unset there, SMS is `off`. The compose stack and
+  the installer write `SMS_MODE=off`, and pass the provider settings through.
+- **The outbox shows a code only when no one else could use it.** Each outbox row now records its
+  `purpose` and the account it opens (`userId`). The outbox shows the code in full only for a sign-up
+  code, which opens no account yet, or to the person whose account the code opens. Every other code is
+  masked, and so is every row from before purposes were recorded.
+
+**Rationale.** Anyone holding `admin.settings` could read another person's sign-in code in the outbox
+and sign in as them. With several organisations, one organisation's administrator could do the same
+to people in another. A stand-in for a provider is useful on a developer's machine, and nowhere else.
+
+**Limits.** In the sandbox the full text is still stored, so the database holds the code for its five
+minutes. That is the sandbox's purpose, and why it is now refused anywhere it would matter.

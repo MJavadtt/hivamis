@@ -113,7 +113,7 @@ come from `tenant:create`, as the installer does.
 | `ESIGN_URL` · `ESIGN_API_KEY` | for `http` | — | The provider bridge's base URL and bearer key |
 | `ESIGN_WEBHOOK_SECRET` | for `http` | — | HMAC key for the provider's callbacks; without it every callback is refused |
 | `MESSENGER_MODE` | no | `sandbox` outside production, `off` in production | Messenger (roadmap #40): `sandbox` — an in-app chat; `bale` / `telegram` — a bot on the Bot API; `off` |
-| `SMS_MODE` | no | `sandbox` outside production, `off` in production | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages for an administrator to read (Admin → Users); `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
+| `SMS_MODE` | no | `sandbox` in development with one organisation; `off` in production or with `TENANT_MODE=multi` | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages in the outbox (Admin → Users), and is refused at start in production or with several organisations (audit SEC-6) — its outbox shows a code only when it opens no account (asking to join) or to the person it signs in; `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
 | `SMS_API_KEY`, `SMS_TEMPLATE`, `SMS_URL` | with `kavenegar` / `http` | — | The provider's key; Kavenegar's verify template (one token, the code); the `http` endpoint |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for Google sign-in | — | An OAuth client of type "Web application"; register `PUBLIC_APP_URL` (or the first `CORS_ORIGIN`) + `/api/v1/auth/google/callback` as its redirect URI. Unset: no Google button |
 | `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains a Google account must be on — to ask to join, to sign in, and to be linked (audit SEC-5). Empty: any domain |
@@ -574,8 +574,10 @@ Hivamis task 4. Besides email and password, people can sign in with a six-digit 
 mobile they verified (on their own page, «صفحهٔ من»), or with a Google account linked to them. Both
 only prove who someone is; their roles still decide what they may do.
 
-- **SMS.** Out of the box (outside production) codes go to the sandbox: Admin → Users shows them, so
-  a developer can sign in without a provider. For real use set `SMS_MODE=kavenegar` with
+- **SMS.** On a development machine with one organisation, codes go to the sandbox: Admin → Users
+  shows a code to join, and a person their own sign-in code — never someone else's, which would be a
+  sign-in as them (audit SEC-6). The API refuses the sandbox in production and with several
+  organisations, and the compose stack and installer start with `SMS_MODE=off`. For real use set `SMS_MODE=kavenegar` with
   `SMS_API_KEY` and a verify template (`SMS_TEMPLATE`) whose single token is the code, or `http` with
   `SMS_URL` behind a small adapter for another provider. Outside the sandbox the code is never stored —
   only an HMAC of it in `otp_codes`, and the text with the code masked in `sms_outbox`.

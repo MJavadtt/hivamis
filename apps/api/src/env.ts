@@ -152,10 +152,11 @@ const envSchema = z.object({
    */
   PUSH_DELIVERY: z.enum(['on', 'off']).default('on'),
   /**
-   * SMS for one-time codes (Hivamis task 4). `sandbox` keeps messages in the database, readable by an
-   * administrator; `kavenegar` uses Kavenegar's verify/lookup with SMS_TEMPLATE; `http` POSTs
-   * { to, text } to SMS_URL with SMS_API_KEY as a bearer. Unset: sandbox outside production, off in
-   * production — where signing in by mobile is then not offered.
+   * SMS for one-time codes (Hivamis task 4). `sandbox` keeps messages in the database for the outbox;
+   * `kavenegar` uses Kavenegar's verify/lookup with SMS_TEMPLATE; `http` POSTs { to, text } to SMS_URL
+   * with SMS_API_KEY as a bearer. Unset: sandbox in development with one organisation; off in production
+   * or with several, where signing in by mobile is then not offered — and an explicit sandbox is refused
+   * at start (audit SEC-6).
    */
   SMS_MODE: z.enum(['off', 'sandbox', 'kavenegar', 'http']).optional(),
   SMS_API_KEY: z.string().default(''),
@@ -215,6 +216,15 @@ if (weak.length) {
   process.exit(1);
 }
 
+// Audit SEC-6: the sandbox keeps every code where an administrator can read it — a stand-in on a
+// developer's machine, never where people sign in for real, nor where several organisations share it.
+if (parsed.data.SMS_MODE === 'sandbox' && (parsed.data.NODE_ENV === 'production' || parsed.data.TENANT_MODE === 'multi')) {
+  console.error('Invalid environment configuration:');
+  console.error('  SMS_MODE=sandbox keeps every sign-in code where an administrator can read it; it is refused with ' +
+    'NODE_ENV=production or TENANT_MODE=multi — set SMS_MODE to kavenegar, http or off');
+  process.exit(1);
+}
+
 export const env = parsed.data;
 
 /**
@@ -249,9 +259,9 @@ export const aiEnabled = env.AI_ENABLED && env.ANTHROPIC_API_KEY.length > 0;
 export const mailEnabled =
   env.MAIL_ENABLED && env.SMTP_HOST.length > 0 && env.SMTP_FROM.length > 0;
 
-/** How one-time codes travel; `off` means no signing in or joining by mobile. */
+/** How one-time codes travel; `off` means no signing in or joining by mobile. The sandbox is a development default only. */
 export const smsMode: 'off' | 'sandbox' | 'kavenegar' | 'http' =
-  env.SMS_MODE ?? (env.NODE_ENV === 'production' ? 'off' : 'sandbox');
+  env.SMS_MODE ?? (env.NODE_ENV === 'production' || env.TENANT_MODE === 'multi' ? 'off' : 'sandbox');
 
 /** Google sign-in needs both halves of its client credentials. */
 export const googleEnabled = env.GOOGLE_CLIENT_ID.length > 0 && env.GOOGLE_CLIENT_SECRET.length > 0;

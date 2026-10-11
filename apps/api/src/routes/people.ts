@@ -111,7 +111,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     if (owner && owner.id !== actor.id) throw conflict('PHONE_TAKEN', 'این شمارهٔ همراه به حساب دیگری وصل است.');
     const issued = await issueCode({ purpose: 'VERIFY_PHONE', phone, userId: actor.id, ipAddress: actor.ipAddress });
     if (!('code' in issued)) throw new AppError(429, 'CODE_TOO_SOON', `کد تازه تا ${issued.retryAfterSeconds} ثانیهٔ دیگر.`, { retryAfterSeconds: issued.retryAfterSeconds });
-    await sendCode(phone, issued.code, 'VERIFY_PHONE');
+    await sendCode(phone, issued.code, 'VERIFY_PHONE', actor.id);
     return reply.code(202).send({ sent: true });
   });
 

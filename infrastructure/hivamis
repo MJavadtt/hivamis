@@ -87,6 +87,7 @@ cmd_install() {
       -e "s|^TENANT_MODE=.*|TENANT_MODE=$mode|" \
       -e "s|^SEED_DEMO_DATA=.*|SEED_DEMO_DATA=false|" \
       -e "s|^ALLOW_DEMO_ACCOUNTS=.*|ALLOW_DEMO_ACCOUNTS=false|" \
+      -e "s|^SMS_MODE=.*|SMS_MODE=off|" \
       "$ROOT/.env.docker.example" > "$ENV_FILE"
   printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
 

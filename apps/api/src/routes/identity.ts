@@ -5,7 +5,7 @@ import {
   signupSettingsSchema, type RoleCode,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
-import { env, mailEnabled } from '../env.js';
+import { env, mailEnabled, smsMode } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
@@ -15,7 +15,7 @@ import { enqueueMail } from '../jobs/runner.js';
 import { grantsOf } from '../auth/grants.js';
 import { issueSession, countFailure } from '../auth/session.js';
 import { checkCode, issueCode } from '../auth/otp.js';
-import { sendCode, smsAvailable } from '../auth/sms.js';
+import { maskCode, sendCode, smsAvailable } from '../auth/sms.js';
 import { createTicket, finishGoogle, google, googleConfigured, liveOffer, offerLink, redeemTicket, startGoogle } from '../auth/google.js';
 import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js';
 import { verifyPassword } from '../auth/password.js';
@@ -93,7 +93,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     if (user && !(user.lockedUntil && user.lockedUntil > new Date())) {
       const issued = await issueCode({ purpose: 'LOGIN', phone, userId: user.id, ipAddress: req.ip });
       // Sent in the background: waiting on the provider would make an existing number slower to answer.
-      if ('code' in issued) void sendCode(phone, issued.code, 'LOGIN').catch((e) => req.log.warn({ err: e }, 'sms not sent'));
+      if ('code' in issued) void sendCode(phone, issued.code, 'LOGIN', user.id).catch((e) => req.log.warn({ err: e }, 'sms not sent'));
     }
     return reply.code(202).send({ sent: true, resendAfterSeconds: SENT_FOR });
   });
@@ -219,7 +219,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const phone = phoneOf(offer.user);
     if (!phone) throw badRequest('NO_PHONE', 'این حساب شمارهٔ همراه تأییدشده ندارد.');
     const issued = await issueCode({ purpose: 'LOGIN', phone, userId: offer.user.id, ipAddress: req.ip });
-    if ('code' in issued) void sendCode(phone, issued.code, 'LOGIN').catch((e) => req.log.warn({ err: e }, 'sms not sent'));
+    if ('code' in issued) void sendCode(phone, issued.code, 'LOGIN', offer.user.id).catch((e) => req.log.warn({ err: e }, 'sms not sent'));
     return reply.code(202).send({ sent: true, resendAfterSeconds: 'retryAfterSeconds' in issued ? issued.retryAfterSeconds : SENT_FOR });
   });
 
@@ -403,9 +403,15 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** The SMS sandbox's messages, for whoever runs the installation, while no provider is set. */
-  app.get('/admin/sms-outbox', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async () => {
+  app.get('/admin/sms-outbox', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    const actor = actorFrom(req);
     const messages = await prisma.smsMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
-    return { mode: env.SMS_MODE ?? (env.NODE_ENV === 'production' ? 'off' : 'sandbox'), messages };
+    // Audit SEC-6: a sign-in code read here is a sign-in as its owner. Shown only when it opens no
+    // account (asking to join), or to the person whose account it opens.
+    return {
+      mode: smsMode,
+      messages: messages.map(({ userId, ...m }) => (m.purpose === 'SIGNUP' || (userId && userId === actor.id) ? m : { ...m, text: maskCode(m.text) })),
+    };
   });
 };
 

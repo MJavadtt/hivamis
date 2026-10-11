@@ -306,6 +306,7 @@ model User {
   otpCodes             OtpCode[]
   oauthStates          OAuthState[]
   identityLinkOffers   IdentityLinkOffer[]
+  smsMessages          SmsMessage[]
   loginTickets         LoginTicket[]
   signupDecisions      SignupRequest[]     @relation("SignupDecider")
   signupAccounts       SignupRequest[]     @relation("SignupAccount")
@@ -2816,6 +2817,11 @@ model SmsMessage {
   provider  String
   status    String
   error     String?
+  /// Audit SEC-6: what the code was for, and whose account it opens. The outbox shows a sandboxed code
+  /// only when it opens no account (asking to join) or is the reader's own.
+  purpose   String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([createdAt])

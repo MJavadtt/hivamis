@@ -93,6 +93,8 @@ describe('Demo accounts in production (audit SEC-8)', () => {
       const written = readFileSync(path.join(dir, '.env'), 'utf8');
       expect(written).toMatch(/^SEED_DEMO_DATA=false$/m);
       expect(written).toMatch(/^ALLOW_DEMO_ACCOUNTS=false$/m);
+      // Audit SEC-6: no sandbox for one-time codes in an installation people use.
+      expect(written).toMatch(/^SMS_MODE=off$/m);
     } finally { rmSync(dir, { recursive: true, force: true }); }
 
     const was = env.NODE_ENV;

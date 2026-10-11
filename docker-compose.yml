@@ -79,6 +79,15 @@ services:
       TENANT_MODE: ${TENANT_MODE:-single}
       REFERENCE_SYNC: ${REFERENCE_SYNC:-on}
       APP_VERSION: ${APP_VERSION:-}
+      # Signing in by mobile and with Google (Hivamis task 4). SMS is off until a provider is set; the
+      # sandbox is refused in production (audit SEC-6).
+      SMS_MODE: ${SMS_MODE:-off}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      SMS_TEMPLATE: ${SMS_TEMPLATE:-}
+      SMS_URL: ${SMS_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

@@ -5,8 +5,10 @@ import { AppError } from '../lib/errors.js';
 /**
  * SMS for one-time codes (Hivamis task 4).
  *
- * `sandbox` keeps each message in the database, code and all, for an administrator to read — a
- * stand-in for a provider while one is not configured, never meant for an installation people use.
+ * `sandbox` keeps each message in the database, code and all — a stand-in for a provider while one is
+ * not configured, on a developer's machine only: the API refuses it in production and with several
+ * organisations (audit SEC-6), and the outbox shows a code only when it opens no account or is the
+ * reader's own.
  * `kavenegar` sends through Kavenegar's verify/lookup with the template in SMS_TEMPLATE; `http` POSTs
  * { to, text } to SMS_URL for any other provider behind a small adapter. Outside the sandbox the code
  * is never stored: the outbox keeps the text with the code masked, to show what went where and why
@@ -23,16 +25,20 @@ const PURPOSE_FA: Record<CodePurpose, string> = {
 
 export const smsAvailable = () => smsMode !== 'off';
 
-async function record(phone: string, text: string, status: 'SENT' | 'FAILED' | 'SANDBOX', error?: string) {
-  await prisma.smsMessage.create({ data: { phone, text, provider: smsMode, status, error: error?.slice(0, 500) ?? null } }).catch(() => undefined);
-}
+/** A code's digits hidden — what the outbox shows of a code that is not the reader's to see. */
+export const maskCode = (text: string) => text.replace(/[0-9۰-۹]{4,8}/g, '••••••');
 
-/** Sends a one-time code. Throws SMS_FAILED when the provider refuses or cannot be reached. */
-export async function sendCode(phone: string, code: string, purpose: CodePurpose): Promise<void> {
+/**
+ * Sends a one-time code. Throws SMS_FAILED when the provider refuses or cannot be reached. `userId` is
+ * whose account the code opens — none for asking to join.
+ */
+export async function sendCode(phone: string, code: string, purpose: CodePurpose, userId: string | null = null): Promise<void> {
   const text = PURPOSE_FA[purpose].replace('{code}', code);
   const masked = PURPOSE_FA[purpose].replace('{code}', '••••••');
+  const record = (body: string, status: 'SENT' | 'FAILED' | 'SANDBOX', error?: string) =>
+    prisma.smsMessage.create({ data: { phone, text: body, provider: smsMode, status, error: error?.slice(0, 500) ?? null, purpose, userId } }).catch(() => undefined);
   if (smsMode === 'off') throw new AppError(503, 'SMS_OFF', 'ارسال پیامک در این نصب خاموش است.');
-  if (smsMode === 'sandbox') { await record(phone, text, 'SANDBOX'); return; }
+  if (smsMode === 'sandbox') { await record(text, 'SANDBOX'); return; }
 
   try {
     let res: Response;
@@ -50,9 +56,9 @@ export async function sendCode(phone: string, code: string, purpose: CodePurpose
       });
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await record(phone, masked, 'SENT');
+    await record(masked, 'SENT');
   } catch (e) {
-    await record(phone, masked, 'FAILED', (e as Error).message);
+    await record(masked, 'FAILED', (e as Error).message);
     throw new AppError(502, 'SMS_FAILED', 'ارسال پیامک ممکن نشد؛ کمی بعد دوباره تلاش کنید.');
   }
 }
