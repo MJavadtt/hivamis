@@ -9,7 +9,7 @@ import { actorFrom, page, parse } from '../lib/http.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
-import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, SETTLED_EPSILON } from '../finance/fx.js';
+import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, settledEpsilon } from '../finance/fx.js';
 import { money, sumOf, toMoney, type Money } from '../lib/money.js';
 import { assertOwnReferences } from '../lib/scope.js';
 
@@ -262,7 +262,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
             where: { id: linked.id },
             data: {
               originalPaidAmount: settled, paidAmount: capped.mul(linked.fxRate).toDecimalPlaces(2),
-              state: settled.gte(total.sub(SETTLED_EPSILON)) ? 'PAID' : settled.gt(0) ? 'PARTIALLY_PAID' : linked.state,
+              state: settled.gte(total.sub(settledEpsilon(linked.currency))) ? 'PAID' : settled.gt(0) ? 'PARTIALLY_PAID' : linked.state,
             },
           });
         } else {
@@ -276,7 +276,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
             where: { id: linked.id },
             data: {
               paidAmount: paid,
-              state: paid.gte(total) ? 'PAID' : paid.gt(0) ? 'PARTIALLY_PAID' : linked.state,
+              state: paid.gte(total.sub(settledEpsilon(base))) ? 'PAID' : paid.gt(0) ? 'PARTIALLY_PAID' : linked.state,
             },
           });
         }
@@ -310,7 +310,10 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const totalInvoiced = sumOf(invoices.map((i) => i.total));
     const totalReceived = sumOf(invoices.map((i) => i.paidAmount));
     const balance = totalInvoiced.sub(totalReceived);
-    const status = balance.isZero() && totalInvoiced.gt(0) ? 'FULLY_SETTLED' : balance.gt(0) ? 'PARTIAL' : 'DISPUTED';
+    // Within half of the base currency's smallest unit is settled (audit CALC-3): a rate conversion's
+    // last digit is not a debt.
+    const within = settledEpsilon(await baseCurrency(prisma, actor.organizationId));
+    const status = balance.abs().lte(within) && totalInvoiced.gt(0) ? 'FULLY_SETTLED' : balance.gt(0) ? 'PARTIAL' : 'DISPUTED';
 
     const settlement = await prisma.$transaction(async (tx) => {
       const s = await tx.settlement.upsert({

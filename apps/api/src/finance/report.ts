@@ -12,7 +12,7 @@
  */
 import type { Prisma } from '@prisma/client';
 import type { Tx } from '../db.js';
-import { baseCurrency, currencyFa, D, findRate, SETTLED_EPSILON } from './fx.js';
+import { baseCurrency, currencyFa, D, findRate, settledEpsilon } from './fx.js';
 
 const n = (d: Prisma.Decimal | null | undefined) => (d == null ? null : Number(d.toDecimalPlaces(2)));
 
@@ -37,7 +37,7 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
   const receivables = [];
   for (const i of invoices) {
     const open = D(i.originalTotal ?? 0).sub(i.originalPaidAmount ?? 0);
-    if (open.lte(SETTLED_EPSILON)) continue;
+    if (open.lte(settledEpsilon(i.currency))) continue;
     const r = await rateNow(i.currency);
     const booked = open.mul(i.fxRate);
     const today = r ? open.mul(r.rate) : null;

@@ -12,7 +12,7 @@
  * which day — never a silent fall-back to "the latest rate we have".
  */
 import { Prisma } from '@prisma/client';
-import { CURRENCY_LABELS, type Currency } from '@hiva/contracts';
+import { CURRENCY_LABELS, minorUnitsOf, type Currency } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { env } from '../env.js';
 import { AppError } from '../lib/errors.js';
@@ -107,5 +107,9 @@ export async function convertMany<K extends string>(
   };
 }
 
-/** Tolerance for "fully settled" in a currency with cents. */
-export const SETTLED_EPSILON = D('0.005');
+/**
+ * Tolerance for "fully settled": half of the currency's smallest unit (audit CALC-3) — 0.005 of a dollar,
+ * 0.5 of a yen, 0.0005 of a dinar. A fixed 0.005 asked a three-digit currency to settle to half a fils
+ * too coarse, and a currency without cents to settle to a fraction it cannot be paid in.
+ */
+export const settledEpsilon = (currency: string): Prisma.Decimal => D(5).mul(D(10).pow(-(minorUnitsOf(currency) + 1)));

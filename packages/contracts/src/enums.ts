@@ -192,6 +192,18 @@ export type ContractState = (typeof CONTRACT_STATES)[number];
  */
 export const CURRENCIES = ['IRR', 'USD', 'EUR', 'AED', 'GBP', 'TRY', 'CNY'] as const;
 export type Currency = (typeof CURRENCIES)[number];
+
+/**
+ * Digits after the point in each currency, as ISO 4217 lists them (audit CALC-3). Every currency the
+ * system offers today has two; the others are here so that an organisation whose base currency has none
+ * (JPY) or three (KWD, IQD) is settled to its own smallest unit, not to a cent it does not have.
+ */
+export const CURRENCY_MINOR_UNITS: Record<string, number> = {
+  IRR: 2, USD: 2, EUR: 2, AED: 2, GBP: 2, TRY: 2, CNY: 2,
+  JPY: 0, KRW: 0, VND: 0, CLP: 0, ISK: 0, UGX: 0,
+  BHD: 3, IQD: 3, JOD: 3, KWD: 3, LYD: 3, OMR: 3, TND: 3,
+};
+export const minorUnitsOf = (currency: string): number => CURRENCY_MINOR_UNITS[currency.toUpperCase()] ?? 2;
 export const CURRENCY_LABELS: Record<Currency, string> = {
   IRR: 'ریال', USD: 'دلار آمریکا', EUR: 'یورو', AED: 'درهم امارات', GBP: 'پوند انگلیس', TRY: 'لیر ترکیه', CNY: 'یوان چین',
 };
