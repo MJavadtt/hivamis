@@ -88,6 +88,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
+      # Webhooks (roadmap #46): internal receivers only on an on-premise network; deliveries in flight at once.
+      WEBHOOK_ALLOW_PRIVATE: ${WEBHOOK_ALLOW_PRIVATE:-false}
+      WEBHOOK_CONCURRENCY: ${WEBHOOK_CONCURRENCY:-8}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

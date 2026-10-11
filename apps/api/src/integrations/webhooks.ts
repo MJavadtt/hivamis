@@ -242,13 +242,26 @@ export async function attempt(deliveryId: string, now = new Date()) {
   return { ok, status: res.status, error };
 }
 
-export async function sendDue(now = new Date(), limit = 100) {
+/**
+ * Sends what is due (audit PERF-2). One lane per receiver, its deliveries in order and one at a time —
+ * a receiver is never sent two at once, and its failures count up without a race — and up to
+ * WEBHOOK_CONCURRENCY lanes at once, so a receiver that takes its ten seconds holds up only itself.
+ */
+export async function sendDue(now = new Date(), limit = 100, concurrency = env.WEBHOOK_CONCURRENCY) {
   const due = await prisma.webhookDelivery.findMany({
     where: { status: 'PENDING', nextAttemptAt: { lte: now }, subscription: { active: true } },
-    orderBy: { nextAttemptAt: 'asc' }, take: limit, select: { id: true },
+    orderBy: { nextAttemptAt: 'asc' }, take: limit, select: { id: true, subscriptionId: true },
   });
+  const lanes = new Map<string, string[]>();
+  for (const d of due) (lanes.get(d.subscriptionId) ?? lanes.set(d.subscriptionId, []).get(d.subscriptionId)!).push(d.id);
+  const queue = [...lanes.values()];
   let delivered = 0, failed = 0;
-  for (const d of due) (await attempt(d.id, now)).ok ? delivered++ : failed++;
+  const worker = async () => {
+    for (let lane = queue.shift(); lane; lane = queue.shift()) {
+      for (const id of lane) (await attempt(id, now)).ok ? delivered++ : failed++;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker));
   return { delivered, failed };
 }
 
