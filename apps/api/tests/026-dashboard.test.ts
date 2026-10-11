@@ -14,7 +14,7 @@ describe('My dashboard', () => {
   afterAll(async () => { await closeApp(); });
 
   it('gives a seller the opportunities they own and have not won or lost, nearest close first', async () => {
-    const sales = await prisma.user.findUniqueOrThrow({ where: { email: 'sales@hiva.local' } });
+    const sales = await prisma.user.findFirstOrThrow({ where: { email: 'sales@hiva.local' } });
     const open = await prisma.opportunity.findMany({ where: { ownerId: sales.id, deletedAt: null, state: { notIn: ['WON', 'LOST'] } } });
     expect(open.length).toBeGreaterThan(0);
     // One of theirs that is lost must not appear.

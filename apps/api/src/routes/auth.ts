@@ -2,7 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { changePasswordSchema, loginSchema, updateLocaleSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { parse, actorFrom } from '../lib/http.js';
-import { AppError, badRequest, unauthorized } from '../lib/errors.js';
+import { AppError, badRequest, conflict, unauthorized } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { generateRefreshToken, hashToken, signAccessToken, ttlToMs } from '../auth/tokens.js';
 import { audit } from '../lib/audit.js';
@@ -12,6 +12,7 @@ import { issueSession, countFailure, endSessions } from '../auth/session.js';
 import { forgetStanding } from '../auth/standing.js';
 import { assertMayTry, clearFailures, spendPasswordTime } from '../auth/throttle.js';
 import { hasPassword } from './identity.js';
+import { hostScope } from '../lib/tenant.js';
 import { assertFromTheApp, clearRefreshCookie, refreshCookie, setRefreshCookie } from '../auth/cookie.js';
 
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
@@ -25,23 +26,32 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     const identifier = email.trim().toLowerCase();
     // A network still waiting out its last wrong try is refused before any password is checked (audit SEC-10).
     await assertMayTry(identifier, req.ip);
-    const user = await prisma.user.findUnique({ where: { email: identifier } });
+    // An email is unique within an organisation (audit LOG-4): looked for in the one this address names,
+    // or — with one organisation, or at the installation's own address — in any.
+    const found = (await prisma.user.findMany({ where: { email: identifier, isActive: true, deletedAt: null, ...(await hostScope(req)) }, take: 5 }))
+      .filter((u) => hasPassword(u.passwordHash));
 
     // Uniform failure response — never reveal whether the address exists.
-    const fail = async (reason: string) => {
+    const fail = async (reason: string, user: (typeof found)[number] | null) => {
       await countFailure(identifier, req, user, reason);
       throw unauthorized('ایمیل یا رمز عبور نادرست است');
     };
 
-    if (!user || !user.isActive || user.deletedAt || !hasPassword(user.passwordHash)) {
+    if (!found.length) {
       // As long as a real check takes, so the timing does not say whether the address has an account.
       await spendPasswordTime(password);
-      return fail('inactive-or-missing');
+      return fail('inactive-or-missing', null);
     }
+    // Usually one. Several only where the address names no organisation and the person has accounts in
+    // more than one: the password says which.
+    const matched = [];
+    for (const u of found) if (await verifyPassword(u.passwordHash, password)) matched.push(u);
+    if (!matched.length) return fail('bad-password', found.length === 1 ? found[0]! : null);
+    if (matched.length > 1) throw conflict('SEVERAL_ACCOUNTS', 'این ایمیل در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان وارد شوید.');
+    const user = matched[0]!;
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
     }
-    if (!(await verifyPassword(user.passwordHash, password))) return fail('bad-password');
 
     await clearFailures(identifier, req.ip);
     return issueSession(user.id, req, reply, 'password');

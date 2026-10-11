@@ -320,7 +320,7 @@ describe('My work — one queue', () => {
 
   it('routes a clarification request to whoever may issue orders, and a form to its approvers', async () => {
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const creative = await prisma.user.findFirstOrThrow({ where: { email: 'creative@hiva.local' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش صف کاری',
       scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
@@ -357,7 +357,7 @@ describe('My work — one queue', () => {
   });
 
   it('puts a breached clock first, then whatever runs out soonest, then the rest', async () => {
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
     const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_REVISION' } });
     const mk = (title: string, due: number) => prisma.task.create({
@@ -467,7 +467,7 @@ describe('Budget against actual, per work order', () => {
    */
   async function orderWithBudget(budget: number) {
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const creative = await prisma.user.findFirstOrThrow({ where: { email: 'creative@hiva.local' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش با بودجه',
       scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
@@ -631,7 +631,7 @@ describe('Calendars per unit and per person', () => {
 
   it('lets a unit keep its own working days, and a person their own hours', async () => {
     const org = await prisma.organization.findFirstOrThrow();
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
 
     // Creative works Thursdays too.
     expectOk(await patch('/departments/CR/calendar', T.admin, { workingDays: [6, 0, 1, 2, 3, 4] }), 'unit calendar');
@@ -664,7 +664,7 @@ describe('Calendars per unit and per person', () => {
 
   it('gives a person on leave no working hours, so a clock they own stops consuming its budget', async () => {
     const org = await prisma.organization.findFirstOrThrow();
-    const strategy = await prisma.user.findUniqueOrThrow({ where: { email: 'strategy@hiva.local' } });
+    const strategy = await prisma.user.findFirstOrThrow({ where: { email: 'strategy@hiva.local' } });
     // Away Saturday to Monday, 5–7 September 2026.
     const leave = expectOk(await post(`/users/${strategy.id}/leaves`, T.admin, { from: '2026-09-05', to: '2026-09-07', kind: 'VACATION', note: 'سفر' }), 'leave');
     expect(leave.kind).toBe('VACATION');
@@ -702,7 +702,7 @@ describe('Calendars per unit and per person', () => {
 
   it('caches per scope, not per organisation', async () => {
     const org = await prisma.organization.findFirstOrThrow();
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     resetCalendarCache();
     const a = await loadCalendar(org.id);
     const b = await loadCalendar(org.id, { userId: designer.id });
@@ -718,8 +718,8 @@ describe('Time logging and cost accuracy', () => {
    */
   async function orderWithTask(budget: number, estimate: number) {
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const creative = await prisma.user.findFirstOrThrow({ where: { email: 'creative@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش با زمان',
       scopeOfWork: 'طراحی', brief: 'بریف', expectedOutput: 'فایل', outputFormat: 'PDF',
@@ -804,7 +804,7 @@ describe('Critical path and schedule', () => {
   async function project() {
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const p = await prisma.project.create({ data: {
       organizationId: org.id, code: `PRJ-CPM-${Date.now()}`, name: 'پروژهٔ مسیر بحرانی', companyId: company.id, accountOwnerId: pmo.id,
       objective: 'x', state: 'ACTIVE', plannedStart: START, plannedEnd: dayAt(4, 17),
@@ -1026,7 +1026,7 @@ describe('Organisational memory', () => {
     const { reindexMemory } = await memory();
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
 
     const lesson = await prisma.lessonLearned.create({ data: {
       organizationId: org.id, projectId: project.id, title: 'تدوین ویدئو در فصل پرکار',
@@ -1058,7 +1058,7 @@ describe('Organisational memory', () => {
     const { reindexMemory, searchMemory } = await memory();
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     await prisma.lessonLearned.create({ data: {
       organizationId: org.id, projectId: project.id, title: 'استراتژی مشتریان صنایع غذایی',
       category: 'STRATEGY', situation: 'برای دو مشتری صنایع غذایی کمپین محتوایی اجرا شد.',
@@ -1164,7 +1164,7 @@ describe('Meeting to minutes to tasks', () => {
   it('turns confirmed actions into tasks sourced to the meeting, with the acceptance clock running', async () => {
     const o = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const meeting = expectOk(await post('/meetings', T.accountManager, {
       projectId: project.id, kind: 'INTERNAL', subject: 'بازبینی کمپین پاییز', heldAt: HELD.toISOString(), attendees: 'تیم خلاقیت و اکانت',
     }), 'meeting');
@@ -1300,7 +1300,7 @@ describe('Anomalies on the audit trail', () => {
     const org = await prisma.organization.findFirstOrThrow();
     const r = await prisma.role.findUniqueOrThrow({ where: { code: role } });
     const dept = await prisma.department.findFirstOrThrow({ where: { code: deptCode } });
-    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const template = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     seq++;
     return prisma.user.create({ data: {
       organizationId: org.id, departmentId: dept.id, email: `anomaly.${role.toLowerCase()}.${Date.now()}.${seq}@hiva.local`,
@@ -1394,7 +1394,7 @@ describe('Anomalies on the audit trail', () => {
     const { detectAnomalies } = await anomalies();
     const o = await org();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const outsider = await person('UNIT_MEMBER', 'ST');
     const executive = await person('CEO', 'M');
     const projects = await Promise.all([1, 2, 3].map((i) => prisma.project.create({ data: {
@@ -1439,7 +1439,7 @@ describe('Anomalies on the audit trail', () => {
     expect((await prisma.securityAlert.findUniqueOrThrow({ where: { id: alert.id } })).status).toBe('DISMISSED');
 
     // Nobody closes the case about themselves.
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
     const aboutAdmin = await prisma.securityAlert.create({ data: {
       organizationId: o.id, kind: 'DOWNLOAD_SURGE', severity: 'MEDIUM', actorId: admin.id,
       windowStart: NOW, windowEnd: NOW, evidence: {}, messageFa: 'آزمون', fingerprint: `SELF:${Date.now()}`,
@@ -1474,7 +1474,7 @@ describe('QC stage zero', () => {
   async function orderAndDeliverable(outputFormat: string, expectedOutput = 'خروجی نهایی') {
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const wo = await prisma.workOrder.create({ data: {
       organizationId: org.id, code: `WO-SZ-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, projectId: project.id,
       targetDepartmentCode: 'CR', title: 'بنر کمپین', scopeOfWork: 'طراحی بنر', brief: 'بریف',
@@ -1607,7 +1607,7 @@ describe('The estimation assistant', () => {
     if (M) return M;
     const role = await prisma.role.findUniqueOrThrow({ where: { code: 'UNIT_MEMBER' } });
     const dept = await prisma.department.findFirstOrThrow({ where: { code: DEPT } });
-    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const template = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const email = `media.member.${Date.now()}@hiva.local`;
     await prisma.user.create({ data: {
       organizationId: template.organizationId, departmentId: dept.id, email, fullName: 'کارشناس رسانه',
@@ -1623,8 +1623,8 @@ describe('The estimation assistant', () => {
   }) {
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
-    const worker = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const worker = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const accepted = new Date(2026, 7, 1, 9, 0, 0);                        // a Saturday morning
     const submitted = input.days ? new Date(accepted.getTime() + input.days * 1.4 * 86_400_000) : null;
     seq++;
@@ -1656,7 +1656,7 @@ describe('The estimation assistant', () => {
 
   it('compares a proposed figure with what similar finished orders actually cost and took', async () => {
     // The worker's time is priced, so logged hours become money.
-    const worker = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const worker = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     await prisma.user.update({ where: { id: worker.id }, data: { hourlyCost: 1_000_000 } });
 
     // Four finished media-buying orders: declared around 40M, each really took ~50 hours (= 50M).
@@ -1700,7 +1700,7 @@ describe('The estimation assistant', () => {
     const target = await prisma.workOrder.findFirstOrThrow({ where: { title: 'خرید رسانه دیجیتال کمپین تازه' } });
     const managerRole = await prisma.role.findUniqueOrThrow({ where: { code: 'UNIT_MANAGER' } });
     const dept = await prisma.department.findFirstOrThrow({ where: { code: DEPT } });
-    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const template = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const manager = await prisma.user.create({ data: {
       organizationId: template.organizationId, departmentId: dept.id, email: `media.manager.${Date.now()}@hiva.local`,
       fullName: 'مدیر رسانه', passwordHash: template.passwordHash,
@@ -1721,7 +1721,7 @@ describe('The estimation assistant', () => {
   it('says there is nothing to compare against rather than inventing a range, and guards the figures', async () => {
     const org = await prisma.organization.findFirstOrThrow();
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const lonely = await prisma.workOrder.create({ data: {
       organizationId: org.id, code: `WO-LONE-${Date.now()}`, projectId: project.id, targetDepartmentCode: 'LG',
       title: 'نخستین سفارش حقوقی', scopeOfWork: 'تنظیم قرارداد', brief: 'بریف', expectedOutput: 'قرارداد',
@@ -1839,7 +1839,7 @@ describe('Lessons at the start of a project', () => {
 
   async function seedLesson(input: { projectId: string; title: string; situation: string; lesson: string; recommendation: string }) {
     const org = await prisma.organization.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     return prisma.lessonLearned.create({ data: {
       organizationId: org.id, projectId: input.projectId, title: input.title, category: 'DELIVERY',
       situation: input.situation, lesson: input.lesson, recommendation: input.recommendation, recordedById: pmo.id,
@@ -1850,7 +1850,7 @@ describe('Lessons at the start of a project', () => {
     const { reindexMemory } = await memory();
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
 
     // A finished project for this client, with a lesson worth carrying forward.
     const past = await prisma.project.create({ data: {
@@ -1903,7 +1903,7 @@ describe('Lessons at the start of a project', () => {
   it('records what the project did with a lesson, and will not take “not relevant” without a reason', async () => {
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const { reindexMemory } = await import('../src/memory/index.js');
 
     const past = await prisma.project.create({ data: {
@@ -2089,7 +2089,7 @@ describe('The form designer', () => {
     expect(created.no).toBeGreaterThanOrEqual(1000);
 
     // It behaves like any other form: it is offered, filled, validated and approved.
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const missing = await post('/forms/submissions', T.designer, { formCode: code, data: { item: 'دوربین' } });
     expect(missing.status).toBe(400);
     const filed = expectOk(await post('/forms/submissions', T.designer, {
@@ -2253,7 +2253,7 @@ describe('SLA breach prediction', () => {
 
   it('calls a clock likely to breach while the fixed threshold is still silent, and shows its working', async () => {
     const { p: policy, org } = await policyWith(`SLA_PRED_${Date.now()}`, 8);
-    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const owner = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     // Ten past clocks of this policy in this unit: eight of them ran past the 8-hour budget.
     for (let i = 0; i < 8; i++) await finished(policy.id, org.id, owner.id, 14, `over${i}`);
     for (let i = 0; i < 2; i++) await finished(policy.id, org.id, owner.id, 5, `under${i}`);
@@ -2284,7 +2284,7 @@ describe('SLA breach prediction', () => {
 
   it('conditions on how far the clock has already run, and says when it has no history to go on', async () => {
     const { p: policy, org } = await policyWith(`SLA_PRED2_${Date.now()}`, 10);
-    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'strategy@hiva.local' } });
+    const owner = await prisma.user.findFirstOrThrow({ where: { email: 'strategy@hiva.local' } });
     // Nine finished in 4 hours, three took 20. At the start, three in twelve went over.
     for (let i = 0; i < 9; i++) await finished(policy.id, org.id, owner.id, 4, `fast${i}`, 10);
     for (let i = 0; i < 3; i++) await finished(policy.id, org.id, owner.id, 20, `slow${i}`, 10);
@@ -2320,7 +2320,7 @@ describe('SLA breach prediction', () => {
 
   it('tells the owner once, and serves the same ranking over the API', async () => {
     const { p: policy, org } = await policyWith(`SLA_PRED4_${Date.now()}`, 8);
-    const owner = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const owner = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     for (let i = 0; i < 10; i++) await finished(policy.id, org.id, owner.id, 16, `bad${i}`);
     const startedAt = sat(9);
     const open = await prisma.slaClock.create({ data: {
@@ -2366,7 +2366,7 @@ describe('Capacity-aware assignment', () => {
   async function person(name: string, opts: { weeklyCapacityHours?: number } = {}) {
     const org = await prisma.organization.findFirstOrThrow();
     const dept = await prisma.department.findFirstOrThrow({ where: { code: 'CR' } });
-    const template = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const template = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     return prisma.user.create({ data: {
       organizationId: org.id, departmentId: dept.id, email: `${name}.${Date.now()}@hiva.local`,
       fullName: name, passwordHash: template.passwordHash, jobTitle: 'طراح',
@@ -2378,7 +2378,7 @@ describe('Capacity-aware assignment', () => {
   async function holder() {
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const project = await prisma.project.findFirst({ where: { code: { startsWith: 'PRJ-CAP-' } } }) ?? await prisma.project.create({ data: {
       organizationId: org.id, code: 'PRJ-CAP-1', name: 'پروژهٔ ظرفیت', companyId: company.id, accountOwnerId: pmo.id,
       objective: 'x', state: 'ACTIVE',
@@ -2488,7 +2488,7 @@ describe('Probabilistic delivery forecast', () => {
   async function projectWithHistory(ratios: number[], dept = 'CR') {
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const history = await prisma.project.create({ data: { organizationId: org.id, code: `PRJ-H-${Date.now()}`, name: 'گذشته', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'CLOSED' } });
     // Finished tasks whose actual/estimate ratios are exactly the list given.
     for (const [i, r] of ratios.entries()) {
@@ -2601,7 +2601,7 @@ describe('Business calendar', () => {
 describe('SLA engine', () => {
   it('flags an overdue clock as BREACHED and notifies its owner', async () => {
     const project = await prisma.project.findFirst();
-    const user = await prisma.user.findUnique({ where: { email: 'designer@hiva.local' } });
+    const user = await prisma.user.findFirst({ where: { email: 'designer@hiva.local' } });
     const policy = await prisma.slaPolicy.findFirst({ where: { code: 'SLA_ACCOUNT_QC' } });
 
     const clock = await prisma.slaClock.create({
@@ -2785,7 +2785,7 @@ describe('SLA pauses', () => {
    */
   it('pauses the acceptance clock while a work order awaits clarification, and resumes it after', async () => {
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
-    const creative = await prisma.user.findUniqueOrThrow({ where: { email: 'creative@hiva.local' } });
+    const creative = await prisma.user.findFirstOrThrow({ where: { email: 'creative@hiva.local' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId,
       targetDepartmentCode: 'CR', title: 'سفارش با ابهام',
@@ -2820,7 +2820,7 @@ describe('SLA pauses', () => {
   it('exposes pause and resume to the clock owner and to traffic management, and to no one else', async () => {
     const project = await prisma.project.findFirst();
     const policy = await prisma.slaPolicy.findFirstOrThrow({ where: { code: 'SLA_ACCOUNT_QC' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const clock = await prisma.slaClock.create({
       data: {
         organizationId: project!.organizationId, policyId: policy.id,

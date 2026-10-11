@@ -50,7 +50,7 @@ describe('Rule 2 — Sales / Account separation', () => {
     const proposal = await prisma.proposal.findFirst({ where: { salePrice: { not: null } } });
     await prisma.proposal.update({
       where: { id: proposal!.id },
-      data: { pricedById: (await prisma.user.findUnique({ where: { email: 'account.manager@hiva.local' } }))!.id },
+      data: { pricedById: (await prisma.user.findFirst({ where: { email: 'account.manager@hiva.local' } }))!.id },
     });
     const res = await post(`/proposals/${proposal!.id}/pricing/approve`, tokens.accountManager, {});
     expect(res.status).toBe(403);
@@ -71,7 +71,7 @@ describe('Rule 2 — Sales / Account separation', () => {
 describe('Rule 13 — no execution without authorization', () => {
   it('blocks activation of a project that has no authorization record', async () => {
     const company = await prisma.company.findFirst();
-    const owner = await prisma.user.findUnique({ where: { email: 'account.manager@hiva.local' } });
+    const owner = await prisma.user.findFirst({ where: { email: 'account.manager@hiva.local' } });
     const project = expectOk(
       await post('/projects', tokens.accountManager, {
         name: 'پروژه تست بدون مجوز',
@@ -266,7 +266,7 @@ describe('Preflight — "why can’t I?" before the click', () => {
   it('reports every guard on every transition out of the current state, not just the first failure', async () => {
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     // A project in PLANNING with none of activation's three prerequisites in place.
     const project = await prisma.project.create({
       data: {
@@ -345,7 +345,7 @@ describe('Governed waivers', () => {
     // A project awaiting authorisation with nothing to authorise it on.
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     return prisma.project.create({
       data: { organizationId: org.id, code: `PRJ-WV-${Date.now()}`, name: 'پروژهٔ بدون مبنای مجوز', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'PENDING_AUTHORIZATION' },
     });
@@ -403,7 +403,7 @@ describe('Governed waivers', () => {
   it('does nothing once expired or revoked, and shows in the registers while open', async () => {
     const project = await blockedProject();
     const org = await prisma.organization.findFirstOrThrow();
-    const deputy = await prisma.user.findUniqueOrThrow({ where: { email: 'deputy@hiva.local' } });
+    const deputy = await prisma.user.findFirstOrThrow({ where: { email: 'deputy@hiva.local' } });
     await prisma.waiver.create({ data: {
       organizationId: org.id, entityType: 'project', entityId: project.id, guard: GUARD, reason: 'منقضی‌شده در آزمون',
       grantedById: deputy.id, expiresAt: new Date(Date.now() - 60_000),

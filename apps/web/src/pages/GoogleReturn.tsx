@@ -23,6 +23,7 @@ const PROBLEM: Record<string, string> = {
   GOOGLE_TOKEN: tr('پاسخ گوگل تأیید نشد.'),
   GOOGLE_UNREACHABLE: tr('پاسخی از گوگل نرسید؛ کمی بعد دوباره تلاش کنید.'),
   DOMAIN: tr('حساب‌های گوگلِ این دامنه در این سازمان پذیرفته نیستند؛ با حساب گوگل کاری‌تان وارد شوید.'),
+  SEVERAL_ACCOUNTS: tr('این نشانی در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان با گوگل وارد شوید.'),
 };
 
 /** Signed in: the answer set the refresh cookie, and the app restores the session from it. */

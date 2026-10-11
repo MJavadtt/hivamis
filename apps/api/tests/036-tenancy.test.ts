@@ -57,7 +57,7 @@ describe('Organisations on one installation', () => {
     const lead = await prisma.formDefinition.findMany({ where: { code: 'A01_LEAD' }, select: { organizationId: true } });
     expect(new Set(lead.map((l) => l.organizationId))).toEqual(new Set([first.id, id]));
 
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'boss@nemooneh.ir' }, include: { roles: { include: { role: true } }, department: true } });
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'boss@nemooneh.ir' }, include: { roles: { include: { role: true } }, department: true } });
     expect(admin.organizationId).toBe(id);
     expect(admin.roles.map((r) => r.role.code)).toEqual(['SUPER_ADMIN']);
     expect(admin.department?.code).toBe('M');
@@ -67,15 +67,15 @@ describe('Organisations on one installation', () => {
     expect(await prisma.systemUpgrade.count({ where: { trigger: 'provision' } })).toBe(1);
   });
 
-  it('refuses what would collide: a taken short name, address or email, or a malformed one', async () => {
+  it('refuses what would collide: a taken short name or address, or a malformed one', async () => {
     tenancy.mode = 'multi';
     const base = { name: 'x', admin: { fullName: 'x', email: 'x@x.ir' } };
     await expect(provisionOrganization({ ...base, slug: 'nemooneh' })).rejects.toMatchObject({ code: 'SLUG_TAKEN' });
     await expect(provisionOrganization({ ...base, slug: 'Bad Slug' })).rejects.toMatchObject({ code: 'BAD_SLUG' });
     await expect(provisionOrganization({ ...base, slug: 'sevom', hosts: [HOST] })).rejects.toMatchObject({ code: 'HOST_TAKEN' });
     await expect(provisionOrganization({ ...base, slug: 'sevom', hosts: ['not a host'] })).rejects.toMatchObject({ code: 'BAD_HOST' });
-    await expect(provisionOrganization({ ...base, slug: 'sevom', admin: { fullName: 'x', email: 'ceo@hiva.local' } })).rejects.toMatchObject({ code: 'EMAIL_TAKEN' });
     expect(await prisma.organization.count({ where: { slug: 'sevom' } })).toBe(0);
+    // An email taken in another organisation is not a collision (audit LOG-4): 055 covers it.
   });
 
   it('keeps each organisation to itself: its administrator sets a password, signs in at its address and sees its own', async () => {

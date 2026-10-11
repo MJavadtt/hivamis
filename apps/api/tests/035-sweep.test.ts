@@ -77,7 +77,7 @@ describe('The sweep', () => {
   }, 600_000);
 
   it('spends a refresh token once, even when it is presented twice at the same moment', async () => {
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'media@hiva.local' } });
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'media@hiva.local' } });
     const token = (await signIn('media@hiva.local')).refresh;
     const before = await prisma.session.count({ where: { userId: user.id } });
     const [a, b] = await Promise.all([1, 2].map(() => refreshWith(token)));

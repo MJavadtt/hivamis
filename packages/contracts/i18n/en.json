@@ -2547,5 +2547,6 @@
   "این درخواست اتصال منقضی شده است؛ دوباره با گوگل وارد شوید.": "This link request has expired; sign in with Google again.",
   "این حساب شمارهٔ همراه تأییدشده ندارد.": "This account has no verified mobile number.",
   "رمز یا کد درست نیست.": "The password or code is not right.",
-  "این حساب گوگل به حساب دیگری وصل است.": "This Google account is linked to another account."
+  "این حساب گوگل به حساب دیگری وصل است.": "This Google account is linked to another account.",
+  "این ایمیل در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان وارد شوید.": "This email has an account in more than one organisation; sign in at your own organisation's address."
 }

@@ -37,7 +37,7 @@ describe('Webhook sending (audit PERF-2)', () => {
   afterAll(async () => { env.WEBHOOK_ALLOW_PRIVATE = original; await new Promise((r) => server.close(r)); await closeApp(); });
 
   it('lets a slow receiver hold up only itself, and never sends one receiver two at once', async () => {
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
     const make = async (path: string) => {
       const sub = await prisma.webhookSubscription.create({ data: { organizationId: admin.organizationId, name: path, url: `${base}${path}`, secret: 'whsec_test', events: ['*'], createdById: admin.id } });
       await prisma.webhookDelivery.createMany({

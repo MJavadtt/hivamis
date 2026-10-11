@@ -17,7 +17,7 @@ describe('Webhooks read every transition, however the transactions overlap (audi
   afterAll(async () => { await closeApp(); });
 
   it('sends the row of a transaction that began first and committed last', async () => {
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
     const org = admin.organizationId;
     const sub = await prisma.webhookSubscription.create({
       data: { organizationId: org, name: 'گیرنده', url: 'https://receiver.example/hook', secret: 'whsec_test', events: ['lead.*'], createdById: admin.id },
@@ -58,7 +58,7 @@ describe('Webhooks read every transition, however the transactions overlap (audi
   }, 60_000);
 
   it('starts a new subscription at its own beginning: nothing from before it is sent', async () => {
-    const admin = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
     const lead = await prisma.lead.findFirstOrThrow({ where: { organizationId: admin.organizationId } });
     await prisma.stateTransition.create({ data: { organizationId: admin.organizationId, entityType: 'lead', entityId: lead.id, fromState: 'NEW', toState: 'CONTACTED', action: 'contact', reason: 'before', actorId: admin.id } });
     const sub = await prisma.webhookSubscription.create({

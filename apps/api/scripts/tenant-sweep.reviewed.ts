@@ -18,7 +18,6 @@ export const WHY = {
   NAMES: "Display names for user ids taken from rows already scoped to the caller's organisation.",
   PORTAL: "A client portal account's own company, in its own organisation (projectScope / pendingFor carry both).",
   MESSENGER: "A messenger chat's own link and actions, tied to one person; a message's organisation comes from that link (handleUpdate, audit SEC-2b).",
-  EMAIL: "Email is unique across the installation until audit LOG-4, so an existing account is looked up installation-wide; only existence is used.",
 } as const;
 
 export type Verdict = keyof typeof WHY;
@@ -333,9 +332,5 @@ export const REVIEWED: Record<string, Verdict> = {
     "messenger/service.ts#startLink",
     "messenger/service.ts#status",
     "messenger/service.ts#unlink",
-  ]),
-  ...of('EMAIL', [
-    "onboarding/importers.ts#usersPlanner",
-    "setup/tenant.ts#provisionOrganization",
   ]),
 };

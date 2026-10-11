@@ -249,7 +249,7 @@ describe('Versions of a file, and a client’s brand library', () => {
     expect(first.headers['cache-control']).toBe('private, max-age=300');
     expect(first.rawPayload).toEqual(mp4(30, 1080, 1920));
     expect((await preview(f.teaser!)).statusCode).toBe(200);
-    const designerId = (await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } })).id;
+    const designerId = (await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } })).id;
     const trail = await prisma.auditEvent.findMany({ where: { actorId: designerId, entityId: f.teaser } });
     expect(trail.map((e) => e.action)).toEqual(['FILE_VIEW']);                  // once in the hour, and not a download
     const text = await preview(f.notes!);

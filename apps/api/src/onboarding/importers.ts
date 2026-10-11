@@ -159,7 +159,8 @@ const usersPlanner: Planner = async (tx, actor, rows) => {
   const [departments, map, existing, roles] = await Promise.all([
     tx.department.findMany({ where: { organizationId: actor.organizationId }, select: { id: true, code: true, nameFa: true } }),
     unitMapOf(tx, actor.organizationId),
-    tx.user.findMany({ where: { email: { in: rows.map((r) => r.values.email?.toLowerCase() ?? '') } }, select: { email: true } }),
+    // Taken within this organisation (audit LOG-4): another organisation's person may share the address.
+    tx.user.findMany({ where: { organizationId: actor.organizationId, email: { in: rows.map((r) => r.values.email?.toLowerCase() ?? '') } }, select: { email: true } }),
     tx.role.findMany({ select: { id: true, code: true } }),
   ]);
   const taken = new Set(existing.map((u) => u.email));

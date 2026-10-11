@@ -2632,5 +2632,6 @@
   "ارزش قراردادها با مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها با جمع کل‌شان سنجیده می‌شوند.": "Contract values are recorded with VAT; invoices are compared on their total.",
   "ارزش قراردادها بدون مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها بدون مالیات سنجیده می‌شوند.": "Contract values are recorded without VAT; invoices are compared without VAT.",
   "قراردادها بدون مالیات‌اند": "Contracts are without VAT",
-  "قراردادها با مالیات‌اند": "Contracts include VAT"
+  "قراردادها با مالیات‌اند": "Contracts include VAT",
+  "این نشانی در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان با گوگل وارد شوید.": "This address has an account in more than one organisation; sign in with Google at your own organisation's address."
 }

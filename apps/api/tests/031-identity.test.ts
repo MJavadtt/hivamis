@@ -52,7 +52,7 @@ describe('Signing in by mobile', () => {
   it('lets a person prove their mobile, then sign in with a code sent to it', async () => {
     expectOk(await post('/me/phone/start', pmo, { phone: '0913 000 0101' }), 'start');
     expectOk(await post('/me/phone/verify', pmo, { phone, code: await lastCode(phone) }), 'verify');
-    const me = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const me = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     expect(me.phone).toBe(phone);
     expect(me.phoneVerifiedAt).not.toBeNull();
 
@@ -87,7 +87,7 @@ describe('Signing in by mobile', () => {
     // Each wrong try from its own network, so the code's five tries are what is spent here.
     for (let i = 0; i < MAX_ATTEMPTS; i++) expect((await verify(wrong, `203.0.${i}.1`)).statusCode).toBe(401);
     expect((await verify(code, '203.0.9.1')).statusCode).toBe(401);
-    const me = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const me = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     expect(me.lockedUntil).toBeNull();
     // Audit SEC-10: from one network, the fourth wrong try in a row is made to wait.
     await ageCodes(phone);
@@ -129,8 +129,8 @@ describe('Asking to join', () => {
     expect((await ask('NEW.person@example.com')).status).toBe(201);
     const request = await prisma.signupRequest.findFirstOrThrow({ where: { email: 'new.person@example.com' } });
     expect(request).toMatchObject({ status: 'PENDING', method: 'PHONE', phone, departmentCode: 'S', userId: null });
-    expect(await prisma.user.findUnique({ where: { email: 'new.person@example.com' } })).toBeNull();
-    const adminUser = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@hiva.local' } });
+    expect(await prisma.user.findFirst({ where: { email: 'new.person@example.com' } })).toBeNull();
+    const adminUser = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
     expect(await prisma.notification.count({ where: { userId: adminUser.id, kind: 'SIGNUP_REQUESTED', entityId: request.id } })).toBe(1);
 
     // The same address again, while it waits.
@@ -152,7 +152,7 @@ describe('Asking to join', () => {
     expectOk(await post(`/signup-requests/${request.id}/approve`, admin, { departmentCode: 'S', roles: ['SALES_REP'], jobTitle: 'کارشناس فروش' }), 'approve');
     expect((await post(`/signup-requests/${request.id}/approve`, admin, { departmentCode: 'S', roles: ['SALES_REP'] })).body.error.code).toBe('ALREADY_DECIDED');
 
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'new.person@example.com' }, include: { roles: { include: { role: true } }, department: true } });
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'new.person@example.com' }, include: { roles: { include: { role: true } }, department: true } });
     expect(user.roles.map((r) => r.role.code)).toEqual(['SALES_REP']);
     expect(user.department?.code).toBe('S');
     expect(user.phoneVerifiedAt).not.toBeNull();
@@ -195,7 +195,7 @@ describe('A page for every person', () => {
   beforeAll(async () => { pmo = await login('pmo@hiva.local'); sales = await login('sales@hiva.local'); admin = await login('admin@hiva.local'); });
 
   it('shows a colleague who they are, and keeps their mobile and sign-ins to themselves and administrators', async () => {
-    const pmoUser = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmoUser = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const seen = expectOk(await get(`/people/${pmoUser.id}`, sales), 'colleague');
     expect(seen).toMatchObject({ fullName: pmoUser.fullName, email: 'pmo@hiva.local', self: false, private: null });
     expect(seen.department.color).toMatch(/^#[0-9a-f]{6}$/);
@@ -217,7 +217,7 @@ describe('A page for every person', () => {
     // other device's next refresh read as theft and signed everyone out.
     expect((await refreshWith(a.refresh)).status).toBe(401);
     expect((await refreshWith(b.refresh)).status).toBe(200);
-    const financeUser = await prisma.user.findUniqueOrThrow({ where: { email: 'finance@hiva.local' } });
+    const financeUser = await prisma.user.findFirstOrThrow({ where: { email: 'finance@hiva.local' } });
     expect(await prisma.auditEvent.count({ where: { actorId: financeUser.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(0);
   });
 
@@ -227,7 +227,7 @@ describe('A page for every person', () => {
     expect(rotated.status).toBe(200);
     expect((await refreshWith(first.refresh)).status).toBe(401);
     expect((await refreshWith(rotated.refresh!)).status).toBe(401);
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     expect(await prisma.auditEvent.count({ where: { actorId: designer.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(1);
   });
 });
@@ -342,7 +342,7 @@ describe('Signing in with Google', () => {
   });
 
   it('takes a code to the account’s mobile as proof, and five wrong proofs spend the offer', async () => {
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     expect(pmo.phoneVerifiedAt).not.toBeNull(); // proved in «Signing in by mobile» above
     const out = await roundTrip(() => call('GET', '/auth/google/start', { query: { mode: 'login' } }), { sub: 'g-pmo', email: 'pmo@hiva.local' });
     const link = out.fragment.get('link')!;

@@ -26,7 +26,7 @@ describe('Registering a lead', () => {
 
   beforeAll(async () => {
     T = { sales: await login('sales@hiva.local'), admin: await login('admin@hiva.local'), designer: await login('designer@hiva.local') };
-    for (const e of ['sales', 'sales.manager', 'designer']) ids[e] = (await prisma.user.findUniqueOrThrow({ where: { email: `${e}@hiva.local` } })).id;
+    for (const e of ['sales', 'sales.manager', 'designer']) ids[e] = (await prisma.user.findFirstOrThrow({ where: { email: `${e}@hiva.local` } })).id;
     ids.marketer = (await prisma.leadReferrer.findFirstOrThrow({ where: { kind: 'MARKETER', name: 'مهسا یزدانی' } })).id;
     ids.partner = (await prisma.leadReferrer.findFirstOrThrow({ where: { kind: 'PARTNER' } })).id;
   });

@@ -115,7 +115,7 @@ describe('Bringing an organisation in', () => {
     expect(r.created.map((c: any) => c.label)).toEqual(['نیلوفر احمدی', 'بهرام کاظمی']);
     expect(r.activations).toHaveLength(2);
     expect(r.activations[0]).toMatchObject({ email: 'niloofar@acme.ir', emailed: false, url: expect.stringMatching(/\/activate\/[\w-]{43}$/) });
-    const bahram = await prisma.user.findUniqueOrThrow({ where: { email: 'bahram@acme.ir' }, include: { roles: { include: { role: true } }, department: true } });
+    const bahram = await prisma.user.findFirstOrThrow({ where: { email: 'bahram@acme.ir' }, include: { roles: { include: { role: true } }, department: true } });
     expect([bahram.department?.code, bahram.roles.map((x) => x.role.code).sort(), Number(bahram.weeklyCapacityHours)]).toEqual(['CR', ['UNIT_MANAGER', 'UNIT_MEMBER'], 40]);
     expect((await call('POST', '/auth/login', { payload: { email: 'bahram@acme.ir', password: DEV_PASSWORD } })).status).toBe(401);
     const audited = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'BULK_IMPORT', entityId: 'users' }, orderBy: { createdAt: 'desc' } });

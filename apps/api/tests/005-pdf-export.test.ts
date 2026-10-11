@@ -452,7 +452,7 @@ describe('Client status reports', () => {
     const { planWeeklyRun, runWeekly } = await import('../src/reports/client-status.js');
     const org = await prisma.organization.findFirstOrThrow();
     const company = await prisma.company.findFirstOrThrow();
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
     const silent = await prisma.project.create({
       data: { organizationId: org.id, code: `PRJ-SILENT-${Date.now()}`, name: 'پروژهٔ بی‌گزارش', companyId: company.id, accountOwnerId: pmo.id, objective: 'x', state: 'ACTIVE' },
     });

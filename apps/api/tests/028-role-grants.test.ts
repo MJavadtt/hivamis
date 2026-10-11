@@ -99,8 +99,8 @@ describe('Who may do what', () => {
   });
 
   it('honours a delegation only for what the delegator’s role still grants', async () => {
-    const pmo = await prisma.user.findUniqueOrThrow({ where: { email: 'pmo@hiva.local' } });
-    const sales = await prisma.user.findUniqueOrThrow({ where: { email: 'sales@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const sales = await prisma.user.findFirstOrThrow({ where: { email: 'sales@hiva.local' } });
     const pmoRole = await prisma.userRole.findFirstOrThrow({ where: { userId: pmo.id }, include: { role: true } });
     await prisma.delegation.create({ data: {
       organizationId: pmo.organizationId, fromUserId: pmo.id, toUserId: sales.id, permissions: ['rules.manage'], roles: [],

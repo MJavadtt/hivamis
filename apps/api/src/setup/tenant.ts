@@ -71,7 +71,7 @@ export async function provisionOrganization(input: ProvisionInput, db: PrismaCli
   const hosts = cleanHosts(input.hosts);
   // Everything is checked before anything is written: a half-made organisation helps nobody.
   if (await db.organization.findUnique({ where: { slug }, select: { id: true } })) throw conflict('SLUG_TAKEN', `نام کوتاه «${slug}» از آنِ سازمان دیگری است.`);
-  if (await db.user.findUnique({ where: { email }, select: { id: true } })) throw conflict('EMAIL_TAKEN', `ایمیل «${email}» در این نصب حساب دارد.`);
+  // An email is unique within an organisation, and this one is new (audit LOG-4): the same person may run two.
   await assertHostsFree(db, hosts);
   // One organisation per installation unless the operator said otherwise: a second one by mistake
   // would quietly receive the first one's sign-ups.

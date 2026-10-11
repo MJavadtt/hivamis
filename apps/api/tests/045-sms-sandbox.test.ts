@@ -39,7 +39,7 @@ describe('The SMS sandbox (audit SEC-6)', () => {
 
   it('shows the administrator a code to join, and their own — but never someone else’s sign-in code', async () => {
     const admin = await login('admin@hiva.local');
-    const ceo = await prisma.user.findUniqueOrThrow({ where: { email: 'ceo@hiva.local' } });
+    const ceo = await prisma.user.findFirstOrThrow({ where: { email: 'ceo@hiva.local' } });
     await prisma.user.update({ where: { id: ceo.id }, data: { phone: '09130000777', phoneVerifiedAt: new Date() } });
 
     // Someone signing in as the CEO by mobile: the code goes to the CEO's phone, and the outbox.

@@ -44,7 +44,7 @@ describe('Wrong passwords slow their network, not the account (audit SEC-10)', (
     // Even the right password waits: the block is checked before any password is.
     // The owner, from their own network, is in at once — nothing locked the account.
     expect((await signIn('designer@hiva.local', DEV_PASSWORD, '198.51.100.4')).statusCode).toBe(200);
-    expect((await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } })).lockedUntil).toBeNull();
+    expect((await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } })).lockedUntil).toBeNull();
   });
 
   it('clears the pair when its owner gets in', async () => {
@@ -72,7 +72,7 @@ describe('Wrong passwords slow their network, not the account (audit SEC-10)', (
   });
 
   it('raises a security alert for an account tried fifty times in an hour, from wherever — instead of locking it', async () => {
-    const legal = await prisma.user.findUniqueOrThrow({ where: { email: 'legal@hiva.local' } });
+    const legal = await prisma.user.findFirstOrThrow({ where: { email: 'legal@hiva.local' } });
     await prisma.auditEvent.createMany({
       data: Array.from({ length: 50 }, (_, i) => ({
         organizationId: legal.organizationId, actorId: legal.id, action: 'LOGIN_FAILED', entityType: 'user', entityId: legal.id,

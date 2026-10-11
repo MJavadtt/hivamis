@@ -308,7 +308,7 @@ export async function twoOrgs(): Promise<TwoOrgs & { filled: string[] }> {
   });
   const aId = provisioned.organization.id;
   const hash = await hashPassword(DEV_PASSWORD);
-  await prisma.user.update({ where: { email: 'boss@alef.test' }, data: { passwordHash: hash, mustChangePassword: false } });
+  await prisma.user.updateMany({ where: { email: 'boss@alef.test' }, data: { passwordHash: hash, mustChangePassword: false } });
   const sales = await prisma.department.findFirstOrThrow({ where: { organizationId: aId, code: 'S' } });
   const rep = await prisma.role.findUniqueOrThrow({ where: { code: 'SALES_REP' } });
   await prisma.user.create({

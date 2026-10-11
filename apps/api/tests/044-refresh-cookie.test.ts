@@ -43,7 +43,7 @@ describe('The refresh token’s cookie (audit SEC-4)', () => {
   });
 
   it('is set by every way in: a code to the mobile, and the ticket Google sign-in ends with', async () => {
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'media@hiva.local' } });
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'media@hiva.local' } });
     const ticket = await call('POST', '/auth/ticket', { payload: { ticket: await createTicket(user.id) } });
     expect(ticket.status).toBe(200);
     expect(ticket.body).not.toHaveProperty('refreshToken');

@@ -2230,3 +2230,21 @@ up. The consequences were real:
 
 **Limits.** Ratios (progress, percentages) are still floats where they are ratios, and are rounded for
 display. Hours are decimals where they are summed for cost.
+
+## ADR-078 — An email is unique within its organisation; an address says which
+
+**Decision.** (Audit LOG-4.) `users.email` is unique per `(organizationId, email)`, no longer per
+installation.
+
+- **Password sign-in.** It looks in the organisation the request's address names. With one
+  organisation, or at the installation's own address, it looks in any. There the password decides
+  between same-email accounts. If it matches more than one, the answer is `409 SEVERAL_ACCOUNTS`: use
+  your organisation's address.
+- **Google sign-in.** A sign-in started at an organisation's address remembers that organisation for
+  the link offer. One started at the installation's address offers a link only when exactly one
+  organisation has the address.
+- **Joining, approving and importing.** Sign-up, approval and the people import check duplicates within
+  the organisation. Provisioning no longer refuses an email used elsewhere.
+
+**Rationale.** A person who works for two organisations on one installation, say a holding company and
+its agency, could have an account in only one of them. In single-organisation mode nothing changes.

@@ -240,7 +240,7 @@ rules, forms, records and address.
   - Roles and permissions are the installation's definitions; each organisation grants them its
     own way (task 6).
   - Record numbers (PRJ-…) run on one sequence for the whole installation, so they never collide.
-  - A person's email is unique across the installation.
+  - A person's email is unique within their organisation (audit LOG-4); the same person may have an account in two. At an organisation's own address, sign-in is to that organisation's account. At the installation's own address the password decides, and if the same email and password hold in two organisations, the person is asked to use their organisation's address.
 
 ## Production readiness checklist
 

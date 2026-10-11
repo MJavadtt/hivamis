@@ -55,7 +55,7 @@ describe('Authentication', () => {
   });
 
   it('stores passwords as Argon2id hashes, never in plain text', async () => {
-    const user = await prisma.user.findUnique({ where: { email: 'sales@hiva.local' } });
+    const user = await prisma.user.findFirst({ where: { email: 'sales@hiva.local' } });
     expect(user!.passwordHash.startsWith('$argon2id$')).toBe(true);
     expect(user!.passwordHash).not.toContain('Hiva@Dev2026');
   });
@@ -718,7 +718,7 @@ describe('Record history is evidence', () => {
   });
 
   it('never surfaces a password hash, even to an administrator', async () => {
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     expectOk(await patch(`/users/${designer.id}`, T.admin, { jobTitle: 'مدیر هنری' }), 'edit user');
     const h = expectOk(await get(`/history/user/${designer.id}`, T.admin), 'user history');
     const text = JSON.stringify(h);
@@ -754,8 +754,8 @@ describe('Time-boxed delegation', () => {
   const days = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString();
 
   it('lets a person lend a permission they hold, and records what is done with it as done on their behalf', async () => {
-    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const accountManager = await prisma.user.findFirstOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId, targetDepartmentCode: 'CR', title: 'سفارش در غیاب مدیر اکانت',
@@ -794,8 +794,8 @@ describe('Time-boxed delegation', () => {
   });
 
   it('records every request that passed on a borrowed permission', async () => {
-    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const accountManager = await prisma.user.findFirstOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     expectOk(await post('/delegations', T.accountManager, {
       toUserId: designer.id, permissions: ['traffic.manage'], endsAt: days(1), reason: 'پوشش ترافیک',
     }), 'delegate');
@@ -816,13 +816,13 @@ describe('Time-boxed delegation', () => {
   });
 
   it('refuses what cannot be delegated: what you do not hold, to yourself, too long, someone else’s authority', async () => {
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
-    const deputy = await prisma.user.findUniqueOrThrow({ where: { email: 'deputy@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
+    const deputy = await prisma.user.findFirstOrThrow({ where: { email: 'deputy@hiva.local' } });
     const base = { toUserId: designer.id, endsAt: days(3), reason: 'x' };
     expect((await post('/delegations', T.sales, { ...base, permissions: ['pricing.approve'] })).body.error.code).toBe('NOT_HELD');
     expect((await post('/delegations', T.sales, { ...base, roles: ['CEO'] })).body.error.code).toBe('NOT_HELD');
     expect((await post('/delegations', T.sales, { ...base, permissions: ['not.a.permission'] })).status).toBe(400);
-    expect((await post('/delegations', T.sales, { ...base, toUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'sales@hiva.local' } })).id, permissions: ['crm.lead.write'] })).body.error.code).toBe('SELF_DELEGATION');
+    expect((await post('/delegations', T.sales, { ...base, toUserId: (await prisma.user.findFirstOrThrow({ where: { email: 'sales@hiva.local' } })).id, permissions: ['crm.lead.write'] })).body.error.code).toBe('SELF_DELEGATION');
     expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'], endsAt: days(120) })).body.error.code).toBe('TOO_LONG');
     expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'], reason: '' })).body.error.code).toBe('REASON_REQUIRED');
     expect((await post('/delegations', T.sales, { ...base, permissions: ['crm.lead.write'] })).status).toBe(201);
@@ -832,11 +832,11 @@ describe('Time-boxed delegation', () => {
   });
 
   it('applies only within its window, and a revocation ends the delegate’s sessions at once', async () => {
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     // Expired and not-yet-started delegations grant nothing.
     await prisma.delegation.createMany({ data: [
-      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(-5)), endsAt: new Date(days(-1)), reason: 'گذشته', createdById: designer.id },
-      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(2)), endsAt: new Date(days(4)), reason: 'آینده', createdById: designer.id },
+      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findFirstOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(-5)), endsAt: new Date(days(-1)), reason: 'گذشته', createdById: designer.id },
+      { organizationId: designer.organizationId, fromUserId: (await prisma.user.findFirstOrThrow({ where: { email: 'account.manager@hiva.local' } })).id, toUserId: designer.id, permissions: ['change.approve'], startsAt: new Date(days(2)), endsAt: new Date(days(4)), reason: 'آینده', createdById: designer.id },
     ] });
     const token = await login('designer@hiva.local');
     expect(expectOk(await get('/auth/me', token), 'me').permissions).not.toContain('change.approve');
@@ -857,8 +857,8 @@ describe('Time-boxed delegation', () => {
   });
 
   it('lets a delegated approver role decide a form, attributed to the role’s owner', async () => {
-    const accountManager = await prisma.user.findUniqueOrThrow({ where: { email: 'account.manager@hiva.local' } });
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const accountManager = await prisma.user.findFirstOrThrow({ where: { email: 'account.manager@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     const brief = await prisma.brief.findFirstOrThrow({ where: { state: 'UNDER_REVIEW' } });
     const form = expectOk(await post('/forms/submissions', T.sales, { formCode: 'B10_BRIEF_COMPLETION', data: { briefId: brief.id, addedInformation: 'x' } }), 'submit');
     // A fresh sign-in: the delegation revoked above ended the designer's sessions, and with them T.designer.

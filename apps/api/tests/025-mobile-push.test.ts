@@ -106,7 +106,7 @@ describe('Delivery, against a push service of the test’s own', () => {
     });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    designerId = (await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } })).id;
+    designerId = (await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } })).id;
   });
   afterAll(async () => { await new Promise((r) => server.close(r)); });
 
@@ -218,7 +218,7 @@ describe('Subscribing a browser', () => {
 
   it('moves a browser to whoever signs in on it, and lets each remove only their own', async () => {
     const b = browser();
-    const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
     expect((await post('/push/subscriptions', T.creative, { endpoint, keys: { p256dh: b.p256dh, auth: b.auth } })).status).toBe(200);
     expect(expectOk(await get('/push/subscriptions', T.designer), 'designer')).toEqual([]);
     const [mine] = expectOk(await get('/push/subscriptions', T.creative), 'creative');
@@ -242,7 +242,7 @@ describe('Who hears about the three loops', () => {
       accountManager: await login('account.manager@hiva.local'), creative: await login('creative@hiva.local'),
       designer: await login('designer@hiva.local'), sales: await login('sales@hiva.local'), admin: await login('admin@hiva.local'),
     };
-    for (const email of ['creative', 'designer', 'strategy', 'account.manager']) ids[email] = (await prisma.user.findUniqueOrThrow({ where: { email: `${email}@hiva.local` } })).id;
+    for (const email of ['creative', 'designer', 'strategy', 'account.manager']) ids[email] = (await prisma.user.findFirstOrThrow({ where: { email: `${email}@hiva.local` } })).id;
     for (const [who, token] of [['creative', T.creative], ['designer', T.designer], ['account.manager', T.accountManager]] as const) {
       const b = browser();
       expectOk(await post('/push/subscriptions', token, { endpoint: endpointOf(who), keys: { p256dh: b.p256dh, auth: b.auth } }), `subscribe ${who}`);

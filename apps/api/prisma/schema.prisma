@@ -239,7 +239,8 @@ model User {
   organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departmentId        String?
   department          Department?  @relation(fields: [departmentId], references: [id])
-  email               String       @unique
+  /// Audit LOG-4: unique within the organisation, not the installation — the same person may work for two.
+  email               String
   fullName            String
   passwordHash        String
   jobTitle            String?
@@ -318,6 +319,7 @@ model User {
 
   @@index([organizationId, departmentId])
   @@index([email])
+  @@unique([organizationId, email])
   @@map("users")
 }
 

@@ -17,7 +17,7 @@ const refresh = async (token: string) => {
 const logout = (s: { access: string; refresh: string }) =>
   call('POST', '/auth/logout', { token: s.access, headers: { cookie: `hiva_refresh=${encodeURIComponent(s.refresh)}`, 'x-hiva-refresh': '1' } });
 const me = (token: string) => get('/auth/me', token);
-const idOf = async (email: string) => (await prisma.user.findUniqueOrThrow({ where: { email } })).id;
+const idOf = async (email: string) => (await prisma.user.findFirstOrThrow({ where: { email } })).id;
 
 describe('Access tokens end with what they were issued on (audit SEC-3)', () => {
   afterAll(async () => { await closeApp(); });

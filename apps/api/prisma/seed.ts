@@ -58,7 +58,7 @@ async function seedDemoUsers(
   const users = new Map<string, { id: string; dept: DepartmentCode }>();
   for (const spec of userSpecs) {
     const user = await prisma.user.upsert({
-      where: { email: spec.email },
+      where: { organizationId_email: { organizationId: org.id, email: spec.email } },
       create: {
         organizationId: org.id,
         departmentId: departments.get(spec.dept)!,

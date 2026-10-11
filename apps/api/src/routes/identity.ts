@@ -9,7 +9,7 @@ import { env, mailEnabled, smsMode } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
-import { organizationForHost, organizationForRequest, requestHost, tenancy } from '../lib/tenant.js';
+import { hostScope, organizationForHost, organizationForRequest, requestHost, tenancy } from '../lib/tenant.js';
 import { appUrl, notify } from '../mail/notify.js';
 import { enqueueMail } from '../jobs/runner.js';
 import { grantsOf } from '../auth/grants.js';
@@ -33,11 +33,7 @@ import { assertMayTry, clearFailures } from '../auth/throttle.js';
  * A mobile number is not unique across organisations; at one organisation's address, signing in by
  * code looks only among its people (roadmap #50).
  */
-async function hereOnly(req: FastifyRequest): Promise<{ organizationId?: string }> {
-  if (tenancy.mode !== 'multi') return {};
-  const here = await organizationForHost(requestHost(req));
-  return here ? { organizationId: here.id } : {};
-}
+const hereOnly = hostScope;
 
 /** What a sign-up-created account's password hash starts as: it can never verify. */
 export const NO_PASSWORD_PREFIX = '!no-password:';
@@ -128,7 +124,8 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
       if (!s.google) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با گوگل در این سازمان باز نیست.');
       started = await startGoogle('SIGNUP', null, s.org.id);
     } else {
-      started = await startGoogle('LOGIN');
+      // The organisation this address names, if any: an email is unique only within one (audit LOG-4).
+      started = await startGoogle('LOGIN', null, (await hostScope(req)).organizationId ?? null);
     }
     // Audit SEC-5: the answer is honoured only in this browser.
     setOAuthCookie(reply, started.binding);
@@ -178,8 +175,12 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
       if (!user) {
         // A verified Google address that is someone's work address is not yet that someone (audit
         // SEC-5): whoever holds the address at Google is offered the link, and proves the account once.
-        const byEmail = await prisma.user.findUnique({ where: { email: profile.email } });
-        if (byEmail && byEmail.isActive && !byEmail.deletedAt) {
+        // Within the organisation the sign-in began at; at the installation's own address, only if one
+        // organisation has the address — otherwise it is not this flow's to choose (audit LOG-4).
+        const matches = await prisma.user.findMany({ where: { email: profile.email, isActive: true, deletedAt: null, ...(organizationId ? { organizationId } : {}) }, take: 2 });
+        const byEmail = matches.length === 1 ? matches[0]! : null;
+        if (matches.length > 1) return back('/auth/google', { error: 'SEVERAL_ACCOUNTS' });
+        if (byEmail) {
           if (byEmail.lockedUntil && byEmail.lockedUntil > new Date()) return back('/auth/google', { error: 'LOCKED' });
           return back('/auth/google', { link: await offerLink(byEmail.id, profile) });
         }
@@ -194,7 +195,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const s = await signupState(req, organizationId);
     if (!s.google) return back('/signup', { error: 'SIGNUP_CLOSED' });
     if (domainRefused) return back('/signup', { error: 'DOMAIN' });
-    if (identity || await prisma.user.findUnique({ where: { email: profile.email } })) return back('/signup', { error: 'HAS_ACCOUNT' });
+    if (identity || await prisma.user.findFirst({ where: { organizationId: s.org.id, email: profile.email }, select: { id: true } })) return back('/signup', { error: 'HAS_ACCOUNT' });
     const pending = await prisma.signupRequest.findFirst({ where: { organizationId: s.org.id, email: profile.email, status: 'PENDING' } });
     if (pending) return back('/signup', { done: 'pending' });
     const request = await prisma.signupRequest.create({
@@ -302,7 +303,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     if (!s.phone) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت با شمارهٔ همراه در این سازمان باز نیست.');
     if (!(await checkCode({ purpose: 'SIGNUP', phone: input.phone, code: input.code }))) throw badRequest('BAD_CODE', 'کد درست نیست یا منقضی شده است.');
     // The number is proved now; only then say what stands in the way.
-    if (await prisma.user.findUnique({ where: { email: input.email } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است؛ وارد شوید.');
+    if (await prisma.user.findFirst({ where: { organizationId: s.org.id, email: input.email }, select: { id: true } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است؛ وارد شوید.');
     if (await prisma.user.findFirst({ where: { phone: input.phone, phoneVerifiedAt: { not: null }, deletedAt: null } })) throw conflict('PHONE_TAKEN', 'این شمارهٔ همراه به حساب دیگری وصل است؛ با آن وارد شوید.');
     if (await prisma.signupRequest.findFirst({ where: { organizationId: s.org.id, email: input.email, status: 'PENDING' } })) throw conflict('ALREADY_PENDING', 'درخواست شما پیش‌تر ثبت شده و در انتظار تأیید مدیر سیستم است.');
     const request = await prisma.signupRequest.create({
@@ -338,7 +339,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const request = await prisma.signupRequest.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!request) throw notFound('درخواست عضویت');
     if (request.status !== 'PENDING') throw conflict('ALREADY_DECIDED', 'این درخواست پیش‌تر بررسی شده است.');
-    if (await prisma.user.findUnique({ where: { email: request.email } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است.');
+    if (await prisma.user.findFirst({ where: { organizationId: actor.organizationId, email: request.email }, select: { id: true } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است.');
     const department = await prisma.department.findFirst({ where: { organizationId: actor.organizationId, code: input.departmentCode } });
     if (!department) throw badRequest('UNKNOWN_DEPARTMENT', 'واحد سازمانی نامعتبر است.');
     const roles = await prisma.role.findMany({ where: { code: { in: input.roles } } });

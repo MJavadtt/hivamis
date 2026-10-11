@@ -25,6 +25,17 @@ export async function organizationForHost(host: string) {
   return prisma.organization.findFirst({ where: { isActive: true, hosts: { has: host.toLowerCase() } }, select: SELECT });
 }
 
+/**
+ * Where an anonymous request may find its person (audit LOG-4): the organisation its address names, or
+ * — with one organisation, or at the installation's own address — any. An email is unique only within
+ * an organisation, so the address is the first thing that says which.
+ */
+export async function hostScope(req: FastifyRequest): Promise<{ organizationId?: string }> {
+  if (tenancy.mode !== 'multi') return {};
+  const here = await organizationForHost(requestHost(req));
+  return here ? { organizationId: here.id } : {};
+}
+
 /** The organisation of an anonymous request, or null when the address names none. */
 export async function organizationForRequest(req: FastifyRequest) {
   if (tenancy.mode === 'single') {
