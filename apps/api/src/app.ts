@@ -12,6 +12,7 @@ import { prisma } from './db.js';
 import { findActiveDemoAccounts } from './lib/demo-accounts.js';
 import { AppError } from './lib/errors.js';
 import { localizeError, requestLocale } from './lib/i18n.js';
+import { LOG_REDACT } from './lib/log.js';
 import { requestContext } from './lib/request-context.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
@@ -76,8 +77,8 @@ export async function buildApp(): Promise<FastifyInstance> {
       ...(env.NODE_ENV === 'development'
         ? { transport: { target: 'pino-pretty', options: { translateTime: 'HH:MM:ss', ignore: 'pid,hostname' } } }
         : {}),
-      // Never let credentials or tokens reach the logs.
-      redact: ['req.headers.authorization', 'req.headers.cookie', 'body.password', 'body.newPassword', 'body.currentPassword'],
+      // Never let credentials or tokens reach the logs (audit SEC-11).
+      redact: LOG_REDACT,
     },
     genReqId: () => randomUUID(),
     bodyLimit: 2 * 1024 * 1024,
