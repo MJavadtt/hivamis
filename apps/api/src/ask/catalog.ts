@@ -17,6 +17,7 @@ import type { Prisma } from '@prisma/client';
 import type { Tx } from '../db.js';
 import { loadCalendar } from '../sla/engine.js';
 import { money as decimal, toMoney } from '../lib/money.js';
+import { FACT_CAP, over } from '../lib/limits.js';
 import { mine } from '../reports/mining.js';
 
 export type Dim = 'unit' | 'client' | 'project' | 'person' | 'month' | 'reason' | 'policy' | 'state';
@@ -145,7 +146,7 @@ export const METRICS: MetricSpec[] = [
     async facts({ tx, org, from, to, filters, people }) {
       const projects = await tx.project.findMany({
         where: { ...projectScope(org, filters), state: 'CLOSED', ...(from || to ? { closedAt: range(from, to) } : {}), ...(filters.personId ? { accountOwnerId: filters.personId } : {}) },
-        select: { id: true, code: true, name: true, contractValue: true, closedAt: true, accountOwnerId: true, company: { select: { id: true, legalName: true } } },
+        select: { id: true, code: true, name: true, contractValue: true, closedAt: true, accountOwnerId: true, company: { select: { id: true, legalName: true } } }, orderBy: { closedAt: 'desc' }, take: over(FACT_CAP),
       });
       const costs = await tx.costDeclaration.findMany({
         where: { organizationId: org, workOrder: { projectId: { in: projects.map((p) => p.id) } } },
@@ -184,7 +185,7 @@ export const METRICS: MetricSpec[] = [
     async facts({ tx, org, from, to, filters, people }) {
       const projects = await tx.project.findMany({
         where: { ...projectScope(org, filters), state: { not: 'CANCELLED' }, ...(from || to ? { createdAt: range(from, to) } : {}), ...(filters.personId ? { accountOwnerId: filters.personId } : {}) },
-        select: { id: true, code: true, name: true, state: true, contractValue: true, createdAt: true, accountOwnerId: true, company: { select: { id: true, legalName: true } } },
+        select: { id: true, code: true, name: true, state: true, contractValue: true, createdAt: true, accountOwnerId: true, company: { select: { id: true, legalName: true } } }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
       });
       return projects.map((p) => ({
         dims: { client: clientDim(p.company), project: projectDim(p), person: personDim(p.accountOwnerId, people), state: { key: p.state, labelFa: stateLabelFa(p.state) } },
@@ -209,7 +210,7 @@ export const METRICS: MetricSpec[] = [
           ...(filters.projectId ? { projectId: filters.projectId } : {}),
           ...(filters.units?.length ? { project: { workOrders: { some: { targetDepartmentCode: { in: filters.units } } } } } : {}),
         },
-        select: { id: true, number: true, code: true, total: true, issueDate: true, company: { select: { id: true, legalName: true } }, project: { select: { id: true, code: true, name: true } } },
+        select: { id: true, number: true, code: true, total: true, issueDate: true, company: { select: { id: true, legalName: true } }, project: { select: { id: true, code: true, name: true } } }, orderBy: { issueDate: 'desc' }, take: over(FACT_CAP),
       });
       return invoices.map((i) => ({
         dims: { client: clientDim(i.company), project: projectDim(i.project) },
@@ -397,7 +398,7 @@ export const METRICS: MetricSpec[] = [
           id: true, code: true, reason: true, responsibleDepartmentCode: true, assigneeId: true, createdAt: true, taskId: true,
           deliverable: { select: { project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } } },
           task: { select: { project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } } },
-        },
+        }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
       });
       return rows.map((r) => {
         const project = r.deliverable?.project ?? r.task?.project ?? null;
@@ -458,7 +459,7 @@ export const METRICS: MetricSpec[] = [
           ...(filters.companyId ? { project: { companyId: filters.companyId } } : {}),
           ...(filters.personId ? { assigneeId: filters.personId } : {}),
         },
-        select: { id: true, code: true, title: true, dueDate: true, departmentCode: true, assigneeId: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } },
+        select: { id: true, code: true, title: true, dueDate: true, departmentCode: true, assigneeId: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } }, orderBy: { dueDate: 'desc' }, take: over(FACT_CAP),
       });
       return tasks.map((t) => ({
         dims: { unit: unitDim(t.departmentCode), project: projectDim(t.project), client: clientDim(t.project.company), person: personDim(t.assigneeId, people) },
@@ -489,7 +490,7 @@ export const METRICS: MetricSpec[] = [
             },
           } : {}),
         },
-        select: { hours: true, workedOn: true, userId: true, task: { select: { id: true, code: true, title: true, departmentCode: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } } } },
+        select: { hours: true, workedOn: true, userId: true, task: { select: { id: true, code: true, title: true, departmentCode: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } } } }, orderBy: { workedOn: 'desc' }, take: over(FACT_CAP),
       });
       return entries.map((e) => ({
         dims: { unit: unitDim(e.task.departmentCode), project: projectDim(e.task.project), client: clientDim(e.task.project.company), person: personDim(e.userId, people) },
@@ -563,7 +564,7 @@ export const METRICS: MetricSpec[] = [
     async facts({ tx, org, from, to, filters }) {
       const rows = await tx.feedback.findMany({
         where: { organizationId: org, ...(from || to ? { createdAt: range(from, to) } : {}), ...(hasProjectScope(filters) ? { project: projectScope(org, filters) } : {}) },
-        select: { id: true, csat: true, createdAt: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } },
+        select: { id: true, csat: true, createdAt: true, project: { select: { id: true, code: true, name: true, company: { select: { id: true, legalName: true } } } } }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
       });
       return rows.map((f) => ({
         dims: { client: clientDim(f.project.company), project: projectDim(f.project) },

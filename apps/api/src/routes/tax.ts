@@ -7,6 +7,7 @@ import { audit } from '../lib/audit.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { validateSeller, type SellerProfile } from '../tax/invoice.js';
 import { configuredGateway } from '../tax/gateway.js';
+import { capped, LIST_CAP, over } from '../lib/limits.js';
 import { inquireSent, prepare, preview, sendQueued } from '../tax/submit.js';
 
 const MODE_FA = {
@@ -79,11 +80,19 @@ const taxRoutes: FastifyPluginAsync = async (app) => {
   /** Invoices the authority has not accepted yet — the list finance works from. */
   app.get('/reports/tax', { preHandler: [app.authenticate, app.requirePermissions('finance.read')] }, async (req) => {
     const actor = actorFrom(req);
-    const invoices = await prisma.invoice.findMany({
-      where: { organizationId: actor.organizationId, kind: 'INVOICE', state: { notIn: ['DRAFT', 'CANCELLED'] } },
-      select: { id: true, code: true, number: true, issueDate: true, total: true, company: { select: { legalName: true } }, taxSubmissions: { select: { subject: true, status: true, taxId: true, errors: true, createdAt: true }, orderBy: { createdAt: 'desc' } } },
-      orderBy: { issueDate: 'asc' },
-    });
+    // Only what the authority has not accepted is read; the accepted are counted (audit PERF-4) — every
+    // invoice of every year was read to show the few still pending.
+    const issued = { organizationId: actor.organizationId, kind: 'INVOICE', state: { notIn: ['DRAFT', 'CANCELLED'] } };
+    const acceptedHere = { status: 'ACCEPTED', subject: { not: 'CANCELLATION' } };
+    const [read, acceptedCount] = await Promise.all([
+      prisma.invoice.findMany({
+        where: { ...issued, taxSubmissions: { none: acceptedHere } },
+        select: { id: true, code: true, number: true, issueDate: true, total: true, company: { select: { legalName: true } }, taxSubmissions: { select: { subject: true, status: true, taxId: true, errors: true, createdAt: true }, orderBy: { createdAt: 'desc' } } },
+        orderBy: { issueDate: 'asc' }, take: over(LIST_CAP),
+      }),
+      prisma.invoice.count({ where: { ...issued, taxSubmissions: { some: acceptedHere } } }),
+    ]);
+    const { rows: invoices, truncated } = capped(read, LIST_CAP);
     const now = Date.now();
     const rows = invoices.map((i) => {
       const latest = i.taxSubmissions[0] ?? null;
@@ -97,8 +106,9 @@ const taxRoutes: FastifyPluginAsync = async (app) => {
     const count = (s: string) => rows.filter((r) => r.status === s).length;
     return {
       mode: env.MOADIAN_MODE, modeFa: MODE_FA[env.MOADIAN_MODE],
-      totals: { notReported: count('NOT_REPORTED'), queued: count('QUEUED'), sent: count('SENT'), accepted: count('ACCEPTED'), rejected: count('REJECTED'), failed: count('FAILED') },
+      totals: { notReported: count('NOT_REPORTED'), queued: count('QUEUED'), sent: count('SENT'), accepted: acceptedCount, rejected: count('REJECTED'), failed: count('FAILED') },
       pending: rows.filter((r) => r.status !== 'ACCEPTED'),
+      truncated,
     };
   });
 };

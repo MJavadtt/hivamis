@@ -513,7 +513,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const { code } = req.params as { code: string };
     const { actor, definition } = await definitionFor(req, code);
-    const csv = await exportCsv(prisma, actor.organizationId, definition.id);
+    const { csv, truncated } = await exportCsv(prisma, actor.organizationId, definition.id);
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'EXPORT',
       entityType: 'formDefinition', entityId: definition.id, after: { format: 'csv', form: definition.code },
@@ -521,6 +521,8 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     });
     return reply
       .header('content-type', 'text/csv; charset=utf-8')
+      // The newest rows only, when there were more than an export carries (audit PERF-4).
+      .header('x-hiva-truncated', String(truncated))
       .header('content-disposition', `attachment; filename="${code}.csv"`)
       .send(csv);
   });

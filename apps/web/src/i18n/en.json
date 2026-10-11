@@ -2633,5 +2633,6 @@
   "ارزش قراردادها بدون مالیات بر ارزش افزوده ثبت شده‌اند؛ فاکتورها بدون مالیات سنجیده می‌شوند.": "Contract values are recorded without VAT; invoices are compared without VAT.",
   "قراردادها بدون مالیات‌اند": "Contracts are without VAT",
   "قراردادها با مالیات‌اند": "Contracts include VAT",
-  "این نشانی در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان با گوگل وارد شوید.": "This address has an account in more than one organisation; sign in with Google at your own organisation's address."
+  "این نشانی در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان با گوگل وارد شوید.": "This address has an account in more than one organisation; sign in with Google at your own organisation's address.",
+  "صف شما بلندتر از آن است که یک‌جا نشان داده شود؛ آنچه بیشتر منتظر مانده آمده است. با بستن کارها بقیه نمایان می‌شوند.": "Your queue is longer than can be shown at once; what has waited longest is here. The rest appears as you close items."
 }

@@ -68,19 +68,14 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
 
   await boss.work('digest:overdue', async () => {
     // Nudge every assignee who has work past its due date.
-    const overdue = await prisma.task.findMany({
-      where: {
-        dueDate: { lt: new Date() },
-        state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] },
-        assigneeId: { not: null },
-      },
-      select: { assigneeId: true },
+    // Counted per person by the database (audit PERF-4), not read task by task.
+    const overdue = await prisma.task.groupBy({
+      by: ['assigneeId'],
+      where: { dueDate: { lt: new Date() }, state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] }, assigneeId: { not: null } },
+      _count: { _all: true },
     });
-    const byUser = new Map<string, number>();
-    for (const t of overdue) {
-      if (t.assigneeId) byUser.set(t.assigneeId, (byUser.get(t.assigneeId) ?? 0) + 1);
-    }
-    for (const [userId, count] of byUser) {
+    for (const { assigneeId: userId, _count: { _all: count } } of overdue) {
+      if (!userId) continue;
       await prisma.notification.create({
         data: {
           userId, kind: 'OVERDUE_DIGEST',
@@ -90,7 +85,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
         },
       }).catch(() => undefined);
     }
-    logger.info({ users: byUser.size, tasks: overdue.length }, 'overdue digest sent');
+    logger.info({ users: overdue.length, tasks: overdue.reduce((n, o) => n + o._count._all, 0) }, 'overdue digest sent');
   });
 
   // Doc_H §14: the client gets a status report every week. Saturday 09:00 is the start of the

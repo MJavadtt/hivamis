@@ -13,6 +13,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { transitionWithin } from '../workflow/engine.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { composeCorrection } from '../annotations/service.js';
+import { over, QUEUE_CAP } from '../lib/limits.js';
 import { assertOwnReferences } from '../lib/scope.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
@@ -288,38 +289,45 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
         documents: { where: { deletedAt: null }, select: { id: true, fileName: true, mimeType: true }, orderBy: { createdAt: 'asc' as const } },
       },
     };
-    const [awaitingUnit, awaitingAccount, awaitingFinal, openRevisions] = await Promise.all([
+    // The lists capped, oldest first (audit PERF-4); the counts counted, so they stay true when a list is cut.
+    const org = actor.organizationId;
+    const unitWhere = { organizationId: org, state: 'SUBMITTED' };
+    const accountWhere = { organizationId: org, state: 'IN_QC' };
+    const finalWhere = { organizationId: org, state: 'FINAL_QC' };
+    const revisionWhere = { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] } };
+    const [awaitingUnit, awaitingAccount, awaitingFinal, openRevisions, counted] = await Promise.all([
       prisma.deliverable.findMany({
-        where: { organizationId: actor.organizationId, state: 'SUBMITTED' },
-        include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
+        where: unitWhere, include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
+        orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
       }),
       prisma.deliverable.findMany({
-        where: { organizationId: actor.organizationId, state: 'IN_QC' },
-        include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
+        where: accountWhere, include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },
+        orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
       }),
-      prisma.proposal.findMany({
-        where: { organizationId: actor.organizationId, state: 'FINAL_QC' },
-        include: { brief: { select: { title: true } } },
-      }),
+      prisma.proposal.findMany({ where: finalWhere, include: { brief: { select: { title: true } } }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP) }),
       prisma.revision.findMany({
-        where: { organizationId: actor.organizationId, state: { notIn: ['APPROVED', 'REJECTED'] } },
+        where: revisionWhere,
         include: {
           deliverable: { select: { id: true, code: true, name: true, projectId: true } },
           assignee: { select: { id: true, fullName: true } },
         },
-        orderBy: { dueDate: 'asc' },
+        orderBy: { dueDate: 'asc' }, take: over(QUEUE_CAP),
       }),
+      Promise.all([
+        prisma.deliverable.count({ where: unitWhere }), prisma.deliverable.count({ where: accountWhere }),
+        prisma.proposal.count({ where: finalWhere }), prisma.revision.count({ where: revisionWhere }),
+        prisma.revision.count({ where: { ...revisionWhere, dueDate: { lt: new Date() } } }),
+      ]),
     ]);
+    const [unitN, accountN, finalN, revisionsN, overdueN] = counted;
+    const cut = <T>(rows: T[]) => rows.slice(0, QUEUE_CAP);
     return {
-      unit: awaitingUnit.map((d) => ({ ...d, availableTransitions: allowedFor('deliverable', d.state, actor.permissions) })),
-      account: awaitingAccount.map((d) => ({ ...d, availableTransitions: allowedFor('deliverable', d.state, actor.permissions) })),
-      final: awaitingFinal.map((p) => ({ ...p, availableTransitions: allowedFor('proposal', p.state, actor.permissions) })),
-      revisions: openRevisions.map((r) => ({ ...r, availableTransitions: allowedFor('revision', r.state, actor.permissions) })),
-      counts: {
-        unit: awaitingUnit.length, account: awaitingAccount.length,
-        final: awaitingFinal.length, revisions: openRevisions.length,
-        overdueRevisions: openRevisions.filter((r) => r.dueDate < new Date()).length,
-      },
+      unit: cut(awaitingUnit).map((d) => ({ ...d, availableTransitions: allowedFor('deliverable', d.state, actor.permissions) })),
+      account: cut(awaitingAccount).map((d) => ({ ...d, availableTransitions: allowedFor('deliverable', d.state, actor.permissions) })),
+      final: cut(awaitingFinal).map((p) => ({ ...p, availableTransitions: allowedFor('proposal', p.state, actor.permissions) })),
+      revisions: cut(openRevisions).map((r) => ({ ...r, availableTransitions: allowedFor('revision', r.state, actor.permissions) })),
+      counts: { unit: unitN, account: accountN, final: finalN, revisions: revisionsN, overdueRevisions: overdueN },
+      truncated: [awaitingUnit, awaitingAccount, awaitingFinal, openRevisions].some((rows) => rows.length > QUEUE_CAP),
     };
   });
 

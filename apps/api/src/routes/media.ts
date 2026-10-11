@@ -9,6 +9,7 @@ import { AppError, forbidden, notFound } from '../lib/errors.js';
 import { allowedFor } from '../workflow/engine.js';
 import { MEDIA_BUYING_UNITS, mediaTolerance } from '../workflow/guards.js';
 import { convertMany, D } from '../finance/fx.js';
+import { capped, FACT_CAP, over } from '../lib/limits.js';
 import { money, rounded, sumOf, toMoney } from '../lib/money.js';
 
 const FA = '۰۱۲۳۴۵۶۷۸۹';
@@ -207,13 +208,15 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
   app.get('/reports/media', { preHandler: [app.authenticate, app.requirePermissions('pricing.read')] }, async (req) => {
     const actor = actorFrom(req);
     const { from, to } = req.query as { from?: string; to?: string };
-    const orders = await prisma.mediaOrder.findMany({
+    // The newest FACT_CAP orders in the window (audit PERF-4); `truncated` says when there were more.
+    const read = await prisma.mediaOrder.findMany({
       where: {
         organizationId: actor.organizationId, state: { not: 'CANCELLED' },
         ...(from || to ? { flightStart: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lt: new Date(to) } : {}) } } : {}),
       },
-      include,
+      include, orderBy: { flightStart: 'desc' }, take: over(FACT_CAP),
     });
+    const { rows: orders, truncated } = capped(read, FACT_CAP);
     const now = new Date();
     const sum = (xs: typeof orders) => {
       // Decimals (audit CALC-2): each figure rounded once, revenue as the difference of the two printed.
@@ -226,6 +229,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
         .sort((a, b) => b.billings - a.billings);
     const brief = (o: (typeof orders)[number]) => ({ id: o.id, code: o.code, placement: o.placement, project: o.project, supplier: o.supplier, state: o.state, flightEnd: o.flightEnd, clientAmount: n(o.clientAmount), netAmount: n(o.netAmount), currency: o.currency });
     return {
+      truncated,
       totals: sum(orders),
       byChannel: by((o) => o.channel, (o) => MEDIA_CHANNEL_LABELS[o.channel as MediaChannel] ?? o.channel),
       byVendor: by((o) => o.supplierId, (o) => o.supplier.name),

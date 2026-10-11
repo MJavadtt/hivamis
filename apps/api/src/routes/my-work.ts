@@ -5,6 +5,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { pendingForRoles } from '../forms/engine.js';
 import { loadCalendar } from '../sla/engine.js';
 import { predictClocks, type Risk } from '../sla/predict.js';
+import { over, QUEUE_CAP } from '../lib/limits.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 
 /**
@@ -54,20 +55,21 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
     const can = (p: string) => actor.permissions.includes(p as never);
     const proj = { select: { code: true, name: true } } as const;
 
-    const [tasks, orders, clarifications, unitQc, accountQc, finalQc, forms, revisions] = await Promise.all([
+    // Each source capped, what has waited longest first (audit PERF-4); the answer says when one was cut.
+    const sources = await Promise.all([
       prisma.task.findMany({
         where: { organizationId: org, assigneeId: actor.id, state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] } },
-        include: { project: proj },
+        include: { project: proj }, orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }], take: over(QUEUE_CAP),
       }),
       // Orders sit with their owner until submitted for QC.
       prisma.workOrder.findMany({
         where: { organizationId: org, ownerId: actor.id, state: { in: ['ISSUED', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'] } },
-        include: { project: proj },
+        include: { project: proj }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP),
       }),
       // A clarification request sits with whoever may issue orders — Account.
       can('workorder.issue')
         ? prisma.workOrder.findMany({
-            where: { organizationId: org, state: 'CLARIFICATION_REQUESTED' }, include: { project: proj },
+            where: { organizationId: org, state: 'CLARIFICATION_REQUESTED' }, include: { project: proj }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP),
           })
         : Promise.resolve([]),
       // Unit QC: deliverables of my own department, submitted and not yet reviewed since.
@@ -75,13 +77,14 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
         ? prisma.deliverable.findMany({
             where: { organizationId: org, state: 'SUBMITTED', departmentCode: actor.departmentCode },
             include: { project: proj, qcReviews: { where: { level: 'UNIT' }, select: { reviewedAt: true }, orderBy: { reviewedAt: 'desc' }, take: 1 } },
+            orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
           }).then((ds) => ds.filter((d) => !d.qcReviews[0] || (d.submittedAt && d.qcReviews[0].reviewedAt < d.submittedAt)))
         : Promise.resolve([]),
       can('qc.account')
-        ? prisma.deliverable.findMany({ where: { organizationId: org, state: 'IN_QC' }, include: { project: proj } })
+        ? prisma.deliverable.findMany({ where: { organizationId: org, state: 'IN_QC' }, include: { project: proj }, orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP) })
         : Promise.resolve([]),
       can('qc.final')
-        ? prisma.proposal.findMany({ where: { organizationId: org, state: 'FINAL_QC' }, include: { brief: { select: { title: true } } } })
+        ? prisma.proposal.findMany({ where: { organizationId: org, state: 'FINAL_QC' }, include: { brief: { select: { title: true } } }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP) })
         : Promise.resolve([]),
       can('form.approve')
         ? prisma.formSubmission.findMany({
@@ -89,14 +92,16 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
               organizationId: org, state: 'PENDING_APPROVAL', submittedById: { not: actor.id },
               ...pendingForRoles(actor.roles),
             },
-            include: { definition: { select: { nameFa: true } }, project: proj },
+            include: { definition: { select: { nameFa: true } }, project: proj }, orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
           })
         : Promise.resolve([]),
       prisma.revision.findMany({
         where: { organizationId: org, assigneeId: actor.id, state: { notIn: ['APPROVED', 'REJECTED'] } },
-        include: { deliverable: { select: { name: true, project: proj } } },
+        include: { deliverable: { select: { name: true, project: proj } } }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP),
       }),
     ]);
+    const truncated = sources.some((rows) => rows.length > QUEUE_CAP);
+    const [tasks, orders, clarifications, unitQc, accountQc, finalQc, forms, revisions] = sources.map((rows) => rows.slice(0, QUEUE_CAP)) as typeof sources;
 
     const items: WorkItem[] = [
       ...tasks.map((t) => item('task', 'task', t.id, t.code, t.title, t.state, t.project, t.dueDate, `/tasks/${t.id}`)),
@@ -154,7 +159,7 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
       (Object.keys(KIND_LABEL) as WorkKind[]).map((k) => [k, items.filter((i) => i.kind === k).length]),
     ) as Record<WorkKind, number>;
     return {
-      items, counts, kinds: KIND_LABEL,
+      items, counts, kinds: KIND_LABEL, truncated,
       breached: items.filter((i) => i.sla?.state === 'BREACHED').length,
       atRisk: items.filter((i) => i.sla?.state === 'AT_RISK').length,
     };

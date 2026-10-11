@@ -8,6 +8,8 @@ import { costAccuracy } from '../reports/time.js';
 import { isWorkflowEntity } from '@hiva/contracts';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { money, sumOf, toMoney } from '../lib/money.js';
+import type { Prisma } from '@prisma/client';
+import { capped, FACT_CAP, LIST_CAP, over } from '../lib/limits.js';
 import { actorFrom } from '../lib/http.js';
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -228,7 +230,9 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         avgCsat: feedbackAgg._count._all ? Number((feedbackAgg._avg.csat ?? 0).toFixed(2)) : null,
         avgNps: feedbackAgg._count._all ? Number((feedbackAgg._avg.nps ?? 0).toFixed(1)) : null,
       },
-      projectHealth: projectHealth.sort((a, b) => (a.status === 'RED' ? -1 : b.status === 'RED' ? 1 : 0)),
+      // The worst first, at most LIST_CAP of them (audit PERF-4); the counts above are over all of them.
+      projectHealth: projectHealth.sort((a, b) => (a.status === 'RED' ? -1 : b.status === 'RED' ? 1 : 0)).slice(0, LIST_CAP),
+      projectHealthTruncated: projectHealth.length > LIST_CAP,
     };
   });
 
@@ -325,15 +329,18 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const org = actor.organizationId;
-    const [leads, opportunities, briefs, proposals] = await Promise.all([
-      prisma.lead.findMany({ where: { organizationId: org, deletedAt: null } }),
+    // The newest FACT_CAP of each (audit PERF-4): years of history are not read whole for a funnel.
+    const read = await Promise.all([
+      prisma.lead.findMany({ where: { organizationId: org, deletedAt: null }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP) }),
       prisma.opportunity.findMany({
         where: { organizationId: org, deletedAt: null },
-        include: { owner: { select: { id: true, fullName: true } } },
+        include: { owner: { select: { id: true, fullName: true } } }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
       }),
-      prisma.brief.findMany({ where: { organizationId: org, deletedAt: null } }),
-      prisma.proposal.findMany({ where: { organizationId: org, deletedAt: null } }),
+      prisma.brief.findMany({ where: { organizationId: org, deletedAt: null }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP) }),
+      prisma.proposal.findMany({ where: { organizationId: org, deletedAt: null }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP) }),
     ]);
+    const truncated = read.some((rows) => rows.length > FACT_CAP);
+    const [leads, opportunities, briefs, proposals] = read.map((rows) => rows.slice(0, FACT_CAP)) as typeof read;
 
     const won = opportunities.filter((o) => o.state === 'WON');
     const lost = opportunities.filter((o) => o.state === 'LOST');
@@ -351,6 +358,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return {
+      truncated,
       funnel: {
         leads: leads.length,
         qualifiedLeads: leads.filter((l) => ['QUALIFIED', 'CONVERTED'].includes(l.state)).length,
@@ -506,9 +514,12 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('report.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const clocks = await prisma.slaClock.findMany({
+    // The newest FACT_CAP clocks (audit PERF-4); the answer says when there were more.
+    const read = await prisma.slaClock.findMany({
       where: { organizationId: actor.organizationId }, include: { policy: true, pauses: true },
+      orderBy: { startedAt: 'desc' }, take: over(FACT_CAP),
     });
+    const { rows: clocks, truncated } = capped(read, FACT_CAP);
     const cal = await loadCalendar(actor.organizationId);
     const now = new Date();
     type Row = {
@@ -567,6 +578,7 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
         ),
       },
       byPolicy: rows.sort((a, b) => b.total - a.total),
+      truncated,
     };
   });
 
@@ -611,40 +623,42 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const org = actor.organizationId;
     const now = new Date();
+    // A finding is its count and a few examples (audit PERF-4): every row of a long-standing gap was sent.
+    const SAMPLES = 20;
+    const sampled = async (_m: 'project', where: Prisma.ProjectWhereInput) => {
+      const [samples, count] = await Promise.all([
+        prisma.project.findMany({ where, select: { id: true, code: true, name: true }, orderBy: { code: 'asc' }, take: SAMPLES }),
+        prisma.project.count({ where }),
+      ]);
+      return { samples, count };
+    };
 
     const [incompleteBriefs, unauthorizedActive, tasksNoSource, pricelessProposals,
            projectsNoRaci, overdueRevisions, unsettledClosed] = await Promise.all([
       prisma.brief.count({ where: { organizationId: org, completenessScore: { lt: 100 }, state: { not: 'APPROVED' } } }),
-      prisma.project.findMany({
-        where: { organizationId: org, state: 'ACTIVE', authorizations: { none: {} } },
-        select: { id: true, code: true, name: true },
-      }),
+      sampled('project', { organizationId: org, state: 'ACTIVE', authorizations: { none: {} } }),
       prisma.task.count({ where: { organizationId: org, sourceRef: '' } }),
       prisma.proposal.count({
         where: { organizationId: org, state: { in: ['FINAL_QC', 'APPROVED'] }, salePrice: null },
       }),
-      prisma.project.findMany({
-        where: {
-          organizationId: org, state: { in: ['ACTIVE', 'PLANNING'] },
-          raciAssignments: { none: {} },
-        },
-        select: { id: true, code: true, name: true },
-      }),
+      sampled('project', { organizationId: org, state: { in: ['ACTIVE', 'PLANNING'] }, raciAssignments: { none: {} } }),
       prisma.revision.count({
         where: { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] }, dueDate: { lt: now } },
       }),
-      prisma.project.findMany({
-        where: { organizationId: org, state: 'CLOSED', closureChecklist: { financialStatusClear: false } },
-        select: { id: true, code: true, name: true },
-      }),
+      sampled('project', { organizationId: org, state: 'CLOSED', closureChecklist: { financialStatusClear: false } }),
     ]);
 
     // The register of exceptions belongs here too: a waiver is a rule set aside on purpose, and
     // the report that hunts rules set aside by accident should show the deliberate ones beside them.
-    const openWaivers = await prisma.waiver.findMany({
-      where: { organizationId: org, usedAt: null, revokedAt: null, expiresAt: { gt: now } },
-      select: { id: true, entityType: true, entityId: true, guard: true, reason: true, expiresAt: true },
-    });
+    const waiverWhere = { organizationId: org, usedAt: null, revokedAt: null, expiresAt: { gt: now } };
+    const [waiverSamples, waiverCount] = await Promise.all([
+      prisma.waiver.findMany({
+        where: waiverWhere, select: { id: true, entityType: true, entityId: true, guard: true, reason: true, expiresAt: true },
+        orderBy: { expiresAt: 'asc' }, take: SAMPLES,
+      }),
+      prisma.waiver.count({ where: waiverWhere }),
+    ]);
+    const openWaivers = { samples: waiverSamples, count: waiverCount };
     /*
      * Doc_H §6 — no verbal task is valid. A meeting that never got minutes is where decisions stay
      * verbal (roadmap #23): two days is long enough to write them, short enough to still remember.
@@ -660,13 +674,13 @@ const reportRoutes: FastifyPluginAsync = async (app) => {
     const findings = [
       { key: 'incompleteBriefs', labelFa: 'بریف‌های ناقص در جریان', count: incompleteBriefs, severity: 'MEDIUM' },
       { key: 'meetingsWithoutMinutes', labelFa: 'جلسهٔ برگزارشده بدون صورتجلسه — تصمیم‌ها شفاهی مانده‌اند (§۶)', count: meetingsWithoutMinutesCount, severity: 'MEDIUM', samples: meetingsWithoutMinutes },
-      { key: 'openWaivers', labelFa: 'استثناهای باز بر قوانین حاکم', count: openWaivers.length, severity: 'MEDIUM', samples: openWaivers },
-      { key: 'unauthorizedActiveProjects', labelFa: 'پروژه فعال بدون مجوز شروع (نقض §۱۳)', count: unauthorizedActive.length, severity: 'CRITICAL', samples: unauthorizedActive },
+      { key: 'openWaivers', labelFa: 'استثناهای باز بر قوانین حاکم', count: openWaivers.count, severity: 'MEDIUM', samples: openWaivers.samples },
+      { key: 'unauthorizedActiveProjects', labelFa: 'پروژه فعال بدون مجوز شروع (نقض §۱۳)', count: unauthorizedActive.count, severity: 'CRITICAL', samples: unauthorizedActive.samples },
       { key: 'tasksWithoutSource', labelFa: 'وظیفه بدون سند مرجع (نقض §۶)', count: tasksNoSource, severity: 'HIGH' },
       { key: 'proposalsWithoutPrice', labelFa: 'پروپوزال در QC نهایی بدون قیمت', count: pricelessProposals, severity: 'HIGH' },
-      { key: 'projectsWithoutRaci', labelFa: 'پروژه در حال اجرا بدون RACI', count: projectsNoRaci.length, severity: 'MEDIUM', samples: projectsNoRaci },
+      { key: 'projectsWithoutRaci', labelFa: 'پروژه در حال اجرا بدون RACI', count: projectsNoRaci.count, severity: 'MEDIUM', samples: projectsNoRaci.samples },
       { key: 'overdueRevisions', labelFa: 'اصلاحیه‌های سررسید گذشته', count: overdueRevisions, severity: 'HIGH' },
-      { key: 'closedUnsettled', labelFa: 'پروژه بسته با وضعیت مالی نامشخص', count: unsettledClosed.length, severity: 'HIGH', samples: unsettledClosed },
+      { key: 'closedUnsettled', labelFa: 'پروژه بسته با وضعیت مالی نامشخص', count: unsettledClosed.count, severity: 'HIGH', samples: unsettledClosed.samples },
     ];
 
     return {

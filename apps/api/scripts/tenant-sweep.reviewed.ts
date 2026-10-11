@@ -149,6 +149,10 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/governance.ts#GET /meetings",
     "routes/media.ts#GET /media-orders",
     "routes/quality.ts#GET /qc-reviews",
+    "routes/quality.ts#GET /qc/queue",
+    "routes/reports.ts#GET /reports/data-quality",
+    "routes/reports.ts#sampled",
+    "routes/tax.ts#GET /reports/tax",
   ]),
   ...of('OWN', [
     "forms/engine.ts#notifyApprovers",

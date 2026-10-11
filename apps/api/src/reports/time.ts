@@ -9,6 +9,7 @@
  */
 import type { Tx } from '../db.js';
 import { money, sumOf, toMoney, ZERO } from '../lib/money.js';
+import { capped, FACT_CAP, over } from '../lib/limits.js';
 import { badRequest } from '../lib/errors.js';
 
 export const MAX_HOURS_PER_ENTRY = 24;
@@ -73,14 +74,16 @@ export async function costAccuracy(tx: Tx, organizationId: string, window: { fro
   const dateFilter = window.from || window.to
     ? { createdAt: { ...(window.from ? { gte: window.from } : {}), ...(window.to ? { lte: window.to } : {}) } }
     : {};
-  const orders = await tx.workOrder.findMany({
-    where: { organizationId, ...dateFilter },
+  // The newest FACT_CAP orders in the window (audit PERF-4); `truncated` says when there were more.
+  const read = await tx.workOrder.findMany({
+    where: { organizationId, ...dateFilter }, orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
     select: {
       id: true, code: true, title: true, targetDepartmentCode: true, budget: true,
       costDeclarations: { select: { internalCost: true, externalCost: true } },
       tasks: { select: { id: true, departmentCode: true, estimateHours: true, actualHours: true, timeEntries: { select: { hours: true, userId: true } } } },
     },
   });
+  const { rows: orders, truncated } = capped(read, FACT_CAP);
 
   const rateCache = new Map<string, number | null>();
   const rateFor = async (userId: string) => {
@@ -128,7 +131,7 @@ export async function costAccuracy(tx: Tx, organizationId: string, window: { fro
     tasksWithBoth: errors.length,
   })).sort((a, b) => b.declared - a.declared);
 
-  return { window: { from: window.from ?? null, to: window.to ?? null }, units, workOrders: perOrder.filter((r) => r.declared > 0 || r.hours > 0) };
+  return { window: { from: window.from ?? null, to: window.to ?? null }, units, workOrders: perOrder.filter((r) => r.declared > 0 || r.hours > 0), truncated };
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;

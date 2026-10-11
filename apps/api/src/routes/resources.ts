@@ -10,6 +10,7 @@ import { loadCalendar } from '../sla/engine.js';
 import { notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { assertOwnReferences, organizationWhere } from '../lib/scope.js';
+import { capped, LIST_CAP, over } from '../lib/limits.js';
 import { personLoads } from '../reports/capacity.js';
 
 const resourceRoutes: FastifyPluginAsync = async (app) => {
@@ -91,10 +92,11 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
    */
   app.get('/allocations', {
     preHandler: [app.authenticate, app.requirePermissions('resource.read')],
-  }, async (req) => {
+  }, async (req, reply) => {
     const actor = actorFrom(req);
     const { projectId, userId, from, to } = req.query as Record<string, string | undefined>;
-    return prisma.allocation.findMany({
+    // At most LIST_CAP, soonest first (audit PERF-4); a list response says it was cut in a header.
+    const read = await prisma.allocation.findMany({
       where: {
         ...organizationWhere('allocation', actor.organizationId),
         ...(projectId ? { projectId } : {}), ...(userId ? { userId } : {}),
@@ -104,8 +106,11 @@ const resourceRoutes: FastifyPluginAsync = async (app) => {
         user: { select: { id: true, fullName: true, departmentId: true } },
         project: { select: { id: true, code: true, name: true } },
       },
-      orderBy: { fromDate: 'asc' },
+      orderBy: { fromDate: 'asc' }, take: over(LIST_CAP),
     });
+    const { rows, truncated } = capped(read, LIST_CAP);
+    reply.header('x-hiva-truncated', String(truncated));
+    return rows;
   });
 
   app.post('/allocations', {

@@ -21,6 +21,8 @@ interface WorkItem {
 }
 interface Queue {
   items: WorkItem[]; counts: Record<string, number>; kinds: Record<string, string>; breached: number; atRisk: number;
+  /** Audit PERF-4: a queue longer than one reading takes; what has waited longest is shown. */
+  truncated?: boolean;
 }
 
 /** How a clock reads at a glance: what is left of it, or that it is gone. */
@@ -71,6 +73,11 @@ export default function MyWork() {
               <StatTile label={tr('در خطر')} value={localDigits(data.atRisk)} tone={data.atRisk > 0 ? 'warning' : 'neutral'} />
               <StatTile label={tr('نوع کار')} value={localDigits(Object.values(data.counts).filter(Boolean).length)} />
             </div>
+            {data.truncated && (
+              <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900" data-testid="work-truncated">
+                {tr('صف شما بلندتر از آن است که یک‌جا نشان داده شود؛ آنچه بیشتر منتظر مانده آمده است. با بستن کارها بقیه نمایان می‌شوند.')}
+              </p>
+            )}
 
             <div data-tour="work-kinds" className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={tr('فیلتر بر اساس نوع کار')}>
               <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>{tr('همه')}</Button>

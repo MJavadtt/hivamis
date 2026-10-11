@@ -7,6 +7,7 @@ import { docHeader, routingBand, section } from './sections.js';
 import {
   buildBrief, buildContract, buildFormSubmission, buildInvoice, buildProposal, type BuiltDocument,
 } from './templates.js';
+import { money as decimal, sumOf } from '../lib/money.js';
 import {
   buildChangeRequest, buildClosureReport, buildCompany, buildDeliverable, buildMeeting,
   buildProject, buildQcReview, buildRevision, buildStatusReport, buildWorkOrder,
@@ -21,15 +22,18 @@ async function buildExecutiveReport(_id: string, orgId: string, user: AccessToke
   const red = redactionFor(user);
   const now = new Date();
 
-  const [projects, opportunities, invoices, payments, overdueTasks, breachedSlas, openRisks] = await Promise.all([
+  // Totals from the database, and only the projects the document lists (audit PERF-4): every invoice and
+  // payment of every year was read to add them up.
+  const [projects, byState, opportunities, invoiceSum, paymentSums, overdueTasks, breachedSlas, openRisks] = await Promise.all([
     prisma.project.findMany({
       where: { organizationId: orgId, deletedAt: null },
       include: { company: { select: { legalName: true } }, accountOwner: { select: { fullName: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }, take: 60,
     }),
-    prisma.opportunity.findMany({ where: { organizationId: orgId, deletedAt: null } }),
-    prisma.invoice.findMany({ where: { organizationId: orgId } }),
-    prisma.payment.findMany({ where: { organizationId: orgId } }),
+    prisma.project.groupBy({ by: ['state'], where: { organizationId: orgId, deletedAt: null }, _count: { _all: true } }),
+    prisma.opportunity.groupBy({ by: ['state'], where: { organizationId: orgId, deletedAt: null }, _count: { _all: true }, _sum: { estimatedValue: true } }),
+    prisma.invoice.aggregate({ where: { organizationId: orgId }, _sum: { total: true } }),
+    prisma.payment.groupBy({ by: ['direction'], where: { organizationId: orgId }, _sum: { amount: true } }),
     prisma.task.count({
       where: {
         organizationId: orgId, dueDate: { lt: now },
@@ -40,21 +44,22 @@ async function buildExecutiveReport(_id: string, orgId: string, user: AccessToke
     prisma.risk.count({ where: { organizationId: orgId, state: { not: 'CLOSED' } } }),
   ]);
 
-  const active = projects.filter((p) => ['ACTIVE', 'PLANNING', 'AUTHORIZED'].includes(p.state));
-  const invoiced = invoices.reduce((s, i) => s + Number(i.total), 0);
-  const received = payments.filter((p) => p.direction === 'IN').reduce((s, p) => s + Number(p.amount), 0);
-  const spent = payments.filter((p) => p.direction === 'OUT').reduce((s, p) => s + Number(p.amount), 0);
-  const pipeline = opportunities
-    .filter((o) => !['WON', 'LOST'].includes(o.state))
-    .reduce((s, o) => s + Number(o.estimatedValue), 0);
-  const won = opportunities.filter((o) => o.state === 'WON').length;
-  const decided = opportunities.filter((o) => ['WON', 'LOST'].includes(o.state)).length;
+  const countOf = (states: string[]) => byState.filter((r) => states.includes(r.state)).reduce((s, r) => s + r._count._all, 0);
+  const activeCount = countOf(['ACTIVE', 'PLANNING', 'AUTHORIZED']);
+  const totalProjects = byState.reduce((s, r) => s + r._count._all, 0);
+  const invoicedD = decimal(invoiceSum._sum.total);
+  const receivedD = decimal(paymentSums.find((p) => p.direction === 'IN')?._sum.amount);
+  const invoiced = invoicedD.toNumber(), received = receivedD.toNumber();
+  const spent = decimal(paymentSums.find((p) => p.direction === 'OUT')?._sum.amount).toNumber();
+  const pipeline = sumOf(opportunities.filter((o) => !['WON', 'LOST'].includes(o.state)).map((o) => o._sum.estimatedValue)).toNumber();
+  const won = opportunities.filter((o) => o.state === 'WON').reduce((s, o) => s + o._count._all, 0);
+  const decided = opportunities.filter((o) => ['WON', 'LOST'].includes(o.state)).reduce((s, o) => s + o._count._all, 0);
 
   const html = [
     docHeader({ title: 'گزارش مدیریتی — برج کنترل', subtitle: `تاریخ تهیه: ${dateTime(now)}` }),
     routingBand([
-      ['پروژه‌های فعال', num(active.length)],
-      ['کل پروژه‌ها', num(projects.length)],
+      ['پروژه‌های فعال', num(activeCount)],
+      ['کل پروژه‌ها', num(totalProjects)],
       ['وظایف معوق', num(overdueTasks)],
       ['SLAهای نقض‌شده', num(breachedSlas)],
       ['ریسک‌های باز', num(openRisks)],
@@ -65,22 +70,19 @@ async function buildExecutiveReport(_id: string, orgId: string, user: AccessToke
           ['ارزش خط لوله فروش', money(pipeline)],
           ['جمع فاکتورشده', money(invoiced)],
           ['جمع دریافتی', money(received)],
-          ['مانده مطالبات', money(invoiced - received)],
+          ['مانده مطالبات', money(invoicedD.sub(receivedD).toNumber())],
           ['جمع هزینه پرداختی', red.cost ? money(spent) : '<span class="redacted">محرمانه</span>'],
         ])
       : '<p class="redacted">محرمانه — خارج از سطح دسترسی</p>'),
     section('وضعیت پرتفوی پروژه‌ها', table(
       ['کد', 'پروژه', 'مشتری', 'مالک اکانت', 'سلامت', 'وضعیت'],
-      projects.slice(0, 60).map((p) => [
+      projects.map((p) => [
         esc(p.code), esc(p.name), esc(p.company.legalName),
         esc(p.accountOwner.fullName), chip(p.healthStatus), chip(p.state),
       ]),
     )),
     section('توزیع وضعیت پروژه‌ها', table(['وضعیت', 'تعداد'],
-      Object.entries(projects.reduce<Record<string, number>>((acc, p) => {
-        acc[p.state] = (acc[p.state] ?? 0) + 1;
-        return acc;
-      }, {})).map(([s, n]) => [chip(s), num(n)]))),
+      byState.map((r) => [chip(r.state), num(r._count._all)]))),
   ].join('');
 
   return { html, code: `EXEC-${now.toISOString().slice(0, 10)}`, titleFa: 'گزارش مدیریتی', redaction: red };

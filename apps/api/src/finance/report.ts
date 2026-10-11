@@ -12,6 +12,7 @@
  */
 import type { Prisma } from '@prisma/client';
 import type { Tx } from '../db.js';
+import { capped, FACT_CAP, over } from '../lib/limits.js';
 import { baseCurrency, currencyFa, D, findRate, settledEpsilon } from './fx.js';
 
 const n = (d: Prisma.Decimal | null | undefined) => (d == null ? null : Number(d.toDecimalPlaces(2)));
@@ -26,14 +27,18 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
   };
 
   // ── Open receivables in another currency, booked vs today.
-  const invoices = await tx.invoice.findMany({
+  // Each list the newest FACT_CAP (audit PERF-4); `truncated` says when one was cut.
+  const cut: boolean[] = [];
+  const keep = <T>(rows: T[]) => { const c = capped(rows, FACT_CAP); cut.push(c.truncated); return c.rows; };
+  const invoices = keep(await tx.invoice.findMany({
+    orderBy: { issueDate: 'desc' }, take: over(FACT_CAP),
     where: { organizationId, currency: { not: base }, state: { not: 'CANCELLED' } },
     select: {
       id: true, code: true, number: true, currency: true, fxRate: true, fxRateDate: true, issueDate: true, dueDate: true,
       originalTotal: true, originalPaidAmount: true, company: { select: { id: true, legalName: true } },
       project: { select: { id: true, code: true, name: true } },
     },
-  });
+  }));
   const receivables = [];
   for (const i of invoices) {
     const open = D(i.originalTotal ?? 0).sub(i.originalPaidAmount ?? 0);
@@ -50,7 +55,8 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
   }
 
   // ── Receipts against foreign invoices, at the rate they came in vs the rate they were booked at.
-  const payments = await tx.payment.findMany({
+  const payments = keep(await tx.payment.findMany({
+    take: over(FACT_CAP),
     where: {
       organizationId, direction: 'IN', settledOriginal: { not: null },
       invoice: { currency: { not: base } },
@@ -61,7 +67,7 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
       invoice: { select: { id: true, code: true, number: true, currency: true, fxRate: true, company: { select: { legalName: true } } } },
     },
     orderBy: { occurredAt: 'desc' },
-  });
+  }));
   const realised = payments.map((p) => {
     const booked = D(p.settledOriginal!).mul(p.invoice!.fxRate);
     return {
@@ -87,13 +93,14 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
   }
 
   // ── Costs declared in another currency: what they would cost in base today.
-  const costs = await tx.costDeclaration.findMany({
+  const costs = keep(await tx.costDeclaration.findMany({
+    orderBy: { createdAt: 'desc' }, take: over(FACT_CAP),
     where: { organizationId, externalCurrency: { not: base } },
     select: {
       id: true, externalCurrency: true, externalCost: true, originalExternalCost: true, fxRateDate: true, departmentCode: true, createdAt: true,
       workOrder: { select: { id: true, code: true, title: true, project: { select: { id: true, code: true, name: true } } } },
     },
-  });
+  }));
   const costRows = [];
   for (const c of costs) {
     const r = await rateNow(c.externalCurrency);
@@ -130,5 +137,6 @@ export async function fxReport(tx: Tx, organizationId: string, window: { from: D
     base, baseLabelFa: currencyFa(base), window,
     totals: { unrealised: total('unrealised'), realised: total('realised') },
     byCurrency, receivables, realised, contracts: contractRows, costs: costRows,
+    truncated: cut.some(Boolean),
   };
 }

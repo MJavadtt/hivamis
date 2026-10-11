@@ -55,7 +55,7 @@ export interface Hit {
   where: string;
 }
 
-function files(dir: string): string[] {
+export function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = path.join(dir, n);
     return statSync(p).isDirectory() ? files(p) : /\.ts$/.test(n) && !/\.d\.ts$/.test(n) ? [p] : [];
@@ -63,7 +63,7 @@ function files(dir: string): string[] {
 }
 
 /** The function a node sits in — `name`, `POST /x` for a route, or `<top>` — and the line it starts on. */
-function enclosing(node: ts.Node, sf: ts.SourceFile): { name: string; line: number } {
+export function enclosing(node: ts.Node, sf: ts.SourceFile): { name: string; line: number } {
   const at = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
   for (let p: ts.Node | undefined = node.parent; p; p = p.parent) {
     if (ts.isFunctionDeclaration(p) && p.name) return { name: p.name.text, line: at(p) };

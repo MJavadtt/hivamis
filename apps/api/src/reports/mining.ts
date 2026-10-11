@@ -13,6 +13,7 @@
  */
 import { WORKFLOWS } from '@hiva/contracts';
 import type { Tx } from '../db.js';
+import { capped, FACT_CAP, over } from '../lib/limits.js';
 import { businessHoursBetween, type Calendar } from '../lib/business-calendar.js';
 
 export interface MinedEdge {
@@ -67,7 +68,13 @@ export interface MiningResult {
   cycleTime: { meanHours: number | null; medianHours: number | null; completed: number };
   /** States ranked by mean dwell — the bottlenecks. */
   bottlenecks: { state: string; meanDwellHours: number; visits: number }[];
+  /** Audit PERF-4: more moves than one reading takes; the last cases may be missing their latest moves. */
+  truncated: boolean;
 }
+
+/** Audit PERF-4: with no window asked for, the last year — not every move since the system began. */
+const DEFAULT_WINDOW_DAYS = 365;
+const MOVES_CAP = 5 * FACT_CAP;
 
 const median = (xs: number[]) => {
   if (!xs.length) return null;
@@ -113,7 +120,8 @@ export async function mine(
   const wf = WORKFLOWS[entity];
   if (!wf) throw new Error(`no state machine for ${entity}`);
 
-  const rows = await tx.stateTransition.findMany({
+  if (!window.from && !window.to) window = { from: new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000) };
+  const read = await tx.stateTransition.findMany({
     where: {
       // A state recorded on migration (#48) is not an event of this process.
       organizationId, entityType: entity, opening: false,
@@ -121,7 +129,9 @@ export async function mine(
     },
     orderBy: [{ entityId: 'asc' }, { createdAt: 'asc' }],
     select: { entityId: true, fromState: true, toState: true, action: true, actorId: true, createdAt: true, cascade: true },
+    take: over(MOVES_CAP),
   });
+  const { rows, truncated } = capped(read, MOVES_CAP);
 
   // Cases: the events of each record, in order, preceded by its creation as the arrival in
   // the initial state — the log records moves, and the first move's wait starts at creation.
@@ -207,5 +217,6 @@ export async function mine(
     cycleTime: { meanHours: mean(cycle), medianHours: median(cycle), completed: cycle.length },
     bottlenecks: nodes.filter((n) => n.meanDwellHours != null && !n.terminal).map((n) => ({ state: n.state, meanDwellHours: n.meanDwellHours!, visits: n.visits }))
       .sort((a, b) => b.meanDwellHours - a.meanDwellHours).slice(0, 5),
+    truncated,
   };
 }

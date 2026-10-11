@@ -23,6 +23,7 @@ import {
 } from './catalog.js';
 import { parseQuestion, type Clarify, type Vocab } from './parse.js';
 import { money, toMoney, ZERO, type Money } from '../lib/money.js';
+import { FACT_CAP } from '../lib/limits.js';
 import { ALL_TIME, previousPeriod, resolvePeriod, type Period } from './periods.js';
 
 export interface AskActor {
@@ -261,7 +262,12 @@ export async function ask(
     const r = await spec.direct(ctx);
     value = r.value; countFa = r.countFa; caveatsFa.push(...r.noteFa);
   } else {
-    const facts = await spec.facts!(ctx);
+    // At most FACT_CAP records counted (audit PERF-4); the answer says when there were more.
+    let facts = await spec.facts!(ctx);
+    if (facts.length > FACT_CAP) {
+      facts = facts.slice(0, FACT_CAP);
+      caveatsFa.push(`فقط ${FACT_CAP.toLocaleString('fa-IR')} رکورد تازه‌تر شمرده شد؛ بازه را کوتاه‌تر کنید تا همه حساب شوند.`);
+    }
     const total = sum(facts);
     value = spec.value(total);
     countFa = spec.countFa(total);
