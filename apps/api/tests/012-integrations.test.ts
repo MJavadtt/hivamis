@@ -88,6 +88,19 @@ describe('API keys: a system acting with a narrowed, revocable authority', () =>
   });
 });
 
+/**
+ * Dispatch until `done`. The dispatcher reads below the oldest write transaction still running (audit
+ * LOG-1) — on a test database shared by files running side by side, another file's may be open for a
+ * moment, and the event goes out on the next pass rather than this one.
+ */
+async function dispatchUntil(done: () => boolean | Promise<boolean>) {
+  for (let i = 0; i < 50 && !(await done()); i++) {
+    await dispatchWebhooks();
+    if (!(await done())) await new Promise((r) => setTimeout(r, 100));
+  }
+  expect(await done()).toBe(true);
+}
+
 describe('Webhooks: thin, signed events from the transition log', () => {
   it('refuses addresses on the internal network — when saved, and again after DNS', async () => {
     expect(checkWebhookUrl('http://example.com/hook', false).ok).toBe(false);          // https only
@@ -133,8 +146,7 @@ describe('Webhooks: thin, signed events from the transition log', () => {
       const lead = expectOk(await post('/leads', T.sales, { name: 'درخواست کمپین پاییز', companyName: 'شرکت نمونهٔ بیرونی', contactName: 'مخاطب محرمانه', ...directLead() }), 'lead');
       expectOk(await move('lead', lead.id, 'contact', T.sales), 'contact');
 
-      const first = await dispatchWebhooks();
-      expect(first.delivered).toBeGreaterThanOrEqual(1);
+      await dispatchUntil(() => received.some((r) => JSON.parse(r.body).data?.entityId === lead.id));
       const got = received.find((r) => JSON.parse(r.body).data?.entityId === lead.id)!;
       expect(got.headers['x-hiva-event']).toBe('lead.contact');
       const ts = Number(got.headers['x-hiva-timestamp']);
@@ -150,7 +162,7 @@ describe('Webhooks: thin, signed events from the transition log', () => {
       const sub = expectOk(await post('/admin/webhooks', T.admin, { name: 'گیرندهٔ از کار افتاده', url, events: ['lead.*'] }), 'webhook');
       const lead = expectOk(await post('/leads', T.sales, { name: 'سرنخ دوم', companyName: 'شرکت دوم', ...directLead() }), 'lead');
       expectOk(await move('lead', lead.id, 'contact', T.sales), 'contact');
-      await dispatchWebhooks();
+      await dispatchUntil(async () => (await prisma.webhookDelivery.count({ where: { subscriptionId: sub.id } })) > 0);
       let d = await prisma.webhookDelivery.findFirstOrThrow({ where: { subscriptionId: sub.id } });
       expect(d).toMatchObject({ status: 'PENDING', attempts: 1, lastStatusCode: 500 });
       expect(d.nextAttemptAt.getTime() - Date.now()).toBeGreaterThan(50_000);          // a minute later

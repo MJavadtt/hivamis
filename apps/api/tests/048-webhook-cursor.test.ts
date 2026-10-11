@@ -8,6 +8,11 @@ import { enqueueDeliveries } from '../src/integrations/webhooks.js';
  * A transaction that began first and committed last wrote a row behind a cursor that had already
  * passed it, and that event was never sent. Read by transaction id below the oldest one running, it is.
  */
+/** Enqueue until `done`: another test file's write transaction may hold the horizon back for a moment. */
+async function enqueueUntil(done: () => Promise<boolean>) {
+  for (let i = 0; i < 50 && !(await done()); i++) { await enqueueDeliveries(); if (!(await done())) await new Promise((r) => setTimeout(r, 100)); }
+}
+
 describe('Webhooks read every transition, however the transactions overlap (audit LOG-1)', () => {
   afterAll(async () => { await closeApp(); });
 
@@ -44,7 +49,7 @@ describe('Webhooks read every transition, however the transactions overlap (audi
     // …and once it commits, both are — the slow row included, which a createdAt cursor had passed.
     release();
     await slow;
-    await enqueueDeliveries();
+    await enqueueUntil(async () => (await reasons()).length === 2);
     expect(await reasons()).toEqual(['quick', 'slow']);
 
     // Read again, nothing is sent twice.
@@ -60,7 +65,7 @@ describe('Webhooks read every transition, however the transactions overlap (audi
       data: { organizationId: admin.organizationId, name: 'تازه', url: 'https://receiver.example/new', secret: 'whsec_test', events: ['lead.*'], createdById: admin.id },
     });
     await prisma.stateTransition.create({ data: { organizationId: admin.organizationId, entityType: 'lead', entityId: lead.id, fromState: 'NEW', toState: 'CONTACTED', action: 'contact', reason: 'after', actorId: admin.id } });
-    await enqueueDeliveries();
+    await enqueueUntil(async () => (await prisma.webhookDelivery.count({ where: { subscriptionId: sub.id } })) > 0);
     const sent = await prisma.webhookDelivery.findMany({ where: { subscriptionId: sub.id } });
     expect(sent.map((d) => (d.payload as { data: { reason: string } }).data.reason)).toEqual(['after']);
   });
