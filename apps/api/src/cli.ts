@@ -7,7 +7,7 @@
  *   reference:sync         bring every organisation's reference data up to the code [--slug s]
  *   tenant:list            the organisations on this installation
  *   tenant:create          --name --slug --admin-email --admin-name [--host h]… [--legal-name] [--currency] [--timezone]
- *   tenant:update          --slug [--name] [--add-host h]… [--remove-host h]… [--suspend | --resume]
+ *   tenant:update          --slug [--name] [--add-host h]… [--remove-host h]… [--suspend | --resume] [--quota-mb N | --quota-mb none]
  *   demo:deactivate        deactivate every demo account (@hiva.local) and end its sessions — what a
  *                          production API that refuses to start asks for (audit SEC-8)
  */
@@ -35,6 +35,14 @@ export function parseArgs(argv: string[]): { command: string; flags: Flags } {
 }
 
 const one = (f: Flags, k: string) => f[k]?.[f[k]!.length - 1];
+/** `--quota-mb 2048`, or `none` for no limit (audit LOG-5); absent leaves it as it is. */
+const quotaOf = (v: string | undefined): number | null | undefined => {
+  if (v === undefined) return undefined;
+  if (v === 'none') return null;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n <= 0) throw new AppError(400, 'BAD_QUOTA', '--quota-mb یک عدد درست مثبت یا none است.');
+  return n;
+};
 const need = (f: Flags, k: string) => {
   const v = one(f, k);
   if (!v || v === 'true') throw new AppError(400, 'MISSING_FLAG', `--${k} لازم است.`);
@@ -64,12 +72,13 @@ export async function run(argv: string[]): Promise<unknown> {
       return updateOrganization(need(flags, 'slug'), {
         name: one(flags, 'name'), addHosts: flags['add-host'], removeHosts: flags['remove-host'],
         active: flags.suspend ? false : flags.resume ? true : undefined,
+        storageQuotaMb: quotaOf(one(flags, 'quota-mb')),
       });
     case 'demo:deactivate':
       return deactivateDemoAccounts();
     default:
       return {
-        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] | demo:deactivate',
+        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate',
       };
   }
 }

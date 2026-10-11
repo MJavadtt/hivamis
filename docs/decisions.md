@@ -2248,3 +2248,35 @@ installation.
 
 **Rationale.** A person who works for two organisations on one installation, say a holding company and
 its agency, could have an account in only one of them. In single-organisation mode nothing changes.
+
+## ADR-079 — Files leave nothing half-written, go after a retention period unless held, and fit a quota
+
+**Decision.** (Audit LOG-5.)
+
+- **Nothing half-written.** Uploads are written through `writeUpload`, which removes the partial file
+  when the stream breaks off.
+- **Deleted files are removed after a retention period.** Each night `documents:purge` removes the files
+  of documents deleted more than `FILE_RETENTION_DAYS` ago (default 90).
+  - The row stays, marked `purgedAt`, and each removal is audited as `PURGE` in the same transaction.
+  - The row is marked before the file is unlinked, so a crash leaves a file too many, never a row
+    without its file.
+- **Some files are never removed by this:**
+  - QC evidence;
+  - documents under legal hold (`POST /documents/:id/legal-hold`, held by the legal team with a
+    reason, audited);
+  - an e-signature envelope's original or signed copy.
+- **Each organisation can be given a storage quota.** The installation operator sets it with
+  `tenant update --quota-mb`; the organisation cannot set its own. An upload is checked before it is
+  read and again once its size is known, and refused with `413 STORAGE_QUOTA`.
+
+**Rationale.**
+
+- An upload that broke off left its partial file on disk forever.
+- A soft-deleted document kept its file forever. That is right for the audit trail's row, wrong for
+  the bytes.
+- One organisation could fill the disk every other one shares.
+
+**Limits.**
+
+- Guide videos are the installation's, not an organisation's, and do not count toward a quota.
+- A purged document can no longer be downloaded or held.

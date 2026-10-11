@@ -109,6 +109,7 @@ come from `tenant:create`, as the installer does.
 | `FX_MAX_RATE_AGE_DAYS` | no | 7 | How old an exchange rate may be and still convert a new figure (roadmap #28). A figure dated after the last rate by more than this is refused with `FX_RATE_STALE` until that day's rate is recorded — the rial moves daily, and last month's rate is a figure nobody agreed to. `0` demands a rate for the exact day |
 | `WEBHOOK_ALLOW_PRIVATE` | no | false | Let webhooks call internal addresses (and plain http) — roadmap #46. Off, a webhook URL that is or resolves to loopback, a private range or link-local (cloud metadata) is refused, on save and at connection time. Turn on only for an on-premise installation whose receivers share its network: it re-opens server-side request forgery to anyone holding `admin.keys` |
 | `WEBHOOK_CONCURRENCY` | no | 8 | Deliveries in flight at once, across receivers (audit PERF-2). Each receiver gets one at a time, in order, so a slow one holds up only itself |
+| `FILE_RETENTION_DAYS` | no | 90 | Days a deleted document's file is kept before the nightly `documents:purge` job removes it from disk (audit LOG-5). Never removed: QC evidence, anything under legal hold, an e-signature envelope's original or signed copy. Each removal is in the audit trail; the document's row stays |
 | `MOADIAN_MODE` | no | off | سامانهٔ مؤدیان (roadmap #32): `off` prepares and queues e-invoices without sending; `sandbox` sends to an in-process stand-in that accepts what passes validation — for training, **not** the tax authority; `live` uses the direct API |
 | `ESIGN_MODE` | no | `sandbox` outside production, `off` in production | Contract e-signature (roadmap #36): `off` — signatures are recorded by hand; `sandbox` — an in-process stand-in, **not** a legal signature; `http` — a provider behind the contract below |
 | `ESIGN_URL` · `ESIGN_API_KEY` | for `http` | — | The provider bridge's base URL and bearer key |
@@ -289,6 +290,8 @@ Put a TLS proxy in front of it and add HSTS there — not in `nginx.conf`, which
 certificate. See "Reverse proxy and headers" below. This is not optional: in production the
 refresh cookie is `Secure`, and a browser does not keep a Secure cookie from a plain-http address
 other than `localhost` — people sign in, and are signed out again at the next refresh.
+
+**Storage quota (optional).** An organisation's files can be capped, in megabytes: `infrastructure/hivamis tenant update --slug SLUG --quota-mb 20480` (or `--quota-mb none`). An upload that would pass it is refused with `413 STORAGE_QUOTA`, saying how much is used and that deleted documents' files are removed after `FILE_RETENTION_DAYS`. The organisation sees its usage on `GET /organization` (`storageUsedMb`, `storageQuotaMb`) but cannot change its own quota (audit LOG-5).
 
 **5. Backups scheduled *and* a restore rehearsed.** A backup that has never been restored is
 an assumption, not a backup:

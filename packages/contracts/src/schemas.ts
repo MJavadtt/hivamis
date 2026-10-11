@@ -602,6 +602,12 @@ export const updateOrganizationSchema = z.object({
   contractValueIncludesTax: z.boolean().optional(),
 }).refine((o) => o.workStartHour == null || o.workEndHour == null || o.workStartHour < o.workEndHour, { message: 'ساعت پایان کار باید پس از شروع باشد', path: ['workEndHour'] });
 
+/** Audit LOG-5: a legal hold keeps a document's file whatever happens to the document; its reason is required. */
+export const legalHoldSchema = z.object({
+  hold: z.boolean(),
+  reason: z.string().trim().min(3).max(500).optional(),
+}).refine((o) => !o.hold || !!o.reason, { message: 'دلیل نگه‌داشت حقوقی لازم است', path: ['reason'] });
+
 export const updateSlaPolicySchema = z.object({
   hours: z.number().min(0.5).max(2000).optional(),
   warnAt: z.number().min(0.1).max(0.99).optional(),

@@ -1,8 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
-import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { GUIDE } from '@hiva/contracts';
 import { prisma } from '../db.js';
@@ -10,6 +8,7 @@ import { env } from '../env.js';
 import { actorFrom } from '../lib/http.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
+import { writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
 
 /**
@@ -87,7 +86,8 @@ const guideRoutes: FastifyPluginAsync = async (app) => {
       size += chunk.length;
       if (headBytes < SIGNATURE_HEAD_BYTES) { head.push(chunk.subarray(0, SIGNATURE_HEAD_BYTES - headBytes)); headBytes += chunk.length; }
     });
-    await pipeline(file.file, createWriteStream(target));
+    // A stream that breaks off leaves no half-written file behind (audit LOG-5).
+    await writeUpload(file.file, target);
     if ((file.file as { truncated?: boolean }).truncated) {
       await unlink(target).catch(() => undefined);
       throw badRequest('FILE_TOO_LARGE', `حداکثر حجم ویدیو ${env.GUIDE_VIDEO_MAX_MB} مگابایت است.`);

@@ -1,16 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { createHash, randomUUID } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
-import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
-import { actorFrom } from '../lib/http.js';
-import { AppError, badRequest, notFound } from '../lib/errors.js';
-import { BRAND_ROLES, type BrandRole } from '@hiva/contracts';
+import { parse, actorFrom } from '../lib/http.js';
+import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
+import { BRAND_ROLES, legalHoldSchema, type BrandRole } from '@hiva/contracts';
 import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
+import { assertStorageFor, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
 
 /** Only these types are accepted; anything executable or unknown is refused. */
@@ -66,6 +65,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const file = await (req as any).file();
     if (!file) throw badRequest('NO_FILE', 'فایلی ارسال نشده است.');
 
+    // A full store refuses before a byte is read (audit LOG-5).
+    await assertStorageFor(actor.organizationId, 0);
     const mimeType = declaredType(file.mimetype, file.filename);
     if (!ALLOWED_MIME.has(mimeType)) {
       throw badRequest('UNSUPPORTED_TYPE', `نوع فایل «${file.mimetype}» مجاز نیست.`);
@@ -94,11 +95,13 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       }
     });
 
-    await pipeline(file.file, createWriteStream(target));
+    // A stream that breaks off leaves no half-written file behind (audit LOG-5).
+    await writeUpload(file.file, target);
     if ((file.file as any).truncated) {
       await unlink(target).catch(() => undefined);
       throw badRequest('FILE_TOO_LARGE', `حداکثر حجم مجاز ${env.MAX_UPLOAD_MB} مگابایت است.`);
     }
+    await assertStorageFor(actor.organizationId, size).catch(async (e) => { await unlink(target).catch(() => undefined); throw e; });
 
     // The declared Content-Type is client-controlled; confirm the bytes agree with it.
     if (!signatureMatches(mimeType, Buffer.concat(headChunks))) {
@@ -297,6 +300,32 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       },
     });
     return rows.map(({ _count, ...r }) => ({ ...r, current: !r.supersededAt, annotations: _count.annotations }));
+  });
+
+  /**
+   * Audit LOG-5: a legal hold — a dispute, an inquiry — keeps the document's file whatever happens to the
+   * document, past the retention period, until it is lifted. The legal team's to place and lift.
+   */
+  app.post('/documents/:id/legal-hold', {
+    preHandler: [app.authenticate, app.requirePermissions('contract.legal_review')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { hold, reason } = parse(legalHoldSchema, req.body ?? {});
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!doc) throw notFound('سند');
+    if (doc.purgedAt) throw conflict('ALREADY_PURGED', 'پروندهٔ این سند پیش‌تر پاک شده است؛ نگه‌داشتی برای آن نمی‌ماند.');
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.document.update({ where: { id }, data: { legalHold: hold, legalHoldReason: hold ? reason! : null } });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: hold ? 'LEGAL_HOLD' : 'LEGAL_HOLD_RELEASED',
+        entityType: 'document', entityId: id, before: { legalHold: doc.legalHold, legalHoldReason: doc.legalHoldReason },
+        after: { legalHold: u.legalHold, legalHoldReason: u.legalHoldReason }, reason: reason ?? null,
+        ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      return u;
+    });
+    return { id, legalHold: updated.legalHold, legalHoldReason: updated.legalHoldReason };
   });
 
   app.delete('/documents/:id', {

@@ -118,6 +118,8 @@ export async function provisionOrganization(input: ProvisionInput, db: PrismaCli
 
 export async function updateOrganization(slug: string, change: {
   name?: string; addHosts?: string[]; removeHosts?: string[]; active?: boolean;
+  /** Audit LOG-5: megabytes of files the organisation may keep; null, no limit. The operator's to set. */
+  storageQuotaMb?: number | null;
 }, db: PrismaClient = defaultPrisma) {
   const org = await db.organization.findUnique({ where: { slug: slug.toLowerCase() } });
   if (!org) throw notFound('سازمان');
@@ -131,8 +133,9 @@ export async function updateOrganization(slug: string, change: {
       hosts,
       ...(change.name?.trim() ? { name: change.name.trim() } : {}),
       ...(change.active !== undefined ? { isActive: change.active } : {}),
+      ...(change.storageQuotaMb !== undefined ? { storageQuotaMb: change.storageQuotaMb } : {}),
     },
-    select: { id: true, name: true, slug: true, hosts: true, isActive: true },
+    select: { id: true, name: true, slug: true, hosts: true, isActive: true, storageQuotaMb: true },
   });
   // A suspended organisation's sessions end now, not at their next refresh.
   if (change.active === false) {

@@ -56,6 +56,14 @@ A session ends with a reason (`ROTATED`, `SIGNED_OUT`, `PASSWORD_CHANGED`, `ROLE
 is treated as theft — every session of the user ends and `REFRESH_TOKEN_REUSE` is audited; a token
 whose session ended any other way is simply refused.
 
+### Documents: retention, legal hold, quota (audit LOG-5)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /documents/:id/legal-hold` `{ hold, reason }` | `contract.legal_review` — keep the file whatever happens to the document (a reason is required to place a hold); audited as `LEGAL_HOLD` / `LEGAL_HOLD_RELEASED` |
+
+An upload past the organisation's storage quota answers `413 STORAGE_QUOTA` with `{ usedMb, quotaMb }`.
+
 ## Conventions
 
 **Pagination** — list endpoints accept `page`, `pageSize` (max 200), `sort`, `order`, `q`:

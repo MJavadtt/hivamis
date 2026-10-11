@@ -7,6 +7,7 @@ import { notifyPredictedBreaches } from '../sla/predict.js';
 import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
 import { pruneFailures } from '../auth/throttle.js';
+import { purgeDeletedFiles } from '../documents/storage.js';
 import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { runMoadian } from '../tax/submit.js';
 import { runESign } from '../esign/service.js';
@@ -36,7 +37,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata', 'documents:purge']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -110,6 +111,12 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     }
   });
 
+  await boss.work('documents:purge', async () => {
+    // Deleted documents' files, FILE_RETENTION_DAYS on, unless held (audit LOG-5).
+    const r = await purgeDeletedFiles();
+    if (r.purged) logger.info({ ...r }, 'deleted documents purged');
+  });
+
   await boss.work('security:scan', async () => {
     // The audit trail read as it accumulates, not after the fact (roadmap #26).
     const result = await scanAll();
@@ -166,6 +173,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('messenger:send', '* * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('push:send', '* * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('documents:metadata', '37 * * * *', {}, { tz: 'Asia/Tehran' });
+  await boss.schedule('documents:purge', '30 3 * * *', {}, { tz: 'Asia/Tehran' });
   logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly)');
   return boss;
 }

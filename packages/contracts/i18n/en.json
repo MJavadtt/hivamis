@@ -2548,5 +2548,9 @@
   "این حساب شمارهٔ همراه تأییدشده ندارد.": "This account has no verified mobile number.",
   "رمز یا کد درست نیست.": "The password or code is not right.",
   "این حساب گوگل به حساب دیگری وصل است.": "This Google account is linked to another account.",
-  "این ایمیل در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان وارد شوید.": "This email has an account in more than one organisation; sign in at your own organisation's address."
+  "این ایمیل در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان وارد شوید.": "This email has an account in more than one organisation; sign in at your own organisation's address.",
+  "دلیل نگه‌داشت حقوقی لازم است": "A reason for the legal hold is required",
+  "--quota-mb یک عدد درست مثبت یا none است.": "--quota-mb is a positive whole number, or none.",
+  "فضای ذخیره‌سازی سازمان پر است: {0} از {1} مگابایت به کار رفته. پروندهٔ اسناد حذف‌شده پس از {2} روز پاک می‌شود؛ برای فضای بیشتر با مدیر نصب هماهنگ کنید.": "The organisation's storage is full: {0} of {1} MB in use. Files of deleted documents are removed after {2} days; for more space, speak to whoever runs the installation.",
+  "پروندهٔ این سند پیش‌تر پاک شده است؛ نگه‌داشتی برای آن نمی‌ماند.": "This document's file has already been removed; there is nothing left to hold."
 }

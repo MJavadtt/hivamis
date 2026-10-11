@@ -87,6 +87,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/documents.ts#GET /documents/:id/download",
     "routes/documents.ts#GET /documents/:id/preview",
     "routes/documents.ts#POST /documents",
+    "routes/documents.ts#POST /documents/:id/legal-hold",
     "routes/forms.ts#GET /forms/definitions/:code/design",
     "routes/forms.ts#GET /forms/definitions/:code/versions",
     "routes/forms.ts#GET /forms/submissions/:id",
@@ -245,6 +246,7 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('SYSTEM', [
     "auth/grants.ts#grantSnapshot",
     "documents/backfill.ts#backfillMetadata",
+    "documents/storage.ts#purgeDeletedFiles",
     "esign/service.ts#complete",
     "esign/service.ts#runESign",
     "esign/service.ts#sync",

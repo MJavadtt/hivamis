@@ -12,6 +12,7 @@ import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
 import { deactivateUser, endSessions } from '../auth/session.js';
+import { storageUsed } from '../documents/storage.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
@@ -462,9 +463,11 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/organization', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
-    return prisma.organization.findUnique({
+    const org = await prisma.organization.findUnique({
       where: { id: actor.organizationId }, include: { holidays: { orderBy: { date: 'asc' } } },
     });
+    // How full the store is, beside its quota (audit LOG-5).
+    return org && { ...org, storageUsedMb: Math.ceil((await storageUsed(actor.organizationId)) / (1024 * 1024)) };
   });
 
   app.patch('/organization', {

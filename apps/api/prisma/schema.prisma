@@ -26,6 +26,9 @@ model Organization {
   /// Audit CALC-1: whether contract values are written with VAT. Off — the usual practice — invoices are
   /// compared with what has been earned on their subtotal; on, on their total.
   contractValueIncludesTax Boolean @default(false)
+  /// Audit LOG-5: the organisation's file storage, in megabytes; null is no limit. Set by whoever runs the
+  /// installation (`hivamis tenant update --quota-mb`), not by the organisation.
+  storageQuotaMb Int?
   settings      Json     @default("{}")
   /// Roadmap #50: the organisation's short name, and the host names that open it.
   slug          String?  @unique
@@ -1751,6 +1754,12 @@ model Document {
   uploadedBy     User            @relation(fields: [uploadedById], references: [id])
   createdAt      DateTime        @default(now())
   deletedAt      DateTime?
+  /// Audit LOG-5: kept as it is, deleted or not, until the hold is lifted — a dispute, an inquiry.
+  legalHold       Boolean        @default(false)
+  legalHoldReason String?
+  /// Audit LOG-5: when the file itself was removed, FILE_RETENTION_DAYS after the document was deleted.
+  /// The row stays: what was here, who put it, and when it went.
+  purgedAt       DateTime?
 
   annotations       Annotation[]
   envelopesSent     SignatureEnvelope[] @relation("EnvelopeOriginal")
