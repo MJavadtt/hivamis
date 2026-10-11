@@ -5,7 +5,7 @@ import { actorFrom, parse } from '../lib/http.js';
 import { audit } from '../lib/audit.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { generateKey, grantable } from '../integrations/keys.js';
-import { assertWebhookUrl, attempt, eventCatalog, newWebhookSecret, validateEvents } from '../integrations/webhooks.js';
+import { assertWebhookUrl, attempt, eventCatalog, logHorizon, newWebhookSecret, validateEvents } from '../integrations/webhooks.js';
 
 const mask = (s: string) => `${s.slice(0, 10)}…`;
 
@@ -133,7 +133,8 @@ const integrationRoutes: FastifyPluginAsync = async (app) => {
       data: {
         ...input,
         // Re-enabled after a failure: it starts again from now, not with a backlog of stale events.
-        ...(reactivating ? { consecutiveFailures: 0, disabledAt: null, disabledReason: null, cursorAt: new Date(), cursorId: null } : {}),
+        // Reactivated: from now on — nothing that happened while it was off (audit LOG-1: the txid cursor too).
+        ...(reactivating ? { consecutiveFailures: 0, disabledAt: null, disabledReason: null, cursorAt: new Date(), cursorTxid: await logHorizon(), cursorId: null } : {}),
       },
     });
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'webhookSubscription', entityId: id, before: { ...before, secret: '[redacted]' }, after: { ...updated, secret: '[redacted]' }, ipAddress: actor.ipAddress, requestId: actor.requestId });

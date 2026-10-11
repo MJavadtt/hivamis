@@ -145,12 +145,26 @@ export function validateEvents(patterns: string[], creatorPermissions: readonly 
 
 /* ── Dispatching ───────────────────────────────────────────────────────── */
 
+/**
+ * The oldest transaction still running (audit LOG-1). Every transition with a smaller txid is written
+ * and visible, and no transaction yet to commit can add one there — so a cursor that stops below it
+ * never passes a row that has still to appear. A cursor by createdAt could: createdAt is when its
+ * transaction began, and a transaction that began first and committed last landed behind the cursor
+ * and was never sent.
+ */
+export async function logHorizon(): Promise<bigint> {
+  const [row] = await prisma.$queryRaw<{ xmin: bigint }[]>`SELECT ((pg_snapshot_xmin(pg_current_snapshot()))::text)::bigint AS xmin`;
+  return row!.xmin;
+}
+
 /** New transitions → deliveries, for every active subscription, from where each left off. */
 export async function enqueueDeliveries(limitPerSubscription = 500): Promise<number> {
   const subs = await prisma.webhookSubscription.findMany({
     where: { active: true },
+    omit: { cursorTxid: false },
     include: { createdBy: { select: { isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } } },
   });
+  const below = await logHorizon();
   let created = 0;
   for (const sub of subs) {
     // The creator's own authority, read now: a webhook cannot outlive or outgrow its creator.
@@ -158,14 +172,16 @@ export async function enqueueDeliveries(limitPerSubscription = 500): Promise<num
     const perms = await permissionsFor(sub.organizationId, sub.createdBy.roles.map((r) => r.role.code));
     const rows = await prisma.stateTransition.findMany({
       where: {
-        // A state recorded on migration (#48) is not news to anyone outside.
-        organizationId: sub.organizationId, opening: false,
-        OR: [{ createdAt: { gt: sub.cursorAt } }, { createdAt: sub.cursorAt, id: { gt: sub.cursorId ?? '' } }],
+        organizationId: sub.organizationId, txid: { lt: below },
+        OR: [{ txid: { gt: sub.cursorTxid } }, { txid: sub.cursorTxid, id: { gt: sub.cursorId ?? '' } }],
       },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limitPerSubscription,
+      orderBy: [{ txid: 'asc' }, { id: 'asc' }], take: limitPerSubscription, omit: { txid: false },
     });
     if (!rows.length) continue;
     for (const t of rows) {
+      // A state recorded on migration (#48), or anything from before the subscription (or its
+      // reactivation), is not news. Read past all the same, so the cursor moves over it.
+      if (t.opening || t.createdAt < sub.cursorAt) continue;
       const need = WORKFLOW_READ_PERMISSION[t.entityType];
       if (!matches(sub.events, t.entityType, t.action) || (need && !perms.includes(need))) continue;
       const record = await delegate(prisma, t.entityType).findUnique({ where: { id: t.entityId }, select: { code: true } }).catch(() => null);
@@ -184,7 +200,7 @@ export async function enqueueDeliveries(limitPerSubscription = 500): Promise<num
       created += r.count;
     }
     const last = rows.at(-1)!;
-    await prisma.webhookSubscription.update({ where: { id: sub.id }, data: { cursorAt: last.createdAt, cursorId: last.id } });
+    await prisma.webhookSubscription.update({ where: { id: sub.id }, data: { cursorTxid: last.txid, cursorId: last.id } });
   }
   return created;
 }

@@ -1827,8 +1827,13 @@ model StateTransition {
   actorId    String
   actor      User     @relation(fields: [actorId], references: [id])
   createdAt  DateTime @default(now())
+  /// Audit LOG-1: the id of the transaction that wrote it, set by the database. A reader that stops
+  /// below the oldest transaction still running sees every row there will ever be up to that point —
+  /// which createdAt, the transaction's start time, cannot promise. 0 for rows from before.
+  txid       BigInt   @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
 
   @@index([entityType, entityId, createdAt])
+  @@index([organizationId, txid, id])
   @@map("state_transitions")
 }
 
@@ -2139,7 +2144,11 @@ model WebhookSubscription {
   /// «entity.action», «entity.*» or «*».
   events              String[]
   active              Boolean   @default(true)
+  /// Nothing that happened before this is sent: when the subscription was made, or last reactivated.
   cursorAt            DateTime  @default(now())
+  /// Audit LOG-1: where the dispatcher has read to in the transition log, by (txid, id). Starts at the
+  /// oldest transaction running when the subscription was made.
+  cursorTxid          BigInt    @default(dbgenerated("((pg_snapshot_xmin(pg_current_snapshot()))::text)::bigint"))
   cursorId            String?
   consecutiveFailures Int       @default(0)
   disabledAt          DateTime?

@@ -2137,3 +2137,39 @@ words. Those are the two things this decision closes.
 form through an explicit tool call. Requiring the user to have named the form would refuse ordinary
 requests ("register a lead"). The person still sees the form, empty of planted values, and sends it
 or not.
+
+## ADR-075 — Webhooks read the transition log by transaction id, below the oldest one still running
+
+**Decision.** (Audit LOG-1.)
+
+- **Each transition is stamped with its transaction.** The database sets `txid` on every row from
+  `pg_current_xact_id()`.
+- **The dispatcher reads below a horizon.** It reads rows in `(txid, id)` order, beyond its cursor,
+  and only where `txid < pg_snapshot_xmin(pg_current_snapshot())`, the oldest transaction still
+  running.
+- **The floor is kept.** `cursorAt` still keeps out what came before the subscription or its
+  reactivation. A new subscription's cursor starts at the horizon of the moment it was made.
+- **Bookkeeping stays out of responses.** The two bigint columns are omitted from every query by
+  Prisma's global `omit`. Only the dispatcher asks for them.
+
+**Rationale.** The cursor walked `createdAt`, which is when a transaction *began*. A transaction that
+began first and committed last wrote its row behind a cursor that had already passed. That event was
+never sent.
+
+The audit offered two fixes:
+
+- **A time lag (`now() - 5s`) with de-duplication.** This holds only for transactions shorter than
+  the lag. A bulk import or a slow cascade is not.
+- **A plain sequence read with a lag.** This has the same flaw, because a sequence value is taken at
+  insert, not at commit.
+
+Transaction ids below `xmin` are exactly the transactions that have finished, so nothing can appear
+there later. That is the commit-safe form of the audit's first option. Duplicates are impossible
+anyway: deliveries are unique per (subscription, transition).
+
+**Limits.**
+
+- One long transaction holds back every webhook until it ends. That is the price of not losing its
+  rows, and those rows are what the receiver is waiting for.
+- Rows from before this change carry `txid = 0`. Existing subscriptions read them once more from the
+  start, de-duplicated, with `cursorAt` as the floor.
