@@ -2195,8 +2195,8 @@ anyway: deliveries are unique per (subscription, transition).
 written without it. So every invoiced project looked about 10% billed ahead of its work. Receivables
 ("outstanding") rightly stay gross, since the client pays the VAT.
 
-**Open.** Which footing this organisation uses is the owner's answer (asked at the end of Phase 3).
-Until then, the default applies.
+**Settled.** On 2026-10-11 the owner confirmed that contract values are written without VAT. The
+default stands: `contractValueIncludesTax = false`.
 
 ## ADR-077 — Money stays a decimal until it leaves, and is rounded once, half away from zero
 
