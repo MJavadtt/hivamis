@@ -29,6 +29,23 @@ const project = {
 beforeEach(() => sessionStorage.clear());
 
 describe('The client portal', () => {
+  it('keeps to its own token for the tab, and never spends the staff session’s cookie (audit SEC-4)', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/portal/auth/login')) return json({ token: 'PT' });
+      return json(home);
+    }));
+    render(<MemoryRouter initialEntries={['/portal/login']}><PortalApp /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText('ایمیل'), { target: { value: 'maryam@portalia.example' } });
+    fireEvent.change(screen.getByLabelText('رمز عبور'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ورود' }));
+    await waitFor(() => expect(sessionStorage.length).toBe(1));
+    expect(urls.some((u) => u.includes('/auth/refresh'))).toBe(false);
+    expect(localStorage.length).toBe(0);
+  });
+
   it('signs in, keeps the token for the tab, and opens on what waits for the client', async () => {
     const calls: { url: string; auth: string | null; body: any }[] = [];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

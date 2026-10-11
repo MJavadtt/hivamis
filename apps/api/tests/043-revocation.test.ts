@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll, vi } from 'vitest';
-import { app, call, closeApp, DEV_PASSWORD, get, login, patch, post } from './helpers.js';
+import { call, closeApp, DEV_PASSWORD, get, login, patch, post, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { signAccessToken } from '../src/auth/tokens.js';
 import { claimsFor } from '../src/auth/claims.js';
@@ -9,17 +9,13 @@ import { claimsFor } from '../src/auth/claims.js';
  * holder's standing, their roles or password — not up to fifteen minutes later when it expires.
  */
 
-/** A sign-in with both tokens, as a browser holds them. */
-async function signIn(email: string, password = DEV_PASSWORD) {
-  const res = await (await app()).inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email, password } });
-  expect(res.statusCode).toBe(200);
-  const body = res.json();
-  return { access: body.accessToken as string, refresh: body.refreshToken as string };
-}
 const refresh = async (token: string) => {
-  const res = await (await app()).inject({ method: 'POST', url: '/api/v1/auth/refresh', payload: { refreshToken: token } });
-  return { status: res.statusCode, body: res.json() };
+  const r = await refreshWith(token);
+  return { status: r.status, body: { ...r.body, refreshToken: r.refresh } };
 };
+/** Signing out as the app does: the bearer, and the session's cookie. */
+const logout = (s: { access: string; refresh: string }) =>
+  call('POST', '/auth/logout', { token: s.access, headers: { cookie: `hiva_refresh=${encodeURIComponent(s.refresh)}`, 'x-hiva-refresh': '1' } });
 const me = (token: string) => get('/auth/me', token);
 const idOf = async (email: string) => (await prisma.user.findUniqueOrThrow({ where: { email } })).id;
 
@@ -29,7 +25,7 @@ describe('Access tokens end with what they were issued on (audit SEC-3)', () => 
   it('stops a signed-out token at once', async () => {
     const s = await signIn('designer@hiva.local');
     expect((await me(s.access)).status).toBe(200);
-    expect((await post('/auth/logout', s.access, { refreshToken: s.refresh })).status).toBe(204);
+    expect((await logout(s)).status).toBe(204);
     const after = await me(s.access);
     expect(after.status).toBe(401);
     expect(after.body.error.code).toBe('SESSION_REVOKED');
@@ -42,7 +38,7 @@ describe('Access tokens end with what they were issued on (audit SEC-3)', () => 
     // Another tab still holds the token from before the rotation: the sign-in goes on, so does it.
     expect((await me(s.access)).status).toBe(200);
     expect((await me(next.body.accessToken)).status).toBe(200);
-    await post('/auth/logout', next.body.accessToken, { refreshToken: next.body.refreshToken });
+    await logout({ access: next.body.accessToken, refresh: next.body.refreshToken! });
     expect((await me(s.access)).status).toBe(401);
     expect((await me(next.body.accessToken)).status).toBe(401);
   });

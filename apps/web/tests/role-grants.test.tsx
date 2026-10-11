@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ALL_PERMISSIONS, ROLE_PERMISSIONS } from '@hiva/contracts';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { RoleGrants } from '../src/components/RoleGrants';
 
 /**
@@ -21,7 +21,7 @@ const ROLES = [
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
 function mount(permissions: string[]) {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');

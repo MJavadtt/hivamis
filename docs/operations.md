@@ -84,7 +84,7 @@ come from `tenant:create`, as the installer does.
 | `PORT` / `HOST` | no | 4000 / 0.0.0.0 | |
 | `NODE_ENV` | no | development | |
 | `LOG_LEVEL` | no | info | `fatal`…`trace`, or `silent` |
-| `CORS_ORIGIN` | no | localhost:5173 | Comma-separated list |
+| `CORS_ORIGIN` | no | localhost:5173 | Comma-separated list. Also the origins allowed to spend the refresh cookie (audit SEC-4), with `PUBLIC_APP_URL` and each organisation's own host |
 | `PUBLIC_APP_URL` | no | first `CORS_ORIGIN` | The web app's public address — the base of approval links sent to clients (roadmap #35) |
 | `ACCESS_TOKEN_TTL` | no | 15m | |
 | `REFRESH_TOKEN_TTL` | no | 7d | |
@@ -285,7 +285,9 @@ browser in production. Set it to the deployed origin, comma-separated if several
 
 **4. TLS terminated upstream.** The `web` container serves plain HTTP on `:8080` by design.
 Put a TLS proxy in front of it and add HSTS there — not in `nginx.conf`, which has no
-certificate. See "Reverse proxy and headers" below.
+certificate. See "Reverse proxy and headers" below. This is not optional: in production the
+refresh cookie is `Secure`, and a browser does not keep a Secure cookie from a plain-http address
+other than `localhost` — people sign in, and are signed out again at the next refresh.
 
 **5. Backups scheduled *and* a restore rehearsed.** A backup that has never been restored is
 an assumption, not a backup:

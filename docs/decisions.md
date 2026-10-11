@@ -2001,3 +2001,38 @@ Otherwise the request gets `401 SESSION_REVOKED`.
 - A session rotated before the migration is its own family. A token issued for it is refused once,
   and its holder refreshes.
 - API keys are checked by their own revocation, not by this check.
+
+## ADR-070 — The refresh token is a cookie the page cannot read
+
+**Decision.** (Audit SEC-4.) Every way in sets the refresh token as the cookie `hiva_refresh`:
+
+- `HttpOnly`, so no script on the page can read it;
+- `SameSite=Strict`, and sent only to `Path=/api/v1/auth`;
+- `Secure` in production.
+
+No response body carries the token. `/auth/refresh` reads only the cookie.
+
+- **What spends the cookie must prove it is the app.** `/auth/refresh`, `/auth/refresh/legacy` and
+  `/auth/logout` all spend it. Each requires `X-Hiva-Refresh: 1`, and refuses an `Origin` that is not
+  the app's.
+- **The web keeps a hint, not a credential.** It holds the access token in memory, and `hiva.signedIn`
+  in `localStorage` only so a visitor who was never signed in is not sent to refresh.
+- **A token kept by an older build is traded once.** Inside the existing Web Lock, it goes to
+  `/auth/refresh/legacy` and is then deleted, whether the trade worked or not.
+
+**Rationale.** The token sat in `localStorage`, where any script that ran on the page could read a
+credential good for seven days. The comment beside it claimed XSS could not reach the tokens. That
+was true only of the access token.
+
+- **Why `SameSite=Strict` is not enough on its own.** Strict stops a cross-site page from sending the
+  cookie. It does not stop a page on a *sibling* subdomain, which is the same site. A custom header
+  forces a CORS preflight that the API refuses. An `Origin` check catches the rest.
+- **Why `Secure` only in production.** Development runs on plain http, where a browser drops a
+  Secure cookie. Production requires TLS (readiness checklist, item 4).
+
+**Limits.**
+
+- The legacy route accepts a body token by design, for one refresh-TTL after deploy. After that every
+  legacy token has expired, and the route can be removed.
+- The portal keeps its own tab-scoped token in `sessionStorage` (ADR-043). It has no refresh token,
+  so nothing changes for it.

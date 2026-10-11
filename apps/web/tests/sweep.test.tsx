@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
-import { getRefreshToken, refreshSession, setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, refreshSession, setAccessToken, wasSignedIn } from '../src/lib/api';
 import { persianNumber, formatNumber, formatCurrency } from '../src/lib/format';
 import { Checkbox } from '../src/components/ui';
 
@@ -34,12 +34,12 @@ describe('Numbers as Persian writes them', () => {
 
 describe('A stored session', () => {
   it('is kept when the server does not answer, and taken up when it does', async () => {
-    setRefreshToken('r1');
+    markSignedIn(true);
     let up = false;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const p = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '');
       if (!up) throw new TypeError('Failed to fetch');
-      if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r2' });
+      if (p === '/auth/refresh') return json({ accessToken: 't' });
       if (p === '/auth/me') return json(ME);
       return json({});
     }));
@@ -48,46 +48,48 @@ describe('A stored session', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(10); });
     expect(screen.getByTestId('probe').textContent).toBe('unreachable');
     // Before the sweep, any failure here deleted the token: a server restart signed everyone out.
-    expect(getRefreshToken()).toBe('r1');
+    expect(wasSignedIn()).toBe(true);
     up = true;
     await act(async () => { await vi.advanceTimersByTimeAsync(3_100); });
     await act(async () => { await vi.advanceTimersByTimeAsync(10); });
     expect(screen.getByTestId('probe').textContent).toBe('in:پریسا');
-    expect(getRefreshToken()).toBe('r2');
+    expect(wasSignedIn()).toBe(true);
   });
 
   it('is dropped when the server refuses it, and a server error is not a refusal', async () => {
-    setRefreshToken('r1');
+    markSignedIn(true);
     let status = 503;
     vi.stubGlobal('fetch', vi.fn(async () => json({ error: { code: 'X', message: 'x' } }, status)));
     const view = mount();
     await waitFor(() => expect(screen.getByTestId('probe').textContent).toBe('unreachable'));
-    expect(getRefreshToken()).toBe('r1');
+    expect(wasSignedIn()).toBe(true);
     view.unmount();
     status = 401;
     mount();
     await waitFor(() => expect(screen.getByTestId('probe').textContent).toBe('out'));
-    expect(getRefreshToken()).toBeNull();
+    expect(wasSignedIn()).toBe(false);
   });
 
-  it('is refreshed one tab at a time, through a lock, with the token stored at that moment', async () => {
-    setRefreshToken('r-old');
+  it('is refreshed one tab at a time, through a lock, reading what is stored at that moment', async () => {
+    // A token from before the cookie (audit SEC-4) — which another tab trades while this one waits.
+    localStorage.setItem('hiva.refresh', 'r-old');
     setAccessToken(null);
     const sent: string[] = [];
     const request = vi.fn(async (_name: string, run: () => Promise<unknown>) => {
-      // Another tab rotated the token while this one waited for the lock.
-      setRefreshToken('r-new');
+      localStorage.removeItem('hiva.refresh');
+      markSignedIn(true);
       return run();
     });
     vi.stubGlobal('navigator', { ...navigator, locks: { request } });
-    vi.stubGlobal('fetch', vi.fn(async (_i: RequestInfo | URL, init?: RequestInit) => {
-      sent.push(JSON.parse(String(init?.body)).refreshToken);
-      return json({ accessToken: 't', refreshToken: 'r-next' });
+    vi.stubGlobal('fetch', vi.fn(async (i: RequestInfo | URL) => {
+      sent.push(new URL(String(i), 'http://localhost').pathname);
+      return json({ accessToken: 't' });
     }));
     expect(await Promise.all([refreshSession(), refreshSession()])).toEqual([true, true]);
     expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls[0]![0]).toBe('hiva.refresh');
-    expect(sent).toEqual(['r-new']);
+    // Not the traded token again — that would read as theft — but the cookie it was traded for.
+    expect(sent).toEqual(['/api/v1/auth/refresh']);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  ApiError, api, getAccessToken, getRefreshToken, setAccessToken, setRefreshToken,
+  ApiError, api, apiPost, getAccessToken, markSignedIn, setAccessToken, wasSignedIn,
 } from '../src/lib/api';
 
 /** A fetch stub that records calls and replays a scripted sequence of responses. */
@@ -18,49 +18,92 @@ function stubFetch(responses: { status: number; body?: unknown }[]) {
   vi.stubGlobal('fetch', fn);
   return { calls, fn };
 }
+const path = (c: { url: string }) => c.url.replace(/^https?:\/\/[^/]+/, '');
+const headersOf = (c: { init?: RequestInit }) => (c.init?.headers ?? {}) as Record<string, string>;
 
 beforeEach(() => {
   setAccessToken(null);
-  setRefreshToken(null);
+  localStorage.clear();
 });
 
-describe('Token storage', () => {
-  /** An XSS that can read localStorage must not find a usable access token there. */
-  it('keeps the access token out of storage and the refresh token in it', () => {
+describe('Token storage (audit SEC-4)', () => {
+  /** An XSS that can read localStorage must find no credential there — neither token. */
+  it('keeps the access token in memory, and only a hint that there is a session in storage', () => {
     setAccessToken('access-1');
-    setRefreshToken('refresh-1');
+    markSignedIn(true);
     expect(getAccessToken()).toBe('access-1');
-    expect(getRefreshToken()).toBe('refresh-1');
+    expect(wasSignedIn()).toBe(true);
     expect(JSON.stringify(localStorage)).not.toContain('access-1');
+    expect(Object.keys(localStorage)).toEqual(['hiva.signedIn']);
   });
 
-  it('clears the refresh token rather than storing null', () => {
-    setRefreshToken('refresh-1');
-    setRefreshToken(null);
-    expect(getRefreshToken()).toBeNull();
+  it('forgets the hint rather than storing a false one', () => {
+    markSignedIn(true);
+    markSignedIn(false);
+    expect(wasSignedIn()).toBe(false);
     expect(localStorage.length).toBe(0);
+  });
+
+  it('trades a token an older build left in localStorage for the cookie, once, and deletes it', async () => {
+    localStorage.setItem('hiva.refresh', 'old-refresh');
+    setAccessToken('stale');
+    const { calls } = stubFetch([
+      { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
+      { status: 200, body: { accessToken: 'fresh' } },
+      { status: 200, body: { ok: true } },
+    ]);
+    await expect(api('/projects')).resolves.toEqual({ ok: true });
+    const trade = calls[1]!;
+    expect(path(trade)).toBe('/api/v1/auth/refresh/legacy');
+    expect(JSON.parse(String(trade.init?.body))).toEqual({ refreshToken: 'old-refresh' });
+    expect(headersOf(trade)['x-hiva-refresh']).toBe('1');
+    expect(localStorage.getItem('hiva.refresh')).toBeNull();
+    expect(wasSignedIn()).toBe(true);
+  });
+
+  it('deletes the old token even when the trade is refused — it has had its one try', async () => {
+    localStorage.setItem('hiva.refresh', 'spent');
+    setAccessToken('stale');
+    stubFetch([
+      { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
+      { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'session invalid' } } },
+    ]);
+    await expect(api('/projects')).rejects.toBeInstanceOf(ApiError);
+    expect(localStorage.getItem('hiva.refresh')).toBeNull();
+    expect(wasSignedIn()).toBe(false);
+  });
+
+  it('says it is the app on every call that sets or spends the cookie', async () => {
+    const { calls } = stubFetch([{ status: 204 }]);
+    await apiPost('/auth/logout');
+    expect(headersOf(calls[0]!)['x-hiva-refresh']).toBe('1');
+    const other = stubFetch([{ status: 200, body: {} }]);
+    await apiPost('/tasks', {});
+    expect(headersOf(other.calls[0]!)['x-hiva-refresh']).toBeUndefined();
   });
 });
 
 describe('401 → refresh → retry', () => {
-  it('refreshes once and replays the original request', async () => {
+  it('refreshes once from the cookie and replays the original request', async () => {
     setAccessToken('stale');
-    setRefreshToken('refresh-1');
+    markSignedIn(true);
     const { calls } = stubFetch([
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
-      { status: 200, body: { accessToken: 'fresh', refreshToken: 'refresh-2' } },
+      { status: 200, body: { accessToken: 'fresh' } },
       { status: 200, body: { ok: true } },
     ]);
 
     await expect(api('/projects')).resolves.toEqual({ ok: true });
 
-    expect(calls.map((c) => c.url.replace(/^https?:\/\/[^/]+/, ''))).toEqual([
+    expect(calls.map(path)).toEqual([
       '/api/v1/projects', '/api/v1/auth/refresh', '/api/v1/projects',
     ]);
-    // Rotation is applied, and the replay carries the new token rather than the stale one.
+    // The cookie carries the refresh token: nothing of it is in the request this script builds.
+    expect(calls[1]!.init?.body).toBeUndefined();
+    expect(headersOf(calls[1]!)['x-hiva-refresh']).toBe('1');
+    expect(calls[1]!.init?.credentials).toBe('same-origin');
     expect(getAccessToken()).toBe('fresh');
-    expect(getRefreshToken()).toBe('refresh-2');
-    expect((calls[2]!.init?.headers as Record<string, string>).authorization).toBe('Bearer fresh');
+    expect(headersOf(calls[2]!).authorization).toBe('Bearer fresh');
   });
 
   /**
@@ -70,11 +113,11 @@ describe('401 → refresh → retry', () => {
    */
   it('collapses concurrent 401s into a single refresh', async () => {
     setAccessToken('stale');
-    setRefreshToken('refresh-1');
+    markSignedIn(true);
     const { calls } = stubFetch([
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
-      { status: 200, body: { accessToken: 'fresh', refreshToken: 'refresh-2' } },
+      { status: 200, body: { accessToken: 'fresh' } },
       { status: 200, body: { ok: true } },
     ]);
 
@@ -86,10 +129,10 @@ describe('401 → refresh → retry', () => {
 
   it('allows a fresh refresh after the in-flight one settles', async () => {
     setAccessToken('stale');
-    setRefreshToken('refresh-1');
+    markSignedIn(true);
     stubFetch([
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
-      { status: 200, body: { accessToken: 'fresh', refreshToken: 'refresh-2' } },
+      { status: 200, body: { accessToken: 'fresh' } },
       { status: 200, body: { ok: true } },
     ]);
     await api('/projects');
@@ -98,7 +141,7 @@ describe('401 → refresh → retry', () => {
     // reusing a settled promise forever.
     const second = stubFetch([
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
-      { status: 200, body: { accessToken: 'fresher', refreshToken: 'refresh-3' } },
+      { status: 200, body: { accessToken: 'fresher' } },
       { status: 200, body: { ok: true } },
     ]);
     await api('/tasks');
@@ -106,7 +149,7 @@ describe('401 → refresh → retry', () => {
     expect(getAccessToken()).toBe('fresher');
   });
 
-  it('gives up when there is no refresh token', async () => {
+  it('gives up without asking when this browser was never signed in', async () => {
     setAccessToken('stale');
     const { calls } = stubFetch([
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
@@ -115,14 +158,15 @@ describe('401 → refresh → retry', () => {
     expect(calls.filter((c) => c.url.includes('/auth/refresh'))).toHaveLength(0);
   });
 
-  it('gives up when the refresh itself is rejected', async () => {
+  it('gives up when the refresh itself is rejected, and forgets the session', async () => {
     setAccessToken('stale');
-    setRefreshToken('revoked');
+    markSignedIn(true);
     stubFetch([
-      { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } },
+      { status: 401, body: { error: { code: 'SESSION_REVOKED', message: 'session over' } } },
       { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'session invalid' } } },
     ]);
     await expect(api('/projects')).rejects.toBeInstanceOf(ApiError);
+    expect(wasSignedIn()).toBe(false);
   });
 });
 

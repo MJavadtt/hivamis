@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { SuggestedForms } from '../src/components/SuggestedForms';
 import { QuickForms } from '../src/components/QuickForms';
 
@@ -25,7 +25,7 @@ const DEFINITION = {
 };
 
 function mount(ui: React.ReactNode) {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');

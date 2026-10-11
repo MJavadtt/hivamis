@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TOKEN_REFRESHED_EVENT, apiGet, apiPost, getRefreshToken, restoreSession, setAccessToken, setRefreshToken } from './api';
+import { TOKEN_REFRESHED_EVENT, apiGet, apiPost, markSignedIn, restoreSession, setAccessToken, wasSignedIn } from './api';
 import { adoptAccountLocale } from './locale';
 import { forgetPushOnSignOut } from './push';
 
@@ -27,7 +27,7 @@ interface AuthState {
   retry: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   /** Takes up a session another way in produced — a code sent to the mobile (Hivamis task 4). */
-  signInWith: (session: { accessToken: string; refreshToken: string }) => Promise<void>;
+  signInWith: (session: { accessToken: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   /** True when the signed-in user holds every listed permission. */
@@ -69,14 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
   }, [loadUser]);
 
-  // Restore the session from the stored refresh token on first paint. A server that does not answer
-  // — restarting, a deploy, the network — is not a refusal: the token is kept and tried again, rather
-  // than signing the person out (Hivamis task 10).
+  // Restore the session from the refresh cookie on first paint. A server that does not answer —
+  // restarting, a deploy, the network — is not a refusal: it is tried again, rather than signing the
+  // person out (Hivamis task 10).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
     (async () => {
-      if (!getRefreshToken()) { setLoading(false); return; }
+      if (!wasSignedIn()) { setLoading(false); return; }
       const outcome = await restoreSession();
       if (cancelled) return;
       if (outcome === 'ok') {
@@ -84,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadUser();
       } else if (outcome === 'rejected') {
         setUnreachable(false);
-        setRefreshToken(null);
       } else {
         setUnreachable(true);
         timer = setTimeout(() => setAttempt((n) => n + 1), Math.min(30_000, 3_000 * 2 ** Math.min(attempt, 4)));
@@ -94,24 +93,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [loadUser, attempt]);
 
-  const signInWith = useCallback(async (session: { accessToken: string; refreshToken: string }) => {
+  const signInWith = useCallback(async (session: { accessToken: string }) => {
+    // The refresh token came as a cookie with the same answer; only the access token is ours to hold.
     setAccessToken(session.accessToken);
-    setRefreshToken(session.refreshToken);
+    markSignedIn(true);
     await loadUser();
   }, [loadUser]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    await signInWith(await apiPost<{ accessToken: string; refreshToken: string }>('/auth/login', { email, password }));
+    await signInWith(await apiPost<{ accessToken: string }>('/auth/login', { email, password }));
   }, [signInWith]);
 
   const signOut = useCallback(async () => {
     // While the session still stands: this browser stops receiving this person's notices (#49).
     await forgetPushOnSignOut();
     try {
-      await apiPost('/auth/logout', { refreshToken: getRefreshToken() });
+      // The server ends this device's session from its cookie, and clears the cookie.
+      await apiPost('/auth/logout');
     } catch { /* the local session is cleared regardless */ }
     setAccessToken(null);
-    setRefreshToken(null);
+    markSignedIn(false);
     setUser(null);
   }, []);
 

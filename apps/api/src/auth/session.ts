@@ -1,4 +1,4 @@
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { prisma, type Tx } from '../db.js';
 import { env } from '../env.js';
@@ -7,6 +7,7 @@ import { generateRefreshToken, signAccessToken, ttlToMs } from './tokens.js';
 import { claimsFor } from './claims.js';
 import { assertSignInHere } from '../lib/tenant.js';
 import { forgetStanding } from './standing.js';
+import { setRefreshCookie } from './cookie.js';
 
 /** How a person proved who they are; recorded with every sign-in. */
 export type SignInMethod = 'password' | 'phone' | 'google';
@@ -16,7 +17,7 @@ export type SignInMethod = 'password' | 'phone' | 'google';
  * or Google (Hivamis task 4). Every way in ends here, so each gets the same session, the same reset
  * of failed attempts and the same audit record, naming the method.
  */
-export async function issueSession(userId: string, req: FastifyRequest, method: SignInMethod) {
+export async function issueSession(userId: string, req: FastifyRequest, reply: FastifyReply, method: SignInMethod) {
   const { user, claims } = await claimsFor(userId);
   await assertSignInHere(req, user.organizationId);
   const refresh = generateRefreshToken();
@@ -36,9 +37,10 @@ export async function issueSession(userId: string, req: FastifyRequest, method: 
     organizationId: user.organizationId, actorId: user.id, action: 'LOGIN', entityType: 'user', entityId: user.id,
     reason: method === 'password' ? null : method, ipAddress: req.ip, userAgent: req.headers['user-agent'] ?? null,
   });
+  // The refresh token goes to a cookie the page cannot read, never into the body (audit SEC-4).
+  setRefreshCookie(reply, refresh.token);
   return {
     accessToken: await signAccessToken({ ...claims, sid: session.id }),
-    refreshToken: refresh.token,
     mustChangePassword: user.mustChangePassword,
     user: {
       id: user.id, email: user.email, fullName: user.fullName, jobTitle: user.jobTitle,

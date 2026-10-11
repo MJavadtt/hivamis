@@ -8,18 +8,28 @@ Base URL: `/api/v1`. All responses are JSON. All dates are ISO-8601 UTC.
 POST /api/v1/auth/login
 { "email": "account.manager@hiva.local", "password": "…" }
 
-200 { "accessToken": "...", "refreshToken": "...", "user": { … } }
+200 { "accessToken": "...", "user": { … } }
+Set-Cookie: hiva_refresh=…; Max-Age=604800; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Strict
 ```
 
-Send the access token as `Authorization: Bearer <token>`. It expires in 15 minutes;
-`POST /auth/refresh` exchanges the refresh token for a new pair and **invalidates the one you
-sent** — refresh tokens are single-use.
+Send the access token as `Authorization: Bearer <token>`. It expires in 15 minutes, and stops at
+once when its sign-in ends or its holder's roles, password or status change (`401 SESSION_REVOKED`).
+
+The refresh token is never in a response body (audit SEC-4). Every way in sets it as the
+`hiva_refresh` cookie: `HttpOnly`, `SameSite=Strict`, sent only to `/api/v1/auth`, and `Secure` in
+production. `POST /auth/refresh` reads it from the cookie and nothing else, rotates it, sets the new
+one and answers `{ accessToken }`. Refresh tokens are single-use.
+
+A request that spends the cookie (`/auth/refresh`, `/auth/refresh/legacy`, `/auth/logout`) must carry
+`X-Hiva-Refresh: 1`. When it sends an `Origin`, that must be the app's: an origin in `CORS_ORIGIN` or
+`PUBLIC_APP_URL`, or the host the request came to. Otherwise `403 CROSS_SITE`.
 
 | Endpoint | Purpose |
 |---|---|
 | `POST /auth/login` | Sign in. Rate-limited; the account locks for 15 minutes after 5 failures |
-| `POST /auth/refresh` | Rotate tokens |
-| `POST /auth/logout` | Revoke the current session, or all sessions when no token is sent |
+| `POST /auth/refresh` | Rotate the cookie's refresh token; answers `{ accessToken }` |
+| `POST /auth/refresh/legacy` `{ refreshToken }` | Once per browser: trades a refresh token an older build kept in `localStorage` for the cookie. Old tokens expire with `REFRESH_TOKEN_TTL`, after which this route has nothing left to trade |
+| `POST /auth/logout` | Revoke this device's session (from its cookie) and clear the cookie; every session when there is no cookie |
 | `GET /auth/me` | Current user with roles and resolved permissions |
 | `POST /auth/change-password` | Change password; revokes every session |
 | `GET /auth/methods` | Public — which ways in this installation offers (`password`, `phone`, `google`) and whether asking to join is open |

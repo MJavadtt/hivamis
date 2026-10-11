@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ALL_FORMS, DEPARTMENT_CODES, SLA_POLICIES } from '@hiva/contracts';
-import { app, call, closeApp, expectOk, get, login, DEV_PASSWORD } from './helpers.js';
+import { app, call, closeApp, expectOk, get, login, DEV_PASSWORD, refreshCookieOf, refreshWith } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { tenancy } from '../src/lib/tenant.js';
 import { provisionOrganization, updateOrganization } from '../src/setup/tenant.js';
@@ -27,7 +27,7 @@ async function asHost(host: string, method: 'GET' | 'POST', url: string, payload
     method, url: `/api/v1${url}`, payload: payload as never,
     headers: { host, ...(token ? { authorization: `Bearer ${token}` } : {}) },
   });
-  return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null };
+  return { status: res.statusCode, body: res.body ? JSON.parse(res.body) : null, headers: res.headers };
 }
 
 describe('Organisations on one installation', () => {
@@ -116,7 +116,7 @@ describe('Organisations on one installation', () => {
     const refused = await asHost(HOST, 'POST', '/auth/login', { email: 'boss@nemooneh.ir', password: DEV_PASSWORD });
     expect(refused.status).toBe(401);
     expect(refused.body.error.code).toBe('ORG_SUSPENDED');
-    expect((await call('POST', '/auth/refresh', { payload: { refreshToken: session.body.refreshToken } })).status).toBe(401);
+    expect((await refreshWith(refreshCookieOf(session)!)).status).toBe(401);
     // The first organisation is untouched.
     expect((await call('POST', '/auth/login', { payload: { email: 'ceo@hiva.local', password: DEV_PASSWORD } })).status).toBe(200);
     await updateOrganization('nemooneh', { active: true });

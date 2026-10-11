@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -92,6 +93,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: false, // the API serves JSON + downloads only; the SPA sets its own CSP
     crossOriginResourcePolicy: { policy: 'same-site' },
   });
+  // Audit SEC-4: the refresh token's cookie. Unsigned: it is a random secret, not a claim to verify.
+  await app.register(cookie);
   await app.register(cors, {
     origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
-import { app, call, closeApp, expectOk, get, login, patch, post } from './helpers.js';
+import { app, call, closeApp, expectOk, get, login, patch, post, refreshCookieOf, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { google } from '../src/auth/google.js';
 import { MAX_ATTEMPTS } from '../src/auth/otp.js';
@@ -58,8 +58,12 @@ describe('Signing in by mobile', () => {
 
     await ageCodes(phone);
     const code = await signInCode(phone);
-    const res = expectOk(await call('POST', '/auth/phone/verify', { payload: { phone, code: code.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]!) } }), 'sign in');
+    const raw = await call('POST', '/auth/phone/verify', { payload: { phone, code: code.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]!) } });
+    const res = expectOk(raw, 'sign in');
     expect(res.user.email).toBe('pmo@hiva.local');
+    // Audit SEC-4: the refresh token is in the cookie, not the body.
+    expect(res).not.toHaveProperty('refreshToken');
+    expect(refreshCookieOf(raw)).toBeTruthy();
     expect(expectOk(await get('/auth/me', res.accessToken), 'me').email).toBe('pmo@hiva.local');
     const trail = await prisma.auditEvent.findFirst({ where: { actorId: me.id, action: 'LOGIN' }, orderBy: { createdAt: 'desc' } });
     expect(trail?.reason).toBe('phone');
@@ -70,7 +74,7 @@ describe('Signing in by mobile', () => {
   it('answers the same for a number nobody has, and sends it nothing', async () => {
     const before = await prisma.smsMessage.count();
     const res = await call('POST', '/auth/phone/start', { payload: { phone: '09139999999' } });
-    expect(res).toEqual({ status: 202, body: { sent: true, resendAfterSeconds: 60 } });
+    expect({ status: res.status, body: res.body }).toEqual({ status: 202, body: { sent: true, resendAfterSeconds: 60 } });
     expect(await prisma.smsMessage.count()).toBe(before);
     expect((await call('POST', '/auth/phone/verify', { payload: { phone: '09139999999', code: '123456' } })).status).toBe(401);
   });
@@ -195,25 +199,26 @@ describe('A page for every person', () => {
   });
 
   it('lists one’s own devices, marks this one, and signs the others out', async () => {
-    const a = expectOk(await call('POST', '/auth/login', { payload: { email: 'finance@hiva.local', password: 'Hiva@Dev2026!' } }), 'a');
-    const b = expectOk(await call('POST', '/auth/login', { payload: { email: 'finance@hiva.local', password: 'Hiva@Dev2026!' } }), 'b');
-    const mine = expectOk(await get('/me/profile', b.accessToken), 'profile');
+    const a = await signIn('finance@hiva.local');
+    const b = await signIn('finance@hiva.local');
+    const mine = expectOk(await get('/me/profile', b.access), 'profile');
     expect(mine.sessions.filter((s: any) => s.current)).toHaveLength(1);
     expect(mine.hasPassword).toBe(true);
-    expectOk(await post('/me/sessions/revoke-others', b.accessToken), 'others');
+    expectOk(await post('/me/sessions/revoke-others', b.access), 'others');
     // The signed-out device is simply out; this one stays in. Before session ends had reasons, the
     // other device's next refresh read as theft and signed everyone out.
-    expect((await call('POST', '/auth/refresh', { payload: { refreshToken: a.refreshToken } })).status).toBe(401);
-    expect((await call('POST', '/auth/refresh', { payload: { refreshToken: b.refreshToken } })).status).toBe(200);
+    expect((await refreshWith(a.refresh)).status).toBe(401);
+    expect((await refreshWith(b.refresh)).status).toBe(200);
     const financeUser = await prisma.user.findUniqueOrThrow({ where: { email: 'finance@hiva.local' } });
     expect(await prisma.auditEvent.count({ where: { actorId: financeUser.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(0);
   });
 
   it('still treats a rotated token presented again as stolen, and ends every session', async () => {
-    const first = expectOk(await call('POST', '/auth/login', { payload: { email: 'designer@hiva.local', password: 'Hiva@Dev2026!' } }), 'login');
-    const rotated = expectOk(await call('POST', '/auth/refresh', { payload: { refreshToken: first.refreshToken } }), 'rotate');
-    expect((await call('POST', '/auth/refresh', { payload: { refreshToken: first.refreshToken } })).status).toBe(401);
-    expect((await call('POST', '/auth/refresh', { payload: { refreshToken: rotated.refreshToken } })).status).toBe(401);
+    const first = await signIn('designer@hiva.local');
+    const rotated = await refreshWith(first.refresh);
+    expect(rotated.status).toBe(200);
+    expect((await refreshWith(first.refresh)).status).toBe(401);
+    expect((await refreshWith(rotated.refresh!)).status).toBe(401);
     const designer = await prisma.user.findUniqueOrThrow({ where: { email: 'designer@hiva.local' } });
     expect(await prisma.auditEvent.count({ where: { actorId: designer.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(1);
   });

@@ -6,7 +6,7 @@ import { GUIDE } from '@hiva/contracts';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { OwlGuide } from '../src/components/owl/OwlGuide';
 import { assistantBus, guideBus, stepDuration } from '../src/lib/guide';
 import { formatNumber } from '../src/lib/format';
@@ -21,7 +21,7 @@ const me = (permissions: string[]) => ({ id: 'u1', email: 'p@hiva.local', fullNa
 const VIDEO = { id: 'v1', sectionId: 'forms', locale: 'fa', title: 'فرم‌ها در سه دقیقه', sizeBytes: 3_145_728, createdAt: '2026-10-05T08:00:00Z' };
 
 function mount({ at = '/forms', permissions = ['form.read', 'ai.chat'], videos = [] as unknown[], page = null as React.ReactNode } = {}) {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');

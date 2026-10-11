@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { LeadsList } from '../src/pages/Crm';
 import { LeadReferrers } from '../src/components/LeadSource';
 
@@ -33,7 +33,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const USER = { id: 'u1', email: 's@hiva.local', fullName: 'الهام کریمی', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions: ['crm.lead.read', 'crm.lead.write'], locale: 'fa', mustChangePassword: false };
 
 function mount(node: React.ReactNode, opts: { options?: unknown; duplicates?: (phone: string) => unknown } = {}) {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
-import { getRefreshToken, setAccessToken, setRefreshToken } from '../src/lib/api';
+import { getAccessToken, markSignedIn, setAccessToken, wasSignedIn } from '../src/lib/api';
 import Login from '../src/pages/Login';
 import Signup from '../src/pages/Signup';
 import GoogleReturn from '../src/pages/GoogleReturn';
@@ -24,7 +24,7 @@ const METHODS = { organization: 'هیوا', password: true, phone: true, google:
 
 type Handler = (path: string, method: string, body: any) => Response | undefined;
 function mount(ui: React.ReactNode, handler: Handler, { path = '/', signedIn = false } = {}) {
-  if (signedIn) { setAccessToken('t'); setRefreshToken('r'); } else { setAccessToken(null); setRefreshToken(null); }
+  if (signedIn) { setAccessToken('t'); markSignedIn(true); } else { setAccessToken(null); markSignedIn(false); }
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');
@@ -32,7 +32,7 @@ function mount(ui: React.ReactNode, handler: Handler, { path = '/', signedIn = f
     const method = init?.method ?? 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     sent.push({ method, path: p + url.search, body });
-    if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r' });
+    if (p === '/auth/refresh') return json({ accessToken: 't' });
     if (p === '/auth/me') return json(ME);
     if (p === '/auth/methods') return json(METHODS);
     if (p === '/departments') return json([]);
@@ -54,7 +54,7 @@ describe('Signing in by mobile', () => {
   it('sends a code, then signs in with it', async () => {
     const sent = mount(<Login />, (p) => {
       if (p === '/auth/phone/start') return json({ sent: true, resendAfterSeconds: 60 }, 202);
-      if (p === '/auth/phone/verify') return json({ accessToken: 'a2', refreshToken: 'r2' });
+      if (p === '/auth/phone/verify') return json({ accessToken: 'a2' });
       return undefined;
     });
     fireEvent.click(await screen.findByRole('tab', { name: 'شمارهٔ همراه' }));
@@ -65,7 +65,10 @@ describe('Signing in by mobile', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ورود' }));
     await waitFor(() => expect(sent.some((x) => x.path === '/auth/phone/verify')).toBe(true));
     expect(sent.find((x) => x.path === '/auth/phone/verify')!.body).toEqual({ phone: '09121234567', code: '123456' });
-    await waitFor(() => expect(getRefreshToken()).toBe('r2'));
+    // Signed in: the access token held in memory, the refresh token in the cookie the answer set.
+    await waitFor(() => expect(getAccessToken()).toBe('a2'));
+    expect(wasSignedIn()).toBe(true);
+    expect(JSON.stringify(localStorage)).not.toContain('a2');
   });
 
   it('says whose sign-in it is — on an installation with several organisations, this address’s (roadmap #50)', async () => {
@@ -109,10 +112,10 @@ describe('Back from Google', () => {
   it('trades the ticket in the fragment for a session and opens the app', async () => {
     const replace = vi.fn();
     vi.stubGlobal('location', { ...window.location, hash: '#ticket=abc', pathname: '/auth/google', replace });
-    const sent = mount(<GoogleReturn />, (p) => (p === '/auth/ticket' ? json({ accessToken: 'g', refreshToken: 'rg' }) : undefined));
+    const sent = mount(<GoogleReturn />, (p) => (p === '/auth/ticket' ? json({ accessToken: 'g' }) : undefined));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
     expect(sent.find((x) => x.path === '/auth/ticket')!.body).toEqual({ ticket: 'abc' });
-    expect(getRefreshToken()).toBe('rg');
+    expect(wasSignedIn()).toBe(true);
     vi.unstubAllGlobals();
   });
 

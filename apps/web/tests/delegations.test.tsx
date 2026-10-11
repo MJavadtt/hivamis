@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import Delegations from '../src/pages/Delegations';
 import { PERMISSIONS, ROLE_LABELS } from '@hiva/contracts';
 
@@ -35,7 +35,7 @@ function mount() {
   render(<QueryClientProvider client={qc}><ToastProvider><AuthProvider><MemoryRouter><Delegations /></MemoryRouter></AuthProvider></ToastProvider></QueryClientProvider>);
   return calls;
 }
-beforeEach(() => { setAccessToken('t'); setRefreshToken('r'); });
+beforeEach(() => { setAccessToken('t'); markSignedIn(true); });
 
 describe('Delegations page', () => {
   it('offers only what the user holds in their own right — not what was lent to them', async () => {

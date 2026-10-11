@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import MyWork from '../src/pages/MyWork';
 
 /**
@@ -46,7 +46,7 @@ function json(body: unknown) {
 
 const USER = { id: 'u1', email: 'x@hiva.local', fullName: 'x', jobTitle: '', departmentCode: 'CR', roles: [], permissions: ['task.read'], locale: 'fa' };
 function mount() {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/auth/refresh')) return json({ accessToken: 't', refreshToken: 'r' });

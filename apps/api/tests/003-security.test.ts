@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD, directLead } from './helpers.js';
+import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD, directLead, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { findActiveDemoAccounts } from '../src/lib/demo-accounts.js';
 import { env, parseTrustProxy, trustProxy } from '../src/env.js';
@@ -61,30 +61,22 @@ describe('Authentication', () => {
   });
 
   it('stores refresh tokens only as digests', async () => {
-    const res = expectOk(
-      await call('POST', '/auth/login', { payload: { email: 'sales@hiva.local', password: 'Hiva@Dev2026!' } }),
-      'login',
-    );
+    const { refresh } = await signIn('sales@hiva.local');
     const sessions = await prisma.session.findMany({ where: { revokedAt: null } });
-    expect(sessions.every((s) => s.refreshTokenHash !== res.refreshToken)).toBe(true);
+    expect(sessions.every((s) => s.refreshTokenHash !== refresh)).toBe(true);
     expect(sessions.every((s) => /^[0-9a-f]{64}$/.test(s.refreshTokenHash))).toBe(true);
   });
 
   it('rotates the refresh token and invalidates the presented one', async () => {
     // Not an account this file holds a token for: the replay below signs it out everywhere, at once.
-    const first = expectOk(
-      await call('POST', '/auth/login', { payload: { email: 'sales.manager@hiva.local', password: 'Hiva@Dev2026!' } }),
-      'login',
-    );
-    const refreshed = expectOk(
-      await call('POST', '/auth/refresh', { payload: { refreshToken: first.refreshToken } }),
-      'refresh',
-    );
-    expect(refreshed.refreshToken).not.toBe(first.refreshToken);
-    const replay = await call('POST', '/auth/refresh', { payload: { refreshToken: first.refreshToken } });
+    const first = await signIn('sales.manager@hiva.local');
+    const refreshed = await refreshWith(first.refresh);
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.refresh).not.toBe(first.refresh);
+    const replay = await refreshWith(first.refresh);
     expect(replay.status).toBe(401);
     // Audit SEC-3: the access tokens of the account stop with its sessions, not fifteen minutes later.
-    expect((await get('/auth/me', refreshed.accessToken)).body.error.code).toBe('SESSION_REVOKED');
+    expect((await get('/auth/me', refreshed.body.accessToken)).body.error.code).toBe('SESSION_REVOKED');
   });
 
   it('rejects weak passwords on change', async () => {
@@ -433,13 +425,8 @@ describe('Workflow route authorization', () => {
 });
 
 describe('Session lifecycle', () => {
-  const freshSession = async (email: string) => {
-    const res = await call('POST', '/auth/login', { payload: { email, password: DEV_PASSWORD } });
-    expect(res.status, `login for ${email}`).toBe(200);
-    return res.body.refreshToken as string;
-  };
-  const refresh = (refreshToken: string) =>
-    call('POST', '/auth/refresh', { payload: { refreshToken } });
+  const freshSession = async (email: string) => (await signIn(email)).refresh;
+  const refresh = (refreshToken: string) => refreshWith(refreshToken);
 
   it('stops honouring a refresh token once the user is deactivated', async () => {
     const user = await prisma.user.findFirstOrThrow({ where: { email: 'media@hiva.local' } });
@@ -857,14 +844,14 @@ describe('Time-boxed delegation', () => {
     const live = expectOk(await post('/delegations', T.accountManager, {
       toUserId: designer.id, permissions: ['change.approve'], endsAt: days(2), reason: 'اکنون',
     }), 'live');
-    const session = (await post('/auth/login', '', { email: 'designer@hiva.local', password: DEV_PASSWORD })).body;
-    expect(session.user.permissions).toContain('change.approve');
+    const session = await signIn('designer@hiva.local');
+    expect(session.body.user.permissions).toContain('change.approve');
 
     // Revoked by the lender: the delegate's session can no longer refresh — the borrowed
     // permission lives at most until the current access token expires, the same window a
     // role change has (ADR-010) — and the next login has nothing.
     expectOk(await post(`/delegations/${live.id}/revoke`, T.accountManager), 'revoke');
-    expect((await post('/auth/refresh', '', { refreshToken: session.refreshToken })).status).toBe(401);
+    expect((await refreshWith(session.refresh)).status).toBe(401);
     expect(expectOk(await get('/auth/me', await login('designer@hiva.local')), 'me').permissions).not.toContain('change.approve');
     expect((await get('/delegations', T.accountManager)).body.find((d: any) => d.id === live.id).status).toBe('REVOKED');
   });

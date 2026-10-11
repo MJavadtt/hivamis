@@ -38,6 +38,7 @@ export interface CallOptions {
   token?: string;
   payload?: unknown;
   query?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 export async function call(
@@ -49,13 +50,35 @@ export async function call(
   const res = await a.inject({
     method,
     url: url.startsWith('/api') ? url : `/api/v1${url}`,
-    headers: opts.token ? { authorization: `Bearer ${opts.token}` } : {},
+    headers: { ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}), ...opts.headers },
     payload: opts.payload as never,
     query: opts.query,
   });
   let body: any = null;
   try { body = res.body ? JSON.parse(res.body) : null; } catch { body = res.body; }
-  return { status: res.statusCode, body };
+  return { status: res.statusCode, body, headers: res.headers };
+}
+
+/** The refresh token a response set in its cookie (audit SEC-4), or undefined. */
+export function refreshCookieOf(res: { headers: Record<string, unknown> }): string | undefined {
+  const raw = res.headers['set-cookie'];
+  const all = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
+  const line = all.find((c) => c.startsWith('hiva_refresh='));
+  const value = line?.split(';')[0]!.slice('hiva_refresh='.length);
+  return value ? decodeURIComponent(value) : undefined;
+}
+
+/** A sign-in as a browser holds it: the access token, and the refresh token from its cookie. */
+export async function signIn(email: string, password = DEV_PASSWORD) {
+  const res = await call('POST', '/auth/login', { payload: { email, password } });
+  if (res.status !== 200) throw new Error(`login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
+  return { access: res.body.accessToken as string, refresh: refreshCookieOf(res)!, body: res.body };
+}
+
+/** A refresh as the app makes it: the cookie, and the header that says the request is the app's own. */
+export async function refreshWith(refreshToken: string, headers: Record<string, string> = {}) {
+  const res = await call('POST', '/auth/refresh', { headers: { cookie: `hiva_refresh=${encodeURIComponent(refreshToken)}`, 'x-hiva-refresh': '1', ...headers } });
+  return { ...res, refresh: refreshCookieOf(res) };
 }
 
 export const get = (url: string, token: string, query?: Record<string, string>) =>

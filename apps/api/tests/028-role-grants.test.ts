@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ALL_PERMISSIONS, ROLE_PERMISSIONS } from '@hiva/contracts';
-import { app, call, closeApp, expectOk, get, login, put, DEV_PASSWORD } from './helpers.js';
+import { call, closeApp, expectOk, get, login, put, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { forgetGrants } from '../src/auth/grants.js';
 
@@ -10,12 +10,12 @@ import { forgetGrants } from '../src/auth/grants.js';
  * force at once, recorded with the administrator's name, and a new version of the rules.
  */
 async function session(email: string) {
-  const res = await (await app()).inject({ method: 'POST', url: '/api/v1/auth/login', payload: { email, password: DEV_PASSWORD } });
-  return res.json() as { accessToken: string; refreshToken: string };
+  const s = await signIn(email);
+  return { accessToken: s.access, refreshToken: s.refresh };
 }
 async function refresh(refreshToken: string) {
-  const res = await (await app()).inject({ method: 'POST', url: '/api/v1/auth/refresh', payload: { refreshToken } });
-  return res.json() as { accessToken: string; refreshToken: string };
+  const r = await refreshWith(refreshToken);
+  return { accessToken: r.body.accessToken as string, refreshToken: r.refresh! };
 }
 
 describe('Who may do what', () => {

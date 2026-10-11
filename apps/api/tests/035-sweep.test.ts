@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { app, call, closeApp, login } from './helpers.js';
+import { app, call, closeApp, login, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { routesOf } from './helpers/two-orgs.js';
 
@@ -78,10 +78,9 @@ describe('The sweep', () => {
 
   it('spends a refresh token once, even when it is presented twice at the same moment', async () => {
     const user = await prisma.user.findUniqueOrThrow({ where: { email: 'media@hiva.local' } });
-    const first = await call('POST', '/auth/login', { payload: { email: 'media@hiva.local', password: 'Hiva@Dev2026!' } });
-    const token = first.body.refreshToken as string;
+    const token = (await signIn('media@hiva.local')).refresh;
     const before = await prisma.session.count({ where: { userId: user.id } });
-    const [a, b] = await Promise.all([1, 2].map(() => call('POST', '/auth/refresh', { payload: { refreshToken: token } })));
+    const [a, b] = await Promise.all([1, 2].map(() => refreshWith(token)));
     // One rotation wins. Before, both did, and the account gained two sessions from one token.
     expect([a.status, b.status].sort()).toEqual([200, 401]);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(before + 1);

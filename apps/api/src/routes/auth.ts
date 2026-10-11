@@ -1,8 +1,8 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { changePasswordSchema, loginSchema, updateLocaleSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { parse, actorFrom } from '../lib/http.js';
-import { badRequest, unauthorized } from '../lib/errors.js';
+import { AppError, badRequest, unauthorized } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { generateRefreshToken, hashToken, signAccessToken, ttlToMs } from '../auth/tokens.js';
 import { audit } from '../lib/audit.js';
@@ -10,6 +10,7 @@ import { env } from '../env.js';
 import { claimsFor } from '../auth/claims.js';
 import { issueSession, countFailure, endSessions } from '../auth/session.js';
 import { forgetStanding } from '../auth/standing.js';
+import { assertFromTheApp, clearRefreshCookie, refreshCookie, setRefreshCookie } from '../auth/cookie.js';
 
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
 export { claimsFor };
@@ -17,7 +18,7 @@ export { claimsFor };
 const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/auth/login', {
     config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
-  }, async (req) => {
+  }, async (req, reply) => {
     const { email, password } = parse(loginSchema, req.body);
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
@@ -33,7 +34,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     }
     if (!(await verifyPassword(user.passwordHash, password))) return fail('bad-password');
 
-    return issueSession(user.id, req, 'password');
+    return issueSession(user.id, req, reply, 'password');
   });
 
   /** A display preference, so it needs only an authenticated caller — no admin permission. */
@@ -48,13 +49,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     return user;
   });
 
-  app.post('/auth/refresh', {
-    // Rotation makes this endpoint a credential-guessing surface of its own; it is limited
-    // on the same budget as login rather than left on the 300/min global allowance.
-    config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
-  }, async (req) => {
-    const { refreshToken } = (req.body ?? {}) as { refreshToken?: string };
-    if (!refreshToken) throw badRequest('MISSING_TOKEN', 'توکن تازه‌سازی ارسال نشده است.');
+  /**
+   * Spends a refresh token: the session it names is rotated, and a new access token issued. Shared by
+   * the cookie route and the one-time exchange of a token from before the cookie (audit SEC-4).
+   */
+  async function rotate(req: FastifyRequest, refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     const session = await prisma.session.findUnique({
       where: { refreshTokenHash: hashToken(refreshToken) },
     });
@@ -133,11 +132,47 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     });
     if (!rotated) throw await reused();
     return { accessToken: await signAccessToken({ ...claims, sid: rotated.id }), refreshToken: next.token };
+  }
+
+  // Rotation makes these a credential-guessing surface of their own; they are limited on the same
+  // budget as login rather than left on the 300/min global allowance.
+  const REFRESH_LIMIT = { config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } } };
+
+  /** Reads the cookie, and only the cookie: a token in the body is not looked at (audit SEC-4). */
+  app.post('/auth/refresh', REFRESH_LIMIT, async (req, reply) => {
+    assertFromTheApp(req);
+    const token = refreshCookie(req);
+    if (!token) throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
+    try {
+      const next = await rotate(req, token);
+      setRefreshCookie(reply, next.refreshToken);
+      return { accessToken: next.accessToken };
+    } catch (e) {
+      // A cookie that will never work again is not worth the browser sending.
+      if (e instanceof AppError && e.statusCode === 401) clearRefreshCookie(reply);
+      throw e;
+    }
+  });
+
+  /**
+   * Once per browser: a refresh token kept in localStorage before the cookie, traded for one. Rotation
+   * spends it as any refresh does, so it works once. Old tokens expire with REFRESH_TOKEN_TTL; after
+   * that this route has nothing left to exchange and can go.
+   */
+  app.post('/auth/refresh/legacy', REFRESH_LIMIT, async (req, reply) => {
+    assertFromTheApp(req);
+    const { refreshToken } = (req.body ?? {}) as { refreshToken?: unknown };
+    if (typeof refreshToken !== 'string' || !refreshToken) throw badRequest('MISSING_TOKEN', 'توکن تازه‌سازی ارسال نشده است.');
+    const next = await rotate(req, refreshToken);
+    setRefreshCookie(reply, next.refreshToken);
+    return { accessToken: next.accessToken };
   });
 
   app.post('/auth/logout', { preHandler: [app.authenticate] }, async (req, reply) => {
+    assertFromTheApp(req);
     const actor = actorFrom(req);
-    const { refreshToken } = (req.body ?? {}) as { refreshToken?: string };
+    const refreshToken = refreshCookie(req);
+    clearRefreshCookie(reply);
     if (refreshToken) {
       await prisma.session.updateMany({
         // Only a live one: a token already rotated away keeps its reason, and with it reuse detection.

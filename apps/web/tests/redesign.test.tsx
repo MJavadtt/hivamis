@@ -8,7 +8,7 @@ import { StateBadge, Tabs, ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
 import { ThemeProvider } from '../src/lib/theme';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { Shell } from '../src/components/Shell';
 import { HalfGauge } from '../src/components/Gauge';
 
@@ -28,7 +28,7 @@ function desktop(on: boolean) {
 }
 
 function mount() {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const p = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '');
     if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r' });

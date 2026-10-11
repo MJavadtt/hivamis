@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { WorkflowActions } from '../src/components/common';
 
 /**
@@ -40,7 +40,7 @@ const DEPUTY = { ...VIEWER, permissions: ['project.read', 'governance.waive'] };
 function mount(user: unknown = VIEWER) {
   const urls: string[] = [];
   const posts: any[] = [];
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     urls.push(url);

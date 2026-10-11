@@ -2122,6 +2122,7 @@
   "نشست": "Session",
   "نشست نامعتبر است. دوباره وارد شوید.": "Invalid session. Sign in again.",
   "نشست شما پایان یافته است؛ دوباره وارد شوید.": "Your session has ended; sign in again.",
+  "این درخواست از خودِ برنامه نیامده است.": "This request did not come from the app itself.",
   "نشست پورتال به پایان رسیده است؛ دوباره وارد شوید.": "The portal session has ended; sign in again.",
   "نشست پورتال معتبر نیست؛ دوباره وارد شوید.": "The portal session isn't valid; sign in again.",
   "نظرات": "Comments",

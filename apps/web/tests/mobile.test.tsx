@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { forgetPushOnSignOut } from '../src/lib/push';
 import Mobile from '../src/pages/Mobile';
 import { UnitQcNote } from '../src/pages/Quality';
@@ -35,8 +35,9 @@ const USER = { id: 'u1', email: 'c@hiva.local', fullName: 'سپیده آذر', j
 
 interface Sent { method: string; path: string; body: unknown }
 
-function mount(entry = '/m', opts: { uploadFails?: boolean } = {}) {
-  setAccessToken('t'); setRefreshToken('r');
+function mount(entry = '/m', opts: { uploadFails?: boolean; reloaded?: boolean } = {}) {
+  // Reloaded: nothing in memory, only the cookie the browser keeps — the session is restored from it.
+  setAccessToken(opts.reloaded ? null : 't'); markSignedIn(true);
   const sent: Sent[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost');
@@ -44,7 +45,7 @@ function mount(entry = '/m', opts: { uploadFails?: boolean } = {}) {
     const body = init?.body instanceof FormData ? init.body : init?.body ? JSON.parse(String(init.body)) : undefined;
     sent.push({ method, path: url.pathname.replace('/api/v1', '') + url.search, body });
     const p = url.pathname.replace('/api/v1', '');
-    if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r' });
+    if (p === '/auth/refresh') return json({ accessToken: 't' });
     if (p === '/auth/me') return json(USER);
     if (p === '/events') return json({}, 503);
     if (p === '/me/work') return json(queue);
@@ -87,6 +88,14 @@ const posted = (sent: Sent[], path: string) => sent.filter((s) => s.method !== '
 afterEach(() => { delete (navigator as { serviceWorker?: unknown }).serviceWorker; });
 
 describe('The phone’s three loops', () => {
+  it('comes back after the phone reloads it: the session restored from the refresh cookie (audit SEC-4)', async () => {
+    const sent = mount('/m', { reloaded: true });
+    await screen.findByText('طراحی پوستر');
+    const restore = sent.find((s) => s.path === '/auth/refresh')!;
+    expect(restore).toMatchObject({ method: 'POST', body: undefined });
+    expect(localStorage.getItem('hiva.refresh')).toBeNull();
+  });
+
   it('shows only the three loops, each with its count — not the desk’s work, not an accepted order', async () => {
     mount();
     await screen.findByText('طراحی پوستر');

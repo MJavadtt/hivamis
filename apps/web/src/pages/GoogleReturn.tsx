@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiPost, setRefreshToken } from '../lib/api';
+import { apiPost, markSignedIn } from '../lib/api';
 import { tr } from '../i18n';
 
 /**
@@ -24,8 +24,9 @@ export default function GoogleReturn() {
     history.replaceState(null, '', window.location.pathname);
     const ticket = back.get('ticket');
     if (!ticket) { setError(PROBLEM[back.get('error') ?? ''] ?? tr('ورود با گوگل انجام نشد.')); return; }
-    apiPost<{ refreshToken: string }>('/auth/ticket', { ticket })
-      .then((s) => { setRefreshToken(s.refreshToken); window.location.replace('/'); })
+    // The answer sets the refresh cookie; the app opens and restores the session from it.
+    apiPost('/auth/ticket', { ticket })
+      .then(() => { markSignedIn(true); window.location.replace('/'); })
       .catch((e) => setError((e as Error).message));
   }, []);
   return (

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { ClientReportButton } from '../src/components/ClientReportButton';
 
 /** Sending a report to the client shows exactly what they get, and what they do not. */
@@ -29,7 +29,7 @@ function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={qc}><ToastProvider><AuthProvider><ClientReportButton reportId="rpt-1" /></AuthProvider></ToastProvider></QueryClientProvider>);
 }
-beforeEach(() => { setAccessToken('t'); setRefreshToken('r'); });
+beforeEach(() => { setAccessToken('t'); markSignedIn(true); });
 
 describe('Client report button', () => {
   it('is offered only to those who may execute the project', async () => {

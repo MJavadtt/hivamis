@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { Gantt } from '../src/components/Gantt';
 
 /** The chart's one job: make the critical chain unmistakable, and show the float everyone else has. */
@@ -18,7 +18,7 @@ const schedule = {
   ],
 };
 function json(body: unknown) { return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }); }
-beforeEach(() => { setAccessToken('t'); setRefreshToken('r'); });
+beforeEach(() => { setAccessToken('t'); markSignedIn(true); });
 
 describe('Gantt', () => {
   it('draws the critical chain in red, the float as a lighter stretch, and names the slip', async () => {

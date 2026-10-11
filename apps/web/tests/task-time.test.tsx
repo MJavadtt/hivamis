@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { TaskTime } from '../src/components/TaskTime';
 import { WorkflowActions } from '../src/components/common';
 
@@ -13,7 +13,7 @@ const time = { estimateHours: '10', actualHours: '7.5', entries: [{ id: 'e1', ho
 function json(body: unknown) { return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }); }
 function serve() {
   const calls: { url: string; method: string; body?: any }[] = [];
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input); const method = init?.method ?? 'GET';
     calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });

@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import Dashboard from '../src/pages/Dashboard';
 import Forms from '../src/pages/Forms';
 
@@ -27,7 +27,7 @@ const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200
 const USER = { id: 'u1', email: 's@hiva.local', fullName: 'الهام کریمی', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions: [], locale: 'fa', mustChangePassword: false };
 
 function mount(node: React.ReactNode, entry: string, routes: (path: string) => unknown) {
-  setAccessToken('t'); setRefreshToken('r');
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), 'http://localhost');
     const p = url.pathname.replace('/api/v1', '');

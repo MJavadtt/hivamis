@@ -96,7 +96,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(202).send({ sent: true, resendAfterSeconds: SENT_FOR });
   });
 
-  app.post('/auth/phone/verify', { config: RATE }, async (req) => {
+  app.post('/auth/phone/verify', { config: RATE }, async (req, reply) => {
     const { phone, code } = parse(phoneVerifySchema, req.body);
     const user = await prisma.user.findFirst({ where: { phone, phoneVerifiedAt: { not: null }, isActive: true, deletedAt: null, ...(await hereOnly(req)) } });
     if (!user) throw unauthorized('کد درست نیست یا منقضی شده است.');
@@ -106,7 +106,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
       await countFailure(user.id, req, 'phone-code');
       throw unauthorized('کد درست نیست یا منقضی شده است.');
     }
-    return issueSession(user.id, req, 'phone');
+    return issueSession(user.id, req, reply, 'phone');
   });
 
   /* ── by Google ───────────────────────────────────────────────────────── */
@@ -185,11 +185,11 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     return back('/signup', { done: 'sent' });
   }
 
-  app.post('/auth/ticket', { config: RATE }, async (req) => {
+  app.post('/auth/ticket', { config: RATE }, async (req, reply) => {
     const { ticket } = (req.body ?? {}) as { ticket?: string };
     const userId = typeof ticket === 'string' && ticket.length <= 100 ? await redeemTicket(ticket) : null;
     if (!userId) throw unauthorized('این پیوند ورود منقضی شده است؛ دوباره با گوگل وارد شوید.');
-    return issueSession(userId, req, 'google');
+    return issueSession(userId, req, reply, 'google');
   });
 
   /* ── asking to join ──────────────────────────────────────────────────── */

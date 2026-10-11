@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../src/lib/auth';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken, wasSignedIn } from '../src/lib/api';
 
 const USER = {
   id: 'u1', email: 'account.manager@hiva.local', fullName: 'رضا شریفی',
@@ -37,24 +37,24 @@ function jsonResponse(body: unknown, status = 200) {
 
 beforeEach(() => {
   setAccessToken(null);
-  setRefreshToken(null);
+  localStorage.clear();
 });
 
 describe('Session restore on first paint', () => {
-  it('shows a loading state and resolves to signed-out with no stored token', async () => {
+  it('shows a loading state and resolves to signed-out in a browser never signed in', async () => {
     vi.stubGlobal('fetch', vi.fn());
     render(<AuthProvider><Probe /></AuthProvider>);
-    // No refresh token, so it must not call the network at all.
+    // Never signed in here, so it must not call the network at all.
     await waitFor(() => expect(screen.getByText('user:none')).toBeDefined());
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('exchanges a stored refresh token and loads the user', async () => {
-    setRefreshToken('refresh-1');
+  it('restores the session from the refresh cookie and loads the user', async () => {
+    markSignedIn(true);
     const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes('/auth/refresh')) {
-        return jsonResponse({ accessToken: 'fresh', refreshToken: 'refresh-2' });
+        return jsonResponse({ accessToken: 'fresh' });
       }
       if (u.includes('/auth/me')) return jsonResponse(USER);
       return jsonResponse({}, 404);
@@ -65,24 +65,24 @@ describe('Session restore on first paint', () => {
     await waitFor(() => expect(screen.getByText('user:رضا شریفی')).toBeDefined());
   });
 
-  /** A revoked token must clear itself, or the app retries a dead session on every load. */
-  it('drops a refresh token the server rejects', async () => {
-    setRefreshToken('revoked');
+  /** A refused session must be forgotten, or the app retries a dead session on every load. */
+  it('forgets a session the server refuses', async () => {
+    markSignedIn(true);
     vi.stubGlobal('fetch', vi.fn(async () =>
       jsonResponse({ error: { code: 'UNAUTHORIZED', message: 'نشست نامعتبر است' } }, 401)));
 
     render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByText('user:none')).toBeDefined());
-    expect(localStorage.getItem('hiva.refresh')).toBeNull();
+    expect(wasSignedIn()).toBe(false);
   });
 });
 
 describe('Permission helpers', () => {
   beforeEach(() => {
-    setRefreshToken('refresh-1');
+    markSignedIn(true);
     vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
       const u = String(url);
-      if (u.includes('/auth/refresh')) return jsonResponse({ accessToken: 'a', refreshToken: 'r' });
+      if (u.includes('/auth/refresh')) return jsonResponse({ accessToken: 'a' });
       if (u.includes('/auth/me')) return jsonResponse(USER);
       return jsonResponse({}, 404);
     }));

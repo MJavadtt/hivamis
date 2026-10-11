@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../src/lib/auth';
 import { ToastProvider } from '../src/components/ui';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { SlaClocksCard } from '../src/components/SlaClocks';
 
 /**
@@ -56,7 +56,7 @@ function mount() {
   );
 }
 
-beforeEach(() => { setAccessToken('t'); setRefreshToken('r'); });
+beforeEach(() => { setAccessToken('t'); markSignedIn(true); });
 
 describe('SLA clocks card', () => {
   it('shows elapsed, waiting and controlled hours side by side, in Persian digits', async () => {

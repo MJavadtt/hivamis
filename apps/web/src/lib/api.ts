@@ -1,18 +1,31 @@
 import { locale, tr, trx } from '../i18n';
 /**
- * API client. Holds the access token in memory (not localStorage, so an XSS cannot read it)
- * and keeps only the refresh token in storage, transparently rotating on 401.
+ * API client. The access token is held in memory only. The refresh token is a cookie the server sets,
+ * HttpOnly, so no script on this page — this one included — can read it (audit SEC-4). A 401 is
+ * answered by asking the server to rotate it.
  */
-const REFRESH_KEY = 'hiva.refresh';
+
+/** A hint, not a credential: whether this browser has a session worth restoring. */
+const SIGNED_IN_KEY = 'hiva.signedIn';
+/** Where builds before the cookie kept the refresh token itself; traded once for the cookie, then gone. */
+const LEGACY_KEY = 'hiva.refresh';
 
 let accessToken: string | null = null;
 let refreshing: Promise<RefreshOutcome> | null = null;
 
+const store = {
+  get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private mode */ } },
+};
+
 export const setAccessToken = (t: string | null) => { accessToken = t; };
 export const getAccessToken = () => accessToken;
-export const setRefreshToken = (t: string | null) =>
-  t ? localStorage.setItem(REFRESH_KEY, t) : localStorage.removeItem(REFRESH_KEY);
-export const getRefreshToken = () => localStorage.getItem(REFRESH_KEY);
+export const markSignedIn = (on: boolean) => store.set(SIGNED_IN_KEY, on ? '1' : null);
+/** Signed in here before — with the cookie, or with a token from before it. */
+export const wasSignedIn = () => store.get(SIGNED_IN_KEY) === '1' || store.get(LEGACY_KEY) !== null;
+
+/** The header the auth routes ask of whatever spends the cookie: it says the request is the app's own. */
+const FROM_THE_APP = { 'x-hiva-refresh': '1' } as const;
 
 export interface ApiErrorBody {
   code: string;
@@ -78,25 +91,29 @@ export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
 function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
     const run = async (): Promise<RefreshOutcome> => {
-      const token = getRefreshToken();
-      if (!token) return 'rejected';
+      // Read inside the lock: a tab that went first may have traded it already.
+      const legacy = store.get(LEGACY_KEY);
       let res: Response;
       try {
-        res = await fetch('/api/v1/auth/refresh', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ refreshToken: token }),
-        });
+        res = legacy
+          ? await fetch('/api/v1/auth/refresh/legacy', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', ...FROM_THE_APP },
+            body: JSON.stringify({ refreshToken: legacy }),
+          })
+          : await fetch('/api/v1/auth/refresh', { method: 'POST', headers: FROM_THE_APP, credentials: 'same-origin' });
       } catch {
         return 'unreachable';
       }
       // A server restarting, a proxy with nothing behind it, the rate limit: the session may well be
       // fine. Only the server saying no ends it.
       if (res.status >= 500 || res.status === 429) return 'unreachable';
-      if (!res.ok) return 'rejected';
+      // The old token has had its one trade, whichever way it went.
+      if (legacy) store.set(LEGACY_KEY, null);
+      if (!res.ok) { markSignedIn(false); return 'rejected'; }
       const data = await res.json();
       setAccessToken(data.accessToken);
-      setRefreshToken(data.refreshToken);
+      markSignedIn(true);
       // Whatever asked for it — a page, the live stream, an expiring token — the new token says what
       // its holder may now do; the app compares and re-reads the user when that changed (Hivamis task 6).
       window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { permissions: tokenPermissions(data.accessToken) } }));
@@ -115,7 +132,7 @@ function refreshOnce(): Promise<RefreshOutcome> {
 }
 
 async function attemptRefresh(): Promise<boolean> {
-  if (!getRefreshToken()) return false;
+  if (!wasSignedIn()) return false;
   return (await refreshOnce()) === 'ok';
 }
 
@@ -164,12 +181,14 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
       headers: {
         ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...baseHeaders(),
+        // Signing in and out sets and spends the refresh cookie; the server asks such calls to say they are the app's.
+        ...(path.startsWith('/auth/') ? FROM_THE_APP : {}),
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
 
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && wasSignedIn()) {
     if (await attemptRefresh()) res = await reach(send);
   }
 
@@ -185,7 +204,7 @@ export async function apiUpload<T = unknown>(path: string, form: FormData): Prom
     headers: baseHeaders(),
   });
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401 && wasSignedIn()) {
     if (await attemptRefresh()) res = await reach(send);
   }
   if (!res.ok) throw await failure(res);
@@ -219,7 +238,7 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
   const send = () => fetch(url, { headers: baseHeaders() });
 
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
 
   if (!res.ok) throw await failure(res);
 
@@ -246,7 +265,7 @@ export async function apiBlob(path: string): Promise<Blob> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
   return res.blob();
 }
@@ -255,7 +274,7 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
   const ascii = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '');
   const blob = await res.blob();
@@ -284,7 +303,7 @@ export async function downloadPdfBundle(
   });
 
   let res = await reach(send);
-  if (res.status === 401 && getRefreshToken() && (await attemptRefresh())) res = await reach(send);
+  if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
 
   if (!res.ok) throw await failure(res);
 

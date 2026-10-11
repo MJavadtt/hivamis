@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
-import { setAccessToken, setRefreshToken } from '../src/lib/api';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { OwlGuide } from '../src/components/owl/OwlGuide';
 import { flightPath, hover } from '../src/components/owl/flight';
 
@@ -63,7 +63,7 @@ describe('Hiva in flight', () => {
   afterEach(() => { HTMLElement.prototype.animate = real.animate; vi.useRealTimers(); sessionStorage.clear(); });
 
   function mount() {
-    setAccessToken('t'); setRefreshToken('r');
+    setAccessToken('t'); markSignedIn(true);
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const p = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '');
