@@ -141,3 +141,8 @@ export function useAuth(): AuthState {
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
 }
+
+/** The same, or null outside a signed-in tree — for an optional extra that is simply absent there. */
+export function useMaybeAuth(): AuthState | null {
+  return useContext(AuthContext);
+}

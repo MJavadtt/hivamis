@@ -7,6 +7,8 @@ import { Badge, Button, Card, EmptyState, Select, Textarea, useToast } from './u
 import { formatDate, formatDateTime, localDigits } from '../lib/format';
 import { NewVersionButton, VersionBadge, VersionsButton, metadataFa } from './Assets';
 import { tr, trx } from '../i18n';
+import { WriteAssist } from './WriteAssist';
+import { ImageMaker } from './ImageMaker';
 
 /* Roadmap #34 — Account's side of the client portal. */
 
@@ -97,10 +99,11 @@ export function ClientFilesCard({ projectId }: { projectId: string }) {
   };
   return (
     <Card title={tr('فایل‌های پروژه')} subtitle={tr('هر فایل تا وقتی کسی از اکانت آن را «نمایش در پورتال» نکند، از دید مشتری پنهان است؛ نسخهٔ تازهٔ یک فایل هم تا نمایش داده نشود، مشتری همان نسخهٔ پیشین را می‌بیند.')}
-      action={can('document.write') ? <>
+      action={can('document.write') ? <span className="flex items-center gap-2">
         <input ref={input} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void add(f); e.target.value = ''; }} />
+        <ImageMaker projectId={projectId} onDone={refresh} />
         <Button size="sm" variant="secondary" onClick={() => input.current?.click()}>{tr('بارگذاری')}</Button>
-      </> : undefined}>
+      </span> : undefined}>
       {!files.length ? <EmptyState title={tr('فایلی برای این پروژه نیست')} /> : (
         <ul className="divide-y divide-ink-100 px-4 text-sm" data-testid="client-files">
           {files.map((f) => (
@@ -154,7 +157,8 @@ export function PortalMessagesCard({ projectId }: { projectId: string }) {
         {can('portal.manage') && (
           <div className="pt-2">
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} aria-label={tr('پاسخ به مشتری')} placeholder={tr('پاسخ به مشتری…')} />
-            <Button size="sm" variant="primary" className="mt-2" disabled={!text.trim()} onClick={() => void send()}>{tr('فرستادن')}</Button>
+            <WriteAssist value={text} onUse={setText} kind="email" />
+            <div><Button size="sm" variant="primary" className="mt-2" disabled={!text.trim()} onClick={() => void send()}>{tr('فرستادن')}</Button></div>
           </div>
         )}
       </div>

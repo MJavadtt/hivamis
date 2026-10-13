@@ -2,7 +2,7 @@
 # Hivamis on one machine, with Docker Compose (roadmap #50).
 #
 #   infrastructure/hivamis install --org-name NAME --org-slug SLUG --admin-email EMAIL --admin-name NAME
-#                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai]
+#                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai] [--image]
 #   infrastructure/hivamis status
 #   infrastructure/hivamis model [pull [NAME]]     the assistant's model: show it, or fetch it
 #   infrastructure/hivamis backup
@@ -97,6 +97,26 @@ pull_model() {
   say "✓ the model $model is ready"
 }
 
+# Pictures (audit F-2): off unless asked for. On a GPU with 16 GB, FLUX.1-schnell (Apache-2.0);
+# otherwise Stable Diffusion 1.5 (CreativeML OpenRAIL-M), which a CPU can draw — slowly.
+image_model_for() { if has_gpu && [ "$1" -ge 16 ]; then echo flux.1-schnell; else echo sd-1.5-ggml; fi; }
+
+image_present() {
+  [ "$DRY" = 1 ] && { printf '+ check that %s is on the picture server\n' "$1"; return 0; }
+  docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" exec -T api curl -fsS http://imagegen:8080/v1/models 2>/dev/null \
+    | grep -q "\"$1\""
+}
+
+pull_image_model() {
+  local model="$1"
+  say "→ fetching the picture model, $model — several GB, once"
+  compose --profile pull run --rm imagegen-pull models install "$model" \
+    || die "the picture model $model could not be fetched. Check this server's internet access, then: docker compose run --rm imagegen-pull models install $model"
+  compose restart imagegen 2>/dev/null || compose restart imagegen-gpu
+  image_present "$model" || die "$model is not on the picture server after fetching it — see: docker compose logs imagegen"
+  say "✓ the picture model $model is ready"
+}
+
 model_wanted() { [ "$(env_get CHAT_MODE)" != off ] && [ -n "$(env_get COMPOSE_PROFILES)" ]; }
 
 cmd_model() {
@@ -121,7 +141,7 @@ cmd_model() {
 }
 
 cmd_install() {
-  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single" model="" ai=1
+  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single" model="" ai=1 image=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --org-name) org_name="$2"; shift 2 ;;
@@ -133,6 +153,7 @@ cmd_install() {
       --multi) mode="multi"; shift ;;
       --model) model="$2"; shift 2 ;;
       --no-ai) ai=0; shift ;;
+      --image) image=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
@@ -159,6 +180,14 @@ cmd_install() {
     chat="ollama"
     say "→ the assistant: $model on the $( [ "$profiles" = ai-gpu ] && echo GPU || echo CPU ) (${gb} GB detected)"
   fi
+  local image_mode="off" image_model="sd-1.5-ggml"
+  if [ "$image" = 1 ]; then
+    gb="${gb:-$(memory_gb)}"
+    image_model="$(image_model_for "$gb")"
+    if has_gpu; then profiles="${profiles:+$profiles,}image-gpu"; else profiles="${profiles:+$profiles,}image"; fi
+    image_mode="local"
+    say "→ pictures: $image_model$(has_gpu || printf ' — on the CPU, a picture takes minutes')"
+  fi
   say "→ writing $ENV_FILE (secrets generated here, readable only by you)"
   umask 077
   sed -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(secret 32)|" \
@@ -173,6 +202,8 @@ cmd_install() {
       -e "s|^COMPOSE_PROFILES=.*|COMPOSE_PROFILES=$profiles|" \
       -e "s|^CHAT_MODE=.*|CHAT_MODE=$chat|" \
       -e "s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=${model:-qwen3:8b}|" \
+      -e "s|^IMAGE_MODE=.*|IMAGE_MODE=$image_mode|" \
+      -e "s|^IMAGE_MODEL=.*|IMAGE_MODEL=$image_model|" \
       "$ROOT/.env.docker.example" > "$ENV_FILE"
   printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
 
@@ -180,6 +211,7 @@ cmd_install() {
   compose up -d --build
   wait_healthy
   if [ "$ai" = 1 ]; then pull_model "$model"; fi
+  if [ "$image" = 1 ]; then pull_image_model "$image_model"; fi
 
   say "→ creating the organisation and its first administrator"
   local hosts=()

@@ -8,6 +8,7 @@ import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select,
 import { Code } from './common';
 import { formatDate, formatDateTime, localDigits } from '../lib/format';
 import { tr } from '../i18n';
+import { WriteAssist } from './WriteAssist';
 
 interface Meeting {
   id: string; code: string; subject: string; heldAt: string; kind: string; attendees: string;
@@ -164,6 +165,7 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
           <Field label={tr('یادداشت‌های جلسه')} hint={tr('هر تصمیم یا اقدام در یک خط؛ نام مسئول و مهلت («تا شنبه»، «ظرف ۳ روز»، «۱۲ مهر») را همان‌طور که گفته شد بنویسید.')}>
             <Textarea rows={8} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label={tr('یادداشت‌های جلسه')} />
           </Field>
+          <WriteAssist value={notes} onUse={setNotes} kind="minutes" />
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" loading={busy} disabled={notes.trim().length < 10} onClick={() => void makeDraft()}>{tr('ساخت پیش‌نویس')}</Button>
             {caps?.transcription ? (
@@ -176,7 +178,10 @@ export function MinutesDialog({ meeting, onClose }: { meeting: Meeting; onClose:
         </div>
       ) : (
         <div className="space-y-4" data-testid="minutes-draft">
-          <Field label={tr('تصمیم‌ها')}><Textarea rows={3} value={decisions} onChange={(e) => setDecisions(e.target.value)} aria-label={tr('تصمیم‌ها')} /></Field>
+          <div>
+            <Field label={tr('تصمیم‌ها')}><Textarea rows={3} value={decisions} onChange={(e) => setDecisions(e.target.value)} aria-label={tr('تصمیم‌ها')} /></Field>
+            <WriteAssist value={decisions} onUse={setDecisions} kind="minutes" />
+          </div>
           {!draft.canCreateTasks && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{tr('این جلسه به پروژه‌ای وصل نیست؛ اقدام‌ها فقط در صورتجلسه ثبت می‌شوند.')}</p>
           )}

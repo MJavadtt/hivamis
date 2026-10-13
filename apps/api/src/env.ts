@@ -186,6 +186,10 @@ const envSchema = z.object({
    * writes at once; the rest wait their turn (a laptop-class machine manages one).
    */
   CHAT_MODE: z.enum(['off', 'ollama']).default('ollama'),
+  /** Pictures with the assistant (audit F-2): `local`, a self-hosted LocalAI server; off until the hardware allows. */
+  IMAGE_MODE: z.enum(['off', 'local']).default('off'),
+  IMAGE_URL: z.string().default('http://127.0.0.1:8080'),
+  IMAGE_MODEL: z.string().default('sd-1.5-ggml'),
   OLLAMA_URL: z.string().default('http://127.0.0.1:11434'),
   OLLAMA_MODEL: z.string().default('qwen3:14b'),
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),

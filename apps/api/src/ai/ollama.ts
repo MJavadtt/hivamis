@@ -134,3 +134,9 @@ export class Turns {
     };
   }
 }
+
+/**
+ * The model's turns, shared by everything that asks it — the chat and writing (audit F-2) — so
+ * CHAT_CONCURRENCY counts every answer being written, whichever feature asked.
+ */
+export const turns = new Turns(env.CHAT_CONCURRENCY);

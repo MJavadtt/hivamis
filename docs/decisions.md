@@ -2401,3 +2401,39 @@ costs: speed is the server's hardware, and the documentation states it.
   and points `OLLAMA_URL` at the host, as before.
 - The sizing is a starting point. An installation with other heavy services on the same machine may
   want the next size down.
+
+## ADR-083 — Writing and pictures with the assistant, inside the installation, under the role model
+
+**Decision.** (Audit F-2.)
+
+- **Two permissions, every role's by default.** `ai.write` and `ai.image` join `ai.chat` in what
+  every role starts with. An administrator withdraws them like any other permission, and a
+  capability not held is not shown.
+- **Writing works from what the person gives it.** `POST /ai/write` streams a draft, or a rewrite of
+  the field's text, from the chat's model:
+  - it uses no tools and reads no records, so it cannot show what its user may not see;
+  - it waits in the chat's queue (`turns`, shared), so `CHAT_CONCURRENCY` counts both;
+  - nothing enters the form until the person clicks «گذاشتن در فرم».
+- **Pictures are an adapter, off by default.**
+  - `IMAGE_MODE=local` points at a self-hosted LocalAI server (MIT), which answers OpenAI's
+    `/v1/images/generations`.
+  - It runs in Compose behind the `image` or `image-gpu` profile, on the internal network.
+  - The installer's `--image` chooses FLUX.1-schnell (Apache-2.0) on a GPU of 16 GB, and Stable
+    Diffusion 1.5 (CreativeML OpenRAIL-M) otherwise.
+- **A picture is filed as an upload.** The bytes must be a PNG. They are posted to the documents
+  route with the person's own token, so every upload check applies. The prompt, the model, who and
+  when are then written to `metadata.generated`, with the tag `ai-generated`, and audited as
+  `GENERATE` in the same transaction.
+- **The assistant's tools stay read-only.** Writes on a person's behalf wait for F-4's confirm step.
+
+**Rationale.**
+
+- The owner asked for writing and pictures for everyone.
+- Task 6 asks that what a role may not use, it does not see.
+- An image model is the costliest thing in the stack. It is off until the hardware is there,
+  and its licence is a choice the installation records.
+
+**Limits.**
+
+- On a CPU a picture takes minutes, and the request waits for it, up to ten minutes.
+- The image server keeps no history of its own.

@@ -596,6 +596,28 @@ someone else's answer is being written, yours waits and shows its place in the q
 The model runs on the server's own hardware: there is no cost per question, and the speed is that
 hardware's.
 
+### Writing and pictures
+
+**Writing with the assistant.** Under a long text field — in a form (briefs, proposals and the
+rest), in meeting minutes, or in a message to a client — **Write with the assistant** opens a
+small panel:
+
+1. Say what you want written, or tick **Rewrite the text already in the form** and say what should
+   change.
+2. Choose the kind of text and the language, then **Write**.
+3. The draft arrives as it is written. Edit it if you like.
+4. **Put in the form** places it in the field. Nothing reaches the form before you click.
+
+The assistant writes from what you give it. It does not look up records, so it leaves gaps as
+`[ ]` rather than inventing a name, a figure or a date.
+
+**Pictures.** Where the system administrator has set up pictures, a project's files card has a
+**Make a picture** button. Describe the picture (English usually works better) and choose a
+size. The picture is drawn on the organisation's own server, which takes minutes without a GPU.
+It is then added to the project's files with its description, the model, and who made it.
+
+Both are yours by default. The system administrator can take either away under Admin → Roles.
+
 ---
 
 ## The guide owl — «هیوا»

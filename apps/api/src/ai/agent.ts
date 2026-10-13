@@ -311,7 +311,7 @@ const MAX_IMPLIED = 4;
 const FORM_CODE = /\b[A-Z]\d{1,3}_[A-Z0-9_]{2,}\b/g;
 
 /** Hides a <think>…</think> block if a model writes one despite being asked not to think. */
-function thinkFilter() {
+export function thinkFilter() {
   let held = '';
   let inside = false;
   return (piece: string): string => {

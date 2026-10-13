@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { formatDateTime, localDigits } from '../lib/format';
 import { pair, tr, trx } from '../i18n';
+import { WriteAssist } from './WriteAssist';
 
 /** «تأیید مشتری» is also the state «client approved»; here it names the approval being asked for. */
 const CLIENT_APPROVAL = () => pair({ fa: 'تأیید مشتری', en: 'Client approval' });
@@ -173,7 +174,10 @@ function AskModal({ subjectType, subjectId, onClose, onLink }: { subjectType: Su
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadFile(f); e.target.value = ''; }} />
           <Button size="sm" variant="secondary" className="mt-2" onClick={() => fileRef.current?.click()}>{tr('بارگذاری فایل')}</Button>
         </div>
-        <Field label={tr('پیام برای مشتری')}><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} aria-label={tr('پیام برای مشتری')} /></Field>
+        <div>
+          <Field label={tr('پیام برای مشتری')}><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} aria-label={tr('پیام برای مشتری')} /></Field>
+          <WriteAssist value={message} onUse={setMessage} kind="email" />
+        </div>
         <Field label={tr('مهلت (روز)')}><Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(e.target.value)} className="w-24" aria-label={tr('مهلت')} /></Field>
       </div>
     </Modal>

@@ -141,6 +141,8 @@ export const PERMISSIONS = {
   'ai.use': 'استفاده از دستیار هوش مصنوعی',
   // The local chat assistant (Hivamis task 5): every role has it unless the administrator takes it away.
   'ai.chat': 'گفت‌وگو با دستیار',
+  'ai.write': 'نوشتن و بازنویسی با دستیار',
+  'ai.image': 'ساخت تصویر با دستیار',
   'ai.configure': 'پیکربندی هوش مصنوعی',
   'admin.users': 'مدیریت کاربران',
   'admin.roles': 'مدیریت نقش‌ها و دسترسی‌ها',
@@ -262,7 +264,7 @@ export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DE
  * the defaults a role starts with — Doc_H's separation of duties — until the administrator reviews it.
  */
 /** What every role holds by default, whatever its part in the process (Hivamis task 5). */
-const EVERYONE: Permission[] = ['ai.chat'];
+const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: ALL_PERMISSIONS,

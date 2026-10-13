@@ -138,6 +138,9 @@ come from `tenant:create`, as the installer does.
 | `OLLAMA_MODEL` | no | `qwen3:14b`; in Compose, chosen by the installer for the machine's memory | A model that supports tool calling and writes Persian |
 | `COMPOSE_PROFILES` | no (Compose) | `ai` | The model's service: `ai` on the CPU, `ai-gpu` on NVIDIA GPUs, empty for none (audit F-1) |
 | `OLLAMA_KEEP_ALIVE` | no (Compose) | `30m` | How long the model stays loaded after the last question |
+| `IMAGE_MODE` | no | `off` | Pictures with the assistant (audit F-2): `local`, a self-hosted LocalAI server, or `off`. See [Pictures](#pictures) |
+| `IMAGE_URL` | no | `http://127.0.0.1:8080`; `http://imagegen:8080` in Compose | Where the picture server listens. Keep it on the internal network |
+| `IMAGE_MODEL` | no | `sd-1.5-ggml` | The picture model, by its LocalAI gallery name. Check its licence (below) |
 | `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
 | `GUIDE_VIDEO_MAX_MB` | no | 200 | Largest guide video (Hivamis task 8). Videos are kept in `STORAGE_DIR`, so back them up with it |
 | `REFERENCE_SYNC` | no | `on` | Roadmap #50: on start, bring every organisation's reference data — roles, units, SLA policies, the form catalogue — up to the code. `off` leaves it to `cli reference:sync` |
@@ -802,6 +805,56 @@ spare memory, raise `CHAT_CONCURRENCY` along with Ollama's own `OLLAMA_NUM_PARAL
 their owner. Deleting a user deletes theirs. The AI governance log (`ai_interactions`, capability
 `CHAT`) records the tools used, the records they touched, tokens and timing. It never records the
 question or the answer.
+
+## Writing and pictures with the assistant
+
+Audit F-2. Two more things the assistant does, for every role by default:
+
+- `ai.write` («نوشتن و بازنویسی با دستیار») adds a draft or a rewrite beside long text fields:
+  every long field of a form (briefs and proposals among them), meeting minutes, and messages to
+  clients. It uses the chat's model, waits its turn in the same queue, and is given only what the
+  person types. It reads no records.
+- `ai.image` («ساخت تصویر با دستیار») makes a picture from a description and files it with the
+  project's files.
+
+Each permission can be withdrawn under Admin → Roles like any other. A role whose permissions an
+administrator already chose keeps those exact permissions, so tick the new ones there to give them.
+
+The AI log records each use (capability `WRITE` or `IMAGE`), never what was asked or written.
+
+### Pictures
+
+Pictures are **off by default**. Drawing needs hardware:
+
+- **On a CPU:** a 512px picture takes minutes.
+- **On a GPU:** seconds.
+
+The server is [LocalAI](https://github.com/mudler/LocalAI) (MIT licence), in the Compose stack as
+`imagegen` (profile `image`, or `image-gpu`). It sits on the same internal network as the chat model,
+so what is asked for never leaves the installation. To turn it on:
+
+- Install with `--image`. The installer chooses the model, fetches it, and checks it before
+  finishing.
+- Or, on an installation already running:
+  1. add `image` to `COMPOSE_PROFILES` and set `IMAGE_MODE=local`;
+  2. run `docker compose run --rm imagegen-pull models install <IMAGE_MODEL>`;
+  3. run `docker compose up -d`.
+
+**The model has a licence of its own.** Check it before choosing:
+
+| `IMAGE_MODEL` | Licence | Hardware |
+| --- | --- | --- |
+| `sd-1.5-ggml` (default) | CreativeML OpenRAIL-M: commercial use allowed, with use restrictions | runs on a CPU |
+| `flux.1-schnell` | Apache-2.0 | a GPU with 16 GB; the installer's choice when it finds one |
+| `flux.2-klein-4b`, `z-image-turbo-diffusers` | Apache-2.0 | a GPU |
+
+Models marked non-commercial in LocalAI's gallery are not for an agency's work: FLUX.1-dev,
+FLUX.2-dev and Ideogram 4.
+
+**A picture is filed like any upload.** It goes through the documents route with the person's
+own token, so permission, quota, the file's real type and the project it is attached to are each
+checked there. The prompt, the model, who asked and when go with the file (`metadata.generated`,
+tag `ai-generated`) and into the audit trail (`GENERATE`).
 
 ## The guide owl and its videos
 

@@ -23,7 +23,17 @@ export interface ChatRequest {
 }
 
 export async function streamChat(body: ChatRequest, onEvent: (e: ChatEvent) => void, signal: AbortSignal): Promise<void> {
-  const send = () => fetch('/api/v1/ai/chat', {
+  return streamEvents('/api/v1/ai/chat', body, onEvent as (e: { event: string; data: Record<string, unknown> }) => void, signal);
+}
+
+/**
+ * A POST answered with server-sent events — the chat, and writing with the assistant (audit F-2). A
+ * 401 is answered by renewing the session once; any other refusal throws with the server's words.
+ */
+export async function streamEvents(
+  url: string, body: unknown, onEvent: (e: { event: string; data: Record<string, unknown> }) => void, signal: AbortSignal,
+): Promise<void> {
+  const send = () => fetch(url, {
     method: 'POST', signal,
     headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...baseHeaders() },
     body: JSON.stringify(body),
@@ -48,7 +58,7 @@ export async function streamChat(body: ChatRequest, onEvent: (e: ChatEvent) => v
       buffer = buffer.slice(end + 2);
       const event = /^event: (\w+)/m.exec(block)?.[1];
       const data = /^data: (.*)$/m.exec(block)?.[1];
-      if (event && data) onEvent({ event, data: JSON.parse(data) } as ChatEvent);
+      if (event && data) onEvent({ event, data: JSON.parse(data) });
     }
   }
 }

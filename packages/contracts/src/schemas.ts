@@ -1139,6 +1139,22 @@ export interface ChatModelStatus {
   waiting: number;
 }
 
+/** Writing with the assistant (audit F-2): a draft from an instruction, or a rewrite of `text`. */
+export const aiWriteSchema = z.object({
+  kind: z.enum(['brief', 'proposal', 'email', 'minutes', 'other']).default('other'),
+  instruction: z.string().trim().min(1, 'بنویسید چه می‌خواهید').max(2000),
+  text: z.string().max(8000).nullish(),
+  locale: z.enum(['fa', 'en']).default('fa'),
+});
+
+/** A picture from a description (audit F-2), filed with the project or client given. */
+export const aiImageSchema = z.object({
+  prompt: z.string().trim().min(3, 'تصویر را توصیف کنید').max(1000),
+  size: z.enum(['512x512', '768x768', '1024x1024']).default('512x512'),
+  projectId: z.string().uuid().nullish(),
+  companyId: z.string().uuid().nullish(),
+});
+
 export const chatRequestSchema = z.object({
   conversationId: z.string().uuid().nullish(),
   message: z.string().trim().min(1, 'پیامی بنویسید').max(4000),

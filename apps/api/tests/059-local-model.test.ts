@@ -27,7 +27,7 @@ async function install(extra: string[], machine: { gb: number; gpu: boolean }) {
     const r = await run('bash', [path.join(ROOT, 'infrastructure/hivamis'), 'install', '--org-name', 'x', '--org-slug', 'xx', '--admin-email', 'a@x.ir', '--admin-name', 'x', ...extra], { env });
     const written = readFileSync(path.join(dir, '.env'), 'utf8');
     const val = (k: string) => new RegExp(`^${k}=(.*)$`, 'm').exec(written)?.[1];
-    return { out: r.stdout, err: r.stderr, profiles: val('COMPOSE_PROFILES'), chat: val('CHAT_MODE'), model: val('OLLAMA_MODEL') };
+    return { out: r.stdout, err: r.stderr, profiles: val('COMPOSE_PROFILES'), chat: val('CHAT_MODE'), model: val('OLLAMA_MODEL'), image: val('IMAGE_MODE'), imageModel: val('IMAGE_MODEL') };
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -93,5 +93,30 @@ describe('The model inside the installation (audit F-1)', () => {
     const r = await install(['--no-ai'], { gb: 64, gpu: true });
     expect([r.profiles, r.chat]).toEqual(['', 'off']);
     expect(r.out).not.toContain('ollama-pull');
+  });
+});
+
+describe('Pictures inside the installation (audit F-2)', () => {
+  it('are off unless asked for', async () => {
+    const r = await install([], { gb: 64, gpu: true });
+    expect([r.image, r.profiles]).toEqual(['off', 'ai-gpu']);
+    expect(r.out).not.toContain('imagegen-pull');
+  });
+
+  it('with --image: Stable Diffusion 1.5 on a CPU, FLUX.1-schnell on a GPU of 16 GB — fetched, and checked before finishing', async () => {
+    const cpu = await install(['--image'], { gb: 32, gpu: false });
+    expect([cpu.image, cpu.imageModel, cpu.profiles]).toEqual(['local', 'sd-1.5-ggml', 'ai,image']);
+    expect(cpu.out).toContain('--profile pull run --rm imagegen-pull models install sd-1.5-ggml');
+    expect(cpu.out.indexOf('check that sd-1.5-ggml is on the picture server')).toBeLessThan(cpu.out.indexOf('tenant:create'));
+    const gpu = await install(['--image'], { gb: 24, gpu: true });
+    expect([gpu.imageModel, gpu.profiles]).toEqual(['flux.1-schnell', 'ai-gpu,image-gpu']);
+  });
+
+  it('runs on the same internal network as the chat model, and is what the API calls', () => {
+    expect(compose).toMatch(/^x-imagegen: &imagegen\n[\s\S]*?networks:\n    ai:\n      aliases: \[imagegen\]/m);
+    expect(service('imagegen')).toMatch(/image: localai\/localai:v\d+\.\d+\.\d+\n\s+profiles: \[image\]/);
+    expect(service('imagegen-pull')).toContain('profiles: [pull]');
+    expect(service('api')).toContain('IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}');
+    expect(service('api')).toContain('IMAGE_MODE: ${IMAGE_MODE:-off}');
   });
 });

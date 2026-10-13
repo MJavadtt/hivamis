@@ -5,7 +5,7 @@ import { env } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { requestLocale } from '../lib/i18n.js';
-import { modelStatus, ollama, Turns, type ChatMessage } from '../ai/ollama.js';
+import { modelStatus, ollama, turns, type ChatMessage } from '../ai/ollama.js';
 import { openEventStream } from '../lib/sse.js';
 import { runTurn, type ChatAction } from '../ai/agent.js';
 
@@ -17,7 +17,6 @@ import { runTurn, type ChatAction } from '../ai/agent.js';
  * was said does not.
  */
 
-const turns = new Turns(env.CHAT_CONCURRENCY);
 /** How much of the conversation the model is shown: enough to follow, little enough to stay quick. */
 const HISTORY = 12;
 

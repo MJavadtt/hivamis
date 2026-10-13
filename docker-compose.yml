@@ -6,6 +6,20 @@
 #   ai       the model on the CPU — the default
 #   ai-gpu   the model on NVIDIA GPUs (needs the NVIDIA Container Toolkit)
 #   (none)   no model in the stack: set CHAT_MODE=off, or point OLLAMA_URL elsewhere
+#   image, image-gpu   pictures with the assistant (audit F-2) — off unless added, with IMAGE_MODE=local
+
+# The picture server (audit F-2): LocalAI (MIT), on the same internal network, models on a volume.
+x-imagegen: &imagegen
+  restart: unless-stopped
+  environment:
+    LOCALAI_MODELS_PATH: /models
+  volumes:
+    - image-models:/models
+  networks:
+    ai:
+      aliases: [imagegen]
+  expose:
+    - '8080'
 
 # The model server, as the CPU and GPU profiles share it (audit F-1).
 x-ollama: &ollama
@@ -100,6 +114,10 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
       CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}
+      # Pictures (audit F-2): off until the `image` profile is added and IMAGE_MODE=local.
+      IMAGE_MODE: ${IMAGE_MODE:-off}
+      IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}
+      IMAGE_MODEL: ${IMAGE_MODEL:-sd-1.5-ggml}
       GUIDE_VIDEO_MAX_MB: ${GUIDE_VIDEO_MAX_MB:-200}
       # Roadmap #50: the address links are built on, one or several organisations, the version shown,
       # and whether start-up brings the reference data up to the code.
@@ -163,6 +181,34 @@ services:
     entrypoint: ['/bin/sh', '-c', 'ollama serve >/dev/null 2>&1 & sleep 3 && ollama pull "$$0"']
     command: ['${OLLAMA_MODEL:-qwen3:8b}']
 
+  imagegen:
+    <<: *imagegen
+    image: localai/localai:v4.11.0
+    profiles: [image]
+
+  imagegen-gpu:
+    <<: *imagegen
+    image: localai/localai:v4.11.0-gpu-nvidia-cuda-12
+    profiles: [image-gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Fetches a picture model into its volume, then exits — like ollama-pull, the one part allowed out.
+  #   docker compose run --rm imagegen-pull models install sd-1.5-ggml
+  imagegen-pull:
+    image: localai/localai:v4.11.0
+    profiles: [pull]
+    environment:
+      LOCALAI_MODELS_PATH: /models
+    volumes:
+      - image-models:/models
+    command: ['models', 'install', '${IMAGE_MODEL:-sd-1.5-ggml}']
+
 networks:
   # `internal`: no route out. The API joins it to reach the model; the model has no other network.
   ai:
@@ -172,3 +218,4 @@ volumes:
   db-data:
   storage:
   ollama-models:
+  image-models:

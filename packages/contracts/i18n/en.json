@@ -2553,5 +2553,11 @@
   "--quota-mb یک عدد درست مثبت یا none است.": "--quota-mb is a positive whole number, or none.",
   "فضای ذخیره‌سازی سازمان پر است: {0} از {1} مگابایت به کار رفته. پروندهٔ اسناد حذف‌شده پس از {2} روز پاک می‌شود؛ برای فضای بیشتر با مدیر نصب هماهنگ کنید.": "The organisation's storage is full: {0} of {1} MB in use. Files of deleted documents are removed after {2} days; for more space, speak to whoever runs the installation.",
   "پروندهٔ این سند پیش‌تر پاک شده است؛ نگه‌داشتی برای آن نمی‌ماند.": "This document's file has already been removed; there is nothing left to hold.",
-  "فقط {0} رکورد تازه‌تر شمرده شد؛ بازه را کوتاه‌تر کنید تا همه حساب شوند.": "Only the {0} most recent records were counted; shorten the period to count them all."
+  "فقط {0} رکورد تازه‌تر شمرده شد؛ بازه را کوتاه‌تر کنید تا همه حساب شوند.": "Only the {0} most recent records were counted; shorten the period to count them all.",
+  "نوشتن و بازنویسی با دستیار": "Write and rewrite with the assistant",
+  "ساخت تصویر با دستیار": "Make pictures with the assistant",
+  "بنویسید چه می‌خواهید": "Say what you want written",
+  "دستیار الان نتوانست بنویسد. آیا مدل محلی در حال اجراست؟": "The assistant could not write this right now. Is the local model running?",
+  "ساخت تصویر در این نصب خاموش است.": "Making pictures is turned off in this installation.",
+  "سرور تصویر نتوانست این تصویر را بسازد. دوباره امتحان کنید یا به مدیر سیستم خبر دهید.": "The image server could not make this picture. Try again, or tell the system administrator."
 }

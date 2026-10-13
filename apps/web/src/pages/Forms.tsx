@@ -12,6 +12,7 @@ import {
 } from '../components/ui';
 import { formatDateTime, localDigits } from '../lib/format';
 import { JalaliDateInput } from '../components/JalaliDateInput';
+import { WriteAssist, type WriteKind } from '../components/WriteAssist';
 import { useLocale } from '../lib/locale';
 import { HelpDrawer } from '../components/HelpDrawer';
 import { BulkImport } from '../components/BulkImport';
@@ -326,7 +327,7 @@ export function FormRunner({ definition, onClose, initial }: {
           const wide = ['textarea', 'table', 'attachment'].includes(f.type);
           return (
             <div key={f.key} className={wide ? 'sm:col-span-2' : undefined}>
-              <FormField field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} error={issues[f.key]} />
+              <FormField field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} error={issues[f.key]} writeKind={writeKindOf(definition)} />
             </div>
           );
         })}
@@ -335,9 +336,17 @@ export function FormRunner({ definition, onClose, initial }: {
   );
 }
 
+/** What kind of text a form's long fields hold, for writing with the assistant (audit F-2). */
+function writeKindOf(def: FormDefinition): WriteKind {
+  const name = def.nameFa ?? '';
+  return name.includes('بریف') ? 'brief' : name.includes('پروپوزال') ? 'proposal' : name.includes('صورت‌جلسه') ? 'minutes' : 'other';
+}
+
 /** Exported for the designer's live preview (roadmap #15): one renderer, not two. */
-export function FormField({ field, value, onChange, error }: {
+export function FormField({ field, value, onChange, error, writeKind }: {
   field: FieldDef; value: unknown; onChange: (v: unknown) => void; error?: string;
+  /** Long text gets the assistant's help when given — not in the designer's preview. */
+  writeKind?: WriteKind;
 }) {
   const { t } = useLocale();
   const common = { required: field.required, error, hint: loc(field, 'help') || undefined };
@@ -345,9 +354,12 @@ export function FormField({ field, value, onChange, error }: {
   switch (field.type) {
     case 'textarea':
       return (
-        <Field label={t(field, "label")} {...common}>
-          <Textarea value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} rows={3} />
-        </Field>
+        <div>
+          <Field label={t(field, "label")} {...common}>
+            <Textarea value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} rows={3} />
+          </Field>
+          {writeKind && <WriteAssist value={(value as string) ?? ''} onUse={onChange} kind={writeKind} />}
+        </div>
       );
     case 'number':
     case 'currency':
