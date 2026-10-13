@@ -50,7 +50,7 @@ describe('The organisation’s rules', () => {
     serve({ '/rules/custom': [rule] });
     wrap(<OrgRules />);
     const list = await screen.findByTestId('org-rules');
-    expect(list.textContent).toContain('انتقال فقط وقتی مجاز است که «ارزش برآوردی» بزرگ‌تر یا مساوی 1000000000 باشد');
+    expect(list.textContent).toContain('انتقال فقط وقتی مجاز است که «ارزش برآوردی» بزرگ‌تر یا مساوی ۱۰۰۰۰۰۰۰۰۰ باشد');
     expect(list.textContent).toContain('سرنخ ← واجد شرایط');
     expect(screen.queryByText('قانون تازه')).toBeNull();
     expect(screen.queryByText('نسخهٔ تازه')).toBeNull();
@@ -77,7 +77,7 @@ describe('The organisation’s rules', () => {
     fireEvent.change(screen.getByLabelText('مقدار شرط ۲'), { target: { value: 'ownerId' } });
     fireEvent.change(screen.getByLabelText('ترکیب شرط‌ها'), { target: { value: 'any' } });
     expect(screen.getByTestId('rule-reading').textContent)
-      .toBe('انتقال فقط وقتی مجاز است که «ارزش برآوردی» بزرگ‌تر یا مساوی 1000000000 باشد یا «انجام‌دهندهٔ این انتقال» همان مقدار فیلد «مالک» باشد.');
+      .toBe('انتقال فقط وقتی مجاز است که «ارزش برآوردی» بزرگ‌تر یا مساوی ۱۰۰۰۰۰۰۰۰۰ باشد یا «انجام‌دهندهٔ این انتقال» همان مقدار فیلد «مالک» باشد.');
 
     fireEvent.change(screen.getByLabelText('کد رکورد برای آزمون'), { target: { value: 'LEAD-000007' } });
     fireEvent.click(screen.getByText('آزمون روی این رکورد'));

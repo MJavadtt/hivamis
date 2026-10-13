@@ -202,7 +202,7 @@ function Home() {
               <tbody>
                 {data.invoices.map((i) => (
                   <tr key={i.id} className="border-t border-ink-100">
-                    <td className="py-1.5"><span className="ltr">{i.number}</span></td><td>{formatDate(i.issueDate)}</td><td>{formatDate(i.dueDate)}</td>
+                    <td className="py-1.5"><span className="ltr whitespace-nowrap">{i.number}</span></td><td>{formatDate(i.issueDate)}</td><td>{formatDate(i.dueDate)}</td>
                     <td>{tr('{0} ریال', formatNumber(Number(i.total)))}</td><td>{tr('{0} ریال', formatNumber(Number(i.paidAmount)))}</td>
                   </tr>
                 ))}
@@ -254,7 +254,7 @@ function ProjectPage() {
       <div>
         <Link to="/portal" className="text-xs text-brand-700">{tr('← پروژه‌ها')}</Link>
         <h1 className="mt-1 text-lg font-semibold text-ink-900">{p.name}</h1>
-        <p className="text-xs text-ink-500"><span className="ltr">{p.code}</span> · {loc(p, 'state')}{p.plannedStart ? tr(' · {0} تا {1}', formatDate(p.plannedStart), formatDate(p.plannedEnd)) : ''}</p>
+        <p className="text-xs text-ink-500"><span className="ltr whitespace-nowrap">{p.code}</span> · {loc(p, 'state')}{p.plannedStart ? tr(' · {0} تا {1}', formatDate(p.plannedStart), formatDate(p.plannedEnd)) : ''}</p>
         {p.objective && <p className="mt-2 text-sm text-ink-700">{p.objective}</p>}
       </div>
       {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{note}</p>}

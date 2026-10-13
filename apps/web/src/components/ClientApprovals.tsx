@@ -77,7 +77,7 @@ function ApprovalCard({ a, canWrite }: { a: any; canWrite: boolean }) {
     <li className="rounded-lg border border-ink-200 px-3 py-2 text-xs" data-testid="approval-row">
       <div className="flex flex-wrap items-center gap-2">
         <ApprovalStatus status={a.status} />
-        <span className="ltr text-ink-500">{a.code}</span>
+        <span className="ltr text-ink-500 whitespace-nowrap">{a.code}</span>
         <span>{a.contactName} <span className="ltr text-ink-400">{a.contactEmail}</span></span>
         <span className="text-ink-400">· {formatDateTime(a.createdAt)} · {a.requestedBy?.fullName}</span>
         <div className="ms-auto flex gap-1">

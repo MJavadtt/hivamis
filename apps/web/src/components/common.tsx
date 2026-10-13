@@ -329,8 +329,9 @@ export function EntityList<T extends { id: string }>({
 
 /* ── Small presentational helpers ──────────────────────────────────────── */
 
+/** A record's code (PRJ-000016). Never broken at its hyphen: on two lines it reads as two codes, or none (audit UI-V). */
 export const Code = ({ children }: { children: ReactNode }) => (
-  <span className="ltr rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[12.5px] text-ink-600">{children}</span>
+  <span className="ltr whitespace-nowrap rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[12.5px] text-ink-600">{children}</span>
 );
 
 export const StateCell = ({ state }: { state: string }) => <StateBadge state={state} />;

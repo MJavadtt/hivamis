@@ -26,6 +26,7 @@ import { UnitTag } from '../components/UnitTag';
 import { SignupRequests, SmsSandbox } from '../components/SignupRequests';
 import { PersonLink } from './People';
 import { ModelCard } from '../components/ModelStatus';
+import { ACTION_LABELS } from '../lib/audit-labels';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
@@ -165,12 +166,6 @@ function SlaPolicies() {
   );
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  CREATE: tr('ایجاد'), UPDATE: tr('ویرایش'), DELETE: tr('حذف'), STATE_TRANSITION: tr('تغییر وضعیت'),
-  APPROVE: tr('تأیید'), REJECT: tr('رد'), LOGIN: tr('ورود'), LOGIN_FAILED: tr('ورود ناموفق'),
-  LOGOUT: tr('خروج'), PERMISSION_DENIED: tr('دسترسی رد شد'), AI_ACTION: tr('عملیات هوش مصنوعی'),
-  FILE_UPLOAD: tr('بارگذاری فایل'), FILE_DOWNLOAD: tr('دریافت فایل'), FILE_VIEW: tr('مشاهدهٔ فایل'), EXPORT: tr('خروجی‌گیری'),
-};
 
 function AuditTrail() {
   const [entityType, setEntityType] = useState('');

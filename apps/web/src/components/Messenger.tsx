@@ -54,7 +54,7 @@ export function MessengerModal({ onClose }: { onClose: () => void }) {
             ) : code ? (
               <div className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="messenger-code">
                 <p>{s.mode === 'sandbox' ? tr('این کد را در گفت‌وگوی آزمایشی زیر بفرستید:') : <>{tr('این کد را برای ربات')}{' '}{code.bot ? <span className="ltr">@{code.bot}</span> : tr('سازمان')}{' '}{tr('بفرستید:')}</>}</p>
-                <p className="ltr text-center text-xl font-semibold tracking-widest">{code.code}</p>
+                <p className="ltr text-center text-xl font-semibold tracking-widest whitespace-nowrap">{code.code}</p>
                 {code.deepLink && <p><a href={code.deepLink} target="_blank" rel="noreferrer" className="text-brand-700 underline">{tr('باز کردن ربات')}</a></p>}
                 <p className="text-[12.5px]">{tr('تا {0} معتبر است و فقط یک بار.', formatDateTime(code.expiresAt))}</p>
               </div>

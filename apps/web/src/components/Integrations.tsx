@@ -98,7 +98,7 @@ function NewKey({ onClose }: { onClose: (secret?: string) => void }) {
       </Field>
       <div className="mt-2 grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2" data-testid="grantable">
         {shown.map((g) => (
-          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{loc(g, 'label')} <span className="ltr text-[12px] text-ink-400">{g.code}</span></span>}
+          <Checkbox key={g.code} checked={picked.includes(g.code)} label={<span className="text-xs">{loc(g, 'label')} <span className="ltr text-[12px] text-ink-400 whitespace-nowrap">{g.code}</span></span>}
             onChange={(e) => setPicked(e.target.checked ? [...picked, g.code] : picked.filter((p) => p !== g.code))} />
         ))}
       </div>

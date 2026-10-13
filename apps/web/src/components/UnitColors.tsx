@@ -41,7 +41,7 @@ export function UnitColors() {
               <div className="w-56 min-w-0">
                 <UnitTag code={u.code} />
                 <p className="mt-1 text-[12.5px] text-ink-500">
-                  <span className="ltr font-mono">{u.code}</span>{' · '}{u.tagColor ? tr('انتخاب مدیر سیستم') : tr('پیش‌فرض')}
+                  <span className="ltr font-mono whitespace-nowrap">{u.code}</span>{' · '}{u.tagColor ? tr('انتخاب مدیر سیستم') : tr('پیش‌فرض')}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label={tr('رنگ برچسب «{0}»', loc(u, 'name'))}>

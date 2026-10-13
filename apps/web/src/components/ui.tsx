@@ -51,7 +51,8 @@ export function StateBadge({ state, className }: { state: string; className?: st
 
 export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: Tone; className?: string }) {
   return (
-    <span className={cx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', TONE_CLASSES[tone], className)}>
+    // One line always: a badge wrapped inside its pill reads as a blob on a phone (audit UI-V).
+    <span className={cx('inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', TONE_CLASSES[tone], className)}>
       {children}
     </span>
   );

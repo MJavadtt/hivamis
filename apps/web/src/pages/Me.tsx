@@ -57,7 +57,8 @@ export default function Me() {
           <Card>
             <div className="flex flex-wrap items-center gap-4 p-5">
               <Avatar name={user.fullName} unit={user.department?.code} color={unit?.color} size="lg" />
-              <div className="min-w-0 flex-1">
+              {/* A floor for the name's column, so on a phone the link wraps below it rather than squeezing it to a word a line (audit UI-V). */}
+              <div className="min-w-[11rem] flex-1">
                 <p className="text-lg font-semibold text-ink-900">{user.fullName}</p>
                 <p className="text-sm text-ink-600">{trx(user.jobTitle)}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

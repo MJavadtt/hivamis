@@ -71,7 +71,7 @@ export function ProjectMedia({ projectId }: { projectId: string }) {
                     {money(o.originalClientAmount ?? o.clientAmount, o.currency)}
                     <p className="text-[12px] text-ink-400">{tr('عبوری {0} · آژانس {1}', money(o.originalNetAmount ?? o.netAmount, o.currency), formatCurrency(o.agencyRevenue))}</p>
                   </Td>
-                  <Td className="text-xs">{o.clientInvoice ? <span className="ltr">{o.clientInvoice.number}</span> : <span className="text-ink-400">—</span>}
+                  <Td className="text-xs">{o.clientInvoice ? <span className="ltr whitespace-nowrap">{o.clientInvoice.number}</span> : <span className="text-ink-400">—</span>}
                     {o.vendorInvoiceAmount != null && <p className="text-[12px] text-ink-500">{tr('رسانه: {0}', money(o.vendorInvoiceAmount, o.currency))}</p>}
                   </Td>
                   <Td><StateBadge state={o.state} /></Td>

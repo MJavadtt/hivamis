@@ -98,7 +98,7 @@ export function ESignCard({ contractId }: { contractId: string }) {
               <li key={e.id} className="rounded-lg border border-ink-200 px-3 py-2 text-xs" data-testid="esign-envelope">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={TONE[e.status] ?? 'neutral'}>{trx(ENVELOPE_STATUS_LABELS[e.status] ?? e.status)}</Badge>
-                  <span className="ltr text-ink-500">{e.code}</span>
+                  <span className="ltr text-ink-500 whitespace-nowrap">{e.code}</span>
                   {e.provider === 'sandbox' && <Badge tone="warning">{tr('آزمایشی')}</Badge>}
                   <span className="text-ink-400">{e.document?.fileName} · {formatDateTime(e.createdAt)} · {e.createdBy?.fullName}</span>
                   <div className="ms-auto flex gap-1">

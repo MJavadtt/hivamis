@@ -107,7 +107,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
   return (
     <Frame org={view.organization}>
       <header className="space-y-1">
-        <p className="text-xs text-ink-500">{view.subject.type === 'DELIVERABLE' ? tr('خروجی') : tr('پروپوزال')} · <span className="ltr">{view.subject.code}</span>{' '}{tr('· نسخهٔ')}{' '}<span className="ltr">{view.subject.version}</span></p>
+        <p className="text-xs text-ink-500">{view.subject.type === 'DELIVERABLE' ? tr('خروجی') : tr('پروپوزال')} · <span className="ltr whitespace-nowrap">{view.subject.code}</span>{' '}{tr('· نسخهٔ')}{' '}<span className="ltr">{view.subject.version}</span></p>
         <h1 className="text-lg font-semibold text-ink-900">{view.subject.title}</h1>
         {view.subject.context && <p className="text-xs text-ink-500">{view.subject.context}</p>}
       </header>
@@ -142,7 +142,7 @@ export function ApprovalDecision({ api, embedded = false }: { api: ApprovalApi; 
       {done ? (
         <section className="space-y-1 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-900" data-testid="approve-receipt">
           <p className="font-medium">{done.decision === 'APPROVE' ? tr('تأیید شما ثبت شد.') : tr('درخواست اصلاح شما ثبت شد.')}</p>
-          <p className="text-xs">{tr('{0} — شناسه', formatDateTime(done.decidedAt))}{' '}<span className="ltr">{done.code}</span></p>
+          <p className="text-xs">{tr('{0} — شناسه', formatDateTime(done.decidedAt))}{' '}<span className="ltr whitespace-nowrap">{done.code}</span></p>
           <p className="text-xs">{tr('اثر انگشت آنچه دیدید:')}{' '}<code className="ltr break-all">{done.manifestHash}</code></p>
           <p className="text-xs">{tr('اثر انگشت تصمیم:')}{' '}<code className="ltr break-all">{done.evidenceHash}</code></p>
           <p className="text-[12.5px]">{tr('این دو را نگه دارید؛ با آن‌ها می‌توان نشان داد تصمیم شما و آنچه دیدید پس از ثبت تغییر نکرده است.')}</p>

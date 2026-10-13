@@ -59,7 +59,7 @@ export function MoadianTab() {
             <tbody data-testid="moadian-pending">
               {r.pending.map((x: any) => (
                 <Tr key={x.id}>
-                  <Td className="ltr text-xs">{x.number}</Td>
+                  <Td className="ltr text-xs whitespace-nowrap">{x.number}</Td>
                   <Td className="text-xs">{x.client}</Td>
                   <Td className="text-xs">{formatDate(x.issueDate)} <span className="text-ink-400">{tr('({0} روز پیش)', localDigits(x.ageDays))}</span></Td>
                   <Td className="text-xs">{formatCurrency(x.total)}</Td>

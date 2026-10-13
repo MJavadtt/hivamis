@@ -125,7 +125,7 @@ export default function Dashboard() {
                           <Tr key={t.id}>
                             <Td>
                               <p className="font-medium text-ink-800">{t.title}</p>
-                              <p className="ltr text-[12.5px] text-ink-400">{t.code}</p>
+                              <p className="ltr text-[12.5px] text-ink-400 whitespace-nowrap">{t.code}</p>
                             </Td>
                             <Td className="text-xs">
                               <Link to={`/projects/${t.project.id}`} className="text-brand-600 hover:underline">
@@ -232,7 +232,7 @@ export default function Dashboard() {
                         <Tr key={o.id}>
                           <Td>
                             <Link to={`/opportunities/${o.id}`} className="font-medium text-brand-600 hover:underline">{o.title}</Link>
-                            <p className="ltr text-[12.5px] text-ink-400">{o.code}</p>
+                            <p className="ltr text-[12.5px] text-ink-400 whitespace-nowrap">{o.code}</p>
                           </Td>
                           <Td className="text-xs">{o.company?.legalName}</Td>
                           <Td><StateBadge state={o.state} /></Td>
@@ -263,7 +263,7 @@ export default function Dashboard() {
                           <Link to={`/projects/${p.id}`} className="font-medium text-brand-600 hover:underline">
                             {p.name}
                           </Link>
-                          <p className="ltr text-[12.5px] text-ink-400">{p.code}</p>
+                          <p className="ltr text-[12.5px] text-ink-400 whitespace-nowrap">{p.code}</p>
                         </Td>
                         <Td className="text-xs">{p.company?.legalName}</Td>
                         <Td><StateBadge state={p.state} /></Td>

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, money } from '../components/Fx';
+import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, PAYMENT_METHODS, money } from '../components/Fx';
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
 import { AccountingTab } from '../components/AccountingExport';
 import { ESignCard } from '../components/ESign';
@@ -69,7 +69,7 @@ export function ContractDetail() {
         badge={<StateBadge state={data.state} />}
         subtitle={<span className="flex items-center gap-2">
           <Code>{data.code}</Code>
-          {data.contractNumber && <span className="ltr">{data.contractNumber}</span>}
+          {data.contractNumber && <span className="ltr whitespace-nowrap">{data.contractNumber}</span>}
           <Link to={`/companies/${data.company.id}`} className="text-brand-600 hover:underline">{data.company.legalName}</Link>
         </span>}
         actions={
@@ -202,7 +202,7 @@ export function Finance() {
                   <tbody>
                     {invoices.items.map((i: any) => (
                       <Tr key={i.id}>
-                        <Td className="ltr text-xs">{i.number}</Td>
+                        <Td className="ltr text-xs whitespace-nowrap">{i.number}</Td>
                         <Td><Badge tone="neutral">{i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')}</Badge></Td>
                         <Td className="text-xs">{i.company?.legalName}</Td>
                         <Td className="text-xs">{i.project?.name ?? '—'}</Td>
@@ -231,7 +231,7 @@ export function Finance() {
                         <Td><Badge tone={p.direction === 'IN' ? 'success' : 'warning'}>{p.direction === 'IN' ? tr('دریافتی') : tr('پرداخت')}</Badge></Td>
                         <Td className="text-xs" title={exactCurrency(p.amount)}><Amount base={p.amount} original={p.originalAmount} currency={p.currency} /></Td>
                         <Td className="text-xs">{formatDate(p.occurredAt)}</Td>
-                        <Td className="text-xs">{p.method}</Td>
+                        <Td className="text-xs">{PAYMENT_METHODS[p.method] ?? p.method}</Td>
                         <Td className="ltr text-xs">{p.reference ?? '—'}</Td>
                       </Tr>
                     ))}

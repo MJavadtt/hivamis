@@ -474,7 +474,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
                       <span className="truncate text-ink-700">
                         {item.legalName ?? item.title ?? item.name}
                       </span>
-                      {item.code && <span className="ltr shrink-0 text-[12.5px] text-ink-400">{item.code}</span>}
+                      {item.code && <span className="ltr shrink-0 text-[12.5px] text-ink-400 whitespace-nowrap">{item.code}</span>}
                     </button>
                   );
                 })}

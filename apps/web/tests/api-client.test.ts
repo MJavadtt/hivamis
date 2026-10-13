@@ -208,7 +208,7 @@ describe('A server that is not there', () => {
     expect(own.body.code).toBe('INTERNAL_ERROR');
     expect(own.message).toBe('خطای داخلی سرور رخ داد.');
     reply(404, null);
-    expect((await api('/nowhere').catch((e) => e)).message).toBe('خطای 404');
+    expect((await api('/nowhere').catch((e) => e)).message).toBe('خطای ۴۰۴');
   });
 
   it('says the same when the request reaches nothing at all, and lets an abort be an abort', async () => {

@@ -585,7 +585,7 @@ function FinanceTab({ finance, project }: { finance: NonNullable<Project360['fin
             <tbody>
               {finance.invoices.map((i: any) => (
                 <Tr key={i.id}>
-                  <Td className="ltr text-xs">{i.number}</Td>
+                  <Td className="ltr text-xs whitespace-nowrap">{i.number}</Td>
                   <Td className="text-xs">{i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')}</Td>
                   <Td className="text-xs">{formatDate(i.issueDate)}</Td>
                   <Td className="text-xs" title={exactCurrency(i.total)}>{formatCurrency(i.total)}</Td>

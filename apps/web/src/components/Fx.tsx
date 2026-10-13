@@ -10,6 +10,11 @@ import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, StatTile,
 import { formatCurrency, formatDate, formatNumber, localDateOnly, localDigits } from '../lib/format';
 import { loc, tr, trx } from '../i18n';
 
+/** How a payment was made, in words — the payments list showed TRANSFER as the API spells it (audit UI-V). */
+export const PAYMENT_METHODS: Record<string, string> = {
+  TRANSFER: tr('انتقال بانکی'), CHEQUE: tr('چک'), CASH: tr('نقد'), OTHER: tr('سایر'),
+};
+
 /* Roadmap #28 — amounts in more than one currency, each converted at the rate of its own day. */
 
 export const currencyFa = (c: string) => trx(CURRENCY_LABELS[c as Currency] ?? c);
@@ -219,7 +224,7 @@ export function FxReport() {
             <tbody>
               {data.receivables.map((r: any) => (
                 <Tr key={r.id}>
-                  <Td className="ltr text-xs">{r.number}</Td>
+                  <Td className="ltr text-xs whitespace-nowrap">{r.number}</Td>
                   <Td className="text-xs">{r.company?.legalName}</Td>
                   <Td className="text-xs">{money(r.outstanding, r.currency)}</Td>
                   <Td className="text-xs">{formatCurrency(r.bookedBase)} <span className="text-[12px] text-ink-400">({formatDate(r.bookedRateDate)})</span></Td>
@@ -351,7 +356,7 @@ export function NewPaymentModal({ onClose }: { onClose: () => void }) {
           <Field label={tr('ارز مبلغ')}><CurrencySelect value={v.currency} onChange={(c) => setV({ ...v, currency: c })} label={tr('ارز مبلغ')} /></Field>
         </div>
         <Field label={tr('تاریخ')} required><JalaliDateInput mode="date" value={v.occurredAt} onChange={(d) => setV({ ...v, occurredAt: d || v.occurredAt })} /></Field>
-        <Field label={tr('روش')}><Select value={v.method} onChange={(e) => setV({ ...v, method: e.target.value })} aria-label={tr('روش')}><option value="TRANSFER">{tr('انتقال بانکی')}</option><option value="CHEQUE">{tr('چک')}</option><option value="CASH">{tr('نقد')}</option><option value="OTHER">{tr('سایر')}</option></Select></Field>
+        <Field label={tr('روش')}><Select value={v.method} onChange={(e) => setV({ ...v, method: e.target.value })} aria-label={tr('روش')}>{Object.entries(PAYMENT_METHODS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}</Select></Field>
         <Field label={tr('مرجع')}><Input value={v.reference} onChange={(e) => setV({ ...v, reference: e.target.value })} className="ltr" aria-label={tr('مرجع')} /></Field>
         <FxPreview currency={v.currency} amount={Number(v.amount || 0)} on={v.occurredAt} />
       </div>

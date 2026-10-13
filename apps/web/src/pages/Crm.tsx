@@ -157,7 +157,7 @@ function LeadModal({ onClose }: { onClose: () => void }) {
           <div className="sm:col-span-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-inset ring-amber-200" role="alert" data-testid="lead-duplicate">
             <p className="font-medium">{tr('این شماره پیش‌تر ثبت شده است:')}</p>
             <ul className="mt-1 space-y-0.5">
-              {dup.leads.map((l) => <li key={l.id}>{tr('سرنخ')}{' '}<span className="ltr">{l.code}</span> «{l.name}» — {l.companyName}{l.owner ? tr(' (مالک: {0})', l.owner) : ''}</li>)}
+              {dup.leads.map((l) => <li key={l.id}>{tr('سرنخ')}{' '}<span className="ltr whitespace-nowrap">{l.code}</span> «{l.name}» — {l.companyName}{l.owner ? tr(' (مالک: {0})', l.owner) : ''}</li>)}
               {dup.contacts.map((c) => <li key={c.id}>{tr('مخاطب «{0}» از', c.fullName)}{' '}<Link to={`/companies/${c.companyId}`} className="underline">{c.company}</Link></li>)}
             </ul>
             <label className="mt-2 flex items-center gap-2">
@@ -530,7 +530,7 @@ export function CompanyDetail() {
                   <tbody>
                     {data.finance.invoices.map((i: any) => (
                       <Tr key={i.id}>
-                        <Td className="ltr text-xs">{i.number}</Td>
+                        <Td className="ltr text-xs whitespace-nowrap">{i.number}</Td>
                         <Td className="text-xs">{formatDate(i.issueDate)}</Td>
                         <Td className="text-xs" title={exactCurrency(i.total)}>{formatCurrency(i.total)}</Td>
                         <Td className="text-xs">{formatCurrency(i.paidAmount)}</Td>

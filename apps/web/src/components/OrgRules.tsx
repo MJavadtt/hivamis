@@ -71,7 +71,7 @@ export function OrgRules() {
           {rules.map((r) => (
             <li key={r.id} className="space-y-1 px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="ltr text-xs text-ink-400">{r.code}</span>
+                <span className="ltr text-xs text-ink-400 whitespace-nowrap">{r.code}</span>
                 <Badge tone={r.kind === 'GUARD' ? 'warning' : 'info'}>{trx(CUSTOM_RULE_KIND_LABELS[r.kind])}</Badge>
                 <span className="font-medium text-ink-800">{loc(r, 'label')}</span>
                 <span className="text-xs text-ink-500">{loc(r, 'entity')} {flow()} {loc(r, 'transition')}</span>
@@ -231,7 +231,7 @@ export function RuleEditor({ rule, onClose }: { rule: Rule | null; onClose: () =
             );
           })}
           <Button size="sm" variant="secondary" onClick={() => set({ leaves: [...draft.leaves, { field: fields[0]!.key, op: OPS_BY_TYPE[fields[0]!.type][0]! }] })}>{tr('افزودن شرط')}</Button>
-          {cond && <p className="rounded bg-ink-50 px-2 py-1 text-xs text-ink-700" data-testid="rule-reading">{draft.kind === 'GUARD' ? tr('انتقال فقط وقتی مجاز است که ') : tr('آگاه‌سازی وقتی است که ')}{describeCondition(cond, fields as never)}.</p>}
+          {cond && <p className="rounded bg-ink-50 px-2 py-1 text-xs text-ink-700" data-testid="rule-reading">{draft.kind === 'GUARD' ? tr('انتقال فقط وقتی مجاز است که ') : tr('آگاه‌سازی وقتی است که ')}{trx(describeCondition(cond, fields as never))}.</p>}
         </section>
 
         {draft.kind === 'NOTIFY' && (

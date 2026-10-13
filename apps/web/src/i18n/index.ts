@@ -69,7 +69,20 @@ export function tr(fa: string, ...args: unknown[]): string {
  */
 export function trx(text: string | null | undefined): string {
   if (text === null || text === undefined) return '';
-  return current === 'en' && translator ? translator.translate(text) : text;
+  return current === 'en' && translator ? translator.translate(text) : faDigits(text);
+}
+
+const PERSIAN = /[؀-ۿ]/;
+// A number standing in the sentence — not part of a code (PRJ-000016), a name (qwen3:8b) or an address.
+const NUMBER = /(?<![A-Za-z_\-:@#\d.])\d+(?:[./]\d+)*(?![A-Za-z_\-:@\d])/g;
+
+/**
+ * Persian digits in Persian text from the server: a rule message, a finding, a note («دست‌کم 12 واژه»
+ * read as «دست‌کم ۱۲ واژه»; audit UI-V). Text with no Persian in it is left as it is.
+ */
+export function faDigits(text: string): string {
+  if (!PERSIAN.test(text) || !/\d/.test(text)) return text;
+  return text.replace(NUMBER, (n) => n.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]!).replace(/\./g, '٫'));
 }
 
 /**
@@ -80,7 +93,7 @@ export function loc(source: object | null | undefined, base: string): string {
   if (!source) return '';
   const bag = source as Record<string, unknown>;
   const fa = bag[`${base}Fa`];
-  if (current === 'fa') return String(fa ?? '');
+  if (current === 'fa') return faDigits(String(fa ?? ''));
   const en = bag[`${base}En`];
   if (typeof en === 'string' && en.trim() && !/[؀-ۿ]/.test(en)) return en;
   return trx(typeof fa === 'string' ? fa : '');
