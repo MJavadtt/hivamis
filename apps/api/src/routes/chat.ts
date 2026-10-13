@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { chatRequestSchema } from '@hiva/contracts';
+import { chatRequestSchema, type ChatModelStatus } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
@@ -24,10 +24,14 @@ const HISTORY = 12;
 const chatRoutes: FastifyPluginAsync = async (app) => {
   const guard = { preHandler: [app.authenticate, app.requirePermissions('ai.chat')] };
 
-  app.get('/ai/chat/status', guard, async () => {
-    if (env.CHAT_MODE === 'off') return { mode: 'off', ready: false, model: null, reachable: false, modelPresent: false, busy: 0, waiting: 0 };
+  /** Whether it can answer, the model and its load (audit F-1): the model runs on this installation's own hardware. */
+  app.get('/ai/chat/status', guard, async (): Promise<ChatModelStatus> => {
+    const load = { busy: turns.busy, waiting: turns.queued };
+    if (env.CHAT_MODE === 'off') {
+      return { mode: 'off', ready: false, model: null, reachable: false, modelPresent: false, parameterSize: null, quantization: null, sizeBytes: null, loaded: false, vramBytes: null, loadedUntil: null, ...load };
+    }
     const s = await modelStatus();
-    return { mode: env.CHAT_MODE, ready: s.reachable && s.modelPresent, model: s.model, reachable: s.reachable, modelPresent: s.modelPresent, busy: turns.busy, waiting: turns.queued };
+    return { mode: env.CHAT_MODE, ready: s.reachable && s.modelPresent, ...s, ...load };
   });
 
   app.get('/ai/conversations', guard, async (req) => {

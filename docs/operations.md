@@ -134,8 +134,10 @@ come from `tenant:create`, as the installer does.
 | `AI_ENABLED` | no | false | Both this and the key are required. Also enables the model fallback of «پرسش از داده‌ها» (roadmap #27): a question the rules cannot map is sent — the question text and the metric list only, never data — to the model, which may only fill the same plan |
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
 | `CHAT_MODE` | no | `ollama` | The chat assistant (Hivamis task 5): `ollama`, a model served by Ollama, or `off`. See [The chat assistant](#the-chat-assistant-local-model) |
-| `OLLAMA_URL` | no | `http://127.0.0.1:11434` | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
-| `OLLAMA_MODEL` | no | `qwen3:14b` | A model that supports tool calling and writes Persian |
+| `OLLAMA_URL` | no | `http://127.0.0.1:11434`; `http://ollama:11434` in Compose | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
+| `OLLAMA_MODEL` | no | `qwen3:14b`; in Compose, chosen by the installer for the machine's memory | A model that supports tool calling and writes Persian |
+| `COMPOSE_PROFILES` | no (Compose) | `ai` | The model's service: `ai` on the CPU, `ai-gpu` on NVIDIA GPUs, empty for none (audit F-1) |
+| `OLLAMA_KEEP_ALIVE` | no (Compose) | `30m` | How long the model stays loaded after the last question |
 | `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
 | `GUIDE_VIDEO_MAX_MB` | no | 200 | Largest guide video (Hivamis task 8). Videos are kept in `STORAGE_DIR`, so back them up with it |
 | `REFERENCE_SYNC` | no | `on` | Roadmap #50: on start, bring every organisation's reference data — roles, units, SLA policies, the form catalogue — up to the code. `off` leaves it to `cli reference:sync` |
@@ -702,33 +704,80 @@ whose debits and credits differ.
 
 ## The chat assistant (local model)
 
-Hivamis task 5. The assistant in the top bar runs on a model served by
-[Ollama](https://ollama.com) on the organisation's own machine. It has no per-question cost and no
-quota, and nothing said to it leaves the network. Setting it up:
+Hivamis task 5; audit F-1. The assistant in the top bar runs on a model served by
+[Ollama](https://ollama.com) inside the installation. Nothing said to it leaves the network.
 
-1. Install Ollama on the server, or on a machine the API can reach (`brew install ollama` on a Mac;
-   the install script or package on Linux). Start it with `ollama serve`. On Linux the package runs
-   it as a service.
-2. Download the model:
+**What "unlimited and free" means.** There is no per-question cost and no quota. Speed is set by the
+server's hardware: a model answering on a CPU writes a few words a second, and one question is
+answered at a time unless the hardware allows more.
 
-   ```bash
-   ollama pull qwen3:14b
-   ```
+### With the installer (Compose)
 
-   It is about 9 GB, needs about 10 GB of memory while answering, and fits a 16 GB machine. On a
-   smaller machine use `qwen3:8b` and set `OLLAMA_MODEL`. A different family needs to support tool
-   calling.
+The stack carries the model server as the `ollama` service:
+
+- **On an internal network.** It sits on `ai`, a Compose network with `internal: true`. No port is
+  published, and the server has no route to the internet. Only the API joins that network.
+- **Its models on a volume.** They live on `ollama-models`, so an upgrade does not fetch them again.
+- **Fetched by a separate container.** `ollama-pull` (profile `pull`) is the only part that may reach
+  the internet, and it runs only when asked.
+
+The installer sizes the model to the machine and writes the choice to `.env`. It uses the GPU's
+memory when an NVIDIA GPU is present, and the machine's memory otherwise:
+
+| Memory | `OLLAMA_MODEL` | Download | Memory while answering |
+| --- | --- | --- | --- |
+| 24 GB or more | `qwen3:14b` | ~9 GB | ~11 GB |
+| 12–23 GB | `qwen3:8b` | ~5 GB | ~7 GB |
+| under 12 GB | `qwen3:4b` | ~2.5 GB | ~4 GB |
+
+- **The profile.** `COMPOSE_PROFILES=ai` runs the model on the CPU. `ai-gpu` runs it on NVIDIA GPUs
+  and needs the NVIDIA Container Toolkit on the host. The installer chooses `ai-gpu` when
+  `nvidia-smi` sees a GPU.
+- **The installer waits for the model.** It fetches the model once the stack is up, shows the
+  download's progress, and refuses to finish if the model is not in the store afterwards.
+- **Options:**
+  - `--model NAME` chooses a model outright;
+  - `--no-ai` leaves the model out (`CHAT_MODE=off`, no profile).
+- **Later changes:** `infrastructure/hivamis model` shows the model and what the machine would
+  get. `infrastructure/hivamis model pull [NAME]` fetches a model, switches to it and restarts the
+  API. `upgrade` fetches the configured model if the store lacks it.
+
+**Hardware, honestly.** The application, its database and the PDF renderer need about 2 GB. Add to
+that the model's memory from the table. Speed depends on the hardware:
+
+- **A CPU, no GPU:** not measured here. Expect `qwen3:8b` to write a few words a second, so a long
+  answer can take a minute.
+- **A GPU with 12 GB or more:** expect answers several times faster than on the CPU.
+- **Apple silicon:** the [measurement below](#capacity-measured) is on a 16 GB M1 Pro.
+
+Everyone shares one model: people wait their turn, and are told their place.
+
+### Without Compose
+
+1. Install Ollama on the server, or on a machine the API can reach. On a Mac use `brew install
+   ollama`; on Linux, the install script or package. Start it with `ollama serve`; on Linux the
+   package runs it as a service.
+2. Download the model, for example `ollama pull qwen3:8b`, and set `OLLAMA_MODEL` to it. A model
+   from a different family needs to support tool calling.
 3. If Ollama is not on the API's own machine, set `OLLAMA_URL`. Do not expose Ollama to the
    internet: it has no authentication.
+   - To use Ollama on the host from the Compose stack, set
+     `OLLAMA_URL=http://host.docker.internal:11434` and leave the `ai` profile out.
+   - On Linux, Ollama listens only on 127.0.0.1 out of the box. Make it listen on the Docker bridge
+     as well, for example `OLLAMA_HOST=172.17.0.1:11434` in its service environment, rather than on
+     `0.0.0.0`.
 
-   With the Compose stack, the API container reaches Ollama on the host at
-   `host.docker.internal:11434`, which is the default there. On Linux, Ollama only listens on
-   127.0.0.1 out of the box. Make it listen on the Docker bridge as well, for example
-   `OLLAMA_HOST=172.17.0.1:11434` in its service environment, rather than on `0.0.0.0`.
+### Status
 
-`GET /api/v1/ai/chat/status` reports `ready: true` when both are in place. Until then, the
-conversation tells people the assistant is unavailable, and tells the system administrator how to
-start it. The model stays loaded for 30 minutes after the last question. The first question after
+`GET /api/v1/ai/chat/status` reports `ready: true` once the server answers and has the model. It
+also reports the model's details and load:
+
+- its parameter size, quantisation and size on disk;
+- whether it is loaded, and how much of it sits in GPU memory;
+- how many answers are being written, and how many questions wait.
+
+Admin → System shows the same. Until the model is ready, the conversation tells people the
+assistant is unavailable, and tells the system administrator how to start it. The model stays loaded for 30 minutes after the last question. The first question after
 that takes a few seconds longer while the model loads.
 
 **Who has it.** The permission `ai.chat` («گفت‌وگو با دستیار») is in every role by default. A role
@@ -736,8 +785,10 @@ whose permissions an administrator already chose under Admin → Roles before th
 those exact permissions, so tick `ai.chat` there to give that role the assistant. To turn the
 assistant off for everyone, set `CHAT_MODE=off`.
 
-**Capacity.** One answer is written at a time by default. Measured on a 16 GB Apple M1 Pro also
-running the application, its database and a browser:
+### Capacity, measured
+
+One answer is written at a time by default. Measured on a 16 GB Apple M1 Pro also running the
+application, its database and a browser:
 
 - The first question after the model was idle took about 40 seconds, most of it loading.
 - After that, answers took 13 to 36 seconds.

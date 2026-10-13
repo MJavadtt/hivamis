@@ -2,8 +2,9 @@
 # Hivamis on one machine, with Docker Compose (roadmap #50).
 #
 #   infrastructure/hivamis install --org-name NAME --org-slug SLUG --admin-email EMAIL --admin-name NAME
-#                                  [--domain HOST] [--port 8080] [--multi]
+#                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai]
 #   infrastructure/hivamis status
+#   infrastructure/hivamis model [pull [NAME]]     the assistant's model: show it, or fetch it
 #   infrastructure/hivamis backup
 #   infrastructure/hivamis restore --db FILE.dump [--storage FILE.tar.gz] --yes
 #   infrastructure/hivamis upgrade [--pull] [--no-backup]
@@ -12,6 +13,7 @@
 # HIVAMIS_ENV_FILE    the settings file (default: .env beside docker-compose.yml)
 # HIVAMIS_BACKUP_DIR  where backups go (default: ./backups); RETENTION_DAYS (default 30)
 # HIVAMIS_DRY_RUN=1   print every command instead of running it
+# HIVAMIS_MEMORY_GB, HIVAMIS_GPU=0|1   what the model is chosen for, when detection should not decide
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -50,8 +52,76 @@ wait_healthy() {
   die "the API did not become ready; see: docker compose logs api"
 }
 
+# ── The assistant's model (audit F-1) ───────────────────────────────────────────────────────────
+
+has_gpu() {
+  if [ -n "${HIVAMIS_GPU:-}" ]; then [ "$HIVAMIS_GPU" = 1 ]; return; fi
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
+
+# The memory the model runs in, in whole GB: the GPU's when there is one, the machine's otherwise.
+memory_gb() {
+  if [ -n "${HIVAMIS_MEMORY_GB:-}" ]; then printf '%s' "$HIVAMIS_MEMORY_GB"; return; fi
+  if has_gpu; then
+    local mib
+    mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc 0-9)"
+    if [ -n "$mib" ]; then printf '%s' "$(( mib / 1024 ))"; return; fi
+  fi
+  if [ -r /proc/meminfo ]; then awk '/^MemTotal:/ { printf "%d", $2 / 1048576 }' /proc/meminfo; return; fi
+  if command -v sysctl >/dev/null 2>&1; then printf '%s' "$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))"; return; fi
+  printf '0'
+}
+
+# A model that leaves room for the database and the API beside it: about 9 GB for 14b, 5 for 8b, 3 for 4b.
+model_for() {
+  if [ "$1" -ge 24 ]; then echo qwen3:14b; elif [ "$1" -ge 12 ]; then echo qwen3:8b; else echo qwen3:4b; fi
+}
+
+# The service the model runs in: on the GPU, or the CPU.
+model_service() { case "$(env_get COMPOSE_PROFILES)" in *ai-gpu*) echo ollama-gpu ;; *) echo ollama ;; esac; }
+
+model_present() {
+  [ "$DRY" = 1 ] && { printf '+ check that %s is in the model store\n' "$1"; return 0; }
+  docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" exec -T "$(model_service)" ollama list 2>/dev/null \
+    | awk 'NR > 1 { print $1 }' | grep -qx -e "$1" -e "$1:latest"
+}
+
+# Fetched by the one container allowed out (ollama-pull); the server itself has no route to the internet.
+pull_model() {
+  local model="$1"
+  say "→ fetching the assistant's model, $model — several GB, once; progress below"
+  compose --profile pull run --rm ollama-pull "$model" \
+    || die "the model $model could not be fetched. Check this server's internet access, then: infrastructure/hivamis model pull"
+  # Not finished without it: an assistant with no model can only say that it is unavailable.
+  model_present "$model" || die "$model is not in the model store after fetching it — see: docker compose logs $(model_service)"
+  say "✓ the model $model is ready"
+}
+
+model_wanted() { [ "$(env_get CHAT_MODE)" != off ] && [ -n "$(env_get COMPOSE_PROFILES)" ]; }
+
+cmd_model() {
+  [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  local model; model="$(env_get OLLAMA_MODEL)"
+  case "${1:-}" in
+    pull)
+      if [ -n "${2:-}" ] && [ "$2" != "$model" ]; then
+        say "→ OLLAMA_MODEL: $model → $2"
+        run sed -i.bak -e "s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=$2|" "$ENV_FILE"; run rm -f "$ENV_FILE.bak"
+        model="$2"
+      fi
+      pull_model "$model"
+      # A new model is the API's to use only once it restarts with the new setting.
+      if [ -n "${2:-}" ]; then compose up -d api; fi
+      ;;
+    "")
+      say "model: ${model:-none}   profile: $(env_get COMPOSE_PROFILES)   detected memory: $(memory_gb) GB → $(model_for "$(memory_gb)")"
+      ;;
+    *) die "model [pull [NAME]]" ;;
+  esac
+}
+
 cmd_install() {
-  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single"
+  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single" model="" ai=1
   while [ $# -gt 0 ]; do
     case "$1" in
       --org-name) org_name="$2"; shift 2 ;;
@@ -61,6 +131,8 @@ cmd_install() {
       --domain) domain="$2"; shift 2 ;;
       --port) port="$2"; shift 2 ;;
       --multi) mode="multi"; shift ;;
+      --model) model="$2"; shift 2 ;;
+      --no-ai) ai=0; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
@@ -77,6 +149,16 @@ cmd_install() {
 
   local origin
   if [ -n "$domain" ]; then origin="https://$domain"; else origin="http://localhost:$port"; fi
+
+  # The assistant's model, sized to the machine: the model runs here, so its speed is the hardware's.
+  local profiles="" chat="off" gb
+  if [ "$ai" = 1 ]; then
+    gb="$(memory_gb)"
+    [ -n "$model" ] || model="$(model_for "$gb")"
+    if has_gpu; then profiles="ai-gpu"; else profiles="ai"; fi
+    chat="ollama"
+    say "→ the assistant: $model on the $( [ "$profiles" = ai-gpu ] && echo GPU || echo CPU ) (${gb} GB detected)"
+  fi
   say "→ writing $ENV_FILE (secrets generated here, readable only by you)"
   umask 077
   sed -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(secret 32)|" \
@@ -88,12 +170,16 @@ cmd_install() {
       -e "s|^SEED_DEMO_DATA=.*|SEED_DEMO_DATA=false|" \
       -e "s|^ALLOW_DEMO_ACCOUNTS=.*|ALLOW_DEMO_ACCOUNTS=false|" \
       -e "s|^SMS_MODE=.*|SMS_MODE=off|" \
+      -e "s|^COMPOSE_PROFILES=.*|COMPOSE_PROFILES=$profiles|" \
+      -e "s|^CHAT_MODE=.*|CHAT_MODE=$chat|" \
+      -e "s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=${model:-qwen3:8b}|" \
       "$ROOT/.env.docker.example" > "$ENV_FILE"
   printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
 
   say "→ building and starting the stack"
   compose up -d --build
   wait_healthy
+  if [ "$ai" = 1 ]; then pull_model "$model"; fi
 
   say "→ creating the organisation and its first administrator"
   local hosts=()
@@ -177,6 +263,7 @@ cmd_upgrade() {
   say "→ restarting — the API migrates the database and brings the reference data up to the code"
   APP_VERSION="$version" compose up -d
   wait_healthy
+  if model_wanted && ! model_present "$(env_get OLLAMA_MODEL)"; then pull_model "$(env_get OLLAMA_MODEL)"; fi
   cli status
 }
 
@@ -191,9 +278,10 @@ cmd_tenant() {
 case "${1:-help}" in
   install) shift; cmd_install "$@" ;;
   status) shift; cmd_status ;;
+  model) shift; cmd_model "$@" ;;
   backup) shift; cmd_backup ;;
   restore) shift; cmd_restore "$@" ;;
   upgrade) shift; cmd_upgrade "$@" ;;
   tenant) shift; cmd_tenant "$@" ;;
-  *) sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 esac

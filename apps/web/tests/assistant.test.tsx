@@ -102,9 +102,16 @@ describe('The assistant', () => {
   it('says plainly when the local model is not running, and does not let a question go nowhere', async () => {
     mount({ permissions: ['ai.chat', 'admin.settings'], status: { ...READY, ready: false, reachable: false } });
     fireEvent.click(await screen.findByRole('button', { name: 'دستیار' }));
-    expect((await screen.findByTestId('assistant-offline')).textContent).toContain('ollama pull qwen3:14b');
+    // Audit F-1: the model is in the stack — the administrator is told what to start, or what to fetch.
+    expect((await screen.findByTestId('assistant-offline')).textContent).toContain('docker compose up -d ollama');
     fireEvent.change(screen.getByRole('textbox', { name: 'پیام به دستیار' }), { target: { value: 'سلام' } });
     expect(screen.getByRole('button', { name: 'فرستادن' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('tells the administrator to fetch the model when the server answers but does not have it', async () => {
+    mount({ permissions: ['ai.chat', 'admin.settings'], status: { ...READY, ready: false, reachable: true, modelPresent: false } });
+    fireEvent.click(await screen.findByRole('button', { name: 'دستیار' }));
+    expect((await screen.findByTestId('assistant-offline')).textContent).toContain('infrastructure/hivamis model pull qwen3:14b');
   });
 
   it('reopens an earlier conversation', async () => {

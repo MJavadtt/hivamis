@@ -2364,3 +2364,40 @@ tokens fixes every use, including the next one.
   `--glow-*` tokens.
 - The frame probe runs once per load. A device that slows down later, for example on battery saver,
   keeps its blur until the next load.
+
+## ADR-082 — The assistant's model runs inside the installation, sized to the machine
+
+**Decision.** (Audit F-1.)
+
+- **The model is part of the Compose stack.** The `ollama` service, image pinned, runs on its own
+  network, `ai`, which is `internal: true`:
+  - it publishes no port and has no route to the internet;
+  - only the API joins it, at `http://ollama:11434` by default;
+  - its models live on the named volume `ollama-models`.
+- **The profile is the choice of hardware.** `COMPOSE_PROFILES=ai` runs the model on the CPU;
+  `ai-gpu` runs the same service with NVIDIA devices reserved. Empty means no model in the stack.
+- **Fetching is a separate container.** `ollama-pull`, profile `pull`, is the one part allowed out.
+  It runs only when the installer, or `hivamis model pull`, asks for it. It writes into the shared
+  volume and exits.
+- **The installer sizes the model and waits for it.**
+  - It reads the GPU's memory when `nvidia-smi` sees a GPU, and the machine's otherwise.
+  - It chooses `qwen3:14b` from 24 GB, `qwen3:8b` from 12 GB, and `qwen3:4b` below, and writes the
+    choice to `.env`.
+  - After the stack is up it fetches the model, showing progress. It refuses to finish if the model
+    is not in the store afterwards.
+  - `--model` chooses a model outright; `--no-ai` leaves it out.
+  - `upgrade` fetches a configured model the store lacks.
+- **Status says what is running.** `/ai/chat/status` and the Admin → AI tab show the model, its
+  parameter size, quantisation and size on disk, whether it is loaded and how much sits in GPU
+  memory, and the answers in progress and waiting.
+
+**Rationale.** "Unlimited and free" was true only once someone had installed Ollama by hand on the
+host and opened it to the container. Now it is true out of the box, and it says honestly what it
+costs: speed is the server's hardware, and the documentation states it.
+
+**Limits.**
+
+- The GPU profile is NVIDIA only. On Apple silicon Docker has no GPU, so a Mac runs Ollama natively
+  and points `OLLAMA_URL` at the host, as before.
+- The sizing is a starting point. An installation with other heavy services on the same machine may
+  want the next size down.

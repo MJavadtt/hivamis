@@ -2634,5 +2634,20 @@
   "قراردادها بدون مالیات‌اند": "Contracts are without VAT",
   "قراردادها با مالیات‌اند": "Contracts include VAT",
   "این نشانی در بیش از یک سازمان حساب دارد؛ از نشانی سازمان خودتان با گوگل وارد شوید.": "This address has an account in more than one organisation; sign in with Google at your own organisation's address.",
-  "صف شما بلندتر از آن است که یک‌جا نشان داده شود؛ آنچه بیشتر منتظر مانده آمده است. با بستن کارها بقیه نمایان می‌شوند.": "Your queue is longer than can be shown at once; what has waited longest is here. The rest appears as you close items."
+  "صف شما بلندتر از آن است که یک‌جا نشان داده شود؛ آنچه بیشتر منتظر مانده آمده است. با بستن کارها بقیه نمایان می‌شوند.": "Your queue is longer than can be shown at once; what has waited longest is here. The rest appears as you close items.",
+  "سرور مدل پاسخ نمی‌دهد. در نصب با Docker آن را راه بیندازید ({0})؛ بدون Docker، Ollama را روی سرور اجرا کنید ({1}).": "The model server isn't answering. In a Docker installation, start it ({0}); without Docker, run Ollama on the server ({1}).",
+  "مدل {0} روی سرور نیست. دریافتش کنید: {1}": "The model {0} isn't on the server. Fetch it: {1}",
+  "{0} گیگابایت": "{0} GB",
+  "بارگذاری نشده — پرسش بعدی چند ثانیه بیشتر طول می‌کشد": "Not loaded — the next question will take a few seconds longer",
+  "کامل روی GPU": "Fully on the GPU",
+  "بخشی روی GPU ({0})": "Partly on the GPU ({0})",
+  "روی CPU": "On the CPU",
+  "آماده": "Ready",
+  "سرور مدل پاسخ نمی‌دهد": "The model server isn't answering",
+  "مدل روی سرور نیست": "The model isn't on the server",
+  "مدل دستیار": "The assistant's model",
+  "روی سرور خود سازمان اجرا می‌شود؛ هزینه‌ای برای هر پرسش ندارد و سرعتش به سخت‌افزار همین سرور بستگی دارد": "It runs on the organisation's own server: no cost per question, and its speed depends on that server's hardware",
+  "اندازه": "Size",
+  "در حافظه": "In memory",
+  "در حال پاسخ": "Answering"
 }

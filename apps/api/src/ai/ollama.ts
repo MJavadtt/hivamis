@@ -21,19 +21,45 @@ export interface ToolSpec {
   function: { name: string; description: string; parameters: { type: 'object'; properties: Record<string, unknown>; required?: string[] } };
 }
 
-export interface ModelStatus { reachable: boolean; modelPresent: boolean; model: string }
+export interface ModelStatus {
+  reachable: boolean; modelPresent: boolean; model: string;
+  /** What the model is, from the store: e.g. "8.2B", "Q4_K_M", and its size on disk. */
+  parameterSize: string | null; quantization: string | null; sizeBytes: number | null;
+  /** Whether it is in memory now, how much of it in GPU memory, and until when it stays (audit F-1). */
+  loaded: boolean; vramBytes: number | null; loadedUntil: string | null;
+}
 
-/** Is the server up, and does it have the model? Two seconds at most. */
+interface Listed { name: string; model?: string; size?: number; size_vram?: number; expires_at?: string; details?: { parameter_size?: string; quantization_level?: string } }
+
+const named = (want: string) => (m: Listed) => {
+  const full = want.includes(':') ? want : `${want}:latest`;
+  return [m.name, m.model].some((n) => n === want || n === full);
+};
+
+/** Is the server up, does it have the model, and is the model loaded? Two seconds at most. */
 export async function modelStatus(): Promise<ModelStatus> {
+  const none: ModelStatus = {
+    reachable: false, modelPresent: false, model: ollama.model,
+    parameterSize: null, quantization: null, sizeBytes: null, loaded: false, vramBytes: null, loadedUntil: null,
+  };
   try {
-    const res = await fetch(`${ollama.url}/api/tags`, { signal: AbortSignal.timeout(2000) });
-    if (!res.ok) return { reachable: false, modelPresent: false, model: ollama.model };
-    const body = await res.json() as { models?: { name: string; model?: string }[] };
-    const names = (body.models ?? []).flatMap((m) => [m.name, m.model ?? '']);
-    const want = ollama.model.includes(':') ? ollama.model : `${ollama.model}:latest`;
-    return { reachable: true, modelPresent: names.includes(want) || names.includes(ollama.model), model: ollama.model };
+    const [tags, ps] = await Promise.all([
+      fetch(`${ollama.url}/api/tags`, { signal: AbortSignal.timeout(2000) }),
+      // What is loaded now. An older server has no /api/ps; the rest of the answer does not need it.
+      fetch(`${ollama.url}/api/ps`, { signal: AbortSignal.timeout(2000) }).catch(() => null),
+    ]);
+    if (!tags.ok) return none;
+    const stored = ((await tags.json()) as { models?: Listed[] }).models?.find(named(ollama.model));
+    const running = ps?.ok ? ((await ps.json()) as { models?: Listed[] }).models?.find(named(ollama.model)) : undefined;
+    return {
+      ...none, reachable: true, modelPresent: Boolean(stored),
+      parameterSize: stored?.details?.parameter_size ?? null,
+      quantization: stored?.details?.quantization_level ?? null,
+      sizeBytes: stored?.size ?? null,
+      loaded: Boolean(running), vramBytes: running?.size_vram ?? null, loadedUntil: running?.expires_at ?? null,
+    };
   } catch {
-    return { reachable: false, modelPresent: false, model: ollama.model };
+    return none;
   }
 }
 

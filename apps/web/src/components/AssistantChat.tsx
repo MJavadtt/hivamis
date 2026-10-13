@@ -9,6 +9,7 @@ import { formatDateTime } from '../lib/format';
 import { Button, cx, Spinner } from './ui';
 import { ChatText } from './Markdown';
 import { OpenForm, type Suggestion } from './SuggestedForms';
+import type { ChatModelStatus } from '@hiva/contracts';
 import { tr } from '../i18n';
 import { useFocusTrap } from '../hooks/useDismissable';
 import { assistantBus } from '../lib/guide';
@@ -22,7 +23,6 @@ import { OwlSvg } from './owl/Owl';
  */
 
 interface Message { role: 'user' | 'assistant'; content: string; actions: ChatAction[]; tools: string[] }
-interface Status { mode: string; ready: boolean; model: string | null; reachable: boolean; modelPresent: boolean; busy: number; waiting: number }
 
 const TOOL_FA: Record<string, string> = {
   search_records: tr('جستجوی پرونده‌ها…'), get_record: tr('خواندن پرونده…'), my_work: tr('دیدن کارهای شما…'),
@@ -74,7 +74,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
   const qc = useQueryClient();
   const navigate = useNavigate();
   const page = usePageContext();
-  const { data: status } = useQuery<Status>({ queryKey: ['/ai/chat/status'], queryFn: () => apiGet('/ai/chat/status'), staleTime: 15_000 });
+  const { data: status } = useQuery<ChatModelStatus>({ queryKey: ['/ai/chat/status'], queryFn: () => apiGet('/ai/chat/status'), staleTime: 15_000 });
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
@@ -179,9 +179,10 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
             {status && !status.ready && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900 ring-1 ring-inset ring-amber-200" data-testid="assistant-offline">
                 {status.mode === 'off' ? tr('دستیار در این نصب خاموش است.')
-                  : can('admin.settings')
-                  ? tr('مدل محلی روی سرور اجرا نیست. روی سرور Ollama را اجرا کنید ({0}) و مدل {1} را دریافت کنید ({2}).', 'ollama serve', status.model ?? 'qwen3:14b', `ollama pull ${status.model ?? 'qwen3:14b'}`)
-                  : tr('دستیار فعلاً در دسترس نیست؛ مدیر سیستم را باخبر کنید.')}
+                  : !can('admin.settings') ? tr('دستیار فعلاً در دسترس نیست؛ مدیر سیستم را باخبر کنید.')
+                  // What the administrator can do about it (audit F-1): start the model's server, or fetch the model.
+                  : !status.reachable ? tr('سرور مدل پاسخ نمی‌دهد. در نصب با Docker آن را راه بیندازید ({0})؛ بدون Docker، Ollama را روی سرور اجرا کنید ({1}).', 'docker compose up -d ollama', 'ollama serve')
+                  : tr('مدل {0} روی سرور نیست. دریافتش کنید: {1}', status.model ?? '', `infrastructure/hivamis model pull ${status.model ?? ''}`)}
               </p>
             )}
             {!messages.length && (

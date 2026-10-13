@@ -583,9 +583,18 @@ yourself, no more. It changes nothing. When something should be done, it offers 
 Your conversations are yours alone. Open earlier ones under «گفت‌وگوهای پیشین», or delete them. The
 governance log records which tools were used on which records, never what was said.
 
-The assistant needs a local model running on the server. If it is not running, the conversation
-says so and the system administrator sees how to start it. Answers come one at a time. When
+The assistant needs a local model running on the server. The installer sets one up, sized to the
+server's memory. If it is not running, the conversation says so, and the system administrator sees
+what to do: start the model's server, or fetch the model. Answers come one at a time. When
 someone else's answer is being written, yours waits and shows its place in the queue.
+
+**For the system administrator.** Admin → the AI tab shows the model card:
+
+- the model, its size, and whether it is loaded and how much of it sits on the GPU;
+- how many answers are being written, and how many questions wait.
+
+The model runs on the server's own hardware: there is no cost per question, and the speed is that
+hardware's.
 
 ---
 

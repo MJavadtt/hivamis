@@ -25,6 +25,7 @@ import { loc, tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
 import { SignupRequests, SmsSandbox } from '../components/SignupRequests';
 import { PersonLink } from './People';
+import { ModelCard } from '../components/ModelStatus';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
@@ -73,7 +74,7 @@ export default function Admin() {
         {tab === 'security' && <SecurityAlerts />}
         {tab === 'integrations' && <div className="space-y-5"><ApiKeys /><Webhooks /><MessengerAdmin /></div>}
         {tab === 'referrers' && <LeadReferrers />}
-        {tab === 'ai' && <AiLog />}
+        {tab === 'ai' && <><ModelCard /><AiLog /></>}
       </PageBody>
     </>
   );

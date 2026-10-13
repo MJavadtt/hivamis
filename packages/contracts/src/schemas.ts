@@ -1116,6 +1116,29 @@ export const setPasswordSchema = z.object({ newPassword: changePasswordSchema.sh
 
 /* ── the chat assistant (Hivamis task 5) ─────────────────────────────────────── */
 
+/**
+ * `GET /ai/chat/status` (audit F-1): whether the assistant can answer, what model answers, and its
+ * load. The model runs inside the installation, so its size and where it sits say how fast it can be.
+ */
+export interface ChatModelStatus {
+  mode: 'off' | 'ollama';
+  ready: boolean;
+  model: string | null;
+  reachable: boolean;
+  modelPresent: boolean;
+  /** From the model store: e.g. "8.2B", "Q4_K_M", and its size on disk. Null when unknown. */
+  parameterSize: string | null;
+  quantization: string | null;
+  sizeBytes: number | null;
+  /** In memory now, how much of it in GPU memory, and until when it stays loaded. */
+  loaded: boolean;
+  vramBytes: number | null;
+  loadedUntil: string | null;
+  /** Answers being written, and questions waiting their turn. */
+  busy: number;
+  waiting: number;
+}
+
 export const chatRequestSchema = z.object({
   conversationId: z.string().uuid().nullish(),
   message: z.string().trim().min(1, 'پیامی بنویسید').max(4000),

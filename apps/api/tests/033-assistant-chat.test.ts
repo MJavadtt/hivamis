@@ -40,7 +40,12 @@ describe('The chat assistant', () => {
       let body = '';
       req.on('data', (c) => { body += c; });
       req.on('end', () => {
-        if (req.url === '/api/tags') { res.end(JSON.stringify({ models: [{ name: 'qwen3:14b' }] })); return; }
+        if (req.url === '/api/tags') {
+          res.end(JSON.stringify({ models: [{ name: 'qwen3:14b', size: 9_276_198_565, details: { parameter_size: '14.8B', quantization_level: 'Q4_K_M' } }] }));
+          return;
+        }
+        // Loaded, part on the GPU (audit F-1).
+        if (req.url === '/api/ps') { res.end(JSON.stringify({ models: [{ name: 'qwen3:14b', size: 10_500_000_000, size_vram: 6_000_000_000, expires_at: '2026-10-13T12:00:00Z' }] })); return; }
         if (req.url === '/api/chat') {
           received.push(JSON.parse(body));
           const lines = script.shift() ?? say('—');
@@ -62,6 +67,20 @@ describe('The chat assistant', () => {
   it('is every role’s by default, and says whether the local model is ready', async () => {
     for (const [role, perms] of Object.entries(ROLE_PERMISSIONS)) expect(perms, role).toContain('ai.chat');
     expect(expectOk(await get('/ai/chat/status', sales), 'status')).toMatchObject({ mode: 'ollama', ready: true, reachable: true, modelPresent: true, model: 'qwen3:14b' });
+  });
+
+  it('says what the model is and how it is loaded, for whoever runs the hardware (audit F-1)', async () => {
+    expect(expectOk(await get('/ai/chat/status', sales), 'status')).toEqual({
+      mode: 'ollama', ready: true, reachable: true, modelPresent: true, model: 'qwen3:14b',
+      parameterSize: '14.8B', quantization: 'Q4_K_M', sizeBytes: 9_276_198_565,
+      loaded: true, vramBytes: 6_000_000_000, loadedUntil: '2026-10-13T12:00:00Z',
+      busy: 0, waiting: 0,
+    });
+    // A model named without a tag is the store's ":latest".
+    const was = ollama.model;
+    ollama.model = 'qwen3';
+    expect(expectOk(await get('/ai/chat/status', sales), 'status')).toMatchObject({ modelPresent: false, loaded: false, parameterSize: null });
+    ollama.model = was;
   });
 
   it('streams an answer, keeps the conversation the person’s own, and logs what was done but not what was said', async () => {
