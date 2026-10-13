@@ -160,7 +160,7 @@ function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid, la
       </button>
 
       {badInput && (
-        <p className="mt-1 text-[12.5px] text-rose-600">{tr('تاریخ نامعتبر است — قالب درست: {0}', mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'))}</p>
+        <p className="mt-1 text-[12.5px] text-rose-700">{tr('تاریخ نامعتبر است — قالب درست: {0}', mode === 'date' ? tr('۱۴۰۵/۰۶/۳۱') : tr('۱۴۰۵/۰۶/۳۱ ۱۴:۳۰'))}</p>
       )}
 
       {open && !disabled && (
@@ -233,7 +233,7 @@ function CalendarPopover({
               onClick={() => onPick({ jy: view.jy, jm: view.jm, jd, hh: time.hh, mm: time.mm })}
               className={cx(
                 'rounded-md py-1 text-xs tabular-nums focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500',
-                isSelected ? 'bg-brand-600 font-medium text-white'
+                isSelected ? 'btn-accent font-medium'
                   : isToday ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50',
               )}
             >

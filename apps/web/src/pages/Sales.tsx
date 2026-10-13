@@ -131,7 +131,7 @@ export function BriefDetail() {
               ].map(([label, value]) => (
                 <div key={label as string} className="px-4 py-3">
                   <dt className="text-xs font-medium text-ink-500">{label}</dt>
-                  <dd className={value ? 'mt-1 text-sm text-ink-800' : 'mt-1 text-sm text-rose-500'}>
+                  <dd className={value ? 'mt-1 text-sm text-ink-800' : 'mt-1 text-sm text-rose-700'}>
                     {value || tr('— ثبت نشده —')}
                   </dd>
                 </div>
@@ -394,7 +394,7 @@ function PricingModal({ proposal, onClose }: { proposal: any; onClose: () => voi
         </Field>
         {price > 0 && (
           <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">{tr('حاشیه سود محاسبه‌شده:')}{' '}<strong className="nums">{tr('{0}٪', localDigits(margin.toFixed(1)))}</strong>
-            {margin < 15 && <span className="ms-2 text-rose-600">{tr('— کمتر از حد مطلوب')}</span>}
+            {margin < 15 && <span className="ms-2 text-rose-700">{tr('— کمتر از حد مطلوب')}</span>}
           </div>
         )}
         <Field label={tr('اشل قرارداد')}>

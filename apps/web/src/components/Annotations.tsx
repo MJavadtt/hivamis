@@ -81,7 +81,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
           <div className="flex flex-wrap gap-1.5">
             {tabs.map((f) => (
               <button key={f.id} onClick={() => { setFileId(f.id); setPending(null); }}
-                className={`rounded-md px-2 py-1 text-xs ${file && lineageOf(f) === lineageOf(file) ? 'bg-brand-600 text-white' : 'bg-ink-100 text-ink-700'}`}>
+                className={`rounded-md px-2 py-1 text-xs ${file && lineageOf(f) === lineageOf(file) ? 'btn-accent' : 'bg-ink-100 text-ink-700'}`}>
                 {f.fileName} {f.annotations > 0 && <span>({localDigits(f.annotations)})</span>}
               </button>
             ))}

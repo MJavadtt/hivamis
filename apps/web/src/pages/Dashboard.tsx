@@ -133,7 +133,7 @@ export default function Dashboard() {
                               </Link>
                             </Td>
                             <Td>
-                              <span className={days !== null && days < 0 ? 'text-rose-600 font-medium' : ''}>
+                              <span className={days !== null && days < 0 ? 'text-rose-700 font-medium' : ''}>
                                 {formatDate(t.dueDate)}
                               </span>
                               <p className="text-[12.5px] text-ink-400">{formatRelative(t.dueDate)}</p>

@@ -48,7 +48,7 @@ export function ImportPanel({ kind, onDone }: { kind: OnboardingImport; onDone?:
           <details>
             <summary className="cursor-pointer text-xs text-ink-500">{tr('ستون‌ها و طرز پر کردن هرکدام')}</summary>
             <ul className="mt-1 grid gap-1 text-xs sm:grid-cols-2">
-              {columns.map((c) => <li key={c.key}><span className="font-medium">{loc(c, 'label')}</span>{c.required && <span className="text-rose-600"> *</span>} — <span className="text-ink-500">{loc(c, 'hint')}</span></li>)}
+              {columns.map((c) => <li key={c.key}><span className="font-medium">{loc(c, 'label')}</span>{c.required && <span className="text-rose-700"> *</span>} — <span className="text-ink-500">{loc(c, 'hint')}</span></li>)}
             </ul>
           </details>
         )}

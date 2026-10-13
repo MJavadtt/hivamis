@@ -194,7 +194,7 @@ export function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () =>
   return (
     <div className="m-4 rounded-lg bg-rose-50 p-4 ring-1 ring-inset ring-rose-200">
       <div className="flex items-start gap-2">
-        <IconAlert className="mt-0.5 size-4 shrink-0 text-rose-600" />
+        <IconAlert className="mt-0.5 size-4 shrink-0 text-rose-700" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-rose-800">{err?.message ?? tr('خطایی رخ داد.')}</p>
           {err?.rule && (
@@ -261,11 +261,11 @@ export function Field({ label, required, hint, error, children }: {
     <label className="block">
       <span className="mb-1 flex items-center gap-1 text-xs font-bold text-ink-700">
         {label}
-        {required && <span className="text-rose-500">*</span>}
+        {required && <span className="text-rose-700">*</span>}
       </span>
       {children}
       {hint && !error && <span className="mt-1 block text-[12.5px] text-ink-500">{hint}</span>}
-      {error && <span className="mt-1 block text-[12.5px] text-rose-600">{error}</span>}
+      {error && <span className="mt-1 block text-[12.5px] text-rose-700">{error}</span>}
     </label>
   );
 }
@@ -369,7 +369,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
   // sidebar slides on a transform) was otherwise confined to that container's box — the messenger
   // opened 200px wide inside the menu (Hivamis, the second sweep). Above drawers, below toasts.
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink-900/30 p-4 pt-12 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-ink-900/30 p-4 pt-12 scrim">
       {/* Visual scrim only; dismissal is the hook's outside-click, so there is one path. */}
       <div className="absolute inset-0" aria-hidden />
       <div

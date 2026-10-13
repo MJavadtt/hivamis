@@ -1,12 +1,12 @@
 {
-  "source": "b15db31a38e2a6caecd746fc5b012951b14cc17b8d8c10facec56423ca404f7e",
+  "source": "35df6be8ccf440bce6f1941f27886eebe59922383d63f67339ae949488cc81df",
   "files": {
-    "icon-192.png": "40d13957ae80e4fe6c3b0542101f0722cf93ecedf2271815a76df65f7a677378",
-    "icon-512.png": "d499f2a853aa9e7a19f786b9ced7e07c57abf8b86b2e54858c8ba4c336acb2d4",
-    "favicon-32.png": "f98f2f81d81c3fec57fb08ab9e1bb415afc4977fb30ad2119e4960875170a32c",
-    "icon-maskable-192.png": "e26cc58490df25bf55aa43f17197edc453b9240a9e3c58fcadc6cd112c29b2c0",
-    "icon-maskable-512.png": "282cd48d2828bc83d85b1b52e239b5c8479cd9dfef0086b4c5edaef59cd305bb",
-    "apple-touch-icon.png": "00b99893b713176a19cbb6169a3e81f49b5c657e5f23d2d57b239b7b6e4743d9",
+    "icon-192.png": "159465b388acace5c7c11660176aa680fba73ee9139ace9690ed7ae991e788d0",
+    "icon-512.png": "2694ab7f56b810a09f68a8f28f75f2594c6c97eead948958291b51085364efcc",
+    "favicon-32.png": "3d1508e97a46282e80ce857b1f40fb3f65fd902b3f74443c9d30cacc4e981333",
+    "icon-maskable-192.png": "d99fea12be518abd17b12084f9c843898bc41e1525109d0e1a233f66cb31ad3c",
+    "icon-maskable-512.png": "9fdeffe30cdb0023a1d71c8e5b0ae5ac2f7ddb11e43aca2437778c6d2d98ec7c",
+    "apple-touch-icon.png": "baf18d038babc4844755740dcbcac171f280d21b5950f55b44131ade51c3d2c3",
     "badge-96.png": "bd54c719bfad6beebad2117b08970b1ff659a299ac10ae4154c1db8afde74fdb"
   }
 }

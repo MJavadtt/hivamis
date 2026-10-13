@@ -68,7 +68,7 @@ export function BreachRisk({ mine }: { mine?: boolean }) {
                   <Td className="text-xs">
                     {p.expectedFinish ? formatDate(p.expectedFinish) : '—'}
                     {p.expectedOverrunHours != null && p.expectedOverrunHours > 0 && (
-                      <span className="block text-[12.5px] text-rose-600">{tr('{0} س فراتر از مهلت', localDigits(p.expectedOverrunHours))}</span>
+                      <span className="block text-[12.5px] text-rose-700">{tr('{0} س فراتر از مهلت', localDigits(p.expectedOverrunHours))}</span>
                     )}
                   </Td>
                   <Td className="max-w-xs text-[12.5px] text-ink-500">

@@ -50,7 +50,7 @@ export function sourceComplete(v: LeadSourceValue): boolean {
 const Chip = ({ on, onClick, children, title }: { on: boolean; onClick: () => void; children: React.ReactNode; title?: string }) => (
   <button type="button" onClick={onClick} title={title} aria-pressed={on}
     className={cx('rounded-lg px-3 py-1.5 text-sm ring-1 ring-inset transition',
-      on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-ink-700 ring-ink-300 hover:bg-ink-50')}>
+      on ? 'btn-accent ring-brand-600' : 'bg-surface text-ink-700 ring-ink-300 hover:bg-ink-50')}>
     {children}
   </button>
 );

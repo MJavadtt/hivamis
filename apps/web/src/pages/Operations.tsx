@@ -77,7 +77,7 @@ export function TasksList() {
                 const d = daysFromNow(r.dueDate);
                 const late = d !== null && d < 0 && !['APPROVED', 'CLOSED', 'CANCELLED'].includes(r.state);
                 return (
-                  <div className={cx('text-xs', late && 'font-medium text-rose-600')}>
+                  <div className={cx('text-xs', late && 'font-medium text-rose-700')}>
                     {formatDate(r.dueDate)}
                     <p className="text-[12.5px] text-ink-400">{formatRelative(r.dueDate)}</p>
                   </div>
@@ -197,7 +197,7 @@ export function TaskDetail() {
             <dl className="px-4 py-1">
               <DescRow label={tr('مسئول')}>{data.assignee?.fullName ?? tr('— تخصیص نیافته —')}</DescRow>
               <DescRow label={tr('مهلت')}>
-                <span className={overdue ? 'text-rose-600' : undefined}>
+                <span className={overdue ? 'text-rose-700' : undefined}>
                   {formatDate(data.dueDate)}{overdue ? tr(' — سررسید گذشته') : ''}
                 </span>
               </DescRow>
@@ -310,7 +310,7 @@ export function WorkOrderDetail() {
               [tr('فرمت خروجی'), data.outputFormat], [tr('منابع مورد نیاز'), data.requiredResources]].map(([l, v]) => (
               <div key={l as string} className="px-4 py-3">
                 <dt className="text-xs font-medium text-ink-500">{l}</dt>
-                <dd className={v ? 'mt-1 text-sm text-ink-800' : 'mt-1 text-sm text-rose-500'}>{(v as string) || tr('— ثبت نشده —')}</dd>
+                <dd className={v ? 'mt-1 text-sm text-ink-800' : 'mt-1 text-sm text-rose-700'}>{(v as string) || tr('— ثبت نشده —')}</dd>
               </div>
             ))}
           </dl>
@@ -553,7 +553,7 @@ export function ChangeDetail() {
                     ? (f.key === 'costImpact' ? formatCurrency(data[f.key])
                       : f.key === 'timeImpactDays' ? tr('{0} روز', localDigits(data[f.key]))
                       : String(data[f.key]))
-                    : <span className="text-rose-500">{tr('ارزیابی نشده')}</span>}
+                    : <span className="text-rose-700">{tr('ارزیابی نشده')}</span>}
                 </DescRow>
               ))}
               {data.proposedPrice && <DescRow label={tr('قیمت پیشنهادی')}>{formatCurrency(data.proposedPrice)}</DescRow>}
@@ -704,7 +704,7 @@ export function Traffic() {
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.capacityHours))}{r.leaveHours > 0 && <Badge tone="info" className="ms-1">{tr('{0} س مرخصی', localDigits(r.leaveHours))}</Badge>}
                       </Td>
                       <Td className="nums text-xs">{tr('{0} س', localDigits(r.committedHours))}</Td>
-                      <Td className={cx('nums text-xs', r.availableHours < 0 && 'font-medium text-rose-600')}>{tr('{0} س', localDigits(r.availableHours))}</Td>
+                      <Td className={cx('nums text-xs', r.availableHours < 0 && 'font-medium text-rose-700')}>{tr('{0} س', localDigits(r.availableHours))}</Td>
                       <Td>
                         <div className="w-24">
                           <ProgressBar value={r.utilisation}

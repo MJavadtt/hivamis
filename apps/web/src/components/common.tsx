@@ -91,8 +91,9 @@ export function WorkflowActions({
               onClick={() => (t.requiresReason || PAYLOAD_PROMPTS[`${entity}.${t.action}`] ? setPending(t) : void run(t))}
               disabled={busy}
               // Still clickable: the engine is the authority, and its 422 names the clause.
-              // The marker just says the answer is already known.
-              className={failing.length ? 'opacity-70' : undefined}
+              // The marker just says the answer is already known — in colour, not by fading the label,
+              // which fell below a readable contrast (audit UI-3).
+              className={failing.length ? 'ring-1 ring-inset ring-rose-300' : undefined}
               title={failing.length ? failing.map((c) => trx(c.messageFa ?? c.labelFa)).join('\n') : undefined}
             >
               {loc(t, 'label')}

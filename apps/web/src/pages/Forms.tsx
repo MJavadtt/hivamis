@@ -152,7 +152,8 @@ function Catalogue() {
             onClick={() => setSelected(def)}
             className={cx(
               'rounded-xl bg-surface p-4 text-start ring-1 ring-ink-200 shadow-sm transition',
-              def.canSubmit ? 'hover:ring-brand-400 hover:shadow' : 'opacity-70',
+              // Not the unit's to submit: a dashed edge says so; fading it made the card unreadable (audit UI-3).
+              def.canSubmit ? 'hover:ring-brand-400 hover:shadow' : 'outline-dashed outline-1 -outline-offset-1 outline-ink-300 ring-0',
             )}
           >
             <div className="flex items-start justify-between gap-2">
@@ -371,7 +372,7 @@ export function FormField({ field, value, onChange, error }: {
       return (
         <div className="pt-5">
           <Checkbox label={t(field, "label")} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
-          {error && <p className="mt-1 text-[12.5px] text-rose-600">{error}</p>}
+          {error && <p className="mt-1 text-[12.5px] text-rose-700">{error}</p>}
         </div>
       );
     case 'select':
@@ -397,7 +398,7 @@ export function FormField({ field, value, onChange, error }: {
                   onClick={() => onChange(on ? list.filter((v) => v !== o.value) : [...list, o.value])}
                   className={cx(
                     'rounded-md px-2 py-1 text-xs ring-1 ring-inset transition',
-                    on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-ink-600 ring-ink-300 hover:bg-ink-50',
+                    on ? 'btn-accent ring-brand-600' : 'bg-surface text-ink-600 ring-ink-300 hover:bg-ink-50',
                   )}
                 >
                   {loc(o, 'label')}
@@ -503,7 +504,7 @@ function TableField({ field, value, onChange, error }: {
                   </td>
                 ))}
                 <td className="p-1 text-center">
-                  <button type="button" onClick={() => removeRow(i)} className="text-ink-400 hover:text-rose-600" aria-label={tr('حذف ردیف')}>×</button>
+                  <button type="button" onClick={() => removeRow(i)} className="text-ink-400 hover:text-rose-700" aria-label={tr('حذف ردیف')}>×</button>
                 </td>
               </tr>
             ))}
@@ -724,7 +725,7 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
             const waiting = st.state === 'PENDING' && i === (data.currentStage ?? 0);
             return (
               <li key={st.id} className={cx('flex flex-wrap items-center gap-1.5', waiting && 'font-medium text-ink-800')}>
-                <span aria-hidden className={st.state === 'APPROVED' ? 'text-emerald-600' : waiting ? 'text-amber-600' : 'text-ink-300'}>
+                <span aria-hidden className={st.state === 'APPROVED' ? 'text-emerald-700' : waiting ? 'text-amber-700' : 'text-ink-300'}>
                   {st.state === 'APPROVED' ? '✓' : waiting ? '◆' : '○'}
                 </span>
                 <span>{localDigits(i + 1)}. {loc(st, 'label')}</span>

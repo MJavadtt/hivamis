@@ -222,7 +222,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
               <Td className="max-w-xs whitespace-pre-line text-xs">{r.requiredCorrection}</Td>
               <Td><UnitTag code={r.responsibleDepartmentCode} /></Td>
               <Td className="text-xs">
-                <span className={overdue ? 'font-medium text-rose-600' : ''}>{formatDate(r.dueDate)}</span>
+                <span className={overdue ? 'font-medium text-rose-700' : ''}>{formatDate(r.dueDate)}</span>
                 <p className="text-[12.5px] text-ink-400">{formatRelative(r.dueDate)}</p>
               </Td>
               <Td><StateBadge state={r.state} /></Td>

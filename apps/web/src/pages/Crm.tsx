@@ -167,7 +167,7 @@ function LeadModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('ایمیل')}><Input type="email" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} className="ltr" /></Field>
         <Field label={tr('ارزش تخمینی (ریال)')}><Input type="number" value={form.estimatedValue ?? ''} onChange={(e) => set('estimatedValue', e.target.value)} className="ltr" /></Field>
         <div className="sm:col-span-2">
-          <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ink-700">{tr('منبع ورودی')}{' '}<span className="text-rose-500">*</span></span>
+          <span className="mb-1 flex items-center gap-1 text-xs font-medium text-ink-700">{tr('منبع ورودی')}{' '}<span className="text-rose-700">*</span></span>
           <LeadSourcePicker value={source} onChange={setSource} />
         </div>
         <div className="sm:col-span-2">

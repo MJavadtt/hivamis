@@ -17,7 +17,7 @@ import { resolveExecutable } from '../src/pdf/browser-path.js';
 const WEB = process.argv[2] ?? process.env.INSTALLABLE_WEB ?? 'http://localhost:5173';
 if (!['localhost', '127.0.0.1'].includes(new URL(WEB).hostname)) throw new Error(`refusing to run against ${WEB}: a local build only`);
 
-interface ManifestAnswer { url: string; errors: { message: string; critical: boolean }[] }
+interface ManifestAnswer { url: string; errors: { message: string; critical: number }[] }
 interface InstallAnswer { installabilityErrors: { errorId: string; errorArguments: { name: string; value: string }[] }[] }
 
 // A real profile, however short-lived: Chrome never offers to install from an incognito window.

@@ -84,16 +84,22 @@
   --color-ink-100: #efedf8;
   --color-ink-200: #e3e0f1;
   --color-ink-300: #cac6de;
-  --color-ink-400: #9a96b5;
-  --color-ink-500: #696584;
-  --color-ink-600: #57536f;
+  /* 400 and darker are text: each keeps 4.5:1 over the glass at its darkest — above the strongest glow
+     (audit UI-3). 300 and lighter are lines and fills. */
+  --color-ink-400: #6a6684;
+  --color-ink-500: #5c5876;
+  --color-ink-600: #4f4b69;
   --color-ink-700: #423e59;
   --color-ink-800: #2c2942;
   --color-ink-900: #16142a;
 
+  /* Amber's text shade, darkened: Tailwind's held 4.0:1 over the glass at its darkest (audit UI-3). */
+  --color-amber-700: #a34400;
+
   /* The page, the glass over it, the near-opaque glass of overlays, and the bright glass edge. */
   --color-canvas: #f5f3fb;
-  --color-surface: rgb(255 255 255 / 0.58);
+  /* 72%: enough that text keeps its contrast over the strongest glow behind it (audit UI-3). */
+  --color-surface: rgb(255 255 255 / 0.72);
   --color-panel: rgb(255 255 255 / 0.9);
   --color-edge: rgb(255 255 255 / 0.85);
   /* Text on the main-action gradient and on the dark logo tile. */
@@ -119,11 +125,14 @@
   --glow-4: rgb(186 214 255 / 0.95);
   --glow-5: rgb(255 220 178 / 0.8);
   /* The main action. */
-  --grad-accent: linear-gradient(135deg, #6c5bf0 0%, #5a6ff2 48%, #3f84e8 100%);
-  --grad-accent-hover: linear-gradient(135deg, #7b6bf5 0%, #6a7ef6 48%, #4b90ee 100%);
+  /* White text holds 4.5:1 at every stop, hover included (audit UI-3). */
+  --grad-accent: linear-gradient(135deg, #6150ea 0%, #4f5fe6 48%, #336bd0 100%);
+  --grad-accent-hover: linear-gradient(135deg, #6d5df0 0%, #5865ea 48%, #3770d6 100%);
   /* The soft gradient of a selected item. */
   --grad-soft: linear-gradient(90deg, rgb(122 105 242 / 0.16), rgb(63 132 232 / 0.1));
   --glass-blur: blur(22px) saturate(1.6);
+  /* The dimmed page behind a dialog or drawer. */
+  --scrim-blur: blur(4px);
 }
 
 /*
@@ -147,7 +156,7 @@
     --color-ink-100: #24223b;
     --color-ink-200: #34314f;
     --color-ink-300: #4a4669;
-    --color-ink-400: #7f7ba2;
+    --color-ink-400: #9490b2;
     --color-ink-500: #aaa6c8;
     --color-ink-600: #c8c5e0;
     --color-ink-700: #dfddef;
@@ -219,7 +228,7 @@
       --color-ink-100: #24223b;
       --color-ink-200: #34314f;
       --color-ink-300: #4a4669;
-      --color-ink-400: #7f7ba2;
+      --color-ink-400: #9490b2;
       --color-ink-500: #aaa6c8;
       --color-ink-600: #c8c5e0;
       --color-ink-700: #dfddef;
@@ -305,6 +314,11 @@ body::before {
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
   }
+  /* Behind a dialog or drawer. Every blur goes through a token, so each fallback below reaches all of them. */
+  .scrim {
+    -webkit-backdrop-filter: var(--scrim-blur);
+    backdrop-filter: var(--scrim-blur);
+  }
   /* The main action: violet into blue, white text, a soft glow of its own colour. */
   .btn-accent {
     background-image: var(--grad-accent);
@@ -323,12 +337,19 @@ body::before {
   }
 }
 
-/* Where transparency is unwelcome or unsupported, the glass turns solid. */
+/* Where transparency is unwelcome or unsupported, the glass turns solid and nothing is blurred. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --color-surface: var(--color-panel);
     --glass-blur: none;
+    --scrim-blur: none;
   }
+}
+/* The same on a device too slow to blur every frame: few cores, or frames already missed (lib/power.ts). */
+:root[data-power='low'] {
+  --color-surface: var(--color-panel);
+  --glass-blur: none;
+  --scrim-blur: none;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {

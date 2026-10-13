@@ -33,7 +33,7 @@ export default function Activate({ token }: { token: string }) {
         {done ? (
           <>
             <p className="text-sm text-emerald-800">{tr('رمز شما گذاشته شد. از این پس با ایمیل و همین رمز وارد شوید.')}</p>
-            <a href="/login" className="inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm text-white">{tr('ورود به سامانه')}</a>
+            <a href="/login" className="btn-accent inline-block rounded-lg px-4 py-2 text-sm">{tr('ورود به سامانه')}</a>
           </>
         ) : who && !error && (
           <>

@@ -150,8 +150,8 @@ export default function Assistant() {
                       {result.findings.map((f, i) => (
                         <li key={i} className="flex items-start gap-3 px-4 py-3">
                           <IconAlert className={`mt-0.5 size-4 shrink-0 ${
-                            f.severity === 'CRITICAL' ? 'text-rose-600'
-                            : f.severity === 'WARNING' ? 'text-amber-600' : 'text-sky-600'}`} />
+                            f.severity === 'CRITICAL' ? 'text-rose-700'
+                            : f.severity === 'WARNING' ? 'text-amber-700' : 'text-sky-700'}`} />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-sm font-medium text-ink-800">{loc(f, 'label')}</p>

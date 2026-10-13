@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="grid min-h-[60vh] place-items-center p-6" role="alert">
         <div className="w-full max-w-lg rounded-xl bg-rose-50 p-5 ring-1 ring-inset ring-rose-200">
           <div className="flex items-start gap-2.5">
-            <IconAlert className="mt-0.5 size-5 shrink-0 text-rose-600" />
+            <IconAlert className="mt-0.5 size-5 shrink-0 text-rose-700" />
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-semibold text-rose-800">{tr('نمایش این صفحه با خطا مواجه شد')}</h2>
               <p className="mt-1.5 text-xs leading-6 text-rose-700">{tr('اطلاعات شما از دست نرفته است. می‌توانید دوباره تلاش کنید یا به داشبورد برگردید. اگر خطا تکرار شد، متن زیر را به تیم فنی اعلام کنید.')}</p>

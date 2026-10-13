@@ -46,7 +46,7 @@ export function HelpDrawer({
   // At the root of the page: it is opened from inside cards, and a glass card is the containing box
   // of anything fixed inside it.
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex justify-start bg-ink-900/30 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-[60] flex justify-start bg-ink-900/30 scrim">
       <div className="absolute inset-0" aria-hidden />
       <div
         ref={panelRef}

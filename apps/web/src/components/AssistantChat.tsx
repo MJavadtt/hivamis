@@ -153,7 +153,7 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
   // At the root of the page: opened from the top bar, which is glass — and glass is the containing
   // box of anything fixed inside it.
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex justify-end bg-ink-900/25 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[60] flex justify-end bg-ink-900/25 scrim" role="dialog" aria-modal="true" aria-label={tr('دستیار')} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <section ref={panel} className="bg-panel flex h-full w-full max-w-md flex-col shadow-2xl ring-1 ring-edge" data-testid="assistant">
         {/* Two rows: on a phone the title, the model and three controls do not fit on one. */}
         <header className="border-b border-ink-200/70 px-4 py-3">

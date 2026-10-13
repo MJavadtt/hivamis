@@ -86,7 +86,7 @@ export function ProjectsList() {
               key: 'end', header: tr('پایان'), render: (r) => {
                 const d = daysFromNow(r.plannedEnd);
                 return (
-                  <span className={cx('text-xs', d !== null && d < 0 && !['CLOSED', 'COMPLETED'].includes(r.state) && 'font-medium text-rose-600')}>
+                  <span className={cx('text-xs', d !== null && d < 0 && !['CLOSED', 'COMPLETED'].includes(r.state) && 'font-medium text-rose-700')}>
                     {formatDate(r.plannedEnd)}
                   </span>
                 );
@@ -402,7 +402,7 @@ function WorkTab({ data }: { data: Project360 }) {
                     <Td><UnitTag code={t.departmentCode} /></Td>
                     <Td className="text-xs">{t.assignee?.fullName ?? '—'}</Td>
                     <Td><Code>{t.sourceRef}</Code></Td>
-                    <Td className={cx('text-xs', d !== null && d < 0 && !['APPROVED', 'CLOSED'].includes(t.state) && 'font-medium text-rose-600')}>
+                    <Td className={cx('text-xs', d !== null && d < 0 && !['APPROVED', 'CLOSED'].includes(t.state) && 'font-medium text-rose-700')}>
                       {formatDate(t.dueDate)}
                     </Td>
                     <Td><StateBadge state={t.state} /></Td>

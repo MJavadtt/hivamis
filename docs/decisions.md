@@ -2315,3 +2315,52 @@ its agency, could have an account in only one of them. In single-organisation mo
 
 - A manifest cannot change colour with the scheme. The splash screen and an installed window's
   title bar stay light at night until the page has loaded.
+
+## ADR-081 — Every blur can be turned off, a slow device gets solid glass, and contrast is measured on the real glass
+
+**Decision.** (Audit UI-3.)
+
+- **Every blur is a token.**
+  - Glass uses `--glass-blur`.
+  - The dimmed page behind a dialog or drawer uses `--scrim-blur`, through `.scrim`.
+  - Three overlays used Tailwind's `backdrop-blur-*` and ignored `prefers-reduced-transparency`.
+    They now use `.scrim`.
+  - A test refuses a `backdrop-blur-*` class or a literal `backdrop-filter` anywhere in the web
+    source.
+- **Three fallbacks turn every blur off and the glass solid:**
+  - the reader asks for less transparency (`prefers-reduced-transparency`);
+  - the browser cannot blur;
+  - the device is slow (`data-power="low"`).
+- **What makes a device slow.** `lib/power.ts` decides once per load:
+  - four cores or fewer decide before the first paint;
+  - otherwise the frames are timed two seconds after start, while the page is in view. A median
+    frame over 20 ms marks the device slow. The median is used so one long frame does not decide.
+- **Contrast is measured in Chrome, on every screen, in both themes.**
+  `apps/api/scripts/contrast-audit.ts` runs axe-core's `color-contrast` rule against WCAG AA:
+  - signed out, and as the administrator and a designer;
+  - every page, every tab and the first record of each list;
+  - over the real translucent glass, with motion reduced so nothing is measured mid-fade.
+- **The tokens are what passes, not each use.**
+  - `ink-400` and darker are text, and each keeps 4.5:1 over the glass at its darkest — over the
+    strongest glow, which axe cannot see. 300 and lighter are lines and fills.
+  - 700 is a status palette's text shade; 600 is its fill.
+  - The light glass is white at 72% (was 58%).
+  - The accent gradient's stops each hold 4.5:1 under white text.
+  - `contrast-tokens.test.ts` recomputes the worst case from the tokens, so the next adjustment to a
+    glow or the glass cannot quietly undo this.
+- **Fading is not a state.** A card or button made `opacity-70` to say "not for you" or "a guard
+  fails" lost its text's contrast. A dashed edge or a rose ring says it now, beside the label.
+- **The sweeps share a walker.** `scripts/lib/walk.ts` defines "every page" for the visibility,
+  contrast and screen sweeps. It moves inside the app as a link does. `scripts/lib/browser-session.ts`
+  signs a headless browser in through the cookie session (SEC-4).
+
+**Rationale.** The first sweep found 50 distinct failures (1,825 occurrences). Nearly all came from
+one muted-text token used 169 times, and from status text written in its fill shade. Fixing the
+tokens fixes every use, including the next one.
+
+**Limits.**
+
+- A glow could still be made stronger without any test noticing, if it moves outside the five
+  `--glow-*` tokens.
+- The frame probe runs once per load. A device that slows down later, for example on battery saver,
+  keeps its blur until the next load.

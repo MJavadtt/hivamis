@@ -10,88 +10,57 @@
  * refused requests on purpose, and those are what the security-alert detectors read. Development
  * only — it signs in with the published demo password, on localhost.
  */
-import { chromium, type Page } from 'playwright-core';
-import { resolveExecutable } from '../src/pdf/renderer.js';
+import { chromium } from 'playwright-core';
+import { resolveExecutable } from '../src/pdf/browser-path.js';
+import { assertLocal, SCRIPT_AGENT, signIn, signOut } from './lib/browser-session.js';
+import { walk } from './lib/walk.js';
 
 const WEB = process.env.AUDIT_WEB ?? 'http://localhost:5173';
 const API = process.env.AUDIT_API ?? 'http://localhost:4000';
-const PASSWORD = process.env.AUDIT_PASSWORD ?? 'Hiva@Dev2026!';
 const SETTLE_MS = Number(process.env.AUDIT_SETTLE_MS ?? 1200);
 const DEFAULT_USERS = ['sales.manager', 'sales', 'account', 'creative', 'designer', 'pmo', 'finance', 'legal', 'admin'].map((u) => `${u}@hiva.local`);
 
-for (const u of [WEB, API]) {
-  if (!['localhost', '127.0.0.1'].includes(new URL(u).hostname)) throw new Error(`refusing to run against ${u}: development only`);
-}
+assertLocal(WEB, API);
 
 interface Finding { page: string; call: string; status: number }
 
-const settle = (page: Page) => page.waitForTimeout(SETTLE_MS);
-
-async function clickTabs(page: Page, where: string, visit: (label: string) => void) {
-  const count = await page.locator('main [role="tab"]').count();
-  for (let i = 0; i < count; i++) {
-    const tab = page.locator('main [role="tab"]').nth(i);
-    const label = (await tab.textContent().catch(() => ''))?.trim() ?? '';
-    visit(`${where} › ${label}`);
-    await tab.click({ timeout: 3000 }).catch(() => undefined);
-    await settle(page);
-  }
-}
-
 async function audit(email: string, browser: Awaited<ReturnType<typeof chromium.launch>>) {
-  const login = await fetch(`${API}/api/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: PASSWORD }) });
-  if (!login.ok) return { email, error: `login ${login.status}`, findings: [] as Finding[], pages: 0 };
-  const { refreshToken } = await login.json() as { refreshToken: string };
-
-  const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'fa-IR' });
+  const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'fa-IR', userAgent: SCRIPT_AGENT });
+  // Signed in where the page's calls go; the cookie is the host's, whichever port answered.
+  const signed = await signIn(context, API, email);
+  if (!signed.ok) { await context.close(); return { email, error: `login ${signed.status}`, findings: [] as Finding[], pages: 0 }; }
   const page = await context.newPage();
   // The page's API calls go to the audit API (a copy of the data, jobs off) instead of the dev one.
   if (API !== 'http://localhost:4000') {
     await page.route('**/api/v1/**', (route) => route.continue({ url: route.request().url().replace(new URL(WEB).origin, new URL(API).origin) }));
   }
-  let where = '/';
+  // A screen's calls are made while it loads, before it is named: they wait, and take the name it gets.
+  let pending: Omit<Finding, 'page'>[] = [];
+  let calls = 0;
   const findings: Finding[] = [];
   const seen = new Map<string, number>();
   page.on('response', (r) => {
     const url = new URL(r.url());
-    if (url.pathname.startsWith('/api/v1/')) seen.set(where, (seen.get(where) ?? 0) + 1);
-    if (r.status() === 403 && url.pathname.startsWith('/api/v1/')) {
-      findings.push({ page: where, call: `${r.request().method()} ${url.pathname.replace(/[0-9a-f-]{36}/g, ':id')}`, status: 403 });
-    }
+    if (!url.pathname.startsWith('/api/v1/')) return;
+    calls++;
+    if (r.status() === 403) pending.push({ call: `${r.request().method()} ${url.pathname.replace(/[0-9a-f-]{36}/g, ':id')}`, status: 403 });
   });
-
-  await page.goto(`${WEB}/icon.svg`);
-  await page.evaluate((t) => localStorage.setItem('hiva.refresh', t), refreshToken);
-  await page.goto(`${WEB}/`);
-  await settle(page);
-  const routes = [...new Set(await page.$$eval('aside nav a[href^="/"]', (as) => as.map((a) => a.getAttribute('href')!)))];
+  const pages = await walk(page, WEB, {
+    settleMs: SETTLE_MS,
+    visit: (where) => {
+      findings.push(...pending.map((f) => ({ ...f, page: where })));
+      seen.set(where, calls);
+      pending = []; calls = 0;
+    },
+  });
   // No navigation means the signed-in screen was never reached — a failed run, not a clean one.
-  if (!routes.length) {
+  if (!pages) {
     await context.close();
     return { email, error: 'the signed-in screen was not reached (rate limit, or the session was refused)', findings: [] as Finding[], pages: 0 };
   }
-  let pages = 0;
-  for (const route of routes) {
-    where = route;
-    await page.goto(`${WEB}${route}`).catch(() => undefined);
-    await settle(page); pages++;
-    await clickTabs(page, route, (w) => { where = w; });
-    // The first record of a list, and its tabs — opened by a link, or by clicking its row.
-    const link = await page.locator(`main a[href^="${route}/"]`).first().getAttribute('href', { timeout: 800 }).catch(() => null);
-    const before = page.url();
-    if (link) await page.goto(`${WEB}${link}`).catch(() => undefined);
-    else await page.locator('main tbody tr').first().click({ timeout: 1500 }).catch(() => undefined);
-    await page.waitForTimeout(300);
-    if (page.url() !== before && new URL(page.url()).pathname.startsWith(`${route}/`)) {
-      where = `${route}/:id`;
-      await settle(page); pages++;
-      await clickTabs(page, `${route}/:id`, (w) => { where = w; });
-    }
-  }
   if (process.env.AUDIT_VERBOSE) for (const [w, n] of seen) console.log(`    ${w}: ${n} API response(s)`);
   // Sign out: the session this made is closed, not left to expire.
-  const current = await page.evaluate(() => localStorage.getItem('hiva.refresh'));
-  if (current) await fetch(`${API}/api/v1/auth/logout`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: current }) }).catch(() => undefined);
+  await signOut(context, API);
   await context.close();
   return { email, findings, pages };
 }

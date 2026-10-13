@@ -17,14 +17,20 @@ component carries its own dark style. The status tints are the one exception (se
 - **The light.** Five pastel glows (lavender, blush, mint, sky, apricot) are painted once, fixed,
   behind everything (`body::before`), over a pale `canvas`. At night the canvas is a deep indigo and
   the same glows are turned low.
-- **Glass.** Cards and panels are `bg-surface`: white at 58% (night: indigo at 55%), blurred and
+- **Glass.** Cards and panels are `bg-surface`: white at 72% (night: indigo at 55%), blurred and
   saturated over the light (`backdrop-filter`), with a bright `edge` ring and a soft violet-tinted
   shadow (`shadow-glass`). Every `rounded-xl bg-surface` element, and anything marked `.glass`, is
   blurred.
 - **Overlays** (dialogs, drawers, menus, popovers, the owl's panels) use `bg-panel`: white at 90%
   (night: 94%). Over a dimmed page, the text keeps its contrast.
-- **Transparency** turns solid where the reader has asked for less transparency
-  (`prefers-reduced-transparency`) or the browser cannot blur.
+- **Transparency** turns solid in three cases (ADR-081):
+  - the reader has asked for less transparency (`prefers-reduced-transparency`);
+  - the browser cannot blur;
+  - the device is too slow to blur every frame. `lib/power.ts` marks `data-power="low"` on a
+    device with four cores or fewer, or one whose frames already take over 20 ms at the median.
+- **Every blur is a token.** The glass uses `--glass-blur`; the dimmed page behind a dialog or
+  drawer uses `--scrim-blur`, through `.scrim`. Each fallback sets both to `none`, so none is
+  missed. A test refuses a Tailwind `backdrop-blur-*` class or a literal `backdrop-filter`.
 - **Containing box.** Blur makes a panel the containing box of anything `fixed` inside it. So every
   full-screen overlay is rendered at the root of the page: `Modal`, the assistant, the written guide.
 
@@ -33,12 +39,12 @@ component carries its own dark style. The status tints are the one exception (se
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `canvas` | `#f5f3fb` | `#0d0c1a` | the page, under the light |
-| `surface` | white 58% | indigo 55% | glass: cards, panels, controls |
+| `surface` | white 72% | indigo 55% | glass: cards, panels, controls. 72% so text keeps its contrast over the strongest glow (ADR-081) |
 | `panel` | white 90% | indigo 94% | overlays |
 | `edge` | white 85% | white 9% | the lit edge of glass |
-| `ink-50` … `ink-900` | `#f7f6fc` … `#16142a` | `#1c1a30` … `#ffffff` | neutrals with a breath of violet; `ink-500` keeps 4.5:1 on the glass |
+| `ink-50` … `ink-900` | `#f7f6fc` … `#16142a` | `#1c1a30` … `#ffffff` | neutrals with a breath of violet. 400 and darker are text, and each keeps 4.5:1 over the glass at its darkest; 300 and lighter are lines and fills (ADR-081) |
 | `brand-*` | periwinkle, `brand-600` = `#5d4ee0` | lifted, `brand-600` = `#988cff` | links, focus, selection, tints |
-| `--grad-accent` | violet `#6c5bf0` → blue `#3f84e8` | the same | the main action (`.btn-accent`), the logo, the user's chat bubble |
+| `--grad-accent` | violet `#6150ea` → blue `#336bd0` | the same | the main action (`.btn-accent`), the logo, the user's chat bubble, a chosen toggle. White text keeps 4.5:1 at every stop |
 | `--grad-soft` | the accent at 16% → 10% | at 24% → 14% | the chosen item (`.soft-selected`): menu, tab, guide section |
 
 ## Shape, type and elevation
