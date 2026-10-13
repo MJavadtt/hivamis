@@ -24,6 +24,23 @@ everyone holding the role: what was taken away disappears from their screens on 
 Full access is not exemption: the process rules (a project without authorization, a delivery without
 QC) still stop everyone, and the managing director's governed exception remains the way past one.
 
+**Your organisation's own roles.** **New role** makes a role from scratch or, more often, as a copy
+of the selected role's permissions: split «خلاقه» out of a unit role, say, then adjust its ticks.
+
+- An organisation's own role can be renamed and recoloured (**Edit**). It can be deleted once nothing
+  names it: if anyone still holds it, or a delegation, form, waiting submission or organisation rule
+  names it, **Delete** lists those instead.
+- The code's roles keep their names and cannot be deleted: rules and workflows know them by name. For
+  another name, make a role from one of them.
+- **Holders** lists who holds a role.
+- Every change is a new version of the permissions rules, like a grant.
+
+**Positions («سمت‌ها»).** Each job title is kept once, in a unit, with the roles it usually brings.
+
+- In the users list, **Edit** gives a person a position, a unit and roles. Choosing a position ticks
+  its usual roles for you to keep or clear; nothing is granted without saving.
+- Renaming a position renames it for everyone who holds it. An archived position is no longer given.
+
 **Other ways in.** Where the installation offers them, the sign-in page also takes a **mobile
 number** — a six-digit code is texted to it — and **Google** («ورود با حساب گوگل»). The mobile must
 first be verified on your own page; a Google account whose address is your work email is linked the

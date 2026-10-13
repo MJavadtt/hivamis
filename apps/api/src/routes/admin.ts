@@ -1,14 +1,16 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  createUserSchema, updateUserSchema, paginationSchema, roleGrantSchema,
+  createUserSchema, updateUserSchema, paginationSchema, roleGrantSchema, createRoleSchema, updateRoleSchema,
   ALL_PERMISSIONS, FULL_ACCESS_ROLES, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
 } from '@hiva/contracts';
+import { findRoles, newRoleCode, roleReferences, rolesOf } from '../auth/roles.js';
+import type { Tx } from '../db.js';
 import { forgetGrants, grantsOf, setRoleGrant } from '../auth/grants.js';
 import { registerRuleSets, resetRulesCache } from '../workflow/rules.js';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
 import { deactivateUser, endSessions } from '../auth/session.js';
@@ -48,7 +50,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
             isActive: true,
             weeklyCapacityHours: true,
             lastLoginAt: true,
-            roles: { select: { role: { select: { code: true, nameFa: true } } } },
+            positionId: true,
+            roles: { select: { role: { select: { code: true, nameFa: true, nameEn: true, color: true } } } },
           }
         : {}),
     };
@@ -75,8 +78,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     });
     if (!department) throw badRequest('UNKNOWN_DEPARTMENT', 'واحد سازمانی نامعتبر است.');
 
-    const roles = await prisma.role.findMany({ where: { code: { in: input.roleCodes } } });
-    if (roles.length !== input.roleCodes.length) throw badRequest('UNKNOWN_ROLE', 'نقش نامعتبر است.');
+    const roles = await findRoles(prisma, actor.organizationId, input.roleCodes);
+    const position = input.positionId ? await positionOf(prisma, actor.organizationId, input.positionId) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -84,7 +87,9 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         departmentId: department.id,
         email: input.email.toLowerCase(),
         fullName: input.fullName,
-        jobTitle: input.jobTitle ?? null,
+        positionId: position?.id ?? null,
+        // The title follows the position; written by hand only where there is none.
+        jobTitle: position?.nameFa ?? input.jobTitle ?? null,
         phone: input.phone ?? null,
         weeklyCapacityHours: input.weeklyCapacityHours,
         passwordHash: await hashPassword(input.password),
@@ -116,6 +121,11 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const data: Record<string, unknown> = {};
     if (input.fullName) data.fullName = input.fullName;
     if (input.jobTitle !== undefined) data.jobTitle = input.jobTitle;
+    if (input.positionId !== undefined) {
+      const position = input.positionId ? await positionOf(prisma, actor.organizationId, input.positionId) : null;
+      data.positionId = position?.id ?? null;
+      if (position) data.jobTitle = position.nameFa;
+    }
     if (input.phone !== undefined) data.phone = input.phone;
     if (input.weeklyCapacityHours !== undefined) data.weeklyCapacityHours = input.weeklyCapacityHours;
     if (input.departmentCode) {
@@ -135,7 +145,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({ where: { id }, data });
       if (input.roleCodes) {
-        const roles = await tx.role.findMany({ where: { code: { in: input.roleCodes } } });
+        const roles = await findRoles(tx, actor.organizationId, input.roleCodes);
         rolesNow = roles.map((r) => r.code).sort();
         rolesChanged = JSON.stringify(rolesNow) !== JSON.stringify(currentRoles);
         await tx.userRole.deleteMany({ where: { userId: id } });
@@ -362,7 +372,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/roles', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
     const [roles, holders, grants] = await Promise.all([
-      prisma.role.findMany({ orderBy: { code: 'asc' } }),
+      prisma.role.findMany({ where: rolesOf(actor.organizationId), orderBy: [{ isSystem: 'desc' }, { code: 'asc' }] }),
       prisma.userRole.groupBy({ by: ['roleId'], where: { user: { organizationId: actor.organizationId, deletedAt: null } }, _count: { _all: true } }),
       grantsOf(actor.organizationId),
     ]);
@@ -373,7 +383,9 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       const permissions = [...(grants.map[code] ?? [])];
       const defaults = ROLE_PERMISSIONS[code] ?? [];
       return {
-        id: r.id, code, nameFa: r.nameFa, nameEn: r.nameEn,
+        id: r.id, code, nameFa: r.nameFa, nameEn: r.nameEn, description: r.description, color: r.color,
+        // Made by this organisation (audit F-3): it may be renamed, recoloured and deleted.
+        custom: r.organizationId !== null,
         userCount: holders.find((h) => h.roleId === r.id)?._count._all ?? 0,
         fullAccess: FULL_ACCESS_ROLES.includes(code),
         permissions, defaults,
@@ -388,7 +400,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { code } = req.params as { code: string };
     const input = parse(roleGrantSchema, req.body);
-    const role = await prisma.role.findUnique({ where: { code } });
+    const role = await prisma.role.findFirst({ where: { code, ...rolesOf(actor.organizationId) } });
     if (!role) throw notFound('نقش');
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -410,6 +422,103 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     } finally {
       forgetGrants(actor.organizationId);
     }
+  });
+
+  /**
+   * A role of the organisation's own (audit F-3): from scratch, or a copy of another's permissions as
+   * the organisation has them now — split «خلاقه» out of a unit role, say. A new version of the
+   * permissions rule set, like a grant.
+   */
+  app.post('/roles', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const input = parse(createRoleSchema, req.body);
+    const permissions = input.copyFrom
+      ? [...((await grantsOf(actor.organizationId)).map[(await roleIn(prisma, actor.organizationId, input.copyFrom)).code] ?? [])]
+      : [];
+    try {
+      const role = await prisma.$transaction(async (tx) => {
+        const code = await newRoleCode(tx);
+        const created = await tx.role.create({
+          data: { code, organizationId: actor.organizationId, isSystem: false, nameFa: input.nameFa, nameEn: input.nameEn, description: input.description ?? null, color: input.color ?? null },
+        });
+        await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions, note: input.copyFrom ? `copied from ${input.copyFrom}` : null, actorId: actor.id });
+        await registerRuleSets(tx, undefined, `نقش تازهٔ «${input.nameFa}»${input.copyFrom ? ` از روی ${input.copyFrom}` : ''}`);
+        await audit({
+          organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'role', entityId: code,
+          after: { ...created, permissions, copyFrom: input.copyFrom ?? null }, ipAddress: actor.ipAddress, requestId: actor.requestId,
+        }, tx);
+        return created;
+      });
+      return reply.code(201).send({ code: role.code, nameFa: role.nameFa, nameEn: role.nameEn, description: role.description, color: role.color, custom: true, permissions });
+    } catch (e) { resetRulesCache(); throw e; } finally { forgetGrants(actor.organizationId); }
+  });
+
+  /** Its names, description and colour — the organisation's own roles only: the code's are the same everywhere. */
+  app.patch('/roles/:code', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const input = parse(updateRoleSchema, req.body);
+    const before = await roleIn(prisma, actor.organizationId, code);
+    if (!before.organizationId) throw conflict('SYSTEM_ROLE', 'نقش‌های سامانه همان‌اند که در کد آمده‌اند و نامشان عوض نمی‌شود؛ برای نامی دیگر، نقشی از روی آن بسازید.');
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const after = await tx.role.update({
+          where: { id: before.id },
+          data: {
+            ...(input.nameFa !== undefined ? { nameFa: input.nameFa } : {}), ...(input.nameEn !== undefined ? { nameEn: input.nameEn } : {}),
+            ...(input.description !== undefined ? { description: input.description ?? null } : {}), ...(input.color !== undefined ? { color: input.color ?? null } : {}),
+          },
+        });
+        await registerRuleSets(tx, undefined, `نقش «${before.nameFa}» ویرایش شد`);
+        await audit({
+          organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'role', entityId: code,
+          before: { nameFa: before.nameFa, nameEn: before.nameEn, description: before.description, color: before.color },
+          after: { nameFa: after.nameFa, nameEn: after.nameEn, description: after.description, color: after.color },
+          ipAddress: actor.ipAddress, requestId: actor.requestId,
+        }, tx);
+        return { code, nameFa: after.nameFa, nameEn: after.nameEn, description: after.description, color: after.color, custom: true };
+      });
+    } catch (e) { resetRulesCache(); throw e; }
+  });
+
+  /**
+   * Gone, with its grants — only an organisation's own role, and only when nothing names it any more:
+   * no one holds it, no delegation in force, no form it approves, nothing waiting on it, no rule in
+   * force that notifies it. Otherwise 409, with the list.
+   */
+  app.delete('/roles/:code', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    const role = await roleIn(prisma, actor.organizationId, code);
+    if (!role.organizationId) throw conflict('SYSTEM_ROLE', 'نقش‌های سامانه حذف نمی‌شوند: قانون‌ها و گردش‌کارها آن‌ها را به نام می‌شناسند.');
+    try {
+      await prisma.$transaction(async (tx) => {
+        const refs = await roleReferences(tx, actor.organizationId, code);
+        if (Object.values(refs).some((n) => n > 0)) {
+          throw conflict('ROLE_IN_USE', 'این نقش هنوز به کار رفته است؛ اول این‌ها را از آن جدا کنید.', refs);
+        }
+        await tx.roleGrant.updateMany({ where: { organizationId: actor.organizationId, roleCode: code, supersededAt: null }, data: { supersededAt: new Date() } });
+        await tx.role.delete({ where: { id: role.id } });
+        await registerRuleSets(tx, undefined, `نقش «${role.nameFa}» حذف شد`);
+        await audit({
+          organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'role', entityId: code,
+          before: { nameFa: role.nameFa, nameEn: role.nameEn, description: role.description, color: role.color }, ipAddress: actor.ipAddress, requestId: actor.requestId,
+        }, tx);
+      });
+    } catch (e) { resetRulesCache(); throw e; } finally { forgetGrants(actor.organizationId); }
+    return reply.code(204).send();
+  });
+
+  /** Who holds a role here. */
+  app.get('/roles/:code/holders', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { code } = req.params as { code: string };
+    await roleIn(prisma, actor.organizationId, code);
+    return prisma.user.findMany({
+      where: { organizationId: actor.organizationId, deletedAt: null, roles: { some: { role: { code } } } },
+      orderBy: { fullName: 'asc' }, take: 500,
+      select: { id: true, fullName: true, email: true, isActive: true, jobTitle: true, department: { select: { code: true } } },
+    });
   });
 
   /** Who granted a role what, and when — newest first. */
@@ -664,5 +773,19 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     return prisma.slaClock.findUnique({ where: { id }, include: { policy: true, pauses: true } });
   });
 };
+
+/** A role the organisation has — the code's, or its own — or 404. */
+async function roleIn(tx: Tx, organizationId: string, code: string) {
+  const role = await tx.role.findFirst({ where: { code, ...rolesOf(organizationId) } });
+  if (!role) throw notFound('نقش');
+  return role;
+}
+
+/** A position of the organisation's that is still in use — or 400. */
+async function positionOf(tx: Tx, organizationId: string, id: string) {
+  const position = await tx.position.findFirst({ where: { id, organizationId, archivedAt: null } });
+  if (!position) throw badRequest('UNKNOWN_POSITION', 'سمت نامعتبر است.');
+  return position;
+}
 
 export default adminRoutes;

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEPARTMENT_CODES, DEPARTMENT_LABELS, ROLE_CODES, ROLE_LABELS, type DepartmentCode, type RoleCode } from '@hiva/contracts';
+import { DEPARTMENT_CODES, DEPARTMENT_LABELS, type DepartmentCode } from '@hiva/contracts';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime } from '../lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { UnitTag } from './UnitTag';
 import { pair, tr } from '../i18n';
+import { roleName, useRoleCodes } from '../lib/roles';
 
 /**
  * People asking to join (Hivamis task 4). Nothing is granted by signing up: the administrator of users
@@ -88,7 +89,8 @@ function Approve({ request, onClose }: { request: Request; onClose: () => void }
   const [roles, setRoles] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState('');
   const [busy, setBusy] = useState(false);
-  const assignable = ROLE_CODES.filter((r) => r !== 'SUPER_ADMIN');
+  // The code's roles and the organisation's own (audit F-3); the system administrator is not given by approving a request.
+  const assignable = useRoleCodes().filter((r) => r !== 'SUPER_ADMIN');
   const save = async () => {
     setBusy(true);
     try {
@@ -115,7 +117,7 @@ function Approve({ request, onClose }: { request: Request; onClose: () => void }
         <Field label={tr('نقش‌ها')} required hint={tr('دسترسی هر نقش همان است که در «نقش‌ها و دسترسی‌ها» داده‌اید.')}>
           <div className="grid gap-1 sm:grid-cols-2">
             {assignable.map((r) => (
-              <Checkbox key={r} label={<span className="text-xs">{pair(ROLE_LABELS[r as RoleCode])}</span>} checked={roles.includes(r)}
+              <Checkbox key={r} label={<span className="text-xs">{roleName(r)}</span>} checked={roles.includes(r)}
                 onChange={(e) => setRoles((s) => (e.target.checked ? [...s, r] : s.filter((x) => x !== r)))} />
             ))}
           </div>

@@ -70,7 +70,9 @@ describe('CRUD scoping (audit SEC-1, SEC-12)', () => {
   it('works out how a child reaches its organisation from the schema', () => {
     expect(organizationWhere('contact', 'o')).toEqual({ organizationId: 'o' });
     expect(organizationWhere('milestone', 'o')).toEqual({ project: { organizationId: 'o' } });
-    expect(organizationWhere('role', 'o')).toBeNull();
+    // A role is the code's (no organisation, everyone's) or one organisation's own (audit F-3).
+    expect(organizationWhere('role', 'o')).toEqual({ OR: [{ organizationId: null }, { organizationId: 'o' }] });
+    expect(organizationWhere('permission', 'o')).toBeNull();
     expect(organizationWhere('organization', 'o')).toEqual({ id: 'o' });
   });
 

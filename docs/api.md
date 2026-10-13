@@ -134,6 +134,13 @@ Every other role holds what the organisation's administrator granted, or its def
 | `GET /roles` | Each role here: `fullAccess`, `permissions` (in force), `defaults`, `differsFromDefault`, `userCount` (in this organisation), and `review: { at, note, grantedBy } \| null` (null = default, not yet reviewed). Any signed-in user |
 | `PUT /roles/:code/permissions` `{ permissions, note? }` | Grant exactly these. `admin.roles`. `400 FULL_ACCESS_ROLE` for the four full-access roles, `400 UNKNOWN_PERMISSION` for a code that does not exist. Returns `{ added, removed, permissions }`. A new grant row (the previous one kept, superseded), a new version of the permissions rule set, and an audit event |
 | `GET /roles/:code/grants` | Who granted what and when, newest first. `admin.roles` |
+| `POST /roles` `{ nameFa, nameEn?, description?, color?, copyFrom? }` | A role of the organisation's own (audit F-3), its code `C_` and eight letters or digits; `copyFrom` starts it with that role's permissions here. `admin.roles`. A grant row, a new permissions rule-set version and an audit event |
+| `PATCH /roles/:code` `{ nameFa?, nameEn?, description?, color? }` | The organisation's own roles only; `409 SYSTEM_ROLE` for the code's. `admin.roles` |
+| `DELETE /roles/:code` | The organisation's own role, when nothing names it: `409 ROLE_IN_USE` with `details: { holders, delegations, forms, pendingSubmissions, rules }`; `409 SYSTEM_ROLE` for the code's. Its grants are superseded, kept. `admin.roles` |
+| `GET /roles/:code/holders` | Who holds it here. `admin.roles`. Another organisation's role is `404` everywhere |
+| `GET /positions` | The organisation's positions (audit F-3): `{ id, nameFa, nameEn, departmentCode, defaultRoleCodes, archived, holders }`; `?all=1` with `admin.users` includes archived. Any signed-in user |
+| `POST /positions`, `PATCH /positions/:id` `{ nameFa, nameEn?, departmentCode?, defaultRoleCodes?, archived? }` | `admin.users`. `409 POSITION_EXISTS` for a title already there. A rename renames every holder's `jobTitle` |
+| `POST /users`, `PATCH /users/:id` `{ …, positionId?, roleCodes? }` | `positionId` sets the position and its title; `roleCodes` may name the organisation's own roles, and `400 UNKNOWN_ROLE` names any it does not have |
 | `GET /permissions` | Every permission with the roles that hold it here |
 
 An access token carries `gv`, the grant count of each of its roles at issue. When a role has been

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ROLE_CODES, ROLE_LABELS, ROUTING_OPERATOR_LABELS, type RoutingOperator } from '@hiva/contracts';
+import { ROUTING_OPERATOR_LABELS, type RoutingOperator } from '@hiva/contracts';
 import { apiGet, apiPut } from '../lib/api';
 import { useAction } from '../hooks/queries';
 import { Code } from './common';
 import { Badge, Button, Card, EmptyState, Field, Input, LoadingBlock, Select, Table, Td, Th, Tr, useToast } from './ui';
 import { localDigits } from '../lib/format';
-import { loc, pair, tr, trx } from '../i18n';
+import { loc, tr, trx } from '../i18n';
+import { roleName, useRoleCodes } from '../lib/roles';
 
 interface Rule {
   id: string; whenFa: string; describedFa?: string;
@@ -18,7 +19,8 @@ interface Routing {
   fields: { key: string; labelFa: string; type: string; options: { value: string; labelFa: string }[] | null }[];
   rules: Rule[];
 }
-const roleFa = (c: string) => pair(ROLE_LABELS[c as keyof typeof ROLE_LABELS]) || c;
+// The code's roles and the organisation's own (audit F-3).
+const roleFa = roleName;
 const SOURCE_FA: Record<string, string> = { DOC_H: 'Doc_H', DEFAULT: tr('پیش‌فرض سامانه'), ORG: tr('قاعدهٔ سازمان') };
 /** Operators an editor can set without writing JSON; grouping (all/any) stays an API affair. */
 const SIMPLE_OPS: RoutingOperator[] = ['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in', 'isTrue', 'isFalse', 'isSet', 'isEmpty', 'ltField', 'gtField'];
@@ -29,6 +31,7 @@ const SIMPLE_OPS: RoutingOperator[] = ['gt', 'gte', 'lt', 'lte', 'eq', 'ne', 'in
  * a new definition version, so forms already filed keep the rules they were judged under.
  */
 export function FormRouting() {
+  const roleCodes = useRoleCodes();
   const [code, setCode] = useState('F47_PRICING');
   const qc = useQueryClient();
   const toast = useToast();
@@ -122,7 +125,7 @@ export function FormRouting() {
                 <Field label={tr('تأییدکنندهٔ افزوده')}>
                   <Select value={draft.addApprovers?.[0] ?? ''} onChange={(e) => setDraft({ ...draft, addApprovers: e.target.value ? [e.target.value] : [] })} aria-label={tr('تأییدکنندهٔ افزوده')}>
                     <option value="">{tr('— بدون تأییدکنندهٔ تازه —')}</option>
-                    {ROLE_CODES.map((r) => <option key={r} value={r}>{roleFa(r)}</option>)}
+                    {roleCodes.map((r) => <option key={r} value={r}>{roleFa(r)}</option>)}
                   </Select>
                 </Field>
                 <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">

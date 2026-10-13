@@ -23,6 +23,8 @@ const of = (verdict: Verdict, keys: string[]) => Object.fromEntries(keys.map((k)
 export const REVIEWED: Record<string, Verdict> = {
   ...of('REFERENCE', [
     "auth/grants.ts#grantSnapshot#roleGrant#1",
+    // Audit F-3: the roles organisations made — a handful each.
+    "auth/roles.ts#customRoleCatalogue#role#1",
     "auth/grants.ts#grantsOf#roleGrant#1",
     "forms/suggest.ts#frequentForms#formDefinition#1",
     "forms/suggest.ts#suggestForRecord#formDefinition#1",
@@ -34,16 +36,13 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/admin.ts#GET /departments#department#1",
     "routes/admin.ts#GET /roles#role#1",
     "routes/admin.ts#GET /sla-policies#slaPolicy#1",
-    "routes/admin.ts#PATCH /users/:id#role#1",
     "routes/admin.ts#PATCH /users/:id#userRole#1",
-    "routes/admin.ts#POST /users#role#1",
     "routes/crm.ts#GET /lead-referrers#leadReferrer#1",
     "routes/forms.ts#GET /forms/definitions#formDefinition#1",
     "routes/forms.ts#GET /forms/definitions/:code/versions#formDefinitionVersion#1",
     "routes/fx.ts#GET /fx/rates#exchangeRate#1",
     "routes/guide.ts#GET /guide/videos#guideVideo#1",
     "routes/identity.ts#GET /auth/signup/options#department#1",
-    "routes/identity.ts#POST /signup-requests/:id/approve#role#1",
     "routes/integrations.ts#GET /admin/api-keys#apiKey#1",
     "routes/integrations.ts#GET /admin/webhooks#webhookSubscription#1",
     "routes/onboarding.ts#GET /onboarding/units#department#1",
@@ -140,6 +139,8 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/guards.ts#activeWaivers#waiver#1",
   ]),
   ...of('IDS', [
+    // Audit F-3: the role codes named in one request.
+    "auth/roles.ts#findRoles#role#1",
     "ai/service.ts#gatherContext#issue#1",
     "ai/service.ts#gatherContext#slaClock#1",
     "approvals/service.ts#verify#document#1",
@@ -205,6 +206,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/notices.ts#noticesAfter#delegation#1",
   ]),
   ...of('PEOPLE', [
+    "setup/positions.ts#positionsFromTitles#user#1",
     "esign/service.ts#signatories#user#1",
     "onboarding/importers.ts#usersByEmail#user#1",
     "reports/capacity.ts#personLoads#allocation#1",

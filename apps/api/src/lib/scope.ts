@@ -7,8 +7,8 @@ import { AppError } from './errors.js';
  *
  * A model with an `organizationId` scopes on it. A child without one (a milestone, a comment) reaches
  * one through the shortest chain of required relations — a milestone through its project. A model
- * that reaches no organisation at all (a role, a permission) is shared by the installation, and
- * nothing here constrains it.
+ * that reaches no organisation at all (a permission) is shared by the installation, and nothing here
+ * constrains it; one whose organisation is optional (a role) is shared or one organisation's.
  */
 
 type DmmfModel = (typeof Prisma.dmmf.datamodel.models)[number];
@@ -63,6 +63,10 @@ function pathToOrganization(model: string): string[] | null {
  */
 export function organizationWhere(model: string, organizationId: string): Record<string, unknown> | null {
   if (modelNamed(model).name === 'Organization') return { id: organizationId };
+  // An optional organisation means shared or one's own (audit F-3): a role is the code's, which
+  // everyone has, or an organisation's.
+  const column = modelNamed(model).fields.find((f) => f.name === 'organizationId' && f.kind === 'scalar');
+  if (column && !column.isRequired) return { OR: [{ organizationId: null }, { organizationId }] };
   const path = pathToOrganization(model);
   if (!path) return null;
   return path.reduceRight<Record<string, unknown>>((inner, rel) => ({ [rel]: inner }), { organizationId });

@@ -2559,5 +2559,20 @@
   "بنویسید چه می‌خواهید": "Say what you want written",
   "دستیار الان نتوانست بنویسد. آیا مدل محلی در حال اجراست؟": "The assistant could not write this right now. Is the local model running?",
   "ساخت تصویر در این نصب خاموش است.": "Making pictures is turned off in this installation.",
-  "سرور تصویر نتوانست این تصویر را بسازد. دوباره امتحان کنید یا به مدیر سیستم خبر دهید.": "The image server could not make this picture. Try again, or tell the system administrator."
+  "سرور تصویر نتوانست این تصویر را بسازد. دوباره امتحان کنید یا به مدیر سیستم خبر دهید.": "The image server could not make this picture. Try again, or tell the system administrator.",
+  "رنگ را به شکل #rrggbb بدهید": "Give the colour as #rrggbb",
+  "نام نقش را بنویسید": "Name the role",
+  "عنوان سمت را بنویسید": "Name the position",
+  "نقش نامعتبر است: {0}": "Not a role here: {0}",
+  "نقش تازهٔ «{0}»{1}": "New role «{0}»{1}",
+  " از روی {0}": " copied from {0}",
+  "نقش‌های سامانه همان‌اند که در کد آمده‌اند و نامشان عوض نمی‌شود؛ برای نامی دیگر، نقشی از روی آن بسازید.": "The system's roles are as the code defines them and keep their names; for another name, make a role from this one.",
+  "نقش «{0}» ویرایش شد": "Role «{0}» edited",
+  "نقش‌های سامانه حذف نمی‌شوند: قانون‌ها و گردش‌کارها آن‌ها را به نام می‌شناسند.": "The system's roles are not deleted: rules and workflows know them by name.",
+  "این نقش هنوز به کار رفته است؛ اول این‌ها را از آن جدا کنید.": "This role is still in use; detach these from it first.",
+  "سمت نامعتبر است.": "Not a position here.",
+  "سمتی با همین عنوان پیش‌تر ساخته شده است.": "A position with this title already exists.",
+  "نقش «{0}» ({1}) را مدیر سیستم ساخت": "The system administrator made the role «{0}» ({1})",
+  "نقش «{0}» ({1}) را مدیر سیستم حذف کرد": "The system administrator deleted the role «{0}» ({1})",
+  "نقش {0}: نامش از «{1}» به «{2}» تغییر کرد": "Role {0}: renamed from «{1}» to «{2}»"
 }

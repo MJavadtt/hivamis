@@ -50,18 +50,48 @@ export const changePasswordSchema = z.object({
     .regex(/[0-9]/, 'باید شامل عدد باشد'),
 });
 
+/**
+ * A role's code: one the code defines, or one an organisation made (audit F-3), which is always
+ * `C_` and eight letters or digits. Whether it is a role in the organisation is the server's to check.
+ */
+export const CUSTOM_ROLE_CODE = /^C_[A-Z0-9]{8}$/;
+export const roleCodeSchema = z.union([z.enum(ROLE_CODES), z.string().regex(CUSTOM_ROLE_CODE)]);
+
 export const createUserSchema = z.object({
   email: z.string().email().max(160),
   fullName: z.string().trim().min(2).max(120),
   password: z.string().min(12).max(200),
   departmentCode: z.enum(DEPARTMENT_CODES),
-  roleCodes: z.array(z.enum(ROLE_CODES)).min(1),
+  roleCodes: z.array(roleCodeSchema).min(1),
+  /** Audit F-3: the position from the organisation's catalogue; jobTitle stays as the fallback. */
+  positionId: z.string().uuid().nullish(),
   jobTitle: z.string().trim().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   weeklyCapacityHours: z.coerce.number().min(0).max(80).default(40),
 });
 
 export const updateUserSchema = createUserSchema.partial().omit({ password: true });
+
+const COLOR = z.string().regex(/^#[0-9a-f]{6}$/, 'رنگ را به شکل #rrggbb بدهید');
+
+/** A role the organisation makes (audit F-3): from scratch, or as a copy of another's permissions. */
+export const createRoleSchema = z.object({
+  nameFa: z.string().trim().min(2, 'نام نقش را بنویسید').max(80),
+  nameEn: z.string().trim().max(80).default(''),
+  description: z.string().trim().max(500).nullish(),
+  color: COLOR.nullish(),
+  copyFrom: roleCodeSchema.nullish(),
+});
+export const updateRoleSchema = createRoleSchema.omit({ copyFrom: true }).partial();
+
+/** A position in the organisation's catalogue (audit F-3). */
+export const createPositionSchema = z.object({
+  nameFa: z.string().trim().min(2, 'عنوان سمت را بنویسید').max(120),
+  nameEn: z.string().trim().max(120).default(''),
+  departmentCode: z.enum(DEPARTMENT_CODES).nullish(),
+  defaultRoleCodes: z.array(roleCodeSchema).max(8).default([]),
+});
+export const updatePositionSchema = createPositionSchema.partial().extend({ archived: z.boolean().optional() });
 
 /* ── CRM ───────────────────────────────────────────────────────────────────── */
 
@@ -934,8 +964,8 @@ export const routingRuleSchema = z.object({
   id: z.string().trim().min(2).max(60).regex(/^[a-z0-9.-]+$/i, 'شناسه قانون فقط حروف لاتین، رقم، نقطه و خط تیره می‌پذیرد'),
   whenFa: z.string().trim().min(5).max(200),
   when: routingConditionSchema,
-  addApprovers: z.array(z.enum(ROLE_CODES)).max(8).optional(),
-  notifyRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  addApprovers: z.array(roleCodeSchema).max(8).optional(),
+  notifyRoles: z.array(roleCodeSchema).max(8).optional(),
   source: z.enum(['DOC_H', 'DEFAULT', 'ORG']).optional(),
   docRef: z.string().trim().max(200).optional(),
   isActive: z.boolean().optional(),
@@ -958,7 +988,7 @@ export const customRuleSchema = z.object({
   labelFa: z.string().trim().min(3).max(120),
   messageFa: z.string().trim().max(500).optional().nullable(),
   when: routingConditionSchema.optional().nullable(),
-  notifyRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  notifyRoles: z.array(roleCodeSchema).max(8).optional(),
 }).superRefine((r, ctx) => {
   if (r.kind === 'GUARD' && !r.when) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['when'], message: 'قانونی که انتقال را کنترل می‌کند شرط لازم دارد' });
   if (r.kind === 'NOTIFY' && !r.notifyRoles?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['notifyRoles'], message: 'دست‌کم یک نقش برای آگاه‌شدن لازم است' });
@@ -968,7 +998,7 @@ export const customRuleSchema = z.object({
 export const approvalStageSchema = z.object({
   id: z.string().trim().min(2).max(40).regex(/^[a-z0-9.-]+$/i, 'شناسهٔ مرحله فقط حروف لاتین، رقم، نقطه و خط تیره می‌پذیرد'),
   labelFa: z.string().trim().min(2).max(80),
-  roles: z.array(z.enum(ROLE_CODES)).min(1).max(8),
+  roles: z.array(roleCodeSchema).min(1).max(8),
   quorum: z.number().int().min(1).max(10).optional(),
   when: routingConditionSchema.optional(),
 });
@@ -1058,7 +1088,7 @@ export const createFormDefinitionSchema = z.object({
   module: z.string().trim().min(2).max(40),
   senderDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).default([]),
   receiverDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).default([]),
-  approverRoles: z.array(z.enum(ROLE_CODES)).max(8).default([]),
+  approverRoles: z.array(roleCodeSchema).max(8).default([]),
   slaCode: z.string().trim().max(60).nullish(),
   nextProcessFa: z.string().trim().max(200).nullish(),
   fields: z.array(designerFieldSchema).min(1).max(80),
@@ -1069,7 +1099,7 @@ export const updateFormDefinitionSchema = z.object({
   nameEn: z.string().trim().min(2).max(120).optional(),
   senderDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).optional(),
   receiverDepts: z.array(z.enum(DEPARTMENT_CODES)).max(12).optional(),
-  approverRoles: z.array(z.enum(ROLE_CODES)).max(8).optional(),
+  approverRoles: z.array(roleCodeSchema).max(8).optional(),
   slaCode: z.string().trim().max(60).nullish(),
   nextProcessFa: z.string().trim().max(200).nullish(),
   isActive: z.boolean().optional(),
@@ -1104,7 +1134,7 @@ export const signupSchema = z.object({
 /** Approving a request: the administrator gives the unit and the roles (Hivamis task 6) — never system administration. */
 export const approveSignupSchema = z.object({
   departmentCode: z.enum(DEPARTMENT_CODES),
-  roles: z.array(z.enum(ROLE_CODES)).min(1, 'دست‌کم یک نقش لازم است').max(4)
+  roles: z.array(roleCodeSchema).min(1, 'دست‌کم یک نقش لازم است').max(4)
     .refine((r) => !r.includes('SUPER_ADMIN'), 'نقش مدیر سیستم با درخواست عضویت داده نمی‌شود؛ آن را در مدیریت کاربران بدهید'),
   jobTitle: z.string().trim().max(120).nullish(),
 });

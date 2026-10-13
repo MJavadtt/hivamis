@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEPARTMENT_CODES, DEPARTMENT_LABELS, ROLE_CODES, ROLE_LABELS } from '@hiva/contracts';
+import { DEPARTMENT_CODES, DEPARTMENT_LABELS } from '@hiva/contracts';
 import { apiGet, apiPost, apiPut } from '../lib/api';
 import { useAction } from '../hooks/queries';
 import { Code } from './common';
@@ -11,6 +11,7 @@ import {
 } from './ui';
 import { formatDateTime, localDigits } from '../lib/format';
 import { loc, pair, tr, trx } from '../i18n';
+import { roleName, useRoleCodes } from '../lib/roles';
 
 interface DesignerField {
   key: string; labelFa: string; labelEn: string; type: string; required?: boolean;
@@ -40,7 +41,8 @@ const TYPES: { value: string; labelFa: string }[] = [
 ];
 const typeFa = (t: string) => trx(TYPES.find((x) => x.value === t)?.labelFa ?? t);
 const deptFa = (c: string) => pair(DEPARTMENT_LABELS[c as keyof typeof DEPARTMENT_LABELS]) || c;
-const roleFa = (c: string) => pair(ROLE_LABELS[c as keyof typeof ROLE_LABELS]) || c;
+// The code's roles and the organisation's own (audit F-3).
+const roleFa = roleName;
 
 const blank = (): DesignerField => ({ key: '', labelFa: '', labelEn: '', type: 'text', required: false });
 
@@ -302,6 +304,7 @@ function FieldEditor({ field, others, locked, onSave, onCancel }: {
 }
 
 function NewForm({ onClose, onCreated }: { onClose: () => void; onCreated: (code: string) => void }) {
+  const roleCodes = useRoleCodes();
   const [v, setV] = useState({ code: '', nameFa: '', nameEn: '', category: 'D', module: 'TRAFFIC_TASK', senderDepts: [] as string[], approverRoles: [] as string[] });
   const toast = useToast();
   const create = useAction(
@@ -345,7 +348,7 @@ function NewForm({ onClose, onCreated }: { onClose: () => void; onCreated: (code
         <Field label={tr('تأییدکننده')}>
           <Select value={v.approverRoles[0] ?? ''} onChange={(e) => setV({ ...v, approverRoles: e.target.value ? [e.target.value] : [] })} aria-label={tr('تأییدکننده')}>
             <option value="">{tr('— بدون تأیید —')}</option>
-            {ROLE_CODES.map((r) => <option key={r} value={r}>{roleFa(r)}</option>)}
+            {roleCodes.map((r) => <option key={r} value={r}>{roleFa(r)}</option>)}
           </Select>
         </Field>
       </div>

@@ -14,6 +14,7 @@ import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
 import { extensionSnapshot } from './registry.js';
 import { grantSnapshot } from '../auth/grants.js';
+import { customRoleCatalogue } from '../auth/roles.js';
 
 export type RuleKind = 'workflows' | 'permissions' | 'sla';
 export const RULE_KINDS: readonly RuleKind[] = ['workflows', 'permissions', 'sla'];
@@ -48,14 +49,21 @@ export const EXTENSIONS_KEY = '~extensions';
  * it is a new version. Shown to a reader only for their own organisation (`scopeSnapshot`).
  */
 export const ORGANISATIONS_KEY = '~organisations';
+/** Each organisation's own roles, by code (audit F-3): made, renamed or deleted is a new version. */
+export const ROLES_KEY = '~roles';
 
 /** The rule sets as the running code declares them, with what organisations granted. Injectable so a change can be simulated. */
 export async function currentSnapshots(tx: Tx = prisma): Promise<Record<RuleKind, unknown>> {
   const ext = extensionSnapshot();
   const grants = await grantSnapshot(tx);
+  const roles = await customRoleCatalogue(tx);
   return {
     workflows: ext ? { ...WORKFLOWS, [EXTENSIONS_KEY]: ext } : WORKFLOWS,
-    permissions: Object.keys(grants).length ? { ...ROLE_PERMISSIONS, [ORGANISATIONS_KEY]: grants } : ROLE_PERMISSIONS,
+    permissions: {
+      ...ROLE_PERMISSIONS,
+      ...(Object.keys(grants).length ? { [ORGANISATIONS_KEY]: grants } : {}),
+      ...(Object.keys(roles).length ? { [ROLES_KEY]: roles } : {}),
+    },
     sla: SLA_POLICIES,
   };
 }
@@ -64,10 +72,14 @@ export async function currentSnapshots(tx: Tx = prisma): Promise<Record<RuleKind
 export function scopeSnapshot(kind: string, snapshot: unknown, organizationId: string): unknown {
   if (kind !== 'permissions' || !snapshot || typeof snapshot !== 'object') return snapshot;
   const s = snapshot as Record<string, unknown>;
-  const orgs = s[ORGANISATIONS_KEY] as Record<string, unknown> | undefined;
-  if (!orgs) return snapshot;
-  const { [ORGANISATIONS_KEY]: _all, ...rest } = s;
-  return orgs[organizationId] ? { ...rest, [ORGANISATIONS_KEY]: { [organizationId]: orgs[organizationId] } } : rest;
+  const { [ORGANISATIONS_KEY]: _grants, [ROLES_KEY]: _roles, ...rest } = s;
+  const out: Record<string, unknown> = { ...rest };
+  // Its own grants and its own roles: never another organisation's.
+  for (const key of [ORGANISATIONS_KEY, ROLES_KEY]) {
+    const all = s[key] as Record<string, unknown> | undefined;
+    if (all?.[organizationId]) out[key] = { [organizationId]: all[organizationId] };
+  }
+  return out;
 }
 
 export interface CurrentRules { workflows: string; permissions: string; sla: string }
@@ -191,8 +203,20 @@ export function diffRuleSets(kind: RuleKind, from: unknown, to: unknown): string
         for (const p of was.filter((x) => !now.includes(x))) changes.push(`${role}: دسترسی «${p}» را مدیر سیستم گرفت`);
       }
     }
+    // The roles an organisation made, renamed or deleted (audit F-3).
+    type Catalogue = Record<string, Record<string, { nameFa: string }>>;
+    const ra = (a as Record<string, unknown>)[ROLES_KEY] as Catalogue | undefined ?? {};
+    const rb = (b as Record<string, unknown>)[ROLES_KEY] as Catalogue | undefined ?? {};
+    for (const org of new Set([...Object.keys(ra), ...Object.keys(rb)])) {
+      for (const code of new Set([...Object.keys(ra[org] ?? {}), ...Object.keys(rb[org] ?? {})])) {
+        const was = ra[org]?.[code], now = rb[org]?.[code];
+        if (!was) changes.push(`نقش «${now!.nameFa}» (${code}) را مدیر سیستم ساخت`);
+        else if (!now) changes.push(`نقش «${was.nameFa}» (${code}) را مدیر سیستم حذف کرد`);
+        else if (was.nameFa !== now.nameFa) changes.push(`نقش ${code}: نامش از «${was.nameFa}» به «${now.nameFa}» تغییر کرد`);
+      }
+    }
     for (const role of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      if (role === ORGANISATIONS_KEY) continue;
+      if (role === ORGANISATIONS_KEY || role === ROLES_KEY) continue;
       if (!a[role]) { changes.push(`نقش «${role}» اضافه شد`); continue; }
       if (!b[role]) { changes.push(`نقش «${role}» حذف شد`); continue; }
       for (const p of b[role].filter((x) => !a[role]!.includes(x))) changes.push(`${role}: دسترسی «${p}» اضافه شد`);

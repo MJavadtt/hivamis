@@ -21,6 +21,7 @@ import { jalaliToDate } from '../lib/jalali.js';
 import { recordOpeningState } from '../workflow/engine.js';
 import { nameKey, resolveUnit, unitMapOf } from './units.js';
 import { PENDING_PREFIX, createActivation, sendActivation, type Activation } from './activation.js';
+import { rolesOf } from '../auth/roles.js';
 
 export interface ColumnSpec { key: string; labelFa: string; aliases: string[]; required?: boolean; hintFa: string }
 
@@ -161,7 +162,7 @@ const usersPlanner: Planner = async (tx, actor, rows) => {
     unitMapOf(tx, actor.organizationId),
     // Taken within this organisation (audit LOG-4): another organisation's person may share the address.
     tx.user.findMany({ where: { organizationId: actor.organizationId, email: { in: rows.map((r) => r.values.email?.toLowerCase() ?? '') } }, select: { email: true } }),
-    tx.role.findMany({ select: { id: true, code: true } }),
+    tx.role.findMany({ where: rolesOf(actor.organizationId), select: { id: true, code: true } }),
   ]);
   const taken = new Set(existing.map((u) => u.email));
   const twice = seenTwice();

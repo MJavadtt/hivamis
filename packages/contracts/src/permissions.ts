@@ -289,24 +289,28 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };
 
-export type RoleMap = Record<RoleCode, readonly Permission[]>;
+/** Every role an organisation has: the code's, and its own (audit F-3), each with its permissions. */
+export type RoleMap = Record<string, readonly Permission[]>;
 
 /**
  * The roles as an organisation has them: the full-access roles hold everything whatever is stored;
  * the rest hold what the administrator granted, or the default until one has been.
  */
 export function effectiveRoleMap(granted: Partial<Record<string, readonly string[]>> = {}): RoleMap {
-  const out = {} as Record<RoleCode, readonly Permission[]>;
+  const out: Record<string, readonly Permission[]> = {};
+  const known = (ps: readonly string[]) => ps.filter((p): p is Permission => p in PERMISSIONS);
   for (const role of Object.keys(ROLE_PERMISSIONS) as RoleCode[]) {
     out[role] = FULL_ACCESS_ROLES.includes(role)
       ? ALL_PERMISSIONS
-      : (granted[role]?.filter((p): p is Permission => p in PERMISSIONS) ?? ROLE_PERMISSIONS[role]);
+      : (granted[role] ? known(granted[role]!) : ROLE_PERMISSIONS[role]);
   }
+  // An organisation's own roles (audit F-3) hold exactly what they were granted — there is no default.
+  for (const [role, ps] of Object.entries(granted)) if (!(role in out) && ps) out[role] = known(ps);
   return out;
 }
 
 /** Deduplicated grants for a set of roles — under an organisation's map, or the defaults. */
-export function permissionsForRoles(roles: readonly RoleCode[], map: RoleMap = ROLE_PERMISSIONS): Permission[] {
+export function permissionsForRoles(roles: readonly string[], map: RoleMap = ROLE_PERMISSIONS): Permission[] {
   const set = new Set<Permission>();
   for (const r of roles) for (const p of map[r] ?? []) set.add(p);
   return [...set];

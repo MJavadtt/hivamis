@@ -10,6 +10,7 @@ import { hashPassword } from '../src/auth/password.js';
 import { nextCode } from '../src/lib/codes.js';
 import { syncReference } from '../src/setup/reference.js';
 import { APP_VERSION } from '../src/version.js';
+import { positionsFromTitles } from '../src/setup/positions.js';
 
 const prisma = new PrismaClient();
 
@@ -126,7 +127,7 @@ async function main() {
     (await prisma.department.findMany({ where: { organizationId: org.id }, select: { code: true, id: true } })).map((d) => [d.code as DepartmentCode, d.id]),
   );
   const roleIds = new Map<RoleCode, string>(
-    (await prisma.role.findMany({ select: { code: true, id: true } })).map((r) => [r.code as RoleCode, r.id]),
+    (await prisma.role.findMany({ where: { organizationId: null }, select: { code: true, id: true } })).map((r) => [r.code as RoleCode, r.id]),
   );
 
   // ── demo phase ────────────────────────────────────────────────────────────
@@ -146,6 +147,8 @@ async function main() {
   }
 
   const users = await seedDemoUsers(org, departments, roleIds);
+  // Their job titles as the organisation's positions (audit F-3).
+  await positionsFromTitles(prisma, org.id);
 
   const existingCompanies = await prisma.company.count();
   if (existingCompanies > 0) {

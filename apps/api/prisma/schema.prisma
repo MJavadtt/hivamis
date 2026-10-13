@@ -11,37 +11,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ═══════════════════════ Identity & organisation ═══════════════════════ */
+/**
+ * ═══════════════════════ Identity & organisation ═══════════════════════
+ */
 
 model Organization {
-  id            String   @id @default(uuid())
-  name          String
-  legalName     String?
-  currency      String   @default("IRR")
-  timezone      String   @default("Asia/Tehran")
-  workingDays   Int[]    @default([6, 0, 1, 2, 3])
-  workStartHour Int      @default(9)
-  workEndHour   Int      @default(18)
-  breakHours    Int      @default(1)
+  id                       String   @id @default(uuid())
+  name                     String
+  legalName                String?
+  currency                 String   @default("IRR")
+  timezone                 String   @default("Asia/Tehran")
+  workingDays              Int[]    @default([6, 0, 1, 2, 3])
+  workStartHour            Int      @default(9)
+  workEndHour              Int      @default(18)
+  breakHours               Int      @default(1)
   /// Audit CALC-1: whether contract values are written with VAT. Off — the usual practice — invoices are
   /// compared with what has been earned on their subtotal; on, on their total.
-  contractValueIncludesTax Boolean @default(false)
+  contractValueIncludesTax Boolean  @default(false)
   /// Audit LOG-5: the organisation's file storage, in megabytes; null is no limit. Set by whoever runs the
   /// installation (`hivamis tenant update --quota-mb`), not by the organisation.
-  storageQuotaMb Int?
-  settings      Json     @default("{}")
+  storageQuotaMb           Int?
+  settings                 Json     @default("{}")
   /// Roadmap #50: the organisation's short name, and the host names that open it.
-  slug          String?  @unique
-  hosts         String[] @default([])
+  slug                     String?  @unique
+  hosts                    String[] @default([])
   /// A suspended organisation: nobody signs in, nothing is lost.
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  departments Department[]
-  users       User[]
-  companies   Company[]
-  holidays    Holiday[]
+  departments    Department[]
+  users          User[]
+  /// Audit F-3: the organisation's own roles and its catalogue of positions.
+  customRoles    Role[]
+  positions      Position[]
+  companies      Company[]
+  holidays       Holiday[]
   signupRequests SignupRequest[]
 
   @@map("organizations")
@@ -61,16 +66,16 @@ model Holiday {
 /// Time off. A person on leave has no working hours, so a clock they own does not run and a
 /// task they hold cannot be scheduled into those days.
 model UserLeave {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Inclusive calendar days, YYYY-MM-DD in the organisation's timezone.
-  from      DateTime @db.Date
-  to        DateTime @db.Date
-  kind      String   @default("VACATION")
-  note      String?
+  from        DateTime @db.Date
+  to          DateTime @db.Date
+  kind        String   @default("VACATION")
+  note        String?
   createdById String?
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
   @@index([userId, from, to])
   @@map("user_leaves")
@@ -174,46 +179,76 @@ model TimeEntry {
 }
 
 model Department {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  code           String
-  nameFa         String
-  nameEn         String
+  id                String       @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code              String
+  nameFa            String
+  nameEn            String
   /// Calendar overrides. Null inherits the organisation; a production unit that works
   /// Thursdays sets workingDays, a shift unit sets its hours.
-  workingDays       Int[]    @default([])
+  workingDays       Int[]        @default([])
   workStartHour     Int?
   workEndHour       Int?
   breakHours        Int?
   /// Default internal cost of one hour for people in this unit, when they have no rate of their own.
-  hourlyCost        Decimal? @db.Decimal(14, 2)
-  isExecutionalUnit Boolean   @default(false)
-  managerId      String?
-  sortOrder      Int          @default(0)
+  hourlyCost        Decimal?     @db.Decimal(14, 2)
+  isExecutionalUnit Boolean      @default(false)
+  managerId         String?
+  sortOrder         Int          @default(0)
   /// The unit's tag colour, `#rrggbb` (Hivamis task 9); null shows the default from @hiva/contracts.
-  tagColor       String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  tagColor          String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  users User[]
+  users     User[]
+  positions Position[]
 
   @@unique([organizationId, code])
   @@map("departments")
 }
 
 model Role {
-  id          String  @id @default(uuid())
-  code        String  @unique
-  nameFa      String
-  nameEn      String
-  description String?
-  isSystem    Boolean @default(true)
+  id             String        @id @default(uuid())
+  code           String        @unique
+  nameFa         String
+  nameEn         String
+  description    String?
+  isSystem       Boolean       @default(true)
+  /// Audit F-3: null for the roles the code defines, which every organisation has; set for one an
+  /// organisation's administrator made, which only that organisation sees.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// A colour to tell it apart in lists, as #rrggbb.
+  color          String?
 
   permissions RolePermission[]
   users       UserRole[]
 
+  @@index([organizationId])
   @@map("roles")
+}
+
+/// A job title the organisation keeps (audit F-3): in a unit, with the roles it usually brings. A
+/// person's position replaces the free-text job title, which stays as the fallback.
+model Position {
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  nameFa           String
+  nameEn           String       @default("")
+  departmentId     String?
+  department       Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  /// Offered when someone is given this position; granted only when the administrator confirms.
+  defaultRoleCodes String[]     @default([])
+  archivedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  users User[]
+
+  @@unique([organizationId, nameFa])
+  @@map("positions")
 }
 
 model Permission {
@@ -247,6 +282,9 @@ model User {
   fullName            String
   passwordHash        String
   jobTitle            String?
+  /// Audit F-3: the position from the organisation's catalogue; jobTitle stays as the fallback.
+  positionId          String?
+  position            Position?    @relation(fields: [positionId], references: [id], onDelete: SetNull)
   phone               String?
   /// When the person proved the mobile is theirs with a one-time code (Hivamis task 4); a verified
   /// mobile is unique among active people and signs them in.
@@ -254,10 +292,10 @@ model User {
   isActive            Boolean      @default(true)
   mustChangePassword  Boolean      @default(false)
   /// Personal calendar overrides; null inherits the department, then the organisation.
-  workingDays       Int[]    @default([])
-  workStartHour     Int?
-  workEndHour       Int?
-  leaves            UserLeave[]
+  workingDays         Int[]        @default([])
+  workStartHour       Int?
+  workEndHour         Int?
+  leaves              UserLeave[]
   /// Internal cost of one hour of this person's time; null inherits the department's rate.
   hourlyCost          Decimal?     @db.Decimal(14, 2)
   timeEntries         TimeEntry[]
@@ -275,22 +313,22 @@ model User {
 
   roles                UserRole[]
   sessions             Session[]
-  ownedLeads           Lead[]              @relation("LeadOwner")
-  sourcedLeads         Lead[]              @relation("LeadSourceUser")
-  ownedOpportunities   Opportunity[]       @relation("OpportunityOwner")
-  accountCompanies     Company[]           @relation("CompanyAccountOwner")
-  salesCompanies       Company[]           @relation("CompanySalesOwner")
-  accountProjects      Project[]           @relation("ProjectAccountOwner")
-  assignedTasks        Task[]              @relation("TaskAssignee")
-  workOrderOwnerships  WorkOrder[]         @relation("WorkOrderOwner")
+  ownedLeads           Lead[]                @relation("LeadOwner")
+  sourcedLeads         Lead[]                @relation("LeadSourceUser")
+  ownedOpportunities   Opportunity[]         @relation("OpportunityOwner")
+  accountCompanies     Company[]             @relation("CompanyAccountOwner")
+  salesCompanies       Company[]             @relation("CompanySalesOwner")
+  accountProjects      Project[]             @relation("ProjectAccountOwner")
+  assignedTasks        Task[]                @relation("TaskAssignee")
+  workOrderOwnerships  WorkOrder[]           @relation("WorkOrderOwner")
   allocations          Allocation[]
   auditEvents          AuditEvent[]
   notifications        Notification[]
-  formSubmissions      FormSubmission[]    @relation("FormSubmitter")
-  formAssignments      FormSubmission[]    @relation("FormAssignee")
+  formSubmissions      FormSubmission[]      @relation("FormSubmitter")
+  formAssignments      FormSubmission[]      @relation("FormAssignee")
   formApprovals        FormApproval[]
   qcReviews            QcReview[]
-  revisionsAssigned    Revision[]          @relation("RevisionAssignee")
+  revisionsAssigned    Revision[]            @relation("RevisionAssignee")
   ownedRisks           Risk[]
   ownedIssues          Issue[]
   decisions            Decision[]
@@ -299,7 +337,7 @@ model User {
   raciAssignments      RaciAssignment[]
   documents            Document[]
   comments             Comment[]
-  annotations          Annotation[]      @relation("AnnotationAuthor")
+  annotations          Annotation[]          @relation("AnnotationAuthor")
   messengerLink        MessengerLink?
   messengerActions     MessengerAction[]
   pushSubscriptions    PushSubscription[]
@@ -315,32 +353,32 @@ model User {
   identityLinkOffers   IdentityLinkOffer[]
   smsMessages          SmsMessage[]
   loginTickets         LoginTicket[]
-  signupDecisions      SignupRequest[]     @relation("SignupDecider")
-  signupAccounts       SignupRequest[]     @relation("SignupAccount")
+  signupDecisions      SignupRequest[]       @relation("SignupDecider")
+  signupAccounts       SignupRequest[]       @relation("SignupAccount")
   aiConversations      AiConversation[]
-  guideVideos          GuideVideo[]       @relation("GuideVideoUploader")
+  guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
 
+  @@unique([organizationId, email])
   @@index([organizationId, departmentId])
   @@index([email])
-  @@unique([organizationId, email])
   @@map("users")
 }
 
 model UserRole {
   userId String
   roleId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@map("user_roles")
 }
 
 model Session {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokenHash String   @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
   userAgent        String?
   ipAddress        String?
   expiresAt        DateTime
@@ -351,14 +389,16 @@ model Session {
   /// Audit SEC-3: the sign-in this row continues — the first session's id, carried through every
   /// rotation. An access token issued before a rotation stays good while its family has a live row.
   familyId         String
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   @@index([userId])
   @@index([familyId])
   @@map("sessions")
 }
 
-/* ═══════════════════════ CRM ═══════════════════════ */
+/**
+ * ═══════════════════════ CRM ═══════════════════════
+ */
 
 model Company {
   id             String       @id @default(uuid())
@@ -383,44 +423,44 @@ model Company {
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
 
-  contacts      Contact[]
+  contacts        Contact[]
   brandKit        BrandKit?
   portalUsers     PortalUser[]
   clientApprovals ClientApproval[]
-  leads         Lead[]
-  opportunities Opportunity[]
-  projects      Project[]
-  contracts     Contract[]
-  invoices      Invoice[]
-  activities    Activity[]
-  meetings      Meeting[]
-  documents     Document[]
+  leads           Lead[]
+  opportunities   Opportunity[]
+  projects        Project[]
+  contracts       Contract[]
+  invoices        Invoice[]
+  activities      Activity[]
+  meetings        Meeting[]
+  documents       Document[]
   formSubmissions FormSubmission[]
 
-  @@index([organizationId])
   // What a contact's composite key points at: a contact's organisation is its company's (ADR-067).
   @@unique([id, organizationId])
+  @@index([organizationId])
   @@map("companies")
 }
 
 model Contact {
-  id        String   @id @default(uuid())
+  id              String           @id @default(uuid())
   /// The company's organisation, held on the contact too so every query scopes on it directly
   /// (audit SEC-1, ADR-067). The composite key below makes the database refuse any other.
-  organizationId String
-  companyId String
-  company   Company  @relation(fields: [companyId, organizationId], references: [id, organizationId], onDelete: Cascade)
-  fullName  String
-  jobTitle  String?
-  email     String?
-  phone     String?
-  isPrimary Boolean  @default(false)
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  organizationId  String
+  companyId       String
+  company         Company          @relation(fields: [companyId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  fullName        String
+  jobTitle        String?
+  email           String?
+  phone           String?
+  isPrimary       Boolean          @default(false)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   portalUser      PortalUser?
   clientApprovals ClientApproval[]
-  deletedAt DateTime?
+  deletedAt       DateTime?
 
   @@index([companyId])
   @@index([organizationId, companyId])
@@ -428,19 +468,19 @@ model Contact {
 }
 
 model Lead {
-  id             String    @id @default(uuid())
-  organizationId String
-  code           String    @unique
-  name           String
-  companyName    String
-  companyId      String?
-  company        Company?  @relation(fields: [companyId], references: [id])
-  contactName    String?
+  id               String        @id @default(uuid())
+  organizationId   String
+  code             String        @unique
+  name             String
+  companyName      String
+  companyId        String?
+  company          Company?      @relation(fields: [companyId], references: [id])
+  contactName      String?
   /// «تلفن همراه» — 09xxxxxxxxx for anything entered since Hivamis task 2; how a repeated lead is found.
-  phone          String?
-  email          String?
+  phone            String?
+  email            String?
   /// SALES_TEAM | MARKETER | STAFF | DIRECT | PARTNER — then exactly who or what, below.
-  source         String
+  source           String
   /// SALES_TEAM: a member of the sales unit; STAFF: a colleague outside it.
   sourceUserId     String?
   sourceUser       User?         @relation("LeadSourceUser", fields: [sourceUserId], references: [id])
@@ -449,15 +489,15 @@ model Lead {
   sourceReferrer   LeadReferrer? @relation(fields: [sourceReferrerId], references: [id])
   /// DIRECT: PHONE | EXHIBITION | EVENT | CAMPAIGN
   sourceChannel    String?
-  estimatedValue Decimal?  @db.Decimal(20, 2)
-  need           String?
-  state          String    @default("NEW")
-  ownerId        String?
-  owner          User?     @relation("LeadOwner", fields: [ownerId], references: [id])
+  estimatedValue   Decimal?      @db.Decimal(20, 2)
+  need             String?
+  state            String        @default("NEW")
+  ownerId          String?
+  owner            User?         @relation("LeadOwner", fields: [ownerId], references: [id])
   disqualifyReason String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
 
   opportunities Opportunity[]
 
@@ -488,9 +528,9 @@ model Opportunity {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
-  briefs     Brief[]
-  activities Activity[]
-  projects   Project[]
+  briefs          Brief[]
+  activities      Activity[]
+  projects        Project[]
   formSubmissions FormSubmission[]
 
   @@index([organizationId, state])
@@ -499,28 +539,30 @@ model Opportunity {
 }
 
 model Activity {
-  id            String       @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  opportunityId String?
-  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  projectId     String?
-  project       Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  kind          String
-  occurredAt    DateTime
-  summary       String
-  nextStep      String?
-  nextStepDue   DateTime?
-  createdById   String
-  createdAt     DateTime     @default(now())
+  companyId      String?
+  company        Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunityId  String?
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind           String
+  occurredAt     DateTime
+  summary        String
+  nextStep       String?
+  nextStepDue    DateTime?
+  createdById    String
+  createdAt      DateTime     @default(now())
 
   @@index([companyId])
   @@index([opportunityId])
   @@map("activities")
 }
 
-/* ═══════════════════════ Brief → Proposal → Pricing ═══════════════════════ */
+/**
+ * ═══════════════════════ Brief → Proposal → Pricing ═══════════════════════
+ */
 
 model Brief {
   id                   String      @id @default(uuid())
@@ -540,7 +582,9 @@ model Brief {
   constraints          String?
   successCriteria      String?
   state                String      @default("DRAFT")
-  /** Populated by the completeness guard; drives the KPI "Brief Completeness". */
+  /**
+   * Populated by the completeness guard; drives the KPI "Brief Completeness".
+   */
   completenessScore    Int         @default(0)
   /// How *specific* the brief is, not merely whether it is filled (roadmap #25) — 0–100, and
   /// the band it falls in. Kept so the return rate can be read against it over time.
@@ -564,23 +608,23 @@ model Brief {
 }
 
 model Proposal {
-  id                  String   @id @default(uuid())
+  id                  String  @id @default(uuid())
   organizationId      String
-  code                String   @unique
+  code                String  @unique
   briefId             String
-  brief               Brief    @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  brief               Brief   @relation(fields: [briefId], references: [id], onDelete: Cascade)
   title               String
-  version             Int      @default(1)
+  version             Int     @default(1)
   executiveSummary    String?
   approach            String?
   deliverablesSummary String?
   timelineSummary     String?
-  state               String   @default("DRAFT")
+  state               String  @default("DRAFT")
 
   // Pricing — Doc_H §12: totalCost is declared by units, salePrice/margin only via pricing.set_price
-  totalCost           Decimal? @db.Decimal(20, 2)
-  salePrice           Decimal? @db.Decimal(20, 2)
-  marginPercent       Decimal? @db.Decimal(7, 2)
+  totalCost           Decimal?  @db.Decimal(20, 2)
+  salePrice           Decimal?  @db.Decimal(20, 2)
+  marginPercent       Decimal?  @db.Decimal(7, 2)
   paymentTerms        String?
   contractScaleBand   String?
   pricingRationale    String?
@@ -589,22 +633,22 @@ model Proposal {
   pricingApprovedById String?
   pricingApprovedAt   DateTime?
 
-  clientFeedback      String?
-  clientDecision      String?
-  revisionCount       Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  clientFeedback String?
+  clientDecision String?
+  revisionCount  Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  workOrders  WorkOrder[]
-  qcReviews   QcReview[]
+  workOrders       WorkOrder[]
+  qcReviews        QcReview[]
   costDeclarations CostDeclaration[]
-  revisions   Revision[]
-  contracts   Contract[]
-  projects    Project[]
-  versions    ProposalVersion[]
-  deliverables Deliverable[]
-  documents   Document[]
+  revisions        Revision[]
+  contracts        Contract[]
+  projects         Project[]
+  versions         ProposalVersion[]
+  deliverables     Deliverable[]
+  documents        Document[]
 
   @@index([organizationId, state])
   @@map("proposals")
@@ -625,40 +669,42 @@ model ProposalVersion {
 }
 
 model CostDeclaration {
-  id             String     @id @default(uuid())
-  organizationId String
-  proposalId     String?
-  proposal       Proposal?  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  workOrderId    String?
-  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
-  departmentCode String
-  internalCost   Decimal    @db.Decimal(20, 2)
-  externalCost   Decimal    @default(0) @db.Decimal(20, 2)
+  id                   String     @id @default(uuid())
+  organizationId       String
+  proposalId           String?
+  proposal             Proposal?  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  workOrderId          String?
+  workOrder            WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  departmentCode       String
+  internalCost         Decimal    @db.Decimal(20, 2)
+  externalCost         Decimal    @default(0) @db.Decimal(20, 2)
   /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
   /// organisation's currency, so every report sums like with like; null originals mean "written in base".
-  externalCurrency     String    @default("IRR")
-  fxRate               Decimal   @default(1) @db.Decimal(24, 6)
+  externalCurrency     String     @default("IRR")
+  fxRate               Decimal    @default(1) @db.Decimal(24, 6)
   fxRateDate           DateTime?
-  originalExternalCost Decimal?  @db.Decimal(20, 2)
-  items          Json       @default("[]")
-  assumptions    String?
-  declaredById   String
-  createdAt      DateTime   @default(now())
+  originalExternalCost Decimal?   @db.Decimal(20, 2)
+  items                Json       @default("[]")
+  assumptions          String?
+  declaredById         String
+  createdAt            DateTime   @default(now())
 
   @@index([proposalId])
   @@index([workOrderId])
   @@map("cost_declarations")
 }
 
-/* ═══════════════════════ Handoff (Doc_H rule 2) ═══════════════════════ */
+/**
+ * ═══════════════════════ Handoff (Doc_H rule 2) ═══════════════════════
+ */
 
 model Handoff {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   organizationId     String
-  code               String   @unique
+  code               String    @unique
   companyId          String
   projectId          String?
-  project            Project? @relation(fields: [projectId], references: [id])
+  project            Project?  @relation(fields: [projectId], references: [id])
   contractId         String?
   salesOwnerId       String
   accountOwnerId     String
@@ -666,92 +712,94 @@ model Handoff {
   clientExpectations String
   sensitivities      String?
   openItems          String?
-  state              String   @default("DRAFT")
+  state              String    @default("DRAFT")
   acceptedAt         DateTime?
   returnReason       String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([organizationId, state])
   @@map("handoffs")
 }
 
-/* ═══════════════════════ Project & execution ═══════════════════════ */
+/**
+ * ═══════════════════════ Project & execution ═══════════════════════
+ */
 
 model Project {
-  id             String       @id @default(uuid())
-  organizationId String
-  code           String       @unique
-  name           String
-  companyId      String
-  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  briefId        String?
-  brief          Brief?       @relation(fields: [briefId], references: [id])
-  proposalId     String?
-  proposal       Proposal?    @relation(fields: [proposalId], references: [id])
-  opportunityId  String?
-  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id])
-  accountOwnerId String
-  accountOwner   User         @relation("ProjectAccountOwner", fields: [accountOwnerId], references: [id])
-  objective      String?
-  inScope        String?
-  outOfScope     String?
-  plannedStart   DateTime?
-  plannedEnd     DateTime?
-  actualStart    DateTime?
-  actualEnd      DateTime?
-  plannedBudget  Decimal?     @db.Decimal(20, 2)
-  contractValue  Decimal?     @db.Decimal(20, 2)
+  id                    String         @id @default(uuid())
+  organizationId        String
+  code                  String         @unique
+  name                  String
+  companyId             String
+  company               Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  briefId               String?
+  brief                 Brief?         @relation(fields: [briefId], references: [id])
+  proposalId            String?
+  proposal              Proposal?      @relation(fields: [proposalId], references: [id])
+  opportunityId         String?
+  opportunity           Opportunity?   @relation(fields: [opportunityId], references: [id])
+  accountOwnerId        String
+  accountOwner          User           @relation("ProjectAccountOwner", fields: [accountOwnerId], references: [id])
+  objective             String?
+  inScope               String?
+  outOfScope            String?
+  plannedStart          DateTime?
+  plannedEnd            DateTime?
+  actualStart           DateTime?
+  actualEnd             DateTime?
+  plannedBudget         Decimal?       @db.Decimal(20, 2)
+  contractValue         Decimal?       @db.Decimal(20, 2)
   /// Roadmap #28: copied from the registered contract — its currency and value as written.
-  contractCurrency      String   @default("IRR")
-  originalContractValue Decimal? @db.Decimal(20, 2)
+  contractCurrency      String         @default("IRR")
+  originalContractValue Decimal?       @db.Decimal(20, 2)
   /// Roadmap #29: how revenue is earned as the work goes — MILESTONE | EFFORT | COST.
-  revenueMethod         String   @default("EFFORT")
+  revenueMethod         String         @default("EFFORT")
   revenueEntries        RevenueEntry[]
   mediaOrders           MediaOrder[]
-  state          String       @default("DRAFT")
+  state                 String         @default("DRAFT")
   /// The project's reference in the system it came from (roadmap #48): a migration file run twice
   /// finds it and does not create it again.
-  legacyRef      String?
-  healthStatus   String       @default("GREEN")
-  closedAt       DateTime?
-  cancelReason   String?
-  holdReason     String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deletedAt      DateTime?
+  legacyRef             String?
+  healthStatus          String         @default("GREEN")
+  closedAt              DateTime?
+  cancelReason          String?
+  holdReason            String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?
 
-  authorizations   ExecutionAuthorization[]
-  lessonReviews    LessonReview[]
-  milestones       Milestone[]
-  deliverables     Deliverable[]
-  workOrders       WorkOrder[]
-  tasks            Task[]
-  raciAssignments  RaciAssignment[]
-  changeRequests   ChangeRequest[]
-  risks            Risk[]
-  issues           Issue[]
-  decisions        Decision[]
-  meetings         Meeting[]
-  statusReports    StatusReport[]
-  contracts        Contract[]
-  invoices         Invoice[]
-  payments         Payment[]
-  allocations      Allocation[]
+  authorizations    ExecutionAuthorization[]
+  lessonReviews     LessonReview[]
+  milestones        Milestone[]
+  deliverables      Deliverable[]
+  workOrders        WorkOrder[]
+  tasks             Task[]
+  raciAssignments   RaciAssignment[]
+  changeRequests    ChangeRequest[]
+  risks             Risk[]
+  issues            Issue[]
+  decisions         Decision[]
+  meetings          Meeting[]
+  statusReports     StatusReport[]
+  contracts         Contract[]
+  invoices          Invoice[]
+  payments          Payment[]
+  allocations       Allocation[]
   outsourceRequests OutsourceRequest[]
-  portalMessages   PortalMessage[]
-  documents        Document[]
-  feedbacks        Feedback[]
-  lessonsLearned   LessonLearned[]
-  closureChecklist ClosureChecklist?
-  activities       Activity[]
-  handoffs         Handoff[]
-  formSubmissions  FormSubmission[]
-  comments         Comment[]
+  portalMessages    PortalMessage[]
+  documents         Document[]
+  feedbacks         Feedback[]
+  lessonsLearned    LessonLearned[]
+  closureChecklist  ClosureChecklist?
+  activities        Activity[]
+  handoffs          Handoff[]
+  formSubmissions   FormSubmission[]
+  comments          Comment[]
 
+  @@unique([organizationId, legacyRef])
   @@index([organizationId, state])
   @@index([companyId])
-  @@unique([organizationId, legacyRef])
   @@map("projects")
 }
 
@@ -775,16 +823,16 @@ model ExecutionAuthorization {
 }
 
 model Milestone {
-  id          String    @id @default(uuid())
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  dueDate     DateTime
-  completedAt DateTime?
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  dueDate      DateTime
+  completedAt  DateTime?
   /// Roadmap #29: the share of the contract value earned when this milestone is done (percent).
-  revenueShare Decimal? @db.Decimal(5, 2)
-  sortOrder   Int       @default(0)
+  revenueShare Decimal?  @db.Decimal(5, 2)
+  sortOrder    Int       @default(0)
 
   @@index([projectId])
   @@map("milestones")
@@ -834,10 +882,10 @@ model WorkOrder {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  tasks            Task[]
-  deliverables     Deliverable[]
-  costDeclarations CostDeclaration[]
-  qcReviews        QcReview[]
+  tasks             Task[]
+  deliverables      Deliverable[]
+  costDeclarations  CostDeclaration[]
+  qcReviews         QcReview[]
   outsourceRequests OutsourceRequest[]
 
   @@index([organizationId, state])
@@ -847,27 +895,27 @@ model WorkOrder {
 }
 
 model Task {
-  id             String     @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
-  code           String     @unique
+  code           String       @unique
   projectId      String
-  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workOrderId    String?
-  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  workOrder      WorkOrder?   @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   deliverableId  String?
   deliverable    Deliverable? @relation(fields: [deliverableId], references: [id])
   title          String
   description    String?
   departmentCode String
   assigneeId     String?
-  assignee       User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignee       User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   dueDate        DateTime?
-  estimateHours  Decimal?   @db.Decimal(8, 2)
+  estimateHours  Decimal?     @db.Decimal(8, 2)
   /// Maintained as the sum of timeEntries; never edited directly.
-  actualHours    Decimal?   @db.Decimal(8, 2)
+  actualHours    Decimal?     @db.Decimal(8, 2)
   timeEntries    TimeEntry[]
-  priority       String     @default("NORMAL")
-  state          String     @default("CREATED")
+  priority       String       @default("NORMAL")
+  state          String       @default("CREATED")
   /// Doc_H §6 — no verbal task: every task must trace to one of six authorised source documents.
   sourceType     String
   sourceRef      String
@@ -876,8 +924,8 @@ model Task {
   submittedAt    DateTime?
   closedAt       DateTime?
   createdById    String
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   dependsOn    TaskDependency[] @relation("DependentTask")
   dependedOnBy TaskDependency[] @relation("PrerequisiteTask")
@@ -905,38 +953,38 @@ model TaskDependency {
 }
 
 model Deliverable {
-  id             String     @id @default(uuid())
-  organizationId String
-  code           String     @unique
-  projectId      String
-  project        Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  proposalId     String?
-  proposal       Proposal?  @relation(fields: [proposalId], references: [id])
-  workOrderId    String?
-  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id])
-  name           String
-  description    String?
-  departmentCode String
-  format         String?
-  version        String     @default("v1")
-  dueDate        DateTime?
-  state          String     @default("PLANNED")
-  submittedAt    DateTime?
-  deliveredAt    DateTime?
-  acceptedAt     DateTime?
-  rejectReason   String?
+  id                String     @id @default(uuid())
+  organizationId    String
+  code              String     @unique
+  projectId         String
+  project           Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  proposalId        String?
+  proposal          Proposal?  @relation(fields: [proposalId], references: [id])
+  workOrderId       String?
+  workOrder         WorkOrder? @relation(fields: [workOrderId], references: [id])
+  name              String
+  description       String?
+  departmentCode    String
+  format            String?
+  version           String     @default("v1")
+  dueDate           DateTime?
+  state             String     @default("PLANNED")
+  submittedAt       DateTime?
+  deliveredAt       DateTime?
+  acceptedAt        DateTime?
+  rejectReason      String?
   /// QC stage zero (roadmap #22): the mechanical checks run when the unit hands over — PASS,
   /// WARN or FAIL — when they last ran, and what they found. A reviewer sees them before opening a file.
   stageZeroVerdict  String?
   stageZeroAt       DateTime?
   stageZeroFindings Json?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  qcReviews QcReview[]
-  revisions Revision[]
-  tasks     Task[]
-  documents Document[]
+  qcReviews   QcReview[]
+  revisions   Revision[]
+  tasks       Task[]
+  documents   Document[]
   annotations Annotation[]
 
   @@index([organizationId, state])
@@ -944,7 +992,9 @@ model Deliverable {
   @@map("deliverables")
 }
 
-/* ═══════════════════════ Quality control (Doc_H §9, §10) ═══════════════════════ */
+/**
+ * ═══════════════════════ Quality control (Doc_H §9, §10) ═══════════════════════
+ */
 
 model QcReview {
   id             String       @id @default(uuid())
@@ -966,7 +1016,7 @@ model QcReview {
   reviewer       User         @relation(fields: [reviewerId], references: [id])
   reviewedAt     DateTime     @default(now())
 
-  revisions Revision[]
+  revisions   Revision[]
   annotations Annotation[]
   /// Photos taken at the review (roadmap #49) — evidence of the check, not part of the deliverable.
   documents   Document[]
@@ -977,31 +1027,31 @@ model QcReview {
 }
 
 model Revision {
-  id                       String       @id @default(uuid())
-  organizationId           String
-  code                     String       @unique
-  deliverableId            String?
-  deliverable              Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
-  proposalId               String?
-  proposal                 Proposal?    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  taskId                   String?
-  task                     Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  qcReviewId               String?
-  qcReview                 QcReview?    @relation(fields: [qcReviewId], references: [id])
+  id                        String       @id @default(uuid())
+  organizationId            String
+  code                      String       @unique
+  deliverableId             String?
+  deliverable               Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  proposalId                String?
+  proposal                  Proposal?    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  taskId                    String?
+  task                      Task?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  qcReviewId                String?
+  qcReview                  QcReview?    @relation(fields: [qcReviewId], references: [id])
   /// Doc_H §10 — mandatory, non-null: no revision may exist without a recorded reason.
-  reason                   String
-  requiredCorrection       String
+  reason                    String
+  requiredCorrection        String
   responsibleDepartmentCode String
-  assigneeId               String?
-  assignee                 User?        @relation("RevisionAssignee", fields: [assigneeId], references: [id])
-  dueDate                  DateTime
-  state                    String       @default("REQUESTED")
-  round                    Int          @default(1)
-  resolvedAt               DateTime?
-  rejectNote               String?
-  requestedById            String
-  createdAt                DateTime     @default(now())
-  updatedAt                DateTime     @updatedAt
+  assigneeId                String?
+  assignee                  User?        @relation("RevisionAssignee", fields: [assigneeId], references: [id])
+  dueDate                   DateTime
+  state                     String       @default("REQUESTED")
+  round                     Int          @default(1)
+  resolvedAt                DateTime?
+  rejectNote                String?
+  requestedById             String
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
 
   annotations Annotation[]
 
@@ -1010,44 +1060,46 @@ model Revision {
   @@map("revisions")
 }
 
-/* ═══════════════════════ Change control (Doc_H §8) ═══════════════════════ */
+/**
+ * ═══════════════════════ Change control (Doc_H §8) ═══════════════════════
+ */
 
 model ChangeRequest {
-  id             String   @id @default(uuid())
-  organizationId String
-  code           String   @unique
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title          String
+  id              String   @id @default(uuid())
+  organizationId  String
+  code            String   @unique
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title           String
   requestedChange String
-  requestedBy    String
-  requestedDate  DateTime
-  priority       String   @default("NORMAL")
-  state          String   @default("SUBMITTED")
+  requestedBy     String
+  requestedDate   DateTime
+  priority        String   @default("NORMAL")
+  state           String   @default("SUBMITTED")
 
-  scopeVerdict   String   @default("UNDETERMINED")
-  scopeRationale String?
+  scopeVerdict      String    @default("UNDETERMINED")
+  scopeRationale    String?
   scopeReviewedById String?
-  scopeReviewedAt DateTime?
+  scopeReviewedAt   DateTime?
 
   // Doc_H §8 — the six mandatory impact dimensions
-  timeImpactDays   Decimal? @db.Decimal(8, 2)
-  costImpact       Decimal? @db.Decimal(20, 2)
-  resourceImpact   String?
-  scopeImpact      String?
-  qualityImpact    String?
-  contractImpact   String?
-  proposedPrice    Decimal? @db.Decimal(20, 2)
+  timeImpactDays     Decimal?  @db.Decimal(8, 2)
+  costImpact         Decimal?  @db.Decimal(20, 2)
+  resourceImpact     String?
+  scopeImpact        String?
+  qualityImpact      String?
+  contractImpact     String?
+  proposedPrice      Decimal?  @db.Decimal(20, 2)
   impactAssessedById String?
-  impactAssessedAt DateTime?
+  impactAssessedAt   DateTime?
 
-  customerDecision String?
+  customerDecision  String?
   customerDecidedAt DateTime?
-  rejectReason     String?
-  closedAt         DateTime?
-  createdById      String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  rejectReason      String?
+  closedAt          DateTime?
+  createdById       String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   amendments Amendment[]
 
@@ -1056,44 +1108,46 @@ model ChangeRequest {
   @@map("change_requests")
 }
 
-/* ═══════════════════════ Contract & legal ═══════════════════════ */
+/**
+ * ═══════════════════════ Contract & legal ═══════════════════════
+ */
 
 model Contract {
-  id             String    @id @default(uuid())
-  organizationId String
-  code           String    @unique
-  contractNumber String?
-  companyId      String
-  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  proposalId     String?
-  proposal       Proposal? @relation(fields: [proposalId], references: [id])
-  projectId      String?
-  project        Project?  @relation(fields: [projectId], references: [id])
-  title          String
-  contractValue  Decimal   @db.Decimal(20, 2)
+  id              String    @id @default(uuid())
+  organizationId  String
+  code            String    @unique
+  contractNumber  String?
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  proposalId      String?
+  proposal        Proposal? @relation(fields: [proposalId], references: [id])
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+  title           String
+  contractValue   Decimal   @db.Decimal(20, 2)
   /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
   /// organisation's currency, so every report sums like with like; null originals mean "written in base".
-  currency       String    @default("IRR")
-  fxRate         Decimal   @default(1) @db.Decimal(24, 6)
-  fxRateDate     DateTime?
-  originalValue  Decimal?  @db.Decimal(20, 2)
-  startDate      DateTime
-  endDate        DateTime
-  scopeSummary   String?
-  paymentTerms   String?
-  state          String    @default("REQUESTED")
+  currency        String    @default("IRR")
+  fxRate          Decimal   @default(1) @db.Decimal(24, 6)
+  fxRateDate      DateTime?
+  originalValue   Decimal?  @db.Decimal(20, 2)
+  startDate       DateTime
+  endDate         DateTime
+  scopeSummary    String?
+  paymentTerms    String?
+  state           String    @default("REQUESTED")
   legalReviewNote String?
-  revisionNote   String?
-  signedDate     DateTime?
-  registeredAt   DateTime?
+  revisionNote    String?
+  signedDate      DateTime?
+  registeredAt    DateTime?
   terminateReason String?
-  createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdById     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  amendments Amendment[]
-  invoices   Invoice[]
-  documents  Document[]
+  amendments         Amendment[]
+  invoices           Invoice[]
+  documents          Document[]
   signatureEnvelopes SignatureEnvelope[]
 
   @@index([organizationId, state])
@@ -1102,49 +1156,51 @@ model Contract {
 }
 
 model Amendment {
-  id                String         @id @default(uuid())
-  contractId        String
-  contract          Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  changeRequestId   String?
-  changeRequest     ChangeRequest? @relation(fields: [changeRequestId], references: [id])
-  amendmentNumber   String
-  effectiveDate     DateTime
-  changes           String
-  valueDelta        Decimal        @default(0) @db.Decimal(20, 2)
+  id                 String         @id @default(uuid())
+  contractId         String
+  contract           Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  changeRequestId    String?
+  changeRequest      ChangeRequest? @relation(fields: [changeRequestId], references: [id])
+  amendmentNumber    String
+  effectiveDate      DateTime
+  changes            String
+  valueDelta         Decimal        @default(0) @db.Decimal(20, 2)
   /// Roadmap #28: for a contract in another currency, the delta as written and the rate that converted it.
-  originalValueDelta Decimal?      @db.Decimal(20, 2)
-  fxRate             Decimal       @default(1) @db.Decimal(24, 6)
+  originalValueDelta Decimal?       @db.Decimal(20, 2)
+  fxRate             Decimal        @default(1) @db.Decimal(24, 6)
   fxRateDate         DateTime?
-  durationDeltaDays Int            @default(0)
-  createdById       String
-  createdAt         DateTime       @default(now())
+  durationDeltaDays  Int            @default(0)
+  createdById        String
+  createdAt          DateTime       @default(now())
 
   @@index([contractId])
   @@map("amendments")
 }
 
-/* ═══════════════════════ Finance ═══════════════════════ */
+/**
+ * ═══════════════════════ Finance ═══════════════════════
+ */
 
 model Invoice {
-  id             String    @id @default(uuid())
-  organizationId String
-  code           String    @unique
-  kind           String
-  number         String
-  companyId      String
-  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  projectId      String?
-  project        Project?  @relation(fields: [projectId], references: [id])
-  contractId     String?
-  contract       Contract? @relation(fields: [contractId], references: [id])
-  issueDate      DateTime
-  dueDate        DateTime?
-  lines          Json      @default("[]")
-  subtotal       Decimal   @db.Decimal(20, 2)
-  taxPercent     Decimal   @default(0) @db.Decimal(5, 2)
-  taxAmount      Decimal   @default(0) @db.Decimal(20, 2)
-  total          Decimal   @db.Decimal(20, 2)
-  paidAmount     Decimal   @default(0) @db.Decimal(20, 2)
+  id                 String    @id @default(uuid())
+  organizationId     String
+  code               String    @unique
+  kind               String
+  number             String
+  companyId          String
+  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId          String?
+  project            Project?  @relation(fields: [projectId], references: [id])
+  contractId         String?
+  contract           Contract? @relation(fields: [contractId], references: [id])
+  issueDate          DateTime
+  dueDate            DateTime?
+  lines              Json      @default("[]")
+  subtotal           Decimal   @db.Decimal(20, 2)
+  taxPercent         Decimal   @default(0) @db.Decimal(5, 2)
+  taxAmount          Decimal   @default(0) @db.Decimal(20, 2)
+  total              Decimal   @db.Decimal(20, 2)
+  paidAmount         Decimal   @default(0) @db.Decimal(20, 2)
   /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
   /// organisation's currency, so every report sums like with like; null originals mean "written in base".
   currency           String    @default("IRR")
@@ -1157,58 +1213,58 @@ model Invoice {
   originalTotal      Decimal?  @db.Decimal(20, 2)
   /// Settlement is counted in the invoice's own currency; paidAmount is that, at the invoice's rate.
   originalPaidAmount Decimal?  @db.Decimal(20, 2)
-  state          String    @default("DRAFT")
-  notes          String?
-  cancelReason   String?
-  createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  state              String    @default("DRAFT")
+  notes              String?
+  cancelReason       String?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  payments Payment[]
-
-  @@index([organizationId, state])
-  @@index([companyId])
-  @@map("invoices")
-  mediaOrders        MediaOrder[]
-  taxSubmissions     TaxSubmission[]
+  payments                   Payment[]
+  mediaOrders                MediaOrder[]
+  taxSubmissions             TaxSubmission[]
   /// Roadmap #33: the accounting export that posted it, and the one that reversed it after cancellation.
   accountingExportId         String?
   accountingExport           AccountingExport? @relation("InvoicePosted", fields: [accountingExportId], references: [id])
   accountingReversalExportId String?
   accountingReversalExport   AccountingExport? @relation("InvoiceReversed", fields: [accountingReversalExportId], references: [id])
+
+  @@index([organizationId, state])
+  @@index([companyId])
+  @@map("invoices")
 }
 
 model Payment {
-  id             String    @id @default(uuid())
-  organizationId String
-  invoiceId      String?
-  invoice        Invoice?  @relation(fields: [invoiceId], references: [id])
-  projectId      String?
-  project        Project?  @relation(fields: [projectId], references: [id])
-  supplierId     String?
-  supplier       Supplier? @relation(fields: [supplierId], references: [id])
-  direction      String
-  amount         Decimal   @db.Decimal(20, 2)
+  id                 String            @id @default(uuid())
+  organizationId     String
+  invoiceId          String?
+  invoice            Invoice?          @relation(fields: [invoiceId], references: [id])
+  projectId          String?
+  project            Project?          @relation(fields: [projectId], references: [id])
+  supplierId         String?
+  supplier           Supplier?         @relation(fields: [supplierId], references: [id])
+  direction          String
+  amount             Decimal           @db.Decimal(20, 2)
   /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
   /// organisation's currency, so every report sums like with like; null originals mean "written in base".
-  currency        String    @default("IRR")
-  fxRate          Decimal   @default(1) @db.Decimal(24, 6)
-  fxRateDate      DateTime?
-  originalAmount  Decimal?  @db.Decimal(20, 2)
+  currency           String            @default("IRR")
+  fxRate             Decimal           @default(1) @db.Decimal(24, 6)
+  fxRateDate         DateTime?
+  originalAmount     Decimal?          @db.Decimal(20, 2)
   /// How much of the linked invoice this settles, in the invoice's currency.
-  settledOriginal Decimal?  @db.Decimal(20, 2)
+  settledOriginal    Decimal?          @db.Decimal(20, 2)
   /// Roadmap #31: a payment to a media vendor for this order — pass-through, not the project's cost.
-  mediaOrderId    String?
-  mediaOrder      MediaOrder? @relation(fields: [mediaOrderId], references: [id], onDelete: SetNull)
+  mediaOrderId       String?
+  mediaOrder         MediaOrder?       @relation(fields: [mediaOrderId], references: [id], onDelete: SetNull)
   /// Roadmap #33: the accounting export that posted it.
   accountingExportId String?
   accountingExport   AccountingExport? @relation(fields: [accountingExportId], references: [id])
-  occurredAt     DateTime
-  method         String    @default("TRANSFER")
-  reference      String?
-  description    String?
-  createdById    String
-  createdAt      DateTime  @default(now())
+  occurredAt         DateTime
+  method             String            @default("TRANSFER")
+  reference          String?
+  description        String?
+  createdById        String
+  createdAt          DateTime          @default(now())
 
   @@index([organizationId, direction])
   @@index([invoiceId])
@@ -1217,20 +1273,22 @@ model Payment {
 }
 
 model Settlement {
-  id             String   @id @default(uuid())
-  projectId      String   @unique
-  totalInvoiced  Decimal  @db.Decimal(20, 2)
-  totalReceived  Decimal  @db.Decimal(20, 2)
-  balance        Decimal  @db.Decimal(20, 2)
-  status         String
-  notes          String?
-  settledById    String
-  settledAt      DateTime @default(now())
+  id            String   @id @default(uuid())
+  projectId     String   @unique
+  totalInvoiced Decimal  @db.Decimal(20, 2)
+  totalReceived Decimal  @db.Decimal(20, 2)
+  balance       Decimal  @db.Decimal(20, 2)
+  status        String
+  notes         String?
+  settledById   String
+  settledAt     DateTime @default(now())
 
   @@map("settlements")
 }
 
-/* ═══════════════════════ Resources & suppliers (Doc_H §5) ═══════════════════════ */
+/**
+ * ═══════════════════════ Resources & suppliers (Doc_H §5) ═══════════════════════
+ */
 
 model Supplier {
   id             String   @id @default(uuid())
@@ -1252,10 +1310,10 @@ model Supplier {
   evaluations       SupplierEvaluation[]
   outsourceRequests OutsourceRequest[]
   payments          Payment[]
+  mediaOrders       MediaOrder[]
 
   @@index([organizationId, kind])
   @@map("suppliers")
-  mediaOrders    MediaOrder[]
 }
 
 model SupplierEvaluation {
@@ -1305,42 +1363,44 @@ model OutsourceRequest {
 }
 
 model Allocation {
-  id           String   @id @default(uuid())
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fromDate     DateTime @db.Date
-  toDate       DateTime @db.Date
-  hoursPerDay  Decimal  @db.Decimal(5, 2)
-  notes        String?
-  createdById  String
-  createdAt    DateTime @default(now())
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromDate    DateTime @db.Date
+  toDate      DateTime @db.Date
+  hoursPerDay Decimal  @db.Decimal(5, 2)
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
 
   @@index([userId, fromDate, toDate])
   @@index([projectId])
   @@map("allocations")
 }
 
-/* ═══════════════════════ Governance registers ═══════════════════════ */
+/**
+ * ═══════════════════════ Governance registers ═══════════════════════
+ */
 
 model Risk {
-  id           String    @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
-  code         String    @unique
-  projectId    String
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title        String
-  description  String
-  probability  String
-  impact       String
-  mitigation   String?
-  state        String    @default("OPEN")
-  ownerId      String
-  owner        User      @relation(fields: [ownerId], references: [id])
-  closedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  code           String    @unique
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  probability    String
+  impact         String
+  mitigation     String?
+  state          String    @default("OPEN")
+  ownerId        String
+  owner          User      @relation(fields: [ownerId], references: [id])
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([projectId, state])
   @@map("risks")
@@ -1369,45 +1429,45 @@ model Issue {
 }
 
 model Decision {
-  id           String   @id @default(uuid())
+  id             String   @id @default(uuid())
   organizationId String
-  code         String   @unique
-  projectId    String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  title        String
-  context      String
-  decision     String
-  alternatives String?
-  decidedById  String
-  decidedBy    User     @relation(fields: [decidedById], references: [id])
-  decidedAt    DateTime
-  createdAt    DateTime @default(now())
+  code           String   @unique
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title          String
+  context        String
+  decision       String
+  alternatives   String?
+  decidedById    String
+  decidedBy      User     @relation(fields: [decidedById], references: [id])
+  decidedAt      DateTime
+  createdAt      DateTime @default(now())
 
   @@index([projectId])
   @@map("decisions")
 }
 
 model Meeting {
-  id          String   @id @default(uuid())
-  organizationId String
-  code        String   @unique
-  projectId   String?
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  kind        String
-  subject     String
-  heldAt      DateTime
-  attendees   String
-  agenda      String?
-  decisions   String?
-  actions     Json     @default("[]")
+  id                String    @id @default(uuid())
+  organizationId    String
+  code              String    @unique
+  projectId         String?
+  project           Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId         String?
+  company           Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind              String
+  subject           String
+  heldAt            DateTime
+  attendees         String
+  agenda            String?
+  decisions         String?
+  actions           Json      @default("[]")
   minutesRecordedAt DateTime?
   /// The notes or transcript the minutes were drawn from (roadmap #23) — the evidence behind them.
   minutesSource     String?
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdById       String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([projectId])
   @@map("meetings")
@@ -1436,24 +1496,26 @@ model StatusReport {
   @@map("status_reports")
 }
 
-/* ═══════════════════════ Closure & customer success (Doc_H §15) ═══════════════════════ */
+/**
+ * ═══════════════════════ Closure & customer success (Doc_H §15) ═══════════════════════
+ */
 
 model ClosureChecklist {
-  id                        String   @id @default(uuid())
-  projectId                 String   @unique
-  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  allDeliverablesDelivered  Boolean  @default(false)
-  finalQcDone               Boolean  @default(false)
-  clientApprovalRecorded    Boolean  @default(false)
-  closureReportDone         Boolean  @default(false)
-  financialStatusClear      Boolean  @default(false)
-  feedbackRecorded          Boolean  @default(false)
-  lessonsLearnedRecorded    Boolean  @default(false)
-  closedInSystem            Boolean  @default(false)
-  notes                     String?
-  updatedById               String?
-  updatedAt                 DateTime @updatedAt
-  createdAt                 DateTime @default(now())
+  id                       String   @id @default(uuid())
+  projectId                String   @unique
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allDeliverablesDelivered Boolean  @default(false)
+  finalQcDone              Boolean  @default(false)
+  clientApprovalRecorded   Boolean  @default(false)
+  closureReportDone        Boolean  @default(false)
+  financialStatusClear     Boolean  @default(false)
+  feedbackRecorded         Boolean  @default(false)
+  lessonsLearnedRecorded   Boolean  @default(false)
+  closedInSystem           Boolean  @default(false)
+  notes                    String?
+  updatedById              String?
+  updatedAt                DateTime @updatedAt
+  createdAt                DateTime @default(now())
 
   @@map("closure_checklists")
 }
@@ -1479,10 +1541,10 @@ model Feedback {
 }
 
 model LessonLearned {
-  id             String   @id @default(uuid())
+  id             String         @id @default(uuid())
   organizationId String
   projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reviews        LessonReview[]
   title          String
   category       String
@@ -1490,16 +1552,18 @@ model LessonLearned {
   lesson         String
   recommendation String
   recordedById   String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime       @default(now())
 
   @@index([projectId])
   @@map("lessons_learned")
 }
 
-/* ═══════════════════════ Form engine ═══════════════════════ */
+/**
+ * ═══════════════════════ Form engine ═══════════════════════
+ */
 
 model FormDefinition {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   no             Int
   code           String
@@ -1507,28 +1571,28 @@ model FormDefinition {
   nameEn         String
   category       String
   module         String
-  senderDepts    String[] @default([])
-  receiverDepts  String[] @default([])
-  approverRoles  String[] @default([])
+  senderDepts    String[]  @default([])
+  receiverDepts  String[]  @default([])
+  approverRoles  String[]  @default([])
   slaCode        String?
   binding        String?
   nextProcessFa  String?
   schema         Json
   /// Conditional approval rules evaluated against the submitted values (roadmap #17).
-  routing        Json     @default("[]")
+  routing        Json      @default("[]")
   /// Ordered approval stages with optional quorum (roadmap #18); empty means a single stage.
-  approvalChain  Json     @default("[]")
+  approvalChain  Json      @default("[]")
   /// When this organisation last edited the form in the designer (roadmap #15). Set means the
   /// seed must not push the catalogue's schema over it again.
   customizedAt   DateTime?
   customizedById String?
   /// A form this organisation added for itself: outside the Doc_H catalogue, never re-seeded.
-  isCustom       Boolean  @default(false)
-  isActive       Boolean  @default(true)
+  isCustom       Boolean   @default(false)
+  isActive       Boolean   @default(true)
   /// Bumped whenever `schema` changes; each value has a FormDefinitionVersion row behind it.
-  version        Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   submissions FormSubmission[]
   versions    FormDefinitionVersion[]
@@ -1543,68 +1607,68 @@ model FormDefinition {
 /// A definition's schema as it stood at one version. Submissions pin a version, so a form can
 /// change without rewriting what people already filled in — or what an archived PDF shows.
 model FormDefinitionVersion {
-  id           String         @id @default(uuid())
-  definitionId String
-  definition   FormDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
-  version      Int
-  schema       Json
+  id            String         @id @default(uuid())
+  definitionId  String
+  definition    FormDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  version       Int
+  schema        Json
   /// The routing rules in force at this version — a submission is judged by its own version.
-  routing      Json           @default("[]")
+  routing       Json           @default("[]")
   /// The approval chain in force at this version.
-  approvalChain Json          @default("[]")
-  nameFa       String
-  note         String?
-  createdById  String?
-  createdAt    DateTime       @default(now())
+  approvalChain Json           @default("[]")
+  nameFa        String
+  note          String?
+  createdById   String?
+  createdAt     DateTime       @default(now())
 
   @@unique([definitionId, version])
   @@map("form_definition_versions")
 }
 
 model FormSubmission {
-  id             String         @id @default(uuid())
-  organizationId String
-  code           String         @unique
-  definitionId   String
-  definition     FormDefinition @relation(fields: [definitionId], references: [id])
+  id                String         @id @default(uuid())
+  organizationId    String
+  code              String         @unique
+  definitionId      String
+  definition        FormDefinition @relation(fields: [definitionId], references: [id])
   /// The definition version this was filled in under. Rendering and validation use it, not
   /// whatever the definition says today.
-  definitionVersion Int         @default(1)
-  data           Json
-  state          String         @default("DRAFT")
-  submittedById  String
-  submittedBy    User           @relation("FormSubmitter", fields: [submittedById], references: [id])
-  assignedToId   String?
-  assignedTo     User?          @relation("FormAssignee", fields: [assignedToId], references: [id])
-  projectId      String?
-  project        Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  companyId      String?
-  company        Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  opportunityId  String?
-  opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  definitionVersion Int            @default(1)
+  data              Json
+  state             String         @default("DRAFT")
+  submittedById     String
+  submittedBy       User           @relation("FormSubmitter", fields: [submittedById], references: [id])
+  assignedToId      String?
+  assignedTo        User?          @relation("FormAssignee", fields: [assignedToId], references: [id])
+  projectId         String?
+  project           Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId         String?
+  company           Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  opportunityId     String?
+  opportunity       Opportunity?   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   /// A key the client generated before the form left the device (roadmap #19). A submission
   /// queued offline and retried over a flaky link must file once, not once per attempt.
-  clientKey      String?
+  clientKey         String?
   /// Who must approve this submission: the form's own roles plus whatever its routing rules
   /// added for these values (roadmap #17). Empty on rows written before routing existed.
-  requiredRoles  String[] @default([])
+  requiredRoles     String[]       @default([])
   /// The rules that fired, with the sentence each was written in — why those roles are there.
-  routing        Json?
+  routing           Json?
   /// The approval stages this submission must pass, and how far it has got (roadmap #18).
-  stages         Json?
+  stages            Json?
   /// Index of the stage awaiting a decision; equals stages.length once every stage has cleared.
-  currentStage   Int      @default(0)
+  currentStage      Int            @default(0)
   /// Roles that may decide *right now* — the waiting stage's roles. Kept as a column so an
   /// approval inbox is one query, and empty once the form is decided.
-  currentRoles   String[] @default([])
+  currentRoles      String[]       @default([])
   /// The domain record this submission created or drove, when the form has a typed binding.
-  boundEntity    String?
-  boundEntityId  String?
-  submittedAt    DateTime?
-  decidedAt      DateTime?
-  returnReason   String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  boundEntity       String?
+  boundEntityId     String?
+  submittedAt       DateTime?
+  decidedAt         DateTime?
+  returnReason      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   approvals FormApproval[]
   documents Document[]
@@ -1633,22 +1697,24 @@ model FormApproval {
   @@map("form_approvals")
 }
 
-/* ═══════════════════════ SLA engine ═══════════════════════ */
+/**
+ * ═══════════════════════ SLA engine ═══════════════════════
+ */
 
 model SlaPolicy {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   code           String
   labelFa        String
   labelEn        String
-  hours          Decimal  @db.Decimal(8, 2)
-  warnAt         Decimal  @default(0.75) @db.Decimal(4, 3)
+  hours          Decimal   @db.Decimal(8, 2)
+  warnAt         Decimal   @default(0.75) @db.Decimal(4, 3)
   docRef         String?
-  isActive       Boolean  @default(true)
+  isActive       Boolean   @default(true)
   /// Roadmap #50: the organisation set its own hours; the catalogue no longer moves them on upgrade.
   customizedAt   DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   clocks SlaClock[]
 
@@ -1657,31 +1723,31 @@ model SlaPolicy {
 }
 
 model SlaClock {
-  id           String    @id @default(uuid())
-  organizationId String
-  policyId     String
-  policy       SlaPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  entityType   String
-  entityId     String
-  startedAt    DateTime  @default(now())
-  dueAt        DateTime
-  stoppedAt    DateTime?
-  pausedAt     DateTime?
+  id              String     @id @default(uuid())
+  organizationId  String
+  policyId        String
+  policy          SlaPolicy  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  entityType      String
+  entityId        String
+  startedAt       DateTime   @default(now())
+  dueAt           DateTime
+  stoppedAt       DateTime?
+  pausedAt        DateTime?
   /// Wall-clock seconds spent paused, for people.
-  pausedSeconds Int      @default(0)
+  pausedSeconds   Int        @default(0)
   /// Working hours spent paused, for the arithmetic: consumed = elapsed − pausedHours.
-  pausedHours  Decimal   @default(0) @db.Decimal(8, 2)
-  state        String    @default("RUNNING")
-  warnedAt     DateTime?
+  pausedHours     Decimal    @default(0) @db.Decimal(8, 2)
+  state           String     @default("RUNNING")
+  warnedAt        DateTime?
   /// When the owner was told this clock was *predicted* to breach — once per clock (roadmap #8).
-  riskNotifiedAt DateTime?
+  riskNotifiedAt  DateTime?
   /// The probability that prompted that message, kept so the prediction can be judged afterwards.
-  riskProbability Decimal? @db.Decimal(4, 3)
-  breachedAt   DateTime?
-  ownerId      String?
-  pauses       SlaPause[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  riskProbability Decimal?   @db.Decimal(4, 3)
+  breachedAt      DateTime?
+  ownerId         String?
+  pauses          SlaPause[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   @@index([organizationId, state])
   @@index([entityType, entityId])
@@ -1711,59 +1777,61 @@ model SlaPause {
   @@map("sla_pauses")
 }
 
-/* ═══════════════════════ Documents ═══════════════════════ */
+/**
+ * ═══════════════════════ Documents ═══════════════════════
+ */
 
 model Document {
-  id             String          @id @default(uuid())
-  organizationId String
-  fileName       String
-  storedName     String          @unique
-  mimeType       String
-  sizeBytes      Int
-  checksum       String?
-  version        Int             @default(1)
-  projectId      String?
-  project        Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  companyId      String?
-  company        Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contractId     String?
-  contract       Contract?       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  deliverableId  String?
-  deliverable    Deliverable?    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
-  submissionId   String?
-  submission     FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  id              String          @id @default(uuid())
+  organizationId  String
+  fileName        String
+  storedName      String          @unique
+  mimeType        String
+  sizeBytes       Int
+  checksum        String?
+  version         Int             @default(1)
+  projectId       String?
+  project         Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId       String?
+  company         Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contractId      String?
+  contract        Contract?       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  deliverableId   String?
+  deliverable     Deliverable?    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  submissionId    String?
+  submission      FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   /// Roadmap #35: a file presented with a proposal — the deck the client is asked to approve.
-  proposalId     String?
-  proposal       Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId      String?
+  proposal        Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   /// Evidence of a QC review (roadmap #49): a photo from the set is the review's, not the deliverable's.
-  qcReviewId     String?
-  qcReview       QcReview?       @relation(fields: [qcReviewId], references: [id], onDelete: Cascade)
+  qcReviewId      String?
+  qcReview        QcReview?       @relation(fields: [qcReviewId], references: [id], onDelete: Cascade)
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
-  clientVisible  Boolean         @default(false)
+  clientVisible   Boolean         @default(false)
   /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
   /// a newer version is uploaded, when and by which file it was superseded. `version` counts within it.
-  lineageId      String?
-  supersededAt   DateTime?
-  supersededById String?
+  lineageId       String?
+  supersededAt    DateTime?
+  supersededById  String?
   /// What the file itself says: dimensions, colour space, duration, pages, font family.
-  metadata       Json?
+  metadata        Json?
   /// On a client's brand library: LOGO | FONT | GUIDELINE | IMAGE | OTHER.
-  brandRole      String?
-  tags           String[]        @default([])
-  uploadedById   String
-  uploadedBy     User            @relation(fields: [uploadedById], references: [id])
-  createdAt      DateTime        @default(now())
-  deletedAt      DateTime?
+  brandRole       String?
+  tags            String[]        @default([])
+  uploadedById    String
+  uploadedBy      User            @relation(fields: [uploadedById], references: [id])
+  createdAt       DateTime        @default(now())
+  deletedAt       DateTime?
   /// Audit LOG-5: kept as it is, deleted or not, until the hold is lifted — a dispute, an inquiry.
-  legalHold       Boolean        @default(false)
+  legalHold       Boolean         @default(false)
   legalHoldReason String?
   /// Audit LOG-5: when the file itself was removed, FILE_RETENTION_DAYS after the document was deleted.
   /// The row stays: what was here, who put it, and when it went.
-  purgedAt       DateTime?
+  purgedAt        DateTime?
 
-  annotations       Annotation[]
-  envelopesSent     SignatureEnvelope[] @relation("EnvelopeOriginal")
-  envelopesSigned   SignatureEnvelope[] @relation("EnvelopeSigned")
+  annotations     Annotation[]
+  envelopesSent   SignatureEnvelope[] @relation("EnvelopeOriginal")
+  envelopesSigned SignatureEnvelope[] @relation("EnvelopeSigned")
 
   @@index([organizationId])
   @@index([projectId])
@@ -1773,25 +1841,27 @@ model Document {
 }
 
 model Comment {
-  id          String   @id @default(uuid())
-  entityType  String
-  entityId    String
-  projectId   String?
-  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskId      String?
-  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  body        String
-  mentions    String[] @default([])
-  authorId    String
-  author      User     @relation(fields: [authorId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId     String?
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  body       String
+  mentions   String[] @default([])
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@map("comments")
 }
 
-/* ═══════════════════════ Audit, workflow log, notifications, AI ═══════════════════════ */
+/**
+ * ═══════════════════════ Audit, workflow log, notifications, AI ═══════════════════════
+ */
 
 model AuditEvent {
   id             String   @id @default(uuid())
@@ -1820,31 +1890,31 @@ model AuditEvent {
 }
 
 model StateTransition {
-  id         String   @id @default(uuid())
-  organizationId String
-  entityType String
-  entityId   String
-  fromState  String
-  toState    String
-  action     String
-  reason     String?
+  id                   String   @id @default(uuid())
+  organizationId       String
+  entityType           String
+  entityId             String
+  fromState            String
+  toState              String
+  action               String
+  reason               String?
   /// Written by a cascade from another record's move, not by someone acting on this one.
-  cascade      Boolean  @default(false)
+  cascade              Boolean  @default(false)
   /// The state a record had when it came over from a previous system (roadmap #48) — recorded,
   /// not moved: no guard ran, and mining, the rule lab and webhooks leave it out.
-  opening      Boolean  @default(false)
+  opening              Boolean  @default(false)
   /// See AuditEvent.onBehalfOfId.
-  onBehalfOfId String?
+  onBehalfOfId         String?
   /// The rule-set versions in force when this happened (RuleSetVersion ids).
   rulesVersionId       String?
   permissionsVersionId String?
-  actorId    String
-  actor      User     @relation(fields: [actorId], references: [id])
-  createdAt  DateTime @default(now())
+  actorId              String
+  actor                User     @relation(fields: [actorId], references: [id])
+  createdAt            DateTime @default(now())
   /// Audit LOG-1: the id of the transaction that wrote it, set by the database. A reader that stops
   /// below the oldest transaction still running sees every row there will ever be up to that point —
   /// which createdAt, the transaction's start time, cannot promise. 0 for rows from before.
-  txid       BigInt   @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
+  txid                 BigInt   @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
 
   @@index([entityType, entityId, createdAt])
   @@index([organizationId, txid, id])
@@ -1907,17 +1977,17 @@ model SecurityAlert {
 /// Surfacing them at kick-off is half the answer; recording what the team *did* with each one
 /// is the other half, and it is what turns "we archive" into "we learn".
 model LessonReview {
-  id             String   @id @default(uuid())
+  id             String        @id @default(uuid())
   organizationId String
   projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   lessonId       String
   lesson         LessonLearned @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   /// APPLIED — it changed how this project is being run; NOT_RELEVANT — considered and set aside.
   decision       String
   note           String?
   reviewedById   String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime      @default(now())
 
   @@unique([projectId, lessonId])
   @@index([organizationId, projectId])
@@ -1932,26 +2002,26 @@ model LessonReview {
 /// extension to work (ADR-006 — one datastore, and no new one). Where pgvector *is* installed,
 /// an ANN index is a drop-in addition; the arithmetic below does not change.
 model MemoryDocument {
-  id             String   @id @default(uuid())
-  organizationId String
+  id              String   @id @default(uuid())
+  organizationId  String
   /// brief | proposal | meeting | lessonLearned | feedback | statusReport | caseStudy
-  entityType     String
-  entityId       String
+  entityType      String
+  entityId        String
   /// The project this memory belongs to, when it has one — for filtering and for #44.
-  projectId      String?
-  companyId      String?
-  titleFa        String
+  projectId       String?
+  companyId       String?
+  titleFa         String
   /// The text that was embedded, kept so a result can show why it matched.
-  body           String
+  body            String
   /// Normalised, lower-cased text used for the lexical half of the search.
-  searchText     String
-  vector         Float[]
-  dims           Int
+  searchText      String
+  vector          Float[]
+  dims            Int
   /// Which embedder produced the vector — results say so rather than implying one quality.
-  model          String
+  model           String
   /// updatedAt of the source record when this was indexed; a later one means it is stale.
   sourceUpdatedAt DateTime
-  indexedAt      DateTime @default(now())
+  indexedAt       DateTime @default(now())
 
   @@unique([entityType, entityId])
   @@index([organizationId, entityType])
@@ -1984,9 +2054,9 @@ model AiInteraction {
 }
 
 model Counter {
-  id     String @id @default(uuid())
-  scope  String @unique
-  value  Int    @default(0)
+  id    String @id @default(uuid())
+  scope String @unique
+  value Int    @default(0)
 
   @@map("counters")
 }
@@ -2108,7 +2178,8 @@ model MediaOrder {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  payments             Payment[]
+  payments Payment[]
+
   @@index([organizationId, state])
   @@index([projectId])
   @@map("media_orders")
@@ -2149,7 +2220,7 @@ model ApiKey {
  * `secret`. The transition log is the outbox; `cursorAt`/`cursorId` is how far it has been read.
  */
 model WebhookSubscription {
-  id                  String    @id @default(uuid())
+  id                  String            @id @default(uuid())
   organizationId      String
   name                String
   url                 String
@@ -2157,27 +2228,29 @@ model WebhookSubscription {
   secret              String
   /// «entity.action», «entity.*» or «*».
   events              String[]
-  active              Boolean   @default(true)
+  active              Boolean           @default(true)
   /// Nothing that happened before this is sent: when the subscription was made, or last reactivated.
-  cursorAt            DateTime  @default(now())
+  cursorAt            DateTime          @default(now())
   /// Audit LOG-1: where the dispatcher has read to in the transition log, by (txid, id). Starts at the
   /// oldest transaction running when the subscription was made.
-  cursorTxid          BigInt    @default(dbgenerated("((pg_snapshot_xmin(pg_current_snapshot()))::text)::bigint"))
+  cursorTxid          BigInt            @default(dbgenerated("((pg_snapshot_xmin(pg_current_snapshot()))::text)::bigint"))
   cursorId            String?
-  consecutiveFailures Int       @default(0)
+  consecutiveFailures Int               @default(0)
   disabledAt          DateTime?
   disabledReason      String?
   createdById         String
-  createdBy           User      @relation(fields: [createdById], references: [id])
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdBy           User              @relation(fields: [createdById], references: [id])
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
   deliveries          WebhookDelivery[]
 
   @@index([organizationId])
   @@map("webhook_subscriptions")
 }
 
-/** One event to one subscriber, retried with backoff until it lands or is given up on. */
+/**
+ * One event to one subscriber, retried with backoff until it lands or is given up on.
+ */
 model WebhookDelivery {
   id             String              @id @default(uuid())
   organizationId String
@@ -2232,29 +2305,29 @@ model TaxProfile {
  * the tax authority said. A correction or cancellation names the tax number it replaces.
  */
 model TaxSubmission {
-  id               String    @id @default(uuid())
-  organizationId   String
-  invoiceId        String
-  invoice          Invoice   @relation(fields: [invoiceId], references: [id])
+  id              String    @id @default(uuid())
+  organizationId  String
+  invoiceId       String
+  invoice         Invoice   @relation(fields: [invoiceId], references: [id])
   /// ORIGINAL | CORRECTION | CANCELLATION  (ins 1 | 2 | 3)
-  subject          String
-  serial           Int
-  taxId            String    @unique
+  subject         String
+  serial          Int
+  taxId           String    @unique
   /// The accepted tax number a correction or cancellation refers to (irtaxid).
-  referenceTaxId   String?
-  payload          Json
+  referenceTaxId  String?
+  payload         Json
   /// QUEUED | SENT | ACCEPTED | REJECTED | FAILED
-  status           String    @default("QUEUED")
-  referenceNumber  String?
+  status          String    @default("QUEUED")
+  referenceNumber String?
   /// What the authority (or the transport) said, in its own words.
-  errors           Json?
-  attempts         Int       @default(0)
+  errors          Json?
+  attempts        Int       @default(0)
   /// sandbox | live — where it was sent; null while queued.
-  channel          String?
-  submittedAt      DateTime?
-  respondedAt      DateTime?
-  createdById      String
-  createdAt        DateTime  @default(now())
+  channel         String?
+  submittedAt     DateTime?
+  respondedAt     DateTime?
+  createdById     String
+  createdAt       DateTime  @default(now())
 
   @@index([organizationId, status])
   @@index([invoiceId])
@@ -2340,10 +2413,10 @@ model ClientApproval {
   requestedBy    User     @relation(fields: [requestedById], references: [id])
   createdAt      DateTime @default(now())
 
-  codeHash       String?
-  codeExpiresAt  DateTime?
-  codeAttempts   Int      @default(0)
-  codesSent      Int      @default(0)
+  codeHash      String?
+  codeExpiresAt DateTime?
+  codeAttempts  Int       @default(0)
+  codesSent     Int       @default(0)
 
   /// APPROVE | REQUEST_CHANGES
   decision         String?
@@ -2358,7 +2431,7 @@ model ClientApproval {
   prevEvidenceHash String?
   /// Exactly what was hashed, so the hash can be recomputed.
   evidence         Json?
-  evidenceHash     String?  @unique
+  evidenceHash     String?   @unique
   /// Set when the decision could not be applied to the subject — the evidence stands regardless.
   transitionError  String?
   cancelledAt      DateTime?
@@ -2443,31 +2516,31 @@ model PortalMessage {
 /// (its SHA-256), who signs and in what order, what the provider reported, and the signed PDF it
 /// returned. When every signer has signed, the contract is signed through the workflow engine.
 model SignatureEnvelope {
-  id                 String    @id @default(uuid())
-  organizationId     String
-  code               String    @unique
-  contractId         String
-  contract           Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid())
+  organizationId   String
+  code             String    @unique
+  contractId       String
+  contract         Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
   /// sandbox | http
-  provider           String
-  providerRef        String?
+  provider         String
+  providerRef      String?
   /// SENT | COMPLETED | DECLINED | VOIDED | EXPIRED
-  status             String    @default("SENT")
-  documentId         String
-  document           Document  @relation("EnvelopeOriginal", fields: [documentId], references: [id])
-  originalSha256     String
-  signedDocumentId   String?
-  signedDocument     Document? @relation("EnvelopeSigned", fields: [signedDocumentId], references: [id])
-  signedSha256       String?
-  expiresAt          DateTime
-  createdById        String
-  createdBy          User      @relation(fields: [createdById], references: [id])
-  createdAt          DateTime  @default(now())
-  completedAt        DateTime?
-  voidedAt           DateTime?
-  voidReason         String?
+  status           String    @default("SENT")
+  documentId       String
+  document         Document  @relation("EnvelopeOriginal", fields: [documentId], references: [id])
+  originalSha256   String
+  signedDocumentId String?
+  signedDocument   Document? @relation("EnvelopeSigned", fields: [signedDocumentId], references: [id])
+  signedSha256     String?
+  expiresAt        DateTime
+  createdById      String
+  createdBy        User      @relation(fields: [createdById], references: [id])
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+  voidedAt         DateTime?
+  voidReason       String?
   /// Set when the completed signature could not be applied to the contract.
-  transitionError    String?
+  transitionError  String?
 
   signers SignatureSigner[]
   events  SignatureEvent[]
@@ -2589,12 +2662,12 @@ model MessengerMessage {
 /// region of a PDF page. Positions are fractions of the rendered size, so they hold at any zoom.
 /// A QC review that fails carries its open annotations into the revision's required correction.
 model Annotation {
-  id             String     @id @default(uuid())
+  id             String      @id @default(uuid())
   organizationId String
   deliverableId  String
   deliverable    Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
   documentId     String
-  document       Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document       Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
   /// The SHA-256 of the file as it was annotated — a newer upload is a new version, not this one.
   documentSha256 String
   /// PIN (image) | TIMECODE (video) | HIGHLIGHT (PDF)
@@ -2609,14 +2682,14 @@ model Annotation {
   timeSec        Float?
   note           String
   /// OPEN | RESOLVED
-  status         String     @default("OPEN")
+  status         String      @default("OPEN")
   authorId       String
-  author         User       @relation("AnnotationAuthor", fields: [authorId], references: [id])
-  createdAt      DateTime   @default(now())
+  author         User        @relation("AnnotationAuthor", fields: [authorId], references: [id])
+  createdAt      DateTime    @default(now())
   qcReviewId     String?
-  qcReview       QcReview?  @relation(fields: [qcReviewId], references: [id], onDelete: SetNull)
+  qcReview       QcReview?   @relation(fields: [qcReviewId], references: [id], onDelete: SetNull)
   revisionId     String?
-  revision       Revision?  @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  revision       Revision?   @relation(fields: [revisionId], references: [id], onDelete: SetNull)
   resolvedAt     DateTime?
   resolvedById   String?
 
@@ -2758,17 +2831,17 @@ model ServerKey {
 /// Who outside the system a lead can name as its source (Hivamis task 2): marketers, whom the system
 /// admin keeps, and partner companies, which a seller may add as they name one.
 model LeadReferrer {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   organizationId String
   /// MARKETER | PARTNER
   kind           String
   name           String
   phone          String?
   note           String?
-  isActive       Boolean   @default(true)
+  isActive       Boolean  @default(true)
   createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   leads Lead[]
 
@@ -2793,7 +2866,9 @@ model RoleGrant {
   @@map("role_grants")
 }
 
-/* ── Signing in and joining (Hivamis task 4) ─────────────────────────────── */
+/**
+ * ── Signing in and joining (Hivamis task 4) ───────────────────────────────
+ */
 
 /// An account somewhere else that signs this person in — today, Google. `subject` is the provider's
 /// permanent id for the person; the email is kept for display only and never used to sign in.
@@ -2853,23 +2928,23 @@ model SmsMessage {
 /// A Google sign-in in progress: the state the browser carries out and back, with the PKCE verifier
 /// and nonce that tie the answer to this request. Ten minutes, one use.
 model OAuthState {
-  id           String    @id @default(uuid())
-  stateHash    String    @unique
-  provider     String
-  mode         String
-  codeVerifier String
-  nonce        String
-  userId       String?
-  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid())
+  stateHash      String    @unique
+  provider       String
+  mode           String
+  codeVerifier   String
+  nonce          String
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Roadmap #50: the organisation an «ask to join with Google» began in — the callback returns to
   /// the installation's one address, which names no organisation.
   organizationId String?
   /// Audit SEC-5: the hash of a nonce kept in a cookie of the browser that began the flow. The callback
   /// is honoured only in that browser, so nobody can hand another person the end of their own sign-in.
-  bindingHash  String?
-  expiresAt    DateTime
-  consumedAt   DateTime?
-  createdAt    DateTime  @default(now())
+  bindingHash    String?
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime  @default(now())
 
   @@map("oauth_states")
 }
@@ -2936,7 +3011,9 @@ model SignupRequest {
   @@map("signup_requests")
 }
 
-/* ── The local assistant (Hivamis task 5) ────────────────────────────────── */
+/**
+ * ── The local assistant (Hivamis task 5) ──────────────────────────────────
+ */
 
 /// A person's conversation with the assistant — theirs alone; nobody else, administrators included,
 /// reads it. What each turn did (model, tools, timing) goes to ai_interactions for the AI log.

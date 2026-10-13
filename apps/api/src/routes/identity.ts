@@ -20,6 +20,7 @@ import { createTicket, finishGoogle, google, googleConfigured, liveOffer, offerL
 import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js';
 import { verifyPassword } from '../auth/password.js';
 import { assertMayTry, clearFailures } from '../auth/throttle.js';
+import { findRoles } from '../auth/roles.js';
 
 /**
  * Signing in with a mobile number or a Google account, and asking to join (Hivamis task 4).
@@ -342,8 +343,8 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     if (await prisma.user.findFirst({ where: { organizationId: actor.organizationId, email: request.email }, select: { id: true } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است.');
     const department = await prisma.department.findFirst({ where: { organizationId: actor.organizationId, code: input.departmentCode } });
     if (!department) throw badRequest('UNKNOWN_DEPARTMENT', 'واحد سازمانی نامعتبر است.');
-    const roles = await prisma.role.findMany({ where: { code: { in: input.roles } } });
-    if (roles.length !== new Set(input.roles).size) throw badRequest('UNKNOWN_ROLE', 'نقش نامعتبر است.');
+    // The code's roles and this organisation's own (audit F-3); another organisation's is not one.
+    const roles = await findRoles(prisma, actor.organizationId, input.roles);
 
     const user = await prisma.$transaction(async (tx) => {
       if (request.phone && await tx.user.findFirst({ where: { phone: request.phone, phoneVerifiedAt: { not: null }, deletedAt: null } })) {

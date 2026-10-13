@@ -10,8 +10,8 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Avatar } from '../components/Avatar';
 import { UnitTag, useUnits } from '../components/UnitTag';
 import { goToGoogleLink } from './People';
-import { pair, tr, trx } from '../i18n';
-import { ROLE_LABELS, type RoleCode } from '@hiva/contracts';
+import { tr, trx } from '../i18n';
+import { roleName, useRoles } from '../lib/roles';
 
 /**
  * One's own page (Hivamis task 4): who one is here, and the ways in — a password, a mobile proved by
@@ -29,6 +29,7 @@ const device = (ua: string | null) =>
   !ua ? tr('مرورگر') : /iPhone|iPad/.test(ua) ? tr('آیفون/آیپد') : /Android/.test(ua) ? tr('اندروید') : /Macintosh/.test(ua) ? tr('مک') : /Windows/.test(ua) ? tr('ویندوز') : tr('مرورگر');
 
 export default function Me() {
+  useRoles(); // names an organisation's own roles too (audit F-3)
   const { user } = useAuth();
   const { data: units } = useUnits();
   const { data, isLoading, error, refetch } = useQuery<MyProfile>({ queryKey: ['/me/profile'], queryFn: () => apiGet('/me/profile') });
@@ -63,7 +64,7 @@ export default function Me() {
                 <p className="text-sm text-ink-600">{trx(user.jobTitle)}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {user.department && <UnitTag code={user.department.code} />}
-                  {user.roles.map((r) => <Badge key={r} tone="neutral">{pair(ROLE_LABELS[r as RoleCode]) || r}</Badge>)}
+                  {user.roles.map((r) => <Badge key={r} tone="neutral">{roleName(r)}</Badge>)}
                 </div>
               </div>
               <Link to={`/people/${user.id}`} className="text-sm text-brand-700 underline">{tr('صفحهٔ من از دید همکاران')}</Link>

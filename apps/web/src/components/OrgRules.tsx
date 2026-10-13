@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  CUSTOM_RULE_KIND_LABELS, ROLE_LABELS, ROUTING_OPERATOR_LABELS, RULE_SOURCE_LABELS, describeCondition,
-  type CustomRuleKind, type RoleCode, type RoutingCondition, type RoutingOperator,
-} from '@hiva/contracts';
+import { CUSTOM_RULE_KIND_LABELS, ROUTING_OPERATOR_LABELS, RULE_SOURCE_LABELS, describeCondition, type CustomRuleKind, type RoutingCondition, type RoutingOperator } from '@hiva/contracts';
 import { apiGet, apiPost, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { formatDateTime, localDigits } from '../lib/format';
-import { flow, loc, pair, tr, trx } from '../i18n';
+import { flow, loc, tr, trx } from '../i18n';
+import { roleName, useRoleCodes } from '../lib/roles';
 
 /*
  * Roadmap #47 — the rules on the workflows, by where they come from: Doc_H, installed extensions,
@@ -36,7 +34,8 @@ const OPS_BY_TYPE: Record<FieldInfo['type'], RoutingOperator[]> = {
 };
 const NO_VALUE: RoutingOperator[] = ['isSet', 'isEmpty', 'isTrue', 'isFalse'];
 const FIELD_OPS: RoutingOperator[] = ['ltField', 'gtField', 'eqField', 'neField'];
-const roleFa = (c: string) => pair(ROLE_LABELS[c as RoleCode]) || c;
+// The code's roles and the organisation's own (audit F-3).
+const roleFa = roleName;
 
 /** The draft's condition in the rule language — a single leaf alone, several joined. */
 export function conditionOf(d: Pick<Draft, 'join' | 'leaves'>): RoutingCondition | null {
@@ -56,6 +55,7 @@ const payloadOf = (d: Draft) => ({
 });
 
 export function OrgRules() {
+  useRoleCodes();
   const { can } = useAuth();
   const [editing, setEditing] = useState<Rule | 'new' | null>(null);
   const [history, setHistory] = useState<string | null>(null);
@@ -131,6 +131,7 @@ function RetireRule({ rule, onClose }: { rule: Rule; onClose: () => void }) {
 }
 
 export function RuleEditor({ rule, onClose }: { rule: Rule | null; onClose: () => void }) {
+  const roleCodes = useRoleCodes();
   const qc = useQueryClient();
   const toast = useToast();
   const { data: vocab } = useQuery<Vocabulary>({ queryKey: ['/rules/custom/vocabulary'], queryFn: () => apiGet('/rules/custom/vocabulary') });
@@ -237,7 +238,7 @@ export function RuleEditor({ rule, onClose }: { rule: Rule | null; onClose: () =
         {draft.kind === 'NOTIFY' && (
           <Field label={tr('چه نقش‌هایی آگاه شوند')} required>
             <div className="flex flex-wrap gap-2" data-testid="notify-roles">
-              {Object.keys(ROLE_LABELS).map((r) => (
+              {roleCodes.map((r) => (
                 <label key={r} className="flex items-center gap-1 text-xs">
                   <input type="checkbox" checked={draft.notifyRoles.includes(r)} onChange={(e) => set({ notifyRoles: e.target.checked ? [...draft.notifyRoles, r] : draft.notifyRoles.filter((x) => x !== r) })} /> {roleFa(r)}
                 </label>

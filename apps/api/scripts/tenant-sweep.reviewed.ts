@@ -27,6 +27,10 @@ const of = (verdict: Verdict, keys: string[]) => Object.fromEntries(keys.map((k)
 export const REVIEWED: Record<string, Verdict> = {
   ...of('EARLIER', [
     "accounting/export.ts#createExport",
+    // Audit F-3: the role or the people were found in the caller's organisation first.
+    "routes/admin.ts#DELETE /roles/:code",
+    "routes/admin.ts#PATCH /roles/:code",
+    "setup/positions.ts#positionsFromTitles",
     "ai/service.ts#gatherContext",
     "approvals/service.ts#cancel",
     "approvals/service.ts#createRequest",
@@ -249,6 +253,10 @@ export const REVIEWED: Record<string, Verdict> = {
   ]),
   ...of('SYSTEM', [
     "ai/retention.ts#pruneAiToolRows",
+    // Audit F-3: a custom role's code must be unused anywhere; the code's own roles are everyone's.
+    "auth/roles.ts#newRoleCode",
+    "setup/reference.ts#syncPlatform",
+    "setup/tenant.ts#provisionOrganization",
     "auth/grants.ts#grantSnapshot",
     "documents/backfill.ts#backfillMetadata",
     "documents/storage.ts#purgeDeletedFiles",

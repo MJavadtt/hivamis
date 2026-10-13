@@ -5,7 +5,7 @@ import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code } from '../components/common';
 import {
-  Badge, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Select,
+  Badge, Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Select,
   Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
 import { formatDateTime, localDigits } from '../lib/format';
@@ -26,12 +26,15 @@ import { UnitTag } from '../components/UnitTag';
 import { SignupRequests, SmsSandbox } from '../components/SignupRequests';
 import { PersonLink } from './People';
 import { ModelCard } from '../components/ModelStatus';
+import { Positions } from '../components/Positions';
+import { UserEditor, type EditableUser } from '../components/UserEditor';
 import { ACTION_LABELS } from '../lib/audit-labels';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
   { key: 'users', label: tr('کاربران'), anyOf: ['admin.users'] },
   { key: 'roles', label: tr('نقش‌ها و دسترسی‌ها'), anyOf: ['admin.roles', 'admin.audit'] },
+  { key: 'positions', label: tr('سمت‌ها'), anyOf: ['admin.users'] },
   { key: 'sla', label: tr('سیاست‌های SLA'), anyOf: ['admin.settings'] },
   { key: 'calendar', label: tr('تقویم کاری'), anyOf: ['admin.settings'] },
   { key: 'units', label: tr('رنگ واحدها'), anyOf: ['admin.settings'] },
@@ -64,6 +67,7 @@ export default function Admin() {
       <PageBody>
         {tab === 'users' && <Users />}
         {tab === 'roles' && <RoleGrants />}
+        {tab === 'positions' && <Positions />}
         {tab === 'sla' && <SlaPolicies />}
         {tab === 'calendar' && <WorkCalendars />}
         {tab === 'units' && <UnitColors />}
@@ -86,6 +90,7 @@ function Users() {
   const { data, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/users'], queryFn: () => apiGet('/users', { pageSize: 100 }),
   });
+  const [editing, setEditing] = useState<EditableUser | null>(null);
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
 
@@ -106,7 +111,7 @@ function Users() {
         <thead className="bg-ink-50/60">
           <tr>
             <Th>{tr('نام')}</Th><Th>{tr('ایمیل')}</Th><Th>{tr('واحد')}</Th>
-            {detailed && <><Th>{tr('نقش‌ها')}</Th><Th>{tr('ظرفیت هفتگی')}</Th><Th>{tr('آخرین ورود')}</Th><Th>{tr('وضعیت')}</Th></>}
+            {detailed && <><Th>{tr('نقش‌ها')}</Th><Th>{tr('ظرفیت هفتگی')}</Th><Th>{tr('آخرین ورود')}</Th><Th>{tr('وضعیت')}</Th><Th /></>}
           </tr>
         </thead>
         <tbody>
@@ -125,6 +130,7 @@ function Users() {
                   <Td className="nums text-xs">{tr('{0} ساعت', localDigits(Number(u.weeklyCapacityHours ?? 0)))}</Td>
                   <Td className="text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : '—'}</Td>
                   <Td>{u.isActive ? <Badge tone="success">{tr('فعال')}</Badge> : <Badge tone="neutral">{tr('غیرفعال')}</Badge>}</Td>
+                  <Td><Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tr('ویرایش')}</Button></Td>
                 </>
               )}
             </Tr>
@@ -132,6 +138,7 @@ function Users() {
         </tbody>
       </Table>
     </Card>
+    {editing && <UserEditor user={editing} onClose={() => setEditing(null)} onSaved={() => refetch()} />}
     </div>
   );
 }

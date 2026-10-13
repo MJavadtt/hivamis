@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { formatDateTime, localDigits } from '../lib/format';
 import { Badge, Button, Card, ErrorBlock, Input, LoadingBlock, cx, useToast } from './ui';
 import { loc, pair, tr, trx } from '../i18n';
+import { DeleteRole, RoleForm, RoleHolders } from './RoleEditor';
 
 /**
  * Who may do what (Hivamis task 6). The managing director, deputy, system administrator and account
@@ -16,6 +17,8 @@ import { loc, pair, tr, trx } from '../i18n';
 
 interface RoleRow {
   id: string; code: string; nameFa: string; nameEn: string; userCount: number; fullAccess: boolean;
+  /** The organisation's own (audit F-3): renamed, recoloured, deleted here. */
+  custom: boolean; color: string | null; description: string | null;
   permissions: string[]; defaults: string[]; differsFromDefault: boolean;
   review: { at: string; note: string | null; grantedBy: { id: string; fullName: string } | null } | null;
 }
@@ -27,6 +30,7 @@ const GROUPED = PERMISSION_GROUPS.map((g) => ({
 
 function status(r: RoleRow): { tone: 'success' | 'warning' | 'info'; text: string } {
   if (r.fullAccess) return { tone: 'info', text: tr('دسترسی کامل') };
+  if (r.custom) return { tone: 'success', text: tr('نقش سازمان') };
   if (!r.review) return { tone: 'warning', text: tr('پیش‌فرض — بازبینی نشده') };
   return { tone: 'success', text: tr('تأیید {0}', r.review.grantedBy?.fullName ?? tr('مدیر سیستم')) };
 }
@@ -43,7 +47,9 @@ export function RoleGrants() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  useEffect(() => { if (role) { setPicked(new Set(role.permissions)); setNote(''); setShowHistory(false); } }, [role?.code, role?.permissions.join(',')]);
+  const [dialog, setDialog] = useState<'new' | 'edit' | 'delete' | null>(null);
+  const [showHolders, setShowHolders] = useState(false);
+  useEffect(() => { if (role) { setPicked(new Set(role.permissions)); setNote(''); setShowHistory(false); setShowHolders(false); } }, [role?.code, role?.permissions.join(',')]);
 
   const history = useQuery<GrantHistory[]>({
     queryKey: [`/roles/${role?.code}/grants`], queryFn: () => apiGet(`/roles/${role!.code}/grants`), enabled: !!role && showHistory && editable,
@@ -76,7 +82,7 @@ export function RoleGrants() {
     <div className="space-y-4" data-testid="role-grants">
       <p className="rounded-lg bg-ink-50 px-4 py-3 text-xs leading-6 text-ink-600">{tr('مدیرعامل، قائم‌مقام، مدیر سیستم و مدیر اکانت به همهٔ سامانه دسترسی دارند. دسترسی هر نقش دیگر را مدیر سیستم همین‌جا می‌دهد؛ هر بخشی که به نقشی داده نشود، دارندگانش حتی آن را نمی‌بینند. قوانین فرآیند (Doc_H) برای همه برقرار می‌ماند — دسترسی، کسی را از قانون معاف نمی‌کند.')}</p>
       <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-        <Card title={tr('نقش‌ها')}>
+        <Card title={tr('نقش‌ها')} action={editable ? <Button size="sm" variant="secondary" onClick={() => setDialog('new')} data-testid="new-role">{tr('نقش تازه')}</Button> : undefined}>
           <ul className="divide-y divide-ink-100" role="listbox" aria-label={tr('نقش‌ها')}>
             {data.map((r) => {
               const st = status(r);
@@ -85,7 +91,10 @@ export function RoleGrants() {
                   <button role="option" aria-selected={r.code === role.code} onClick={() => setCode(r.code)}
                     className={cx('flex w-full items-center justify-between gap-2 px-4 py-2.5 text-start', r.code === role.code ? 'bg-brand-50' : 'hover:bg-ink-50')}>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-ink-800">{loc(r, 'name')}</span>
+                      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-ink-800">
+                        {r.color && <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: r.color }} aria-hidden />}
+                        {loc(r, 'name')}
+                      </span>
                       <span className="text-[12.5px] text-ink-500">{tr('{0} نفر', localDigits(r.userCount))}</span>
                     </span>
                     <Badge tone={st.tone} className="shrink-0">{st.text}</Badge>
@@ -101,8 +110,17 @@ export function RoleGrants() {
           subtitle={role.fullAccess ? tr('به همهٔ سامانه دسترسی دارد؛ ثابت است.')
             : role.review ? tr('آخرین تأیید: {0}، {1}{2}', role.review.grantedBy?.fullName ?? '—', formatDateTime(role.review.at), role.review.note ? ` — ${role.review.note}` : '')
             : tr('هنوز بازبینی نشده؛ دسترسی پیش‌فرض Doc_H برقرار است تا مدیر سیستم آن را تأیید یا تغییر دهد.')}
-          action={editable && !role.fullAccess ? <Button size="sm" variant="ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? tr('بستن سابقه') : tr('سابقه')}</Button> : undefined}
+          action={editable && !role.fullAccess ? (
+            <span className="flex flex-wrap items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={() => setShowHolders((v) => !v)}>{showHolders ? tr('بستن دارندگان') : tr('دارندگان')}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? tr('بستن سابقه') : tr('سابقه')}</Button>
+              {role.custom && <Button size="sm" variant="ghost" onClick={() => setDialog('edit')}>{tr('ویرایش')}</Button>}
+              {role.custom && <Button size="sm" variant="ghost" onClick={() => setDialog('delete')}>{tr('حذف')}</Button>}
+            </span>
+          ) : undefined}
         >
+          {role.description && <p className="border-b border-ink-100 px-4 py-2 text-xs text-ink-600">{role.description}</p>}
+          {showHolders && <div className="border-b border-ink-100"><RoleHolders code={role.code} /></div>}
           {showHistory && (
             <div className="border-b border-ink-100 px-4 py-3 text-xs" data-testid="grant-history">
               {!history.data?.length ? <p className="text-ink-500">{tr('هنوز چیزی ثبت نشده است.')}</p> : (
@@ -149,7 +167,7 @@ export function RoleGrants() {
                   : role.review ? tr('بدون تغییر') : tr('با «تأیید» همین دسترسی‌ها به نام شما ثبت می‌شود.')}
               </span>
               <div className="min-w-48 flex-1"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr('یادداشت (اختیاری) — چرا؟')} aria-label={tr('یادداشت')} /></div>
-              <Button variant="ghost" onClick={() => setPicked(new Set(role.defaults))}>{tr('پیش‌فرض Doc_H')}</Button>
+              {!role.custom && <Button variant="ghost" onClick={() => setPicked(new Set(role.defaults))}>{tr('پیش‌فرض Doc_H')}</Button>}
               <Button variant="primary" loading={busy} disabled={!changes.added.length && !changes.removed.length && !!role.review} onClick={() => void save()}>
                 {changes.added.length || changes.removed.length ? tr('ذخیره و تأیید') : tr('تأیید')}
               </Button>
@@ -157,6 +175,11 @@ export function RoleGrants() {
           )}
         </Card>
       </div>
+      {dialog === 'new' && <RoleForm roles={data} copyFrom={role.code} onClose={() => setDialog(null)}
+        onSaved={async (made) => { await qc.invalidateQueries({ queryKey: ['/roles'] }); setCode(made); }} />}
+      {dialog === 'edit' && <RoleForm roles={data} editing={role} onClose={() => setDialog(null)} onSaved={() => qc.invalidateQueries({ queryKey: ['/roles'] })} />}
+      {dialog === 'delete' && <DeleteRole role={role} onClose={() => setDialog(null)}
+        onDeleted={async () => { setCode(null); await qc.invalidateQueries({ queryKey: ['/roles'] }); }} />}
     </div>
   );
 }

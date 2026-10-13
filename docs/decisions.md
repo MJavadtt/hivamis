@@ -2437,3 +2437,52 @@ costs: speed is the server's hardware, and the documentation states it.
 
 - On a CPU a picture takes minutes, and the request waits for it, up to ten minutes.
 - The image server keeps no history of its own.
+
+## ADR-084 — Roles an organisation makes, beside the code's; positions a title follows
+
+**Decision.** (Audit F-3.)
+
+- **A role belongs to the code or to one organisation.**
+  - `roles.organizationId` is null for the code's roles, which every organisation shares.
+  - It is set for one an organisation's administrator made, which only that organisation sees. A
+    role of another organisation's is `404` on every route, and `400 UNKNOWN_ROLE` when someone tries
+    to give it.
+  - A custom role's code is `C_` and eight letters or digits, unique on the installation. Its names
+    are what people read.
+- **Made from scratch or copied.** `copyFrom` starts it with that role's permissions in this
+  organisation, as a grant row.
+  - After that it is granted like any role; it has no Doc_H default.
+  - `effectiveRoleMap` carries custom roles with exactly what they were granted, so tokens, guards and
+    the visibility of screens work for them unchanged.
+- **The code's roles keep their names and stay.** Rules, workflows and guards know them by name.
+  - The four full-access roles stay full access.
+  - A custom role may be granted any permission a system role has; the system role itself is not
+    removed (`409 SYSTEM_ROLE`).
+- **A custom role is deleted only when nothing names it:**
+  - nobody holds it;
+  - no delegation in force, form approver list, waiting submission or rule in force names it.
+
+  Otherwise `409 ROLE_IN_USE` lists what does. Its grant rows are superseded, not deleted.
+- **Every change is a rule-set version.** The permissions snapshot carries each organisation's own
+  roles under `~roles`, so making, renaming or deleting one is a new version, with its note and an
+  audit row, in the same transaction.
+  - An unchanged snapshot registers nothing.
+  - Deleting a role that never mattered returns the rules to the version from before it: the same
+    fingerprint, the same version.
+- **Positions.** `Position` is a job title kept once per organisation, in a unit, with its usual
+  roles.
+  - `users.positionId` points at it. `jobTitle` stays and follows it, so every screen that shows a
+    title keeps working, and a rename updates every holder in the same transaction.
+  - Existing titles became positions in the migration; the seed and imports do the same
+    (`positionsFromTitles`).
+  - Choosing a position offers its usual roles; nothing is granted until the administrator saves.
+
+**Rationale.** The owner asked to split roles («خلاقه» out of a unit role) without a developer.
+Allowing the code's roles to be renamed or deleted would break the rules that name them. A role of
+the organisation's own, beside them, gives the freedom without that cost.
+
+**Limits.**
+
+- Custom roles cannot be named in Doc_H guards or code-defined workflow transitions, which name the
+  code's roles.
+- Two organisations may each have a «خلاقه»; they are different roles with different codes.

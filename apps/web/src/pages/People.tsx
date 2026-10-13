@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ROLE_LABELS, type RoleCode } from '@hiva/contracts';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDate, formatDateTime, localDigits } from '../lib/format';
@@ -10,7 +9,8 @@ import { Code } from '../components/common';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Avatar } from '../components/Avatar';
 import { UnitTag } from '../components/UnitTag';
-import { pair, tr, trx } from '../i18n';
+import { tr, trx } from '../i18n';
+import { roleName, useRoles } from '../lib/roles';
 
 /**
  * Colleagues, and a page for each (Hivamis task 4): who someone is, how to reach them, and — where
@@ -71,6 +71,7 @@ export function PeopleDirectory() {
 }
 
 export function PersonPage() {
+  useRoles(); // names an organisation's own roles too (audit F-3)
   const { id = '' } = useParams();
   const { can } = useAuth();
   const { data: p, isLoading, error, refetch } = useQuery<Person>({ queryKey: ['/people', id], queryFn: () => apiGet(`/people/${id}`) });
@@ -88,7 +89,7 @@ export function PersonPage() {
               <p className="text-base font-semibold text-ink-900">{p.fullName}</p>
               {p.department && <UnitTag code={p.department.code} />}
               <div className="flex flex-wrap justify-center gap-1">
-                {p.roles.map((r) => <Badge key={r} tone="neutral">{pair(ROLE_LABELS[r as RoleCode]) || r}</Badge>)}
+                {p.roles.map((r) => <Badge key={r} tone="neutral">{roleName(r)}</Badge>)}
               </div>
               {!p.isActive && <Badge tone="danger">{tr('غیرفعال')}</Badge>}
             </div>
