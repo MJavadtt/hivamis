@@ -5,18 +5,17 @@ import { prisma } from '../src/db.js';
 
 export const DEV_PASSWORD = 'Hiva@Dev2026!';
 
-let cached: FastifyInstance | null = null;
+let cached: Promise<FastifyInstance> | null = null;
 
+/** One app per test file, however many ask for it at once: callers in a Promise.all share the build. */
 export async function app(): Promise<FastifyInstance> {
-  if (!cached) {
-    cached = await buildApp();
-    await cached.ready();
-  }
+  cached ??= buildApp().then(async (a) => { await a.ready(); return a; });
   return cached;
 }
 
 export async function closeApp(): Promise<void> {
-  await cached?.close();
+  const a = await cached?.catch(() => null);
+  await a?.close();
   cached = null;
   await prisma.$disconnect();
 }

@@ -501,6 +501,19 @@ describe('Effective-dated rule sets', () => {
     expect(restored.workflows).toBe(before.workflows);
   });
 
+  it('registers a change once when several processes start with it at the same moment', async () => {
+    const { registerRuleSets, currentSnapshots, resetRulesCache } = await import('../src/workflow/rules.js');
+    const snap = JSON.parse(JSON.stringify(await currentSnapshots())) as any;
+    snap.sla.find((p: any) => p.code === 'SLA_TASK_ACCEPTANCE').hours = 9;
+    const before = await prisma.ruleSetVersion.count({ where: { kind: 'sla' } });
+    // Each racer reads the same latest version and inserts the next; one wins, the rest adopt it.
+    const results = await Promise.all([1, 2, 3, 4].map(() => registerRuleSets(prisma, snap, 'test: concurrent start')));
+    expect(new Set(results.map((r) => r.sla)).size).toBe(1);
+    expect(await prisma.ruleSetVersion.count({ where: { kind: 'sla' } })).toBe(before + 1);
+    resetRulesCache();
+    await registerRuleSets(prisma);
+  });
+
   it('fingerprints structure, not key order', async () => {
     const { fingerprint } = await import('../src/workflow/rules.js');
     expect(fingerprint({ a: 1, b: [1, { c: 2, d: 3 }] })).toBe(fingerprint({ b: [1, { d: 3, c: 2 }], a: 1 }));

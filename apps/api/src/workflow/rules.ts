@@ -92,17 +92,33 @@ export async function registerRuleSets(
     const last = await tx.ruleSetVersion.findFirst({ where: { kind }, orderBy: { version: 'desc' }, select: { version: true } });
     const row = await tx.ruleSetVersion.create({
       data: { kind, version: (last?.version ?? 0) + 1, hash, snapshot: snapshot as object, note: note ?? null },
+    }).catch(async (e: unknown) => {
+      // Another process registered the same rules a moment earlier: theirs is the version. Outside a
+      // transaction only — inside one, the failed insert has already ended it.
+      if (tx !== prisma || (e as { code?: string }).code !== 'P2002') throw e;
+      const theirs = await tx.ruleSetVersion.findUnique({ where: { kind_hash: { kind, hash } } });
+      if (!theirs) throw e;
+      return theirs;
     });
     ids[kind] = row.id;
-    registered.push(kind);
+    if (row.hash === hash && row.version === (last?.version ?? 0) + 1) registered.push(kind);
   }
   current = ids as CurrentRules;
   return { ...current, registered };
 }
 
-/** The versions in force now — what a transition stamps itself with. */
+let registering: Promise<unknown> | null = null;
+
+/**
+ * The versions in force now — what a transition stamps itself with. Requests that arrive together
+ * after a change share one registration: separately, they raced to create the same version, and the
+ * loser answered 500.
+ */
 export async function rulesInForce(tx: Tx = prisma): Promise<CurrentRules> {
-  if (!current) await registerRuleSets(tx);
+  if (current) return current;
+  if (tx !== prisma) { await registerRuleSets(tx); return current!; }
+  registering ??= registerRuleSets().finally(() => { registering = null; });
+  await registering;
   return current!;
 }
 
