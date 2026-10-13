@@ -9,6 +9,7 @@ import { audit } from '../lib/audit.js';
 import { env } from '../env.js';
 import { claimsFor } from '../auth/claims.js';
 import { issueSession, countFailure, endSessions } from '../auth/session.js';
+import { assertRenewalBudget } from '../auth/refresh-budget.js';
 import { forgetStanding } from '../auth/standing.js';
 import { assertMayTry, clearFailures, spendPasswordTime } from '../auth/throttle.js';
 import { hasPassword } from './identity.js';
@@ -132,6 +133,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       forgetStanding(session.userId);
       throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     }
+    // Counted before it is spent: a renewal refused for its budget leaves the browser's cookie live.
+    assertRenewalBudget(session.familyId);
     // Rotate: the presented refresh token is single-use — and only one request may spend it. Two
     // presenting it at once both read it as live; the rotation itself decides, so the second is the
     // replay it is, rather than a second session minted from the same token (Hivamis task 10).
@@ -154,12 +157,13 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     return { accessToken: await signAccessToken({ ...claims, sid: rotated.id }), refreshToken: next.token };
   }
 
-  // Rotation makes these a credential-guessing surface of their own; they are limited on the same
-  // budget as login rather than left on the 300/min global allowance.
+  // The one-time trade of an old token in the body is a guessing surface of its own, limited per
+  // address like login. Renewing by cookie is limited per session instead (refresh-budget.ts): an
+  // office behind one address shares one, and its people open the app at the same hour (audit UI-V).
   const REFRESH_LIMIT = { config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } } };
 
   /** Reads the cookie, and only the cookie: a token in the body is not looked at (audit SEC-4). */
-  app.post('/auth/refresh', REFRESH_LIMIT, async (req, reply) => {
+  app.post('/auth/refresh', async (req, reply) => {
     assertFromTheApp(req);
     const token = refreshCookie(req);
     if (!token) throw unauthorized('نشست نامعتبر است. دوباره وارد شوید.');

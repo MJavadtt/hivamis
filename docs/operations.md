@@ -101,7 +101,7 @@ come from `tenant:create`, as the installer does.
 | `PDF_QUEUE_FACTOR` | no | 4 | Queue depth as a multiple of `PDF_MAX_CONCURRENCY`. Requests beyond it are refused with 503 `PDF_ENGINE_BUSY` rather than joining a queue that cannot drain in time. |
 | `PDF_BROWSER_PATH` | no | — | Chromium binary for PDF export. Unset locally (the renderer probes the Playwright cache and system paths); the Docker image pins it to `/usr/bin/chromium`. Without a resolvable browser, `/api/v1/pdf/*` returns 503 and the rest of the platform is unaffected. |
 | `RATE_LIMIT_MAX` | no | 300 | Requests/minute per user or IP |
-| `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts/minute per IP |
+| `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts a minute per address. Also how often one session may be renewed a minute, counted per session rather than per address: an office behind one NAT address shares one (audit UI-V) |
 | `TRUST_PROXY` | no | `false` | Which proxies may set `X-Forwarded-For`. `false` trusts nothing; a number is a hop count (`1` behind one reverse proxy — what the compose stack sets); a comma-separated list trusts those addresses. Leaving it at `false` behind a proxy means every client shares one rate-limit bucket; setting it too high lets a client forge its own IP and escape the login limit entirely. |
 | `JOBS_ENABLED` | no | true | SLA ticking and digests |
 | `TRANSCRIPTION_URL` | no | — | Speech-to-text endpoint for meeting audio (roadmap #23), OpenAI-compatible: `POST` multipart `file`, `model`, `language=fa`, returning `{ text }` — a self-hosted Whisper server works. Unset, the audio button is hidden and minutes are drafted from typed notes |
