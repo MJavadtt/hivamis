@@ -14,5 +14,7 @@ describe('Persian digits in Persian text', () => {
     expect(faDigits('مدل qwen3:8b روی سرور نیست')).toBe('مدل qwen3:8b روی سرور نیست');
     expect(faDigits('نشانی a1@x.ir و شرکت 3M')).toBe('نشانی a1@x.ir و شرکت 3M');
     expect(faDigits('Brief 12 is short')).toBe('Brief 12 is short');
+    expect(faDigits('آخرین نشانی 127.0.0.1')).toBe('آخرین نشانی 127.0.0.1');
+    expect(faDigits('Doc_H slide 34 — ستون واحدها')).toBe('Doc_H slide 34 — ستون واحدها');
   });
 });

@@ -40,7 +40,7 @@ export function ContractsList() {
           emptyTitle={tr('قراردادی ثبت نشده')}
           columns={[
             { key: 'title', header: tr('قرارداد'), render: (r) => (<><p className="font-medium text-ink-800">{r.title}</p><Code>{r.code}</Code></>) },
-            { key: 'number', header: tr('شماره'), render: (r) => <span className="ltr text-xs">{r.contractNumber ?? '—'}</span> },
+            { key: 'number', header: tr('شماره'), render: (r) => <span className="ltr whitespace-nowrap text-xs">{r.contractNumber ?? '—'}</span> },
             { key: 'company', header: tr('مشتری'), render: (r) => <span className="text-xs">{r.company?.legalName}</span> },
             { key: 'value', header: tr('مبلغ'), render: (r) => <span className="text-xs" title={exactCurrency(r.contractValue)}><Amount base={r.contractValue} original={r.originalValue} currency={r.currency} /></span> },
             { key: 'period', header: tr('دوره'), render: (r) => <span className="text-xs">{formatDate(r.startDate)} — {formatDate(r.endDate)}</span> },

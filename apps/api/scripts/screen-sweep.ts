@@ -82,7 +82,10 @@ async function inspect(page: Page, english: boolean) {
       }
       if (!english && !el.closest('.ltr, code, kbd, pre, [data-user-content], input, textarea, svg')) {
         // Latin digits in a Persian sentence («دست‌کم 12 واژه»), outside codes, names and addresses.
-        if (/[\u0600-\u06FF]/.test(t) && /(?<![A-Za-z_\-:@#\d.])\d+(?:[./]\d+)*(?![A-Za-z_\-:@\d])/.test(t)) {
+        // (Not an address, 127.0.0.1, nor a number whose nearest word is Latin, «slide 34» — as faDigits.)
+        const bare = [...t.matchAll(/(?<![A-Za-z_\-:@#\d.])\d+(?:[./]\d+)*(?![A-Za-z_\-:@\d])/g)]
+          .filter((m) => !/^\d+(\.\d+){3}$/.test(m[0]) && !/[A-Za-z]\s*$/.test(t.slice(Math.max(0, m.index! - 12), m.index)));
+        if (/[\u0600-\u06FF]/.test(t) && bare.length) {
           out.push({ kind: 'untranslated', detail: `Latin digits in «${t.slice(0, 60)}»` });
         }
         // A value on its own (TRANSFER), not a term inside a sentence (signed with HMAC).

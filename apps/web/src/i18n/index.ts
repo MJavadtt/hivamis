@@ -82,7 +82,11 @@ const NUMBER = /(?<![A-Za-z_\-:@#\d.])\d+(?:[./]\d+)*(?![A-Za-z_\-:@\d])/g;
  */
 export function faDigits(text: string): string {
   if (!PERSIAN.test(text) || !/\d/.test(text)) return text;
-  return text.replace(NUMBER, (n) => n.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]!).replace(/\./g, '٫'));
+  return text.replace(NUMBER, (n, at: number) => {
+    // An address (127.0.0.1) stays as written; so does a number whose nearest word is Latin («slide 34»).
+    if (/^\d+(\.\d+){3}$/.test(n) || /[A-Za-z]\s*$/.test(text.slice(Math.max(0, at - 12), at))) return n;
+    return n.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]!).replace(/\./g, '٫');
+  });
 }
 
 /**

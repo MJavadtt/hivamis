@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { formatDate } from '../lib/format';
+import { formatDate, localDigits } from '../lib/format';
 import { cx } from './ui';
 import { loc, tr } from '../i18n';
 
@@ -58,7 +58,7 @@ export function SuggestedForms({ entity, id }: { entity: string; id: string | un
         </button>
       ))}
       {(data.total ?? 0) > data.forms.length && (
-        <button type="button" onClick={() => setAll(true)} className="text-xs text-brand-700 underline">{tr('همهٔ فرم‌های مرتبط ({0})', String(data.total))}</button>
+        <button type="button" onClick={() => setAll(true)} className="text-xs text-brand-700 underline">{tr('همهٔ فرم‌های مرتبط ({0})', localDigits(data.total ?? 0))}</button>
       )}
       <OpenForm suggestion={open} onClose={() => setOpen(null)} />
     </div>
