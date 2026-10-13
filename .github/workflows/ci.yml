@@ -45,6 +45,14 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Chrome's own verdict on installing the app, for both manifests (audit UI-1). Lighthouse has
+      # had no PWA category since version 12; the runner's Chrome answers the same question.
+      - name: Installability
+        run: |
+          pnpm --filter @hiva/web exec vite preview --port 4173 --strictPort &
+          for i in $(seq 30); do curl -sf http://localhost:4173/ >/dev/null && break; sleep 1; done
+          pnpm check:installable http://localhost:4173
+
       - name: Prepare test environment
         working-directory: apps/api
         run: |

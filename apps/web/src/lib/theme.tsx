@@ -28,6 +28,22 @@ function apply(pref: ThemePreference): void {
   const root = document.documentElement;
   if (pref === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', pref);
+  paintBrowserBar(pref);
+}
+
+/** The page's canvas (`--color-canvas` in index.css), for the browser's own bar. */
+export const CANVAS = { light: '#f5f3fb', dark: '#0d0c1a' } as const;
+
+/**
+ * index.html carries one theme-color meta per scheme, each behind its media query (audit UI-1). A
+ * chosen theme gives both its colour, since the system's scheme no longer says which is on screen;
+ * `system` puts each back to its own.
+ */
+function paintBrowserBar(pref: ThemePreference): void {
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    const own = (meta.getAttribute('media') ?? '').includes('dark') ? CANVAS.dark : CANVAS.light;
+    meta.setAttribute('content', pref === 'system' ? own : CANVAS[pref]);
+  }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

@@ -2280,3 +2280,38 @@ its agency, could have an account in only one of them. In single-organisation mo
 
 - Guide videos are the installation's, not an organisation's, and do not count toward a quota.
 - A purged document can no longer be downloaded or held.
+
+## ADR-080 — The app installs with its own icons, everywhere, and Chrome says so
+
+**Decision.** (Audit UI-1.)
+
+- **One source, committed PNGs.** `apps/web/public/icon.svg` is the mark. `pnpm icons` draws every PNG
+  from it with the Chrome the PDF renderer already uses, and the PNGs are committed:
+  - `any` at 192 and 512, plus a 32px tab icon;
+  - `maskable` at 192 and 512: the fill reaches every edge and the mark sits inside the safe zone;
+  - Apple's touch icon at 180, full-bleed, since iOS rounds the corners itself;
+  - a 96px notification badge: the mark alone, in white.
+- **A test notices stale icons.** `icons.lock.json` holds the hash of the SVG and of each PNG. A
+  changed SVG, or a PNG swapped by hand, fails `installability.test.tsx`.
+- **Each icon has one purpose.** A single icon marked `"any maskable"` is padded too much as one and
+  cropped as the other.
+- **The colours are the light canvas.** `theme_color` and `background_color` are `#f5f3fb`.
+  - `index.html` has one `theme-color` meta per scheme.
+  - A theme chosen in the app paints both metas, since the system's scheme no longer says which
+    theme is on screen.
+- **The mark takes the accent gradient.** The tile was near-black, from before the pastel refresh.
+  It now matches the logo tile in the sidebar.
+- **Chrome's own check replaces Lighthouse's.** Lighthouse removed its PWA category in version 12.
+  `pnpm check:installable` asks Chrome directly, through `Page.getInstallabilityErrors`, for both
+  manifests. CI runs it against `vite preview` after the build.
+
+**Rationale.**
+
+- With only an SVG, iOS and part of Android installed the app with a screenshot or a blank tile
+  for its icon.
+- A near-black browser bar sat over a pale interface.
+
+**Limits.**
+
+- A manifest cannot change colour with the scheme. The splash screen and an installed window's
+  title bar stay light at night until the page has loaded.

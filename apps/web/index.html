@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#010101" />
+    <!-- The browser's own bar takes the page's colour: the light canvas, or the dark one at night.
+         lib/theme.tsx overrides both when someone picks a theme other than the system's. -->
+    <meta name="theme-color" content="#f5f3fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d0c1a" media="(prefers-color-scheme: dark)" />
     <title>هیوامیس — سیستم‌عامل سازمانی</title>
     <!-- Vazirmatn is self-hosted: this deployment targets an Iranian organisation where
          Google Fonts is often unreachable, and an on-prem install has no egress at all. -->
@@ -11,7 +14,13 @@
     <!-- Installable, and able to open with no signal: the production unit fills forms on set. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <!-- iOS prefers its own icon to the manifest's: full-bleed, 180px; it rounds the corners itself (audit UI-1). -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="هیوامیس" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   </head>
   <body>
     <div id="root"></div>

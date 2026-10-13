@@ -65,6 +65,17 @@ component carries its own dark style. The status tints are the one exception (se
   colour washed over the card and their text shades (700–900) are light, so every badge and notice
   box reads there. Fills (600) keep their colour.
 
+## The icon
+
+The installed app's icon is the logo tile: the accent gradient with the mark in white. It is drawn
+once, in `apps/web/public/icon.svg`. `pnpm icons` makes every PNG from it (ADR-080):
+
+- the plain and the maskable icon;
+- Apple's touch icon;
+- the white notification badge.
+
+Change the SVG, then run `pnpm icons`; a test fails until the PNGs match.
+
 ## Layout and the kit's components
 
 - **Sidebar**, 248px: the logo, navigation in labelled groups, and the person's card at the foot.

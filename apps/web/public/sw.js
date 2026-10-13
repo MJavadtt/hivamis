@@ -116,8 +116,9 @@ self.addEventListener('push', (event) => {
       requireInteraction: Boolean(data.urgent),
       dir: 'rtl',
       lang: 'fa',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      // PNG: Android shows no SVG here. The badge is the mark alone, which it paints in one colour.
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: ownPage(data.url) },
     });
     // An open app re-reads its queue at once, rather than at its next poll.

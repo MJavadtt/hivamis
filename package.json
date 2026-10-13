@@ -20,7 +20,9 @@
     "typecheck": "pnpm prepare:code && pnpm -r typecheck",
     "start": "pnpm --filter @hiva/api start",
     "bench": "node bench/run.mjs",
-    "bench:revenue": "pnpm --filter @hiva/api exec tsx ../../bench/revenue.mts"
+    "bench:revenue": "pnpm --filter @hiva/api exec tsx ../../bench/revenue.mts",
+    "icons": "pnpm --filter @hiva/api exec tsx scripts/web-icons.ts",
+    "check:installable": "pnpm --filter @hiva/api exec tsx scripts/web-installable.ts"
   },
   "packageManager": "pnpm@10.26.2",
   "devDependencies": {
