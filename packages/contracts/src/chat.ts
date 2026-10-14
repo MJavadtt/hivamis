@@ -80,7 +80,7 @@ export interface ChatConversationSummary {
   title: string;
   topic: string | null;
   /** DIRECT: the other person. */
-  peer: { id: string; fullName: string } | null;
+  peer: { id: string; fullName: string; avatarUrl?: string | null } | null;
   memberCount: number;
   unread: number;
   muted: boolean;
@@ -92,7 +92,7 @@ export interface ChatConversationSummary {
 
 export interface ChatMessageView {
   id: string;
-  author: { id: string; fullName: string };
+  author: { id: string; fullName: string; avatarUrl?: string | null };
   body: string;
   replyTo: { id: string; authorName: string; body: string } | null;
   attachments: { id: string; fileName: string; mimeType: string; sizeBytes: number }[];

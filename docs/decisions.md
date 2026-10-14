@@ -2606,3 +2606,33 @@ the organisation's own, beside them, gives the freedom without that cost.
   and are recorded; the audit trail says when.
 - There is no end-to-end encryption: the organisation's server reads what it stores. That is what
   makes oversight possible, and the notice says so.
+
+## ADR-087 — A profile photo is re-encoded, kept as a document, and shown from a signed address
+
+**Decision.** (Audit F-6.)
+
+- **The photo is made anew.** sharp decodes the upload (refusing more than 40 megapixels before
+  decoding), turns it upright from its EXIF orientation, cuts it to 512 × 512 around what draws the
+  eye, and writes a WebP. Nothing of the original's metadata survives, and the original is not kept.
+- **It is a document,** so storage, quota, backup and retention treat it like any file.
+  `users.avatarDocumentId` points at it. It is left out of the organisation's file list, and a
+  replaced photo is deleted.
+- **It is shown from a signed address.** A plain `<img>` cannot carry the session, so the API
+  returns `avatarUrl`. That is an HMAC-signed link valid until the end of the next day (UTC): the
+  same all day, so the browser caches it. Only a current photo is served, and only as `image/webp`.
+- **The words are the person's:** up to 500 characters, how the name is said, twenty skills, five
+  https links. Colleagues see them, links opening apart with `rel="noopener noreferrer nofollow ugc"`.
+  The database holds the limits as well.
+
+**Rationale.**
+
+- Phone photos carry the place they were taken. Re-encoding is the one way to be sure none of it is
+  kept, and serving only bytes the server wrote removes the image-as-attack surface.
+- A signed day-long link lets every list show photos without a request per face through the API.
+
+**Limits.**
+
+- A signed link works for whoever has it, until it lapses — at most two days. The photo is no more
+  private than that, which matches who sees it: every colleague.
+- The test clone copies `users` and `documents`, which now point at each other. It copies the photo
+  link empty and fills it in afterwards (`tests/db-isolation.ts`).

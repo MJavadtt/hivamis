@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost } from '../lib/api';
+import { AVATAR_MAX_MB, AVATAR_TYPES, PROFILE_LIMITS } from '@hiva/contracts';
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useLocale } from '../lib/locale';
-import { formatDateTime } from '../lib/format';
-import { Badge, Button, Card, ErrorBlock, Field, Input, LoadingBlock, useToast } from '../components/ui';
+import { formatDateTime, localDigits } from '../lib/format';
+import { Badge, Button, Card, ErrorBlock, Field, Input, LoadingBlock, Textarea, useToast } from '../components/ui';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Avatar } from '../components/Avatar';
 import { UnitTag, useUnits } from '../components/UnitTag';
@@ -57,7 +58,7 @@ export default function Me() {
         <div className="space-y-5" data-testid="me">
           <Card>
             <div className="flex flex-wrap items-center gap-4 p-5">
-              <Avatar name={user.fullName} unit={user.department?.code} color={unit?.color} size="lg" />
+              <Avatar name={user.fullName} unit={user.department?.code} color={unit?.color} src={user.avatarUrl} size="lg" />
               {/* A floor for the name's column, so on a phone the link wraps below it rather than squeezing it to a word a line (audit UI-V). */}
               <div className="min-w-[11rem] flex-1">
                 <p className="text-lg font-semibold text-ink-900">{user.fullName}</p>
@@ -70,6 +71,7 @@ export default function Me() {
               <Link to={`/people/${user.id}`} className="text-sm text-brand-700 underline">{tr('صفحهٔ من از دید همکاران')}</Link>
             </div>
           </Card>
+          <About />
           <div className="grid gap-5 lg:grid-cols-2">
             <WaysIn profile={data} />
             <Devices profile={data} />
@@ -78,6 +80,88 @@ export default function Me() {
         </div>
       </PageBody>
     </>
+  );
+}
+
+interface AboutMe { avatarUrl: string | null; bio: string | null; pronouncedName: string | null; skills: string[]; links: string[] }
+
+/**
+ * What colleagues see of one beyond the name (audit F-6): a photo — re-encoded on the server to a
+ * 512px WebP, nothing of the original's metadata kept — and a few words.
+ */
+function About() {
+  const { user, refreshUser } = useAuth();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const picker = useRef<HTMLInputElement>(null);
+  const { data } = useQuery<AboutMe>({ queryKey: ['/me/about'], queryFn: () => apiGet('/me/about') });
+  const [form, setForm] = useState<{ bio: string; pronouncedName: string; skills: string; links: string } | null>(null);
+  const [busy, setBusy] = useState<'photo' | 'save' | null>(null);
+  useEffect(() => {
+    if (data && Array.isArray(data.skills) && !form) setForm({ bio: data.bio ?? '', pronouncedName: data.pronouncedName ?? '', skills: data.skills.join('، '), links: data.links.join('\n') });
+  }, [data, form]);
+
+  const after = async () => {
+    await Promise.all([refreshUser(), qc.invalidateQueries({ queryKey: ['/me/about'] }), qc.invalidateQueries({ queryKey: ['/people'] })]);
+  };
+  const photo = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > AVATAR_MAX_MB * 1024 * 1024) { toast(tr('حداکثر حجم عکس {0} مگابایت است.', localDigits(AVATAR_MAX_MB)), 'danger'); return; }
+    setBusy('photo');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await apiUpload('/me/avatar', fd);
+      await after();
+      toast(tr('عکس شما گذاشته شد.'));
+    } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(null); if (picker.current) picker.current.value = ''; }
+  };
+  const removePhoto = async () => {
+    setBusy('photo');
+    try { await apiDelete('/me/avatar'); await after(); } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(null); }
+  };
+  const save = async () => {
+    if (!form) return;
+    setBusy('save');
+    try {
+      await apiPatch('/me/about', {
+        bio: form.bio, pronouncedName: form.pronouncedName,
+        skills: form.skills.split(/[،,\n]/).map((s) => s.trim()).filter(Boolean),
+        links: form.links.split(/\s+/).map((s) => s.trim()).filter(Boolean),
+      });
+      await after();
+      toast(tr('ذخیره شد.'));
+    } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(null); }
+  };
+
+  if (!user || !data || !form) return null;
+  return (
+    <Card title={tr('دربارهٔ من')} subtitle={tr('آنچه همکاران در صفحهٔ شما و کنار نامتان می‌بینند')}>
+      <div className="grid gap-5 p-5 md:grid-cols-[10rem_1fr]" data-testid="about-me">
+        <div className="flex flex-col items-center gap-2">
+          <Avatar name={user.fullName} unit={user.department?.code} src={data.avatarUrl} size="xl" />
+          <input ref={picker} type="file" accept={AVATAR_TYPES.join(',')} hidden onChange={(e) => void photo(e.target.files?.[0])} aria-label={tr('عکس تازه')} />
+          <Button size="sm" loading={busy === 'photo'} onClick={() => picker.current?.click()}>{data.avatarUrl ? tr('عکس تازه') : tr('گذاشتن عکس')}</Button>
+          {data.avatarUrl && <button type="button" className="text-xs text-rose-700 underline" onClick={() => void removePhoto()}>{tr('برداشتن عکس')}</button>}
+          <p className="text-center text-[12px] leading-5 text-ink-500">{tr('مربعی ۵۱۲ پیکسلی ساخته می‌شود؛ اطلاعات دوربین و مکان عکس نگه داشته نمی‌شود.')}</p>
+        </div>
+        <div className="space-y-3">
+          <Field label={tr('چند کلمه دربارهٔ خودتان')} hint={tr('{0} از {1}', localDigits(form.bio.length), localDigits(PROFILE_LIMITS.bio))}>
+            <Textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} maxLength={PROFILE_LIMITS.bio} rows={3} dir="auto" />
+          </Field>
+          <Field label={tr('نامتان چطور خوانده می‌شود')} hint={tr('برای همکارانی که نام را فقط می‌خوانند — مثلاً با اعراب')}>
+            <Input value={form.pronouncedName} onChange={(e) => setForm({ ...form, pronouncedName: e.target.value })} maxLength={PROFILE_LIMITS.pronouncedName} dir="auto" />
+          </Field>
+          <Field label={tr('مهارت‌ها')} hint={tr('با ویرگول جدا کنید؛ تا بیست مورد')}>
+            <Input value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} dir="auto" />
+          </Field>
+          <Field label={tr('پیوندها')} hint={tr('هر کدام در یک سطر؛ فقط https و تا پنج پیوند')}>
+            <Textarea value={form.links} onChange={(e) => setForm({ ...form, links: e.target.value })} rows={2} dir="ltr" />
+          </Field>
+          <div className="flex justify-end"><Button variant="primary" loading={busy === 'save'} onClick={() => void save()}>{tr('ذخیره')}</Button></div>
+        </div>
+      </div>
+    </Card>
   );
 }
 

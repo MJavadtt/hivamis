@@ -18,8 +18,9 @@ import { roleName, useRoles } from '../lib/roles';
  */
 
 interface Unit { code: string; nameFa: string; nameEn: string; color: string }
-interface PersonRow { id: string; fullName: string; jobTitle: string | null; email: string; department: Unit | null }
+interface PersonRow { id: string; fullName: string; jobTitle: string | null; email: string; department: Unit | null; avatarUrl?: string | null }
 interface Person extends PersonRow {
+  bio: string | null; pronouncedName: string | null; skills: string[]; links: string[];
   isActive: boolean; joinedAt: string; roles: string[]; self: boolean;
   private: { phone: string | null; phoneVerified: boolean; lastLoginAt: string | null } | null;
   work: {
@@ -54,7 +55,7 @@ export function PeopleDirectory() {
             {data.map((p) => (
               <li key={p.id}>
                 <Link to={`/people/${p.id}`} className="flex items-center gap-3 rounded-xl bg-surface p-3 ring-1 ring-ink-200 transition hover:ring-brand-300">
-                  <Avatar name={p.fullName} unit={p.department?.code} color={p.department?.color} />
+                  <Avatar name={p.fullName} unit={p.department?.code} color={p.department?.color} src={p.avatarUrl} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink-900">{p.fullName}</p>
                     <p className="truncate text-xs text-ink-500">{trx(p.jobTitle) || '—'}</p>
@@ -85,8 +86,9 @@ export function PersonPage() {
         <div className="grid gap-5 lg:grid-cols-[20rem_1fr]" data-testid="person">
           <Card>
             <div className="flex flex-col items-center gap-2 p-5 text-center">
-              <Avatar name={p.fullName} unit={p.department?.code} color={p.department?.color} size="lg" />
+              <Avatar name={p.fullName} unit={p.department?.code} color={p.department?.color} src={p.avatarUrl} size="xl" />
               <p className="text-base font-semibold text-ink-900">{p.fullName}</p>
+              {p.pronouncedName && <p className="text-xs text-ink-500" title={tr('تلفظ نام')}>{tr('خوانده می‌شود: {0}', p.pronouncedName)}</p>}
               {p.department && <UnitTag code={p.department.code} />}
               <div className="flex flex-wrap justify-center gap-1">
                 {p.roles.map((r) => <Badge key={r} tone="neutral">{roleName(r)}</Badge>)}
@@ -106,6 +108,20 @@ export function PersonPage() {
           </Card>
 
           <div className="space-y-5">
+            {!!(p.bio || p.skills?.length || p.links?.length) && (
+              <Card title={tr('دربارهٔ {0}', p.fullName)}>
+                <div className="space-y-3 px-4 py-3" data-testid="about">
+                  {p.bio && <p dir="auto" className="whitespace-pre-wrap text-sm leading-7 text-ink-800">{p.bio}</p>}
+                  {!!p.skills?.length && <div className="flex flex-wrap gap-1.5">{p.skills.map((s) => <Badge key={s} tone="info">{s}</Badge>)}</div>}
+                  {!!p.links?.length && (
+                    <ul className="space-y-1 text-sm">
+                      {/* Written by the person themselves: opened apart, and not vouched for. */}
+                      {p.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noopener noreferrer nofollow ugc" className="ltr break-all text-brand-700 hover:underline">{l.replace(/^https:\/\//, '')}</a></li>)}
+                    </ul>
+                  )}
+                </div>
+              </Card>
+            )}
             {p.work.openTasks !== null && (
               <Card title={tr('کارهای باز')} subtitle={tr('{0} وظیفهٔ باز · {1} گذشته از مهلت', localDigits(p.work.openTasks), localDigits(p.work.overdueTasks ?? 0))}>
                 {!p.work.tasks?.length ? <EmptyState title={tr('وظیفهٔ بازی ندارد')} /> : (

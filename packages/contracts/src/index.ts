@@ -14,3 +14,4 @@ export * from './i18n.js';
 export * from './suggest.js';
 export * from './guide.js';
 export * from './chat.js';
+export * from './profile.js';

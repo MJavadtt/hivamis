@@ -289,6 +289,15 @@ model User {
   /// Audit F-3: the position from the organisation's catalogue; jobTitle stays as the fallback.
   positionId          String?
   position            Position?    @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  /// Audit F-6: the profile. The photo is a document — re-encoded to a 512px WebP, its metadata
+  /// stripped — shown wherever the person is; the rest is theirs to write.
+  avatarDocumentId    String?      @unique
+  avatarDocument      Document?    @relation("UserAvatar", fields: [avatarDocumentId], references: [id], onDelete: SetNull)
+  bio                 String?
+  /// How the name is said, for colleagues who only read it.
+  pronouncedName      String?
+  skills              String[]     @default([])
+  links               String[]     @default([])
   phone               String?
   /// When the person proved the mobile is theirs with a one-time code (Hivamis task 4); a verified
   /// mobile is unique among active people and signs them in.
@@ -1820,6 +1829,8 @@ model Document {
   chatConversation   ChatConversation? @relation(fields: [chatConversationId], references: [id], onDelete: Cascade)
   chatMessageId      String?
   chatMessage        ChatMessage?      @relation("ChatAttachments", fields: [chatMessageId], references: [id], onDelete: SetNull)
+  /// Audit F-6: the person whose photo this is — not a file of the organisation's records.
+  avatarOf           User?             @relation("UserAvatar")
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
   clientVisible      Boolean           @default(false)
   /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
@@ -1851,6 +1862,7 @@ model Document {
   @@index([projectId])
   @@index([lineageId])
   @@index([qcReviewId])
+  @@index([chatConversationId])
   @@map("documents")
 }
 

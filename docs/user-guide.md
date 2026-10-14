@@ -55,6 +55,14 @@ which you can sign out. **Colleagues («همکاران»)** lists everyone; each
 unit, roles, email and, where you may see them, their open tasks and projects. Mobile numbers and last
 sign-ins are shown only to the person themselves and to the administrators of users.
 
+**Your photo and a few words.** Under **About me** on your page:
+- **Add a photo.** It is cut to a square and kept as a small picture; the camera and location
+  details a phone writes into a photo are not kept. It appears beside your name in the menu, on your
+  page, in the chat, in notes on files, and in the lists where people are chosen.
+- **A few words** (up to 500 characters), **how your name is said**, **skills** (separated by
+  commas) and up to five **links** (https only). Colleagues see them on your page.
+An administrator of users can take down a photo that should not be there; that is recorded.
+
 **When the server cannot be reached.** If the app opens while the server is restarting or the network
 is down, it says «سرور در دسترس نیست» and tries again by itself; your session is kept, so there is
 no need to sign in again. Anything you send meanwhile — signing in, saving a form — says the same

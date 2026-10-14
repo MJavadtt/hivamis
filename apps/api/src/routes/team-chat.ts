@@ -10,6 +10,7 @@ import { env } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
+import { withAvatar } from '../profile/avatars.js';
 import {
   conversationsOf, directKey, forgetMembers, membership, messageInclude, messageView, recordsNamed, tellMembers, unreadCounts,
 } from '../chat/service.js';
@@ -128,14 +129,15 @@ const teamChatRoutes: FastifyPluginAsync = async (app) => {
     const c = me.conversation;
     const people = await prisma.chatMember.findMany({
       where: { conversationId: id, leftAt: null },
-      select: { role: true, joinedAt: true, user: { select: { id: true, fullName: true, jobTitle: true } } },
+      select: { role: true, joinedAt: true, user: { select: { id: true, fullName: true, jobTitle: true, avatarDocumentId: true } } },
       orderBy: { joinedAt: 'asc' },
     });
-    const peer = c.kind === 'DIRECT' ? people.map((p) => p.user).find((u) => u.id !== actor.id) ?? null : null;
+    const other = c.kind === 'DIRECT' ? people.map((p) => p.user).find((u) => u.id !== actor.id) : undefined;
+    const peer = other ? { id: other.id, fullName: other.fullName } : null;
     return {
       id: c.id, kind: c.kind, title: peer?.fullName ?? c.title ?? '', topic: c.topic, peer, archived: !!c.archivedAt, createdAt: c.createdAt,
       me: { role: me.role, muted: me.muted, notify: me.notify, lastReadAt: me.lastReadAt },
-      members: people.map((p) => ({ ...p.user, role: p.role, joinedAt: p.joinedAt })),
+      members: people.map((p) => ({ ...withAvatar(p.user), role: p.role, joinedAt: p.joinedAt })),
     };
   });
 

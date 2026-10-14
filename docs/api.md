@@ -935,6 +935,23 @@ member chose. The title names the writer and the conversation; there is no body.
 Audit rows whose action starts `CHAT_OVERSIGHT_` cannot be updated, deleted or truncated away: a
 database trigger refuses it.
 
+## The profile
+
+Audit F-6. Any signed-in person, for themselves.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /me/about` · `PATCH /me/about` | `{ bio? (≤ 500), pronouncedName? (≤ 120), skills? (≤ 20 × 40), links? (≤ 5, https only) }`. A blank text clears it. Audited as `UPDATE` on the user |
+| `POST /me/avatar` | One multipart part: JPEG, PNG, WebP or GIF, at most 10 MB. Decoded (at most 40 megapixels), turned upright, cut to 512 × 512 and re-encoded as WebP with no metadata. Kept as a document; the previous photo is deleted. `{ avatarUrl }`. 400 `UNSUPPORTED_TYPE`, `UNSUPPORTED_IMAGE`; 413 `FILE_TOO_LARGE`. 10 a minute |
+| `DELETE /me/avatar` | Removes your photo |
+| `DELETE /users/:id/avatar` | `admin.users`: takes someone's photo down, audited as theirs |
+| `GET /avatars/:id?exp=&sig=` | No session: the address is signed (HMAC), good until the end of the next day (UTC), so one address serves all day and the browser keeps it. Only a current photo is served, as `image/webp`; anything else is 404, a bad or old signature 403 |
+
+People carry `avatarUrl` (or `null`) wherever they appear: `/auth/me`, `/people`, `/people/:id`
+(with `bio`, `pronouncedName`, `skills`, `links`), the chat (members, message authors, a direct
+conversation's peer), notes on files, and the assignee suggestions. A photo is not listed by
+`GET /documents`.
+
 ## The guide's videos
 
 Hivamis task 8. One recorded video per guide section and language, added by the organisation.

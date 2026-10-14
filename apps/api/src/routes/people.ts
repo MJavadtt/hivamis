@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { phoneStartSchema, phoneVerifySchema, setPasswordSchema, unitColor } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { avatarUrl, withAvatar } from '../profile/avatars.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
@@ -41,9 +42,9 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
         ...(term ? { OR: [{ fullName: { contains: term, mode: 'insensitive' } }, { jobTitle: { contains: term, mode: 'insensitive' } }, { email: { contains: term, mode: 'insensitive' } }] } : {}),
       },
       orderBy: { fullName: 'asc' }, take: 500,
-      select: { id: true, fullName: true, jobTitle: true, email: true, department: { select: { code: true, nameFa: true, nameEn: true, tagColor: true } } },
+      select: { id: true, fullName: true, jobTitle: true, email: true, avatarDocumentId: true, department: { select: { code: true, nameFa: true, nameEn: true, tagColor: true } } },
     });
-    return people.map((p) => ({ ...p, department: unitOf(p.department) }));
+    return people.map((p) => withAvatar({ ...p, department: unitOf(p.department) }));
   });
 
   app.get('/people/:id', { preHandler: [app.authenticate] }, async (req) => {
@@ -74,6 +75,8 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     return {
       id: person.id, fullName: person.fullName, jobTitle: person.jobTitle, email: person.email, isActive: person.isActive,
       joinedAt: person.createdAt, department: unitOf(person.department),
+      // What they wrote about themselves (audit F-6), for every colleague.
+      avatarUrl: avatarUrl(person.avatarDocumentId), bio: person.bio, pronouncedName: person.pronouncedName, skills: person.skills, links: person.links,
       roles: person.roles.map((r) => r.role.code),
       self,
       // For the person and for whoever manages users, not for every colleague.

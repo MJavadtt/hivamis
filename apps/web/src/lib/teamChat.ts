@@ -12,7 +12,7 @@ export interface ConversationDetail {
   id: string; kind: ChatConversationSummary['kind']; title: string; topic: string | null; archived: boolean; createdAt: string;
   peer: { id: string; fullName: string } | null;
   me: { role: ChatMemberRole; muted: boolean; notify: ChatNotify; lastReadAt: string | null };
-  members: { id: string; fullName: string; jobTitle: string | null; role: ChatMemberRole; joinedAt: string }[];
+  members: { id: string; fullName: string; jobTitle: string | null; avatarUrl?: string | null; role: ChatMemberRole; joinedAt: string }[];
 }
 export interface RecordRef { type: string; id: string; title: string }
 export interface MessagePage { items: MessageView[]; hasMore: boolean; records: Record<string, RecordRef> }

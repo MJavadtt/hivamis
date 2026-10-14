@@ -48,6 +48,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       where: {
         // A file shared in a conversation is its members' (audit F-5), served by the chat alone.
         organizationId: actor.organizationId, deletedAt: null, chatConversationId: null,
+        // A person's photo (audit F-6) is not one of the organisation's files.
+        avatarOf: { is: null },
         // The current version of each file, unless every version is asked for (roadmap #42).
         ...(versions === 'all' ? {} : { supersededAt: null }),
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),

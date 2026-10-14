@@ -912,6 +912,24 @@ step and the exact request, ticks what they want, and confirms.
 
 Nothing needs setting up for this beyond the chat model.
 
+## Profile photos
+
+Audit F-6. A photo is decoded and written anew by [sharp](https://sharp.pixelplumbing.com/) (libvips,
+Apache-2.0), installed from its prebuilt binaries for the platform (Debian, glibc, x64 or arm64); no
+system package or build step is needed.
+
+- **What is kept:** a 512 × 512 WebP with none of the original's metadata (camera, time, location);
+  6–17 KB for the screen images it was measured on, more for a detailed photo. The original is not
+  stored.
+- **Where:** as a document in `STORAGE_DIR`, counted in the organisation's quota and its backups, not
+  listed among its files. A replaced or removed photo is deleted like any document and its file
+  purged after `FILE_RETENTION_DAYS`.
+- **How it is shown:** from `/api/v1/avatars/<id>` with a signature made with `JWT_SECRET`, valid
+  until the end of the next day. Rotating `JWT_SECRET` turns every photo address stale; the next
+  page load has new ones.
+- **Moderation:** an administrator of users can take a photo down (Admin → Users, or
+  `DELETE /users/:id/avatar`); it is audited.
+
 ## Team chat and its oversight
 
 Audit F-5. Chat needs no setting up: it uses the database, the file storage, the live stream, and

@@ -69,13 +69,13 @@ export default async function setup(project: { testFilesList?: string[] | null }
     // Cloned a few at a time. Concurrency is safe *here* and nowhere else: no test is running
     // yet, so the catalogue locks that DDL takes can only slow this loop down, never time out
     // a query someone is waiting on.
-    const order = await tablesInDependencyOrder(admin, TEMPLATE_SCHEMA);
+    const plan = await tablesInDependencyOrder(admin, TEMPLATE_SCHEMA);
     const files = [...(project.testFilesList ?? [])];
     await Promise.all(Array.from({ length: CLONE_CONCURRENCY }, async () => {
       for (let file = files.shift(); file; file = files.shift()) {
         const schema = schemaNameFor(file);
         await applyMigrations(admin, schema, statements);
-        await copyData(admin, TEMPLATE_SCHEMA, schema, order);
+        await copyData(admin, TEMPLATE_SCHEMA, schema, plan);
       }
     }));
   } finally {

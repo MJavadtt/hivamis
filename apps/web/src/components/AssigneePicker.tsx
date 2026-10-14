@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Avatar } from './Avatar';
 import { apiGet } from '../lib/api';
 import { Badge, LoadingBlock, ProgressBar, cx } from './ui';
 import { formatDate, localDigits } from '../lib/format';
@@ -6,7 +7,7 @@ import { tr, trx } from '../i18n';
 
 interface Candidate {
   load: {
-    userId: string; fullName: string; jobTitle: string | null; departmentCode: string | null;
+    userId: string; fullName: string; jobTitle: string | null; departmentCode: string | null; avatarUrl?: string | null;
     capacityHours: number; committedHours: number; remainingHours: number; leaveHours: number;
     utilisation: number; status: string; openTasks: number; overdueTasks: number;
   };
@@ -47,6 +48,7 @@ export function AssigneePicker({ taskId, value, onChange }: { taskId: string; va
             )}
           >
             <div className="flex items-center gap-2">
+              <Avatar name={c.load.fullName} unit={c.load.departmentCode} src={c.load.avatarUrl} size="xs" />
               <span className="text-sm font-medium text-ink-800">{c.load.fullName}</span>
               {c.load.jobTitle && <span className="text-[12.5px] text-ink-400">{trx(c.load.jobTitle)}</span>}
               <span className="ms-auto nums text-[12.5px] text-ink-500">{tr('{0} ساعت آزاد', localDigits(c.load.remainingHours))}</span>

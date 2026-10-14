@@ -249,7 +249,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className={cx('shrink-0 space-y-1 border-t border-ink-200/70', compact ? 'p-2' : 'p-3')}>
           <Link to="/me" data-tour="me" title={tr('صفحهٔ من')}
             className={cx('flex items-center gap-3 rounded-lg bg-surface shadow-sm ring-1 ring-edge hover:bg-panel', compact ? 'justify-center p-1.5' : 'p-2')}>
-            {user && <Avatar name={user.fullName} unit={user.department?.code} size="sm" />}
+            {user && <Avatar name={user.fullName} unit={user.department?.code} src={user.avatarUrl} size="sm" />}
             {!compact && (
               <>
                 <span className="min-w-0 flex-1">

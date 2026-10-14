@@ -11,6 +11,7 @@ import { prisma, type Tx } from '../db.js';
 import { notFound } from '../lib/errors.js';
 import { asAgentFor } from '../lib/request-context.js';
 import { notify } from '../mail/notify.js';
+import { withAvatar } from '../profile/avatars.js';
 
 export interface Actor { id: string; organizationId: string }
 
@@ -67,7 +68,7 @@ export async function conversationsOf(actor: Actor, opts: { archived?: boolean }
       conversation: {
         include: {
           _count: { select: { members: { where: { leftAt: null } } } },
-          members: { where: { leftAt: null }, take: 3, select: { user: { select: { id: true, fullName: true } } } },
+          members: { where: { leftAt: null }, take: 3, select: { user: { select: { id: true, fullName: true, avatarDocumentId: true } } } },
           messages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1, select: { body: true, createdAt: true, author: { select: { fullName: true } } } },
         },
       },
@@ -77,7 +78,8 @@ export async function conversationsOf(actor: Actor, opts: { archived?: boolean }
   });
   const unread = await unreadCounts(actor);
   return rows.map(({ conversation: c, ...m }) => {
-    const peer = c.kind === 'DIRECT' ? c.members.map((x) => x.user).find((u) => u.id !== actor.id) ?? null : null;
+    const other = c.kind === 'DIRECT' ? c.members.map((x) => x.user).find((u) => u.id !== actor.id) : undefined;
+    const peer = other ? withAvatar(other) : null;
     const last = c.messages[0];
     return {
       id: c.id, kind: c.kind as ChatConversationSummary['kind'], title: peer?.fullName ?? c.title ?? '', topic: c.topic, peer,
@@ -91,7 +93,7 @@ export async function conversationsOf(actor: Actor, opts: { archived?: boolean }
 
 type MessageRow = Prisma.ChatMessageGetPayload<{ include: typeof messageInclude }>;
 export const messageInclude = {
-  author: { select: { id: true, fullName: true } },
+  author: { select: { id: true, fullName: true, avatarDocumentId: true } },
   replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: { fullName: true } } } },
   attachments: { where: { deletedAt: null }, select: { id: true, fileName: true, mimeType: true, sizeBytes: true } },
 } satisfies Prisma.ChatMessageInclude;
@@ -100,7 +102,7 @@ export const messageInclude = {
 export function messageView(m: MessageRow, opts: { reviewer?: boolean } = {}): ChatMessageView & { deletedAt?: string | null } {
   const hidden = !!m.deletedAt && !opts.reviewer;
   return {
-    id: m.id, author: m.author,
+    id: m.id, author: withAvatar(m.author),
     body: hidden ? '' : m.body,
     replyTo: m.replyTo ? { id: m.replyTo.id, authorName: m.replyTo.author.fullName, body: m.replyTo.deletedAt && !opts.reviewer ? '' : m.replyTo.body.slice(0, 200) } : null,
     attachments: hidden ? [] : m.attachments,

@@ -13,6 +13,7 @@ import {
   Input, LoadingBlock, Modal, Select, Spinner, Tabs, Textarea, cx, useToast,
 } from '../components/ui';
 import { isEnglish, tr } from '../i18n';
+import { Avatar } from '../components/Avatar';
 
 /**
  * Team chat (audit F-5): conversations on the left, the one open on the right — on a phone, one or
@@ -26,7 +27,9 @@ const NOTIFY_LABEL: Record<ChatNotify, () => string> = {
 };
 const notice = () => (isEnglish() ? OVERSIGHT_NOTICE.en : OVERSIGHT_NOTICE.fa);
 
-function Mark({ name, className }: { name: string; className?: string }) {
+/** A person's photo (audit F-6), or a conversation's first letter. */
+function Mark({ name, src, className }: { name: string; src?: string | null; className?: string }) {
+  if (src) return <Avatar name={name} src={src} className={cx('size-9', className)} />;
   return <span aria-hidden className={cx('grid size-9 shrink-0 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-800', className)}>{initial(name)}</span>;
 }
 
@@ -85,7 +88,7 @@ function ConversationList({ activeId }: { activeId?: string }) {
               <li key={c.id}>
                 <Link to={`/chat/${c.id}`} aria-current={c.id === activeId ? 'page' : undefined}
                   className={cx('flex items-start gap-3 border-b border-ink-100 px-3 py-2.5 hover:bg-ink-50', c.id === activeId && 'bg-brand-50')}>
-                  <Mark name={c.title} />
+                  <Mark name={c.title} src={c.peer?.avatarUrl} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className={cx('truncate text-sm', c.unread ? 'font-bold text-ink-900' : 'font-medium text-ink-800')}>{c.title}</span>
@@ -180,7 +183,7 @@ function Conversation({ id }: { id: string }) {
         <Link to="/chat" className="rounded p-1 text-ink-500 hover:bg-ink-100 lg:hidden" aria-label={tr('بازگشت به گفت‌وگوها')}>
           <IconArrow className="size-5 rtl:rotate-180" />
         </Link>
-        <Mark name={c.title} />
+        <Mark name={c.title} src={c.kind === 'DIRECT' ? c.members.find((m) => m.id !== user?.id)?.avatarUrl : null} />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-bold text-ink-900">{c.title}</h2>
           <p className="truncate text-xs text-ink-500">
@@ -260,7 +263,7 @@ function Message({ m, records, names, mine, canModerate, grouped, onReply, onCha
   return (
     // Focusable, so a tap on a phone — where nothing hovers — brings up its actions.
     <article tabIndex={0} className={cx('group relative flex gap-2.5 rounded-lg px-1.5 py-1 outline-none hover:bg-ink-50/70 focus-within:bg-ink-50/70', !grouped && 'mt-2')} data-testid="chat-message">
-      {grouped ? <span className="w-9 shrink-0" /> : <Mark name={m.author.fullName} />}
+      {grouped ? <span className="w-9 shrink-0" /> : <Mark name={m.author.fullName} src={m.author.avatarUrl} />}
       <div className="min-w-0 flex-1">
         {!grouped && (
           <p className="flex items-baseline gap-2">
@@ -419,7 +422,7 @@ function Composer({ id, members, replyTo, onReplyDone, onSent }: {
 
 /* ── Dialogs ──────────────────────────────────────────────────────────────────────────────── */
 
-interface PersonRow { id: string; fullName: string; jobTitle: string | null }
+interface PersonRow { id: string; fullName: string; jobTitle: string | null; avatarUrl?: string | null }
 
 /** Colleagues by name, to choose from. */
 function People({ picked, onPick, single, exclude = [] }: { picked: PersonRow[]; onPick: (p: PersonRow[]) => void; single?: boolean; exclude?: string[] }) {
@@ -440,7 +443,7 @@ function People({ picked, onPick, single, exclude = [] }: { picked: PersonRow[];
           return (
             <li key={p.id}>
               <button type="button" onClick={() => toggle(p)} aria-pressed={on} className={cx('flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-ink-50', on && 'bg-brand-50')}>
-                <Mark name={p.fullName} className="size-7 text-xs" />
+                <Mark name={p.fullName} src={p.avatarUrl} className="size-7 text-xs" />
                 <span className="min-w-0 flex-1"><span className="block truncate text-ink-800">{p.fullName}</span>{p.jobTitle && <span className="block truncate text-xs text-ink-500">{p.jobTitle}</span>}</span>
                 {on && <span className="text-xs text-brand-700">✓</span>}
               </button>
@@ -544,7 +547,7 @@ function Members({ c, manager, onClose, onChanged }: { c: ConversationDetail; ma
       <ul className="divide-y divide-ink-100">
         {c.members.map((m) => (
           <li key={m.id} className="flex items-center gap-2 py-2">
-            <Mark name={m.fullName} className="size-7 text-xs" />
+            <Mark name={m.fullName} src={m.avatarUrl} className="size-7 text-xs" />
             <span className="min-w-0 flex-1"><span className="block truncate text-sm text-ink-800">{m.fullName}</span>{m.jobTitle && <span className="block truncate text-xs text-ink-500">{m.jobTitle}</span>}</span>
             {c.me.role === 'OWNER' && m.role !== 'OWNER' ? (
               <Select value={m.role} onChange={(e) => void act(() => apiPatch(`/chat/conversations/${c.id}/members/${m.id}`, { role: e.target.value }))} aria-label={tr('نقش {0}', m.fullName)} className="w-24">

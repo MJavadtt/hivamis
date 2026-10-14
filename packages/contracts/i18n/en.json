@@ -2613,5 +2613,16 @@
   "یکی از فایل‌ها برای این گفت‌وگو بارگذاری نشده است.": "One of the files was not uploaded to this conversation.",
   "پیام": "Message",
   "پیام را فقط نویسنده‌اش ویرایش می‌کند.": "Only its author edits a message.",
-  "پیام دیگران را فقط مالک یا مدیر گفت‌وگو برمی‌دارد.": "Only the conversation's owner or an administrator removes others' messages."
+  "پیام دیگران را فقط مالک یا مدیر گفت‌وگو برمی‌دارد.": "Only the conversation's owner or an administrator removes others' messages.",
+  "حداکثر ۵۰۰ حرف": "At most 500 characters",
+  "حداکثر بیست مهارت": "At most twenty skills",
+  "نشانی کامل بنویسید": "Write the full address",
+  "فقط نشانی‌های https": "Only https addresses",
+  "حداکثر پنج پیوند": "At most five links",
+  "عکسی فرستاده نشده است.": "No photo was sent.",
+  "عکس باید JPEG، PNG، WebP یا GIF باشد.": "A photo must be JPEG, PNG, WebP or GIF.",
+  "حداکثر حجم عکس {0} مگابایت است.": "A photo may be at most {0} MB.",
+  "این فایل عکسِ خوانا نیست.": "This file is not a readable picture.",
+  "این پیوند عکس معتبر نیست یا منقضی شده است.": "This photo link is not valid or has expired.",
+  "عکس": "Photo"
 }

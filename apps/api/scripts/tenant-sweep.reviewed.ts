@@ -367,4 +367,9 @@ export const REVIEWED: Record<string, Verdict> = {
   // isMember: the live stream asks only about events of the reader's own organisation (routes/live.ts);
   // tellMembers: called after a message was written in a conversation found in the writer's organisation.
   ...of('CALLER', ["chat/service.ts#isMember", "chat/service.ts#tellMembers"]),
+  // Audit F-6, the profile: one's own row; a helper called with oneself or a person found in one's
+  // organisation; a photo addressed by its signed link.
+  ...of('OWN', ["routes/profile.ts#GET /me/about", "routes/profile.ts#PATCH /me/about"]),
+  ...of('CALLER', ["routes/profile.ts#replaceAvatar"]),
+  ...of('TOKEN', ["routes/profile.ts#GET /avatars/:id"]),
 };

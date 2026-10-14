@@ -182,6 +182,9 @@ without a model.
     (`app.inject`), so the state machine, Doc_H guards, SLAs and audit apply as on the page.
   - Speech is turned into text by the installation's own Whisper server (`TRANSCRIPTION_URL`, the
     Compose `speech` profile) and is not kept.
+- **Profiles** (ADR-087). A photo is a document a user points at (`users.avatarDocumentId`),
+  re-encoded by sharp to a 512px WebP with no metadata, and shown from a signed, day-long address so
+  a plain `<img>` can load it. People carry `avatarUrl` wherever the API returns them.
 - **Team chat** (ADR-086). `chat_conversations`, `chat_members`, `chat_messages` and their edits.
   A conversation answers to its members only; shared files are documents linked to it and served by
   the chat alone. A trigger announces each message on `hiva_events` (that it arrived, not what it

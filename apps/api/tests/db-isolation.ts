@@ -32,7 +32,7 @@ export const SCHEMA_PREFIX = 't_';
  * is only safe while the migrations stay free of dollar-quoted bodies, and these counts are
  * what notices if that stops being true. Update them when a migration adds or drops objects.
  */
-export const TEMPLATE_SHAPE = { tables: 117, checkConstraints: 99, foreignKeys: 188 } as const;
+export const TEMPLATE_SHAPE = { tables: 117, checkConstraints: 100, foreignKeys: 189 } as const;
 
 /** Load .env.test into process.env. env.ts validates at import time, so this must run first. */
 export function loadTestEnv(): void {
@@ -167,25 +167,35 @@ export async function schemaShape(db: PrismaClient, schema: string) {
   return row;
 }
 
+/** How to copy a schema's rows with its foreign keys enforced: an order, and the links to fill in last. */
+export interface CopyPlan {
+  order: string[];
+  /** A nullable `ON DELETE SET NULL` link that closes a cycle — users ↔ documents, through a photo (audit F-6). */
+  deferred: { table: string; column: string }[];
+}
+
 /**
  * Tables of `schema`, ordered so that every table follows the ones its foreign keys point at.
  *
  * Copying in this order means the FKs can stay enforced during the copy. The alternative —
  * `SET session_replication_role = replica` to switch the triggers off — needs superuser, which
- * is not something a test suite should require of whoever runs it.
+ * is not something a test suite should require of whoever runs it. Where two tables point at each
+ * other, a link that may be empty is copied empty and filled in once both are there.
  */
 export async function tablesInDependencyOrder(
   db: PrismaClient, schema: string,
-): Promise<string[]> {
+): Promise<CopyPlan> {
   const tables = await db.$queryRawUnsafe<Array<{ name: string }>>(
     `SELECT tablename AS name FROM pg_tables WHERE schemaname = $1`, schema,
   );
-  const edges = await db.$queryRawUnsafe<Array<{ child: string; parent: string }>>(
-    `SELECT ch.relname AS child, pa.relname AS parent
+  const edges = await db.$queryRawUnsafe<Array<{ child: string; parent: string; column: string; nullable: boolean; setNull: boolean }>>(
+    `SELECT ch.relname AS child, pa.relname AS parent, a.attname AS column,
+            NOT a.attnotnull AS nullable, c.confdeltype = 'n' AS "setNull"
        FROM pg_constraint c
        JOIN pg_class ch ON ch.oid = c.conrelid
        JOIN pg_class pa ON pa.oid = c.confrelid
        JOIN pg_namespace n ON n.oid = ch.relnamespace
+       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
       WHERE n.nspname = $1 AND c.contype = 'f' AND c.conrelid <> c.confrelid`,
     schema,
   );
@@ -194,12 +204,24 @@ export async function tablesInDependencyOrder(
   for (const { child, parent } of edges) pending.get(child)?.add(parent);
 
   const ordered: string[] = [];
+  const deferred: CopyPlan['deferred'] = [];
   while (ordered.length < tables.length) {
     const ready = [...pending].filter(([, parents]) => parents.size === 0).map(([name]) => name);
-    // A cycle would leave every remaining table waiting on another. Self-references are fine
-    // and excluded above: an INSERT…SELECT checks them once, at the end of the statement.
+    // A cycle leaves every remaining table waiting on another. Self-references are fine and
+    // excluded above: an INSERT…SELECT checks them once, at the end of the statement. Otherwise a
+    // link that may be empty breaks it, to be filled in after the copy.
     if (ready.length === 0) {
-      throw new Error(`cycle in the foreign-key graph of "${schema}": ${[...pending.keys()]}`);
+      // A pair in a cycle (the parent waits, through others, on the child) whose every link from the
+      // child to the parent may be empty.
+      const waitsOn = (from: string, to: string, seen = new Set<string>()): boolean =>
+        [...(pending.get(from) ?? [])].some((p) => p === to || (!seen.has(p) && (seen.add(p), waitsOn(p, to, seen))));
+      const links = (child: string, parent: string) => edges.filter((e) => e.child === child && e.parent === parent);
+      const pair = [...pending].flatMap(([child, parents]) => [...parents].map((parent) => ({ child, parent })))
+        .find(({ child, parent }) => waitsOn(parent, child) && links(child, parent).every((e) => e.nullable && e.setNull));
+      if (!pair) throw new Error(`cycle in the foreign-key graph of "${schema}": ${[...pending.keys()]}`);
+      pending.get(pair.child)!.delete(pair.parent);
+      for (const e of links(pair.child, pair.parent)) deferred.push({ table: e.child, column: e.column });
+      continue;
     }
     for (const name of ready) {
       ordered.push(name);
@@ -207,17 +229,29 @@ export async function tablesInDependencyOrder(
       for (const parents of pending.values()) parents.delete(name);
     }
   }
-  return ordered;
+  return { order: ordered, deferred };
 }
 
 /** Copy every row of `from` into the (already migrated, empty) schema `into`. */
 export async function copyData(
-  db: PrismaClient, from: string, into: string, order: string[],
+  db: PrismaClient, from: string, into: string, plan: CopyPlan,
 ): Promise<void> {
   await db.$transaction(async (tx) => {
-    for (const table of order) {
+    for (const table of plan.order) {
+      const later = plan.deferred.filter((d) => d.table === table).map((d) => d.column);
+      if (!later.length) {
+        await tx.$executeRawUnsafe(`INSERT INTO "${into}"."${table}" SELECT * FROM "${from}"."${table}"`);
+        continue;
+      }
+      const columns = (await tx.$queryRawUnsafe<Array<{ name: string }>>(
+        `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`, from, table,
+      )).map((c) => c.name);
+      const pick = columns.map((c) => (later.includes(c) ? `NULL AS "${c}"` : `"${c}"`)).join(', ');
+      await tx.$executeRawUnsafe(`INSERT INTO "${into}"."${table}" (${columns.map((c) => `"${c}"`).join(', ')}) SELECT ${pick} FROM "${from}"."${table}"`);
+    }
+    for (const { table, column } of plan.deferred) {
       await tx.$executeRawUnsafe(
-        `INSERT INTO "${into}"."${table}" SELECT * FROM "${from}"."${table}"`,
+        `UPDATE "${into}"."${table}" AS d SET "${column}" = s."${column}" FROM "${from}"."${table}" AS s WHERE d.id = s.id AND s."${column}" IS NOT NULL`,
       );
     }
   }, TX);

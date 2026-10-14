@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { Avatar } from './Avatar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -17,7 +18,7 @@ import { tr } from '../i18n';
 export interface AnnotationRow {
   id: string; documentId: string; kind: 'PIN' | 'TIMECODE' | 'HIGHLIGHT'; number: number; page: number | null;
   x: number | null; y: number | null; w: number | null; h: number | null; timeSec: number | null; note: string;
-  status: 'OPEN' | 'RESOLVED'; createdAt: string; author: { id: string; fullName: string };
+  status: 'OPEN' | 'RESOLVED'; createdAt: string; author: { id: string; fullName: string; avatarUrl?: string | null };
   qcReviewId: string | null; revision: { code: string } | null;
 }
 interface FileRow {
@@ -135,7 +136,7 @@ export function AnnotationsModal({ deliverableId, title, onClose }: { deliverabl
                     {a.status === 'RESOLVED' ? <Badge tone="success">{tr('رفع شد')}</Badge> : a.revision ? <Badge tone="warning">{a.revision.code}</Badge> : null}
                   </div>
                   <p className="mt-1 whitespace-pre-line text-ink-800">{a.note}</p>
-                  <p className="mt-0.5 text-[12px] text-ink-400">{a.author.fullName} · {formatDateTime(a.createdAt)}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink-400"><Avatar name={a.author.fullName} src={a.author.avatarUrl} size="xs" />{a.author.fullName} · {formatDateTime(a.createdAt)}</p>
                   <div className="mt-1 flex gap-1">
                     {can('deliverable.write') && <Button size="sm" variant="ghost" onClick={() => void setStatus(a, a.status === 'OPEN' ? 'RESOLVED' : 'OPEN')}>{a.status === 'OPEN' ? tr('رفع شد') : tr('باز کردن دوباره')}</Button>}
                     {a.author.id === user?.id && !a.qcReviewId && <Button size="sm" variant="ghost" onClick={() => void remove(a)}>{tr('حذف')}</Button>}

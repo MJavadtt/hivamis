@@ -11,6 +11,7 @@
  * a weekend, and a system that refuses the assignment only pushes the work off the system. So
  * the over-capacity verdict is a warning carried beside the name, never a guard.
  */
+import { avatarUrl } from '../profile/avatars.js';
 import type { Tx } from '../db.js';
 import { addBusinessHours, businessHoursBetween } from '../lib/business-calendar.js';
 import { loadCalendar } from '../sla/engine.js';
@@ -28,6 +29,8 @@ export interface PersonLoad {
   fullName: string;
   jobTitle: string | null;
   departmentCode: string | null;
+  /** Their photo's address (audit F-6), for the people pickers. */
+  avatarUrl: string | null;
   /** Working hours in the window on this person's own calendar, capped by their contract. */
   capacityHours: number;
   /** Working hours the window holds on their calendar, before the contractual cap. */
@@ -66,7 +69,7 @@ export async function personLoads(
       ...(opts.userIds ? { id: { in: opts.userIds } } : {}),
     },
     select: {
-      id: true, fullName: true, jobTitle: true, weeklyCapacityHours: true,
+      id: true, fullName: true, jobTitle: true, weeklyCapacityHours: true, avatarDocumentId: true,
       department: { select: { code: true } },
     },
     orderBy: { fullName: 'asc' },
@@ -116,7 +119,7 @@ export async function personLoads(
     const committedHours = Math.max(allocatedHours, taskHours);
     const utilisation = capacityHours > 0 ? Math.round((committedHours / capacityHours) * 100) : committedHours > 0 ? 999 : 0;
     out.push({
-      userId: u.id, fullName: u.fullName, jobTitle: u.jobTitle, departmentCode: u.department?.code ?? null,
+      userId: u.id, fullName: u.fullName, jobTitle: u.jobTitle, departmentCode: u.department?.code ?? null, avatarUrl: avatarUrl(u.avatarDocumentId),
       capacityHours: r1(capacityHours), calendarHours: r1(calendarHours), leaveHours,
       allocatedHours: r1(allocatedHours), taskHours: r1(taskHours), committedHours: r1(committedHours),
       remainingHours: r1(capacityHours - committedHours), utilisation, status: statusOf(utilisation),

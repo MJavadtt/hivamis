@@ -8,6 +8,8 @@ export interface CurrentUser {
   email: string;
   fullName: string;
   jobTitle: string | null;
+  /** Their photo's signed address (audit F-6), or none. */
+  avatarUrl?: string | null;
   locale: string;
   mustChangePassword: boolean;
   department: { code: string; nameFa: string } | null;

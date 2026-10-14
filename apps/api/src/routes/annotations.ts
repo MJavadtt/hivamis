@@ -1,12 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { annotationStatusSchema, createAnnotationSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { withAvatar } from '../profile/avatars.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { audit } from '../lib/audit.js';
 import { AppError, conflict, forbidden, notFound } from '../lib/errors.js';
 import { ANNOTATION_FOR, kindOfFile, nextNumber } from '../annotations/service.js';
 
-const withPlace = { author: { select: { id: true, fullName: true } }, revision: { select: { id: true, code: true, state: true } }, qcReview: { select: { id: true, code: true, level: true } } } as const;
+/** A note with its author as the page shows people: with their photo (audit F-6). */
+const authored = <T extends { author: { id: string; fullName: string; avatarDocumentId: string | null } }>(a: T) => ({ ...a, author: withAvatar(a.author) });
+const withPlace = { author: { select: { id: true, fullName: true, avatarDocumentId: true } }, revision: { select: { id: true, code: true, state: true } }, qcReview: { select: { id: true, code: true, level: true } } } as const;
 
 /** Annotation on deliverables (roadmap #38). */
 const annotationRoutes: FastifyPluginAsync = async (app) => {
@@ -23,7 +26,7 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
     return {
       deliverable: d,
       files: documents.map((f) => ({ ...f, current: !f.supersededAt, kind: kindOfFile(f.mimeType), annotations: annotations.filter((a) => a.documentId === f.id).length })),
-      annotations,
+      annotations: annotations.map(authored),
     };
   });
 
@@ -50,7 +53,7 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
     // Two reviewers numbering the same file at once: the unique pair refuses one, which takes the next number.
     const a = await create().catch((e: { code?: string }) => (e.code === 'P2002' ? create() : Promise.reject(e)));
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'annotation', entityId: a.id, after: { deliverableId: id, documentId: doc.id, kind: a.kind, number: a.number }, ipAddress: actor.ipAddress, requestId: actor.requestId });
-    return reply.code(201).send(a);
+    return reply.code(201).send(authored(a));
   });
 
   /** Resolved when the unit has fixed it — or opened again when it has not. */
@@ -65,7 +68,7 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
       data: status === 'RESOLVED' ? { status, resolvedAt: new Date(), resolvedById: actor.id } : { status, resolvedAt: null, resolvedById: null },
     });
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'annotation', entityId: id, before: { status: a.status }, after: { status }, ipAddress: actor.ipAddress, requestId: actor.requestId });
-    return updated;
+    return authored(updated);
   });
 
   /** The author may take back a note no review has carried yet. */
