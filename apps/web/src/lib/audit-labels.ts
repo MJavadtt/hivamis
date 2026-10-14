@@ -27,4 +27,5 @@ export const ACTION_LABELS: Record<string, string> = {
   TAX_SUBMISSION_PREPARED: tr('آماده‌سازی ارسال به سامانهٔ مؤدیان'), REVENUE_PERIOD_CLOSED: tr('بستن دورهٔ درآمد'),
   PURGE: tr('پاک‌سازی فایل'), LEGAL_HOLD: tr('نگهداری حقوقی'), LEGAL_HOLD_RELEASED: tr('برداشتن نگهداری حقوقی'),
   GENERATE: tr('ساخت با دستیار'),
+  AI_PLAN_PROPOSED: tr('پیشنهاد تغییر از دستیار'), AI_PLAN_EXECUTED: tr('اجرای پیشنهاد تأییدشدهٔ دستیار'), AI_PLAN_DECLINED: tr('رد پیشنهاد دستیار'),
 };

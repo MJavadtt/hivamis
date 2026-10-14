@@ -6,7 +6,16 @@ import { trx } from '../i18n';
  * read here from the response body, since EventSource cannot send one.
  */
 
-export interface ChatAction { type: 'form' | 'link'; label: string; code?: string; prefill?: Record<string, string>; path?: string }
+export interface PlanStep { kind: string; summary: string; request: { method: string; path: string; body: Record<string, unknown> }; issue?: string }
+export interface PlanOutcome { index: number; status: 'DONE' | 'FAILED' | 'DECLINED'; code?: string; message?: string }
+export interface ChatAction {
+  type: 'form' | 'link' | 'plan';
+  label: string;
+  code?: string; prefill?: Record<string, string>;
+  path?: string;
+  /** A plan (audit F-4): changes the assistant proposes, which wait for the person's approval. */
+  planId?: string; steps?: PlanStep[];
+}
 export type ChatEvent =
   | { event: 'meta'; data: { conversationId: string; model: string } }
   | { event: 'queue'; data: { position: number } }

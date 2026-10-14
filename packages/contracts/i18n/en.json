@@ -2574,5 +2574,11 @@
   "سمتی با همین عنوان پیش‌تر ساخته شده است.": "A position with this title already exists.",
   "نقش «{0}» ({1}) را مدیر سیستم ساخت": "The system administrator made the role «{0}» ({1})",
   "نقش «{0}» ({1}) را مدیر سیستم حذف کرد": "The system administrator deleted the role «{0}» ({1})",
-  "نقش {0}: نامش از «{1}» به «{2}» تغییر کرد": "Role {0}: renamed from «{1}» to «{2}»"
+  "نقش {0}: نامش از «{1}» به «{2}» تغییر کرد": "Role {0}: renamed from «{1}» to «{2}»",
+  "صدایی فرستاده نشده است.": "No audio was sent.",
+  "نوع صدای «{0}» پشتیبانی نمی‌شود.": "Audio of type “{0}” is not supported.",
+  "پیام صوتی بلندتر از حد است؛ کوتاه‌تر بگویید.": "The voice message is too long; say it more briefly.",
+  "برنامه": "Plan",
+  "دربارهٔ این برنامه پیش‌تر تصمیم گرفته شده است.": "This plan has already been decided.",
+  "این برنامه کهنه شده است؛ دوباره از دستیار بخواهید.": "This plan is out of date; ask the assistant again."
 }

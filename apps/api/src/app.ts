@@ -55,6 +55,7 @@ import peopleRoutes from './routes/people.js';
 import chatRoutes from './routes/chat.js';
 import aiCreateRoutes from './routes/ai-create.js';
 import positionRoutes from './routes/positions.js';
+import aiPlanRoutes from './routes/ai-plans.js';
 import guideRoutes from './routes/guide.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
@@ -216,6 +217,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(chatRoutes);
     await api.register(aiCreateRoutes);
     await api.register(positionRoutes);
+    await api.register(aiPlanRoutes);
     await api.register(guideRoutes);
   }, { prefix: '/api/v1' });
 

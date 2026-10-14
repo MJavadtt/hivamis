@@ -169,12 +169,19 @@ without a model.
   over the same grounded data. When it is not, the findings still work and the UI says so plainly.
 - **Fully audited.** Every call writes to `ai_interactions` with actor, capability, model,
   grounding references and latency.
-- **Advisory only.** The AI layer holds no write path to business data.
+- **Advisory only.** The AI layer holds no write path to business data. What the assistant proposes
+  is written only by the ordinary routes, as the person, after they approve it (below).
 - **A local conversation.** The chat assistant (`/ai/chat`, ADR-060) runs on a model served by Ollama
   on the organisation's own machine. Its tools are the application's read endpoints, called
   in-process with the asking person's token, so it sees what they see. It writes nothing: it offers
   forms, already filled, and pages for the person to open. Conversations (`ai_conversations`,
   `ai_messages`) belong to their owner. The log keeps the tools used, not the words.
+- **Proposals and voice** (ADR-085). Asked to change something, the assistant proposes a plan
+  (`ai_plans`): steps resolved with the person's reads, each the exact request it would make.
+  - Only steps the person ticks run. They run as that person, through the public routes
+    (`app.inject`), so the state machine, Doc_H guards, SLAs and audit apply as on the page.
+  - Speech is turned into text by the installation's own Whisper server (`TRANSCRIPTION_URL`, the
+    Compose `speech` profile) and is not kept.
 - **The guide.** Each page's guide (`GUIDE` in `@hiva/contracts`, ADR-061) is data in both languages.
   The owl reads it as a tour, the guide's search answers from it, and the assistant searches it with
   `search_guide`. Tour steps point at `data-tour` anchors on shared components. A test fails if a

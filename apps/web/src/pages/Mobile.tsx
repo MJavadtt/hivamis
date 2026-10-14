@@ -10,6 +10,8 @@ import {
 } from '../lib/push';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { STAGE_ZERO_VERDICT } from '../components/StageZero';
+import { VoiceButton } from '../components/VoiceButton';
+import { AssistantChat } from '../components/AssistantChat';
 import { Badge, Button, Checkbox, EmptyState, ErrorBlock, Field, IconBell, IconClose, LoadingBlock, Spinner, Textarea, cx, useToast } from '../components/ui';
 import { loc, tr, trx } from '../i18n';
 
@@ -478,7 +480,7 @@ export default function Mobile() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const live = useLiveStatus();
   useLiveUpdates(qc);
   const [params, setParams] = useSearchParams();
@@ -486,6 +488,8 @@ export default function Mobile() {
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [panel, setPanel] = useState(false);
+  // Said to the assistant (audit F-4): the words open its drawer, to be read and sent.
+  const [said, setSaid] = useState<string | null>(null);
   const handled = useRef<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery<Queue>({
@@ -602,6 +606,12 @@ export default function Mobile() {
           ? <FormSheet item={selected} onDone={done} onClose={() => setSelected(null)} />
           : <QcSheet item={selected} onDone={done} onClose={() => setSelected(null)} />)}
       {panel && <PushPanel onClose={() => setPanel(false)} />}
+      {can('ai.chat') && !selected && said === null && (
+        <div className="fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom))] end-4 z-30">
+          <VoiceButton large onText={setSaid} onError={(message) => toast(message, 'danger')} />
+        </div>
+      )}
+      {said !== null && <AssistantChat initialDraft={said} onClose={() => setSaid(null)} />}
     </div>
   );
 }

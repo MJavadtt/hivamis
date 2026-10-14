@@ -2,7 +2,7 @@
 # Hivamis on one machine, with Docker Compose (roadmap #50).
 #
 #   infrastructure/hivamis install --org-name NAME --org-slug SLUG --admin-email EMAIL --admin-name NAME
-#                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai] [--image]
+#                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai] [--image] [--speech]
 #   infrastructure/hivamis status
 #   infrastructure/hivamis model [pull [NAME]]     the assistant's model: show it, or fetch it
 #   infrastructure/hivamis backup
@@ -117,6 +117,19 @@ pull_image_model() {
   say "✓ the picture model $model is ready"
 }
 
+# Speech to text (audit F-4): Whisper on the installation's own speech server.
+SPEECH_MODEL="Systran/faster-whisper-medium"
+pull_speech_model() {
+  say "→ fetching the speech model, $SPEECH_MODEL — about 1.5 GB, once"
+  compose --profile pull run --rm speech-pull "$SPEECH_MODEL" \
+    || die "the speech model could not be fetched. Check this server's internet access, then: docker compose run --rm speech-pull $SPEECH_MODEL"
+  compose restart speech
+  if [ "$DRY" = 1 ]; then printf '+ check that the speech server answers\n'; return 0; fi
+  docker compose --project-directory "$ROOT" --env-file "$ENV_FILE" exec -T api curl -fsS http://speech:8000/health >/dev/null 2>&1 \
+    || die "the speech server does not answer — see: docker compose logs speech"
+  say "✓ speech to text is ready"
+}
+
 model_wanted() { [ "$(env_get CHAT_MODE)" != off ] && [ -n "$(env_get COMPOSE_PROFILES)" ]; }
 
 cmd_model() {
@@ -141,7 +154,7 @@ cmd_model() {
 }
 
 cmd_install() {
-  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single" model="" ai=1 image=0
+  local org_name="" org_slug="" admin_email="" admin_name="" domain="" port="8080" mode="single" model="" ai=1 image=0 speech=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --org-name) org_name="$2"; shift 2 ;;
@@ -154,6 +167,7 @@ cmd_install() {
       --model) model="$2"; shift 2 ;;
       --no-ai) ai=0; shift ;;
       --image) image=1; shift ;;
+      --speech) speech=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
@@ -188,6 +202,12 @@ cmd_install() {
     image_mode="local"
     say "→ pictures: $image_model$(has_gpu || printf ' — on the CPU, a picture takes minutes')"
   fi
+  local transcription_url=""
+  if [ "$speech" = 1 ]; then
+    profiles="${profiles:+$profiles,}speech"
+    transcription_url="http://speech:8000/v1/audio/transcriptions"
+    say "→ speech to text: $SPEECH_MODEL, on this server"
+  fi
   say "→ writing $ENV_FILE (secrets generated here, readable only by you)"
   umask 077
   sed -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(secret 32)|" \
@@ -204,6 +224,8 @@ cmd_install() {
       -e "s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=${model:-qwen3:8b}|" \
       -e "s|^IMAGE_MODE=.*|IMAGE_MODE=$image_mode|" \
       -e "s|^IMAGE_MODEL=.*|IMAGE_MODEL=$image_model|" \
+      -e "s|^TRANSCRIPTION_URL=.*|TRANSCRIPTION_URL=$transcription_url|" \
+      -e "s|^TRANSCRIPTION_MODEL=.*|TRANSCRIPTION_MODEL=$SPEECH_MODEL|" \
       "$ROOT/.env.docker.example" > "$ENV_FILE"
   printf '\n# Written by hivamis install, %s\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"
 
@@ -212,6 +234,7 @@ cmd_install() {
   wait_healthy
   if [ "$ai" = 1 ]; then pull_model "$model"; fi
   if [ "$image" = 1 ]; then pull_image_model "$image_model"; fi
+  if [ "$speech" = 1 ]; then pull_speech_model; fi
 
   say "→ creating the organisation and its first administrator"
   local hosts=()

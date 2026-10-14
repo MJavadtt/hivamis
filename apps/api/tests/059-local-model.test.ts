@@ -27,7 +27,10 @@ async function install(extra: string[], machine: { gb: number; gpu: boolean }) {
     const r = await run('bash', [path.join(ROOT, 'infrastructure/hivamis'), 'install', '--org-name', 'x', '--org-slug', 'xx', '--admin-email', 'a@x.ir', '--admin-name', 'x', ...extra], { env });
     const written = readFileSync(path.join(dir, '.env'), 'utf8');
     const val = (k: string) => new RegExp(`^${k}=(.*)$`, 'm').exec(written)?.[1];
-    return { out: r.stdout, err: r.stderr, profiles: val('COMPOSE_PROFILES'), chat: val('CHAT_MODE'), model: val('OLLAMA_MODEL'), image: val('IMAGE_MODE'), imageModel: val('IMAGE_MODEL') };
+    return {
+      out: r.stdout, err: r.stderr, profiles: val('COMPOSE_PROFILES'), chat: val('CHAT_MODE'), model: val('OLLAMA_MODEL'), image: val('IMAGE_MODE'), imageModel: val('IMAGE_MODEL'),
+      transcription: val('TRANSCRIPTION_URL'), speechModel: val('TRANSCRIPTION_MODEL'),
+    };
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -118,5 +121,24 @@ describe('Pictures inside the installation (audit F-2)', () => {
     expect(service('imagegen-pull')).toContain('profiles: [pull]');
     expect(service('api')).toContain('IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}');
     expect(service('api')).toContain('IMAGE_MODE: ${IMAGE_MODE:-off}');
+  });
+
+  // Audit F-4: speech to text on the installation's own server, so a voice never leaves it.
+  it('with --speech: Whisper on the speech server, fetched and answering before the install finishes', async () => {
+    const plain = await install([], { gb: 32, gpu: false });
+    expect([plain.transcription, plain.profiles]).toEqual(['', 'ai']);
+    const r = await install(['--speech'], { gb: 32, gpu: false });
+    expect([r.transcription, r.speechModel, r.profiles]).toEqual(['http://speech:8000/v1/audio/transcriptions', 'Systran/faster-whisper-medium', 'ai,speech']);
+    expect(r.out).toContain('--profile pull run --rm speech-pull Systran/faster-whisper-medium');
+    expect(r.out.indexOf('check that the speech server answers')).toBeLessThan(r.out.indexOf('tenant:create'));
+  });
+
+  it('keeps the speech server on the internal network, offline, with its models on a volume', () => {
+    expect(service('speech')).toMatch(/image: ghcr\.io\/speaches-ai\/speaches:\d+\.\d+\.\d+-cpu\n\s+profiles: \[speech\]/);
+    expect(service('speech')).toContain("HF_HUB_OFFLINE: '1'");
+    expect(service('speech')).toMatch(/networks:\n      ai:\n        aliases: \[speech\]/);
+    expect(service('speech')).not.toContain('ports:');
+    expect(service('speech-pull')).toContain('profiles: [pull]');
+    expect(service('api')).toContain('TRANSCRIPTION_URL: ${TRANSCRIPTION_URL:-}');
   });
 });

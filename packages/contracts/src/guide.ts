@@ -383,11 +383,13 @@ export const GUIDE: GuideSection[] = [
     title: t('دستیار هوشمند', 'AI assistant'),
     summary: t('تحلیل‌های قاعده‌محور روی داده‌های سامانه، و گفت‌وگو با دستیار محلی از دکمهٔ بالای صفحه.',
       'Rule-based analyses over the system\'s data, and a conversation with the local assistant from the button at the top.'),
-    keywords: 'هوش مصنوعی دستیار تحلیل گفتگو ai assistant analysis chat',
+    keywords: 'هوش مصنوعی دستیار تحلیل گفتگو صدا میکروفون پیشنهاد ai assistant analysis chat voice microphone proposal',
     steps: [
       step(ANY.header, t('یک تحلیل', 'An analysis'), t('تحلیل و موضوعش را انتخاب کنید. یافته‌های قاعده‌محور همیشه هست و به رکوردهایش ارجاع می‌دهد.', 'Choose an analysis and its subject. Rule-based findings are always there, citing their records.')),
       step('[data-tour="assistant"]', t('گفت‌وگو', 'A conversation'), t('این دکمه دستیار محلی را باز می‌کند: رایگان و بی‌سقف. هر چه شما می‌بینید می‌بیند، نه بیشتر، و فرم پرشده پیشنهاد می‌دهد.',
         'This button opens the local assistant: free and unlimited. It sees what you see, no more, and offers forms already filled in.')),
+      step(undefined, t('گفتن و تأیید', 'Speak, then approve'), t('با دکمهٔ میکروفون بگویید چه کرده‌اید یا چه می‌خواهید؛ متن را می‌خوانید و می‌فرستید. اگر دستیار کاری پیشنهاد کند — تحویل وظیفه، ثبت ساعت، جلسه — تا خودتان تیک نزنید و «انجام موارد انتخاب‌شده» را نزنید، چیزی نوشته نمی‌شود.',
+        'Press the microphone and say what you did or want; you read the text, then send it. When the assistant proposes something — submitting a task, logging time, a meeting — nothing is written until you tick it and press “Do the selected”.')),
     ],
   },
   {

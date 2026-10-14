@@ -104,8 +104,8 @@ come from `tenant:create`, as the installer does.
 | `LOGIN_RATE_LIMIT_MAX` | no | 10 | Login attempts a minute per address. Also how often one session may be renewed a minute, counted per session rather than per address: an office behind one NAT address shares one (audit UI-V) |
 | `TRUST_PROXY` | no | `false` | Which proxies may set `X-Forwarded-For`. `false` trusts nothing; a number is a hop count (`1` behind one reverse proxy — what the compose stack sets); a comma-separated list trusts those addresses. Leaving it at `false` behind a proxy means every client shares one rate-limit bucket; setting it too high lets a client forge its own IP and escape the login limit entirely. |
 | `JOBS_ENABLED` | no | true | SLA ticking and digests |
-| `TRANSCRIPTION_URL` | no | — | Speech-to-text endpoint for meeting audio (roadmap #23), OpenAI-compatible: `POST` multipart `file`, `model`, `language=fa`, returning `{ text }` — a self-hosted Whisper server works. Unset, the audio button is hidden and minutes are drafted from typed notes |
-| `TRANSCRIPTION_MODEL` / `TRANSCRIPTION_API_KEY` | no | whisper-1 / — | Sent as the `model` field and as a Bearer token. Audio leaves the building when the URL is not your own; point it at an internal service if that matters |
+| `TRANSCRIPTION_URL` | no | — | Speech-to-text endpoint for meeting audio (roadmap #23) and for speaking to the assistant (audit F-4), OpenAI-compatible: `POST` multipart `file`, `model`, `language=fa`, returning `{ text }`. In Compose, the `speech` profile's server: `http://speech:8000/v1/audio/transcriptions`. Unset, the microphone and the audio button are hidden and minutes are drafted from typed notes |
+| `TRANSCRIPTION_MODEL` / `TRANSCRIPTION_API_KEY` | no | whisper-1 (Compose: `Systran/faster-whisper-medium`) / — | Sent as the `model` field and as a Bearer token. Audio leaves the building when the URL is not your own; the `speech` profile keeps it inside |
 | `FX_MAX_RATE_AGE_DAYS` | no | 7 | How old an exchange rate may be and still convert a new figure (roadmap #28). A figure dated after the last rate by more than this is refused with `FX_RATE_STALE` until that day's rate is recorded — the rial moves daily, and last month's rate is a figure nobody agreed to. `0` demands a rate for the exact day |
 | `WEBHOOK_ALLOW_PRIVATE` | no | false | Let webhooks call internal addresses (and plain http) — roadmap #46. Off, a webhook URL that is or resolves to loopback, a private range or link-local (cloud metadata) is refused, on save and at connection time. Turn on only for an on-premise installation whose receivers share its network: it re-opens server-side request forgery to anyone holding `admin.keys` |
 | `WEBHOOK_CONCURRENCY` | no | 8 | Deliveries in flight at once, across receivers (audit PERF-2). Each receiver gets one at a time, in order, so a slow one holds up only itself |
@@ -855,6 +855,62 @@ FLUX.2-dev and Ideogram 4.
 own token, so permission, quota, the file's real type and the project it is attached to are each
 checked there. The prompt, the model, who asked and when go with the file (`metadata.generated`,
 tag `ai-generated`) and into the audit trail (`GENERATE`).
+
+## Speaking to the assistant
+
+Audit F-4. The assistant drawer and the phone app have a microphone. A person speaks; the text
+comes back into the message box for them to read, correct and send. It is never sent for them.
+
+**Speech to text runs on the installation's own server.** The server is
+[Speaches](https://github.com/speaches-ai/speaches) (MIT licence), a Whisper-compatible server, in
+the Compose stack as `speech` (profile `speech`). It sits on the internal `ai` network, with no
+route out, and reads its model from a volume with `HF_HUB_OFFLINE=1`. The audio is not kept. The AI
+log records each use (capability `VOICE`), never what was said.
+
+To turn it on:
+
+- Install with `--speech`. The installer adds the profile, sets `TRANSCRIPTION_URL`, fetches the
+  model (about 1.5 GB) and checks that the server answers before finishing.
+- Or, on an installation already running:
+  1. add `speech` to `COMPOSE_PROFILES`;
+  2. set `TRANSCRIPTION_URL=http://speech:8000/v1/audio/transcriptions`;
+  3. run `docker compose run --rm speech-pull Systran/faster-whisper-medium`;
+  4. run `docker compose up -d`.
+
+**Choosing the model.** `TRANSCRIPTION_MODEL` chooses the Whisper model. All of them understand
+Persian:
+
+| Model | Size | On a CPU, for a sentence |
+| --- | --- | --- |
+| `Systran/faster-whisper-small` | 0.5 GB | about a second; weaker on names |
+| `Systran/faster-whisper-medium` (default) | 1.5 GB | a few seconds |
+| `Systran/faster-whisper-large-v3` | 3 GB | slower; better, worth it on a GPU |
+
+The meeting recorder (roadmap #23) uses the same server once `TRANSCRIPTION_URL` is set.
+
+**The browser needs the microphone.** nginx sends `Permissions-Policy: microphone=(self)`, which
+lets the page itself use it and nothing embedded in it. Browsers ask for the microphone only on
+HTTPS (or `localhost`). Over plain HTTP the browser gives the page no microphone, so the button
+is not shown.
+
+**Reading aloud** uses a voice on the device itself (`speechSynthesis`, local voices only). Where the
+device has none for the reader's language, which is common for Persian, there is no button. Nothing
+is installed on the server for it.
+
+### Changes the assistant proposes
+
+When someone asks for something to be written — "I finished the logo draft and worked three hours
+on it" — the assistant answers with a plan: submit the task, log three hours. The person sees each
+step and the exact request, ticks what they want, and confirms.
+
+- **Each step runs through the ordinary API**, as that person, with their token. A permission they
+  lack, a Doc_H guard or a closed period answers exactly as it would on the page.
+- **What is kept.** The plan and its outcome are kept in `ai_plans`. The audit trail shows
+  `AI_PLAN_PROPOSED`, then `AI_PLAN_EXECUTED` or `AI_PLAN_DECLINED`. Each step that ran has its own
+  audit rows, as when done by hand.
+- **Limits on running.** A plan runs once, only by its owner, and not after 30 minutes.
+
+Nothing needs setting up for this beyond the chat model.
 
 ## The guide owl and its videos
 

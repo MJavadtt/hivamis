@@ -91,6 +91,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
       const result = await runTurn(history, {
         app, userId: actor.id, authorization: req.headers.authorization ?? '', locale: requestLocale(req.headers['accept-language']), currency: me.organization.currency,
         person: { fullName: me.fullName, jobTitle: me.jobTitle, unit: actor.departmentCode, roles: actor.roles },
+        organizationId: actor.organizationId, conversationId: conversation.id, said: input.message,
         page: input.context ?? null,
       }, {
         onDelta: (text) => send('delta', { text }),

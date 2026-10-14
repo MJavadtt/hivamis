@@ -592,10 +592,11 @@ It knows the page it was opened from, so on a project's page "this project" mean
 Suggested questions are offered when the conversation is empty.
 
 While it works, you see what it is looking at («خواندن پرونده…»). It reads what you could read
-yourself, no more. It changes nothing. When something should be done, it offers a button:
+yourself, no more. It changes nothing by itself. When something should be done, it offers:
 
 - a form, already filled in from what it found, for you to check and send
 - a page, to open
+- changes for you to approve (see **Speaking, and approving what it proposes** below)
 
 Your conversations are yours alone. Open earlier ones under «گفت‌وگوهای پیشین», or delete them. The
 governance log records which tools were used on which records, never what was said.
@@ -634,6 +635,38 @@ size. The picture is drawn on the organisation's own server, which takes minutes
 It is then added to the project's files with its description, the model, and who made it.
 
 Both are yours by default. The system administrator can take either away under Admin → Roles.
+
+### Speaking, and approving what it proposes
+
+**Speaking.** Where the system administrator has set up speech, the conversation has a
+microphone button beside the message box. On the phone app (`/m`) the same button floats above the
+tabs.
+
+1. Press it and speak. The browser asks for the microphone the first time.
+2. Press it again when you are done. What you said is written into the message box, in Persian
+   unless you spoke another language.
+3. Read it, correct it, and send it. Nothing is sent until you press **Send**.
+
+The audio is turned into text on the organisation's own server and is not kept.
+
+**Changes it proposes.** Tell the assistant what you did or want done — «امروز پیش‌نویس لوگوی
+PRJ-000016 را تمام کردم و سه ساعت رویش کار کردم». It does not do it. It answers with a card of
+proposed changes, such as submitting the task and logging three hours:
+
+- Each step says in words what it will do. **Exactly what will be written** shows the request
+  itself.
+- A step that cannot be done as it stands says why, and cannot be ticked. An example is a new task
+  without its source document (Doc_H §6).
+- Untick what you do not want, then press **Do the selected**. **None** declines them all.
+
+Each step is then done in your name, just as on its own page: the same permissions, rules and
+deadlines apply, and the history records it as yours. The card then says what became of each step
+(**Done**, **Not done** and why, or **Left out**). A proposal runs once and is good for 30 minutes;
+after that, ask again.
+
+**Reading aloud.** Where your device has a voice of its own for your language, each reply has
+**Read aloud**. Persian voices are not on every device; where there is none, the button is not
+shown.
 
 ---
 

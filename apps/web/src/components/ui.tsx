@@ -490,4 +490,6 @@ export const IconPlus = ico(<><path d="M12 5v14M5 12h14" /></>);
 export const IconArrow = ico(<><path d="M19 12H5M12 19l-7-7 7-7" /></>);
 export const IconClock = ico(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>);
 export const IconFold = ico(<><path d="M5 5v14" /><path d="M18 7l-5 5 5 5" /></>);
+export const IconMic = ico(<><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0014 0M12 17v4M8 21h8" /></>);
+export const IconSpeaker = ico(<><path d="M11 5L6 9H2v6h4l5 4z" /><path d="M15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14" /></>);
 export const IconLayers = ico(<><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></>);

@@ -2486,3 +2486,71 @@ the organisation's own, beside them, gives the freedom without that cost.
 - Custom roles cannot be named in Doc_H guards or code-defined workflow transitions, which name the
   code's roles.
 - Two organisations may each have a «خلاقه»; they are different roles with different codes.
+
+## ADR-085 — Speaking to the assistant, and changes that wait for the person's approval
+
+**Decision.** (Audit F-4, with SEC-9.)
+
+- **Speech becomes text inside the installation.**
+  - The microphone records in the browser.
+  - The audio goes to `POST /ai/voice/transcribe`. That route passes it to `TRANSCRIPTION_URL`, the
+    same adapter the meeting recorder uses, in Persian.
+  - In Compose, the `speech` profile runs Speaches (MIT), a Whisper-compatible server. It sits on the
+    internal `ai` network with `HF_HUB_OFFLINE=1`, and `speech-pull` fetches its model once.
+  - No audio is kept. The text goes back into the message box, and the person reads it and sends it
+    (or does not).
+  - `Permissions-Policy` now allows the microphone to the page's own origin (`microphone=(self)`);
+    the camera stays off.
+- **Replies are read aloud only by a voice on the device.** `speechSynthesis`, with a voice whose
+  `localService` is true. A voice the browser would fetch from the network is never used, and with
+  no local voice there is no button.
+- **The assistant proposes; the person approves.** A new tool, `propose_actions`, turns a request
+  into a plan of steps. The step kinds:
+  - submit or move a task;
+  - log time;
+  - create a task;
+  - schedule a meeting;
+  - send a form.
+- **How a plan is resolved, kept and shown.**
+  - Each step is resolved with the person's own reads. A code or a title becomes an id only if they
+    may see the record, and the model never supplies an id that is used as it is.
+  - A title is matched word by word, in one written form of Persian (no ٔ, no zero-width joiner,
+    Persian ی and ک). The match is made in the project named, or else among the person's own tasks.
+  - A reference that does not resolve falls back on the person's own words this turn. The local
+    model was seen to make a task code up; the step then shows the task found, by code and title.
+  - The plan is kept (`ai_plans`) and audited (`AI_PLAN_PROPOSED`). Nothing else is written.
+  - The card shows each step in words and, opened, the exact request.
+  - A step the API is certain to refuse says why beforehand and cannot be ticked. An example is a
+    task without its source document (Doc_H §6).
+- **What runs is what was ticked.**
+  - `POST /ai/plans/:id/execute {steps}` runs those steps, in order, through the ordinary routes
+    with the person's own token. Every permission, guard, SLA and audit of those routes applies.
+  - The rest are declined, and the outcome of each step is kept and audited (`AI_PLAN_EXECUTED`,
+    or `AI_PLAN_DECLINED` for "none").
+  - Only the plan's owner may read, run or decline it; anyone else gets `404`.
+  - A decided plan is not run again (`409 PLAN_DECIDED`). After 30 minutes it is stale
+    (`409 PLAN_EXPIRED`), since what it read may have moved.
+
+**Rationale.**
+
+- The owner asked to say what was done and have it recorded.
+- The fix prompt asks that nothing runs without an explicit click, and that the person sees
+  exactly what will be written.
+- Running each step through the public routes, rather than writing from the agent, keeps one path
+  for every write. The state machine stays the only writer of state, and Doc_H's guards answer the
+  assistant exactly as they answer the page.
+
+**Limits.**
+
+- Whisper's Persian is good, not perfect: names and codes come back as heard. That is why the text
+  is shown, not sent.
+- Assigning a task is not proposed; it needs a person chosen on the page.
+- **What was run end to end, on the sweep stack:**
+  - in headless Chromium, a Web Audio stream recorded by the browser's own MediaRecorder (macOS gives
+    a headless browser no audio source);
+  - the audio sent through the route to a stand-in speech server;
+  - the text sent to the real local model (qwen3:14b), which proposed submitting the task and
+    logging three hours;
+  - both steps approved and run: the task submitted, the time entered.
+- **What was not run:** the Speaches image and its model fetch. They were configured and tested for
+  shape (`059`) only, since there was no Docker daemon on this machine.

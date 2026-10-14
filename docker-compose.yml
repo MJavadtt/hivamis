@@ -7,6 +7,8 @@
 #   ai-gpu   the model on NVIDIA GPUs (needs the NVIDIA Container Toolkit)
 #   (none)   no model in the stack: set CHAT_MODE=off, or point OLLAMA_URL elsewhere
 #   image, image-gpu   pictures with the assistant (audit F-2) — off unless added, with IMAGE_MODE=local
+#   speech   speech to text inside the installation (audit F-4): voice to the assistant, meeting
+#            recordings — off unless added, with TRANSCRIPTION_URL=http://speech:8000/v1/audio/transcriptions
 
 # The picture server (audit F-2): LocalAI (MIT), on the same internal network, models on a volume.
 x-imagegen: &imagegen
@@ -118,6 +120,11 @@ services:
       IMAGE_MODE: ${IMAGE_MODE:-off}
       IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}
       IMAGE_MODEL: ${IMAGE_MODEL:-sd-1.5-ggml}
+      # Speech to text (roadmap #23, audit F-4): the `speech` service, or any OpenAI-shaped
+      # /audio/transcriptions endpoint. Empty: voice and recordings say they are not set up.
+      TRANSCRIPTION_URL: ${TRANSCRIPTION_URL:-}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-Systran/faster-whisper-medium}
+      TRANSCRIPTION_API_KEY: ${TRANSCRIPTION_API_KEY:-}
       GUIDE_VIDEO_MAX_MB: ${GUIDE_VIDEO_MAX_MB:-200}
       # Roadmap #50: the address links are built on, one or several organisations, the version shown,
       # and whether start-up brings the reference data up to the code.
@@ -209,6 +216,31 @@ services:
       - image-models:/models
     command: ['models', 'install', '${IMAGE_MODEL:-sd-1.5-ggml}']
 
+  # Speech to text (audit F-4): Speaches (MIT), a Whisper-compatible server, on the internal network;
+  # audio sent to it never leaves the installation. Its models are fetched by speech-pull.
+  speech:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    profiles: [speech]
+    restart: unless-stopped
+    environment:
+      HF_HUB_OFFLINE: '1'
+    volumes:
+      - speech-models:/home/ubuntu/.cache/huggingface/hub
+    networks:
+      ai:
+        aliases: [speech]
+    expose:
+      - '8000'
+
+  #   docker compose run --rm speech-pull Systran/faster-whisper-medium
+  speech-pull:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    profiles: [pull]
+    volumes:
+      - speech-models:/home/ubuntu/.cache/huggingface/hub
+    entrypoint: ['python', '-c', 'import sys; from huggingface_hub import snapshot_download; print(snapshot_download(sys.argv[1]))']
+    command: ['${TRANSCRIPTION_MODEL:-Systran/faster-whisper-medium}']
+
 networks:
   # `internal`: no route out. The API joins it to reach the model; the model has no other network.
   ai:
@@ -219,3 +251,4 @@ volumes:
   storage:
   ollama-models:
   image-models:
+  speech-models:

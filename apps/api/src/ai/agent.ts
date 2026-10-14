@@ -4,6 +4,7 @@ import { chat, type ChatMessage, type ToolCall, type ToolSpec } from './ollama.j
 import { asAgentFor } from '../lib/request-context.js';
 import { dateFor, shape } from './shape.js';
 import { guideFor, searchGuide } from '@hiva/contracts';
+import { proposePlan, STEP_KINDS } from './plans.js';
 
 /**
  * The assistant's hands (Hivamis task 5) — and why they cannot do harm.
@@ -16,9 +17,11 @@ import { guideFor, searchGuide } from '@hiva/contracts';
  */
 
 export interface ChatAction {
-  type: 'form' | 'link';
+  type: 'form' | 'link' | 'plan';
   label: string;
   /** form */ code?: string; prefill?: Record<string, string>;
+  /** plan (audit F-4): proposed steps, each as what it would write; nothing runs until approved */
+  planId?: string; steps?: { kind: string; summary: string; request: { method: string; path: string; body: Record<string, unknown> }; issue?: string }[];
   /** link */ path?: string;
 }
 
@@ -31,6 +34,11 @@ export interface AgentContext {
   /** The organisation's currency: what an amount without one is in. */
   currency: string;
   person: { fullName: string; jobTitle: string | null; unit: string | null; roles: string[] };
+  /** Where a proposed plan is kept (audit F-4). */
+  organizationId: string;
+  conversationId?: string | null;
+  /** What the person said this turn: what a proposed step falls back on when the model's reference does not resolve. */
+  said?: string;
   page?: { path?: string | null; entity?: string | null; id?: string | null; title?: string | null } | null;
 }
 
@@ -85,6 +93,7 @@ export const TOOLS: ToolSpec[] = [
   { type: 'function', function: { name: 'search_guide', description: 'How to do something in this application — where a page is, which button, what a step means — from the user guide. Use it for "how do I…" questions.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
   { type: 'function', function: { name: 'related_forms', description: 'The forms that fit a record at its current stage, with their codes. Call this before offer_form.', parameters: { type: 'object', properties: { kind: { type: 'string', enum: FORM_KINDS }, id: { type: 'string' } }, required: ['kind', 'id'] } } },
   { type: 'function', function: { name: 'offer_form', description: 'Show the user a button that opens a form, already filled with the record it is about. The only way to offer a form. The user reviews and sends it themselves.', parameters: { type: 'object', properties: { code: { type: 'string', description: 'A form code from related_forms, e.g. K01_STATUS' }, kind: { type: 'string', enum: FORM_KINDS, description: 'The record the form is about (default: the one on screen)' }, id: { type: 'string' }, prefill: { type: 'object', description: 'Optional extra field key → short text you are sure of' } }, required: ['code'] } } },
+  { type: 'function', function: { name: 'propose_actions', description: 'Propose changes the user asked for — the user sees each step and approves it before anything is written; nothing happens without them. Give a task as its code (TSK-…) only when a tool returned it or the user said it — never make one up — otherwise its title as the user said it, with project (PRJ-…) if they named one. When the user says they finished a task, propose task_submit for it, and log_time too if they said how long. Kinds: task_submit {task, project?}; task_move {task (as above), action: accept|start|block|submit|send_to_qc|qc_approve|qc_reject|close|cancel, reason (required for block, qc_reject, cancel)}; log_time {task, project?, hours, date: today|yesterday|YYYY-MM-DD, note?}; create_task {project, title, sourceType, sourceRef, dueDate?}; schedule_meeting {project?, subject, at: ISO date-time, attendees}; submit_form {form: code, fields}.', parameters: { type: 'object', properties: { steps: { type: 'array', items: { type: 'object', properties: { kind: { type: 'string', enum: [...STEP_KINDS] }, task: { type: 'string' }, action: { type: 'string' }, reason: { type: 'string' }, project: { type: 'string' }, hours: { type: 'number' }, date: { type: 'string' }, note: { type: 'string' }, title: { type: 'string' }, sourceType: { type: 'string' }, sourceRef: { type: 'string' }, dueDate: { type: 'string' }, subject: { type: 'string' }, at: { type: 'string' }, attendees: { type: 'string' }, form: { type: 'string' }, fields: { type: 'object' } }, required: ['kind'] } } }, required: ['steps'] } } },
   { type: 'function', function: { name: 'offer_page', description: 'Offer the user a link to a page of the application, e.g. /projects/<id>.', parameters: { type: 'object', properties: { path: { type: 'string' }, label: { type: 'string' } }, required: ['path', 'label'] } } },
 ];
 
@@ -263,6 +272,21 @@ export async function runTool(call: ToolCall, ctx: AgentContext): Promise<ToolRe
         action: { type: 'form', label: ctx.locale === 'en' ? def.nameEn : def.nameFa, code, prefill },
       };
     }
+    case 'propose_actions': {
+      const plan = await proposePlan({
+        app: ctx.app, userId: ctx.userId, organizationId: ctx.organizationId, authorization: ctx.authorization,
+        locale: ctx.locale, unit: ctx.person.unit, conversationId: ctx.conversationId, said: ctx.said,
+      }, a.steps);
+      if (!plan) return { content: 'nothing to propose: no step of a known kind' };
+      const open = plan.steps.filter((s) => !s.issue).length;
+      return {
+        content: `proposed ${plan.steps.length} step(s), ${open} ready for the user's approval${plan.steps.some((s) => s.issue) ? `; problems: ${plan.steps.filter((s) => s.issue).map((s) => s.issue).join('; ')}` : ''}. Nothing has been done: tell the user to review and approve.`,
+        action: {
+          type: 'plan', label: ctx.locale === 'en' ? 'Proposed changes' : 'تغییرات پیشنهادی', planId: plan.id,
+          steps: plan.steps.map((s) => ({ kind: s.kind, summary: ctx.locale === 'en' ? s.summaryEn : s.summaryFa, request: s.request, ...(s.issue ? { issue: ctx.locale === 'en' ? s.issue : s.issueFa ?? s.issue } : {}) })),
+        },
+      };
+    }
     case 'offer_page': {
       const path = str(a.path, 120);
       if (!PAGE.test(path)) return { content: 'only pages of this application can be offered' };
@@ -290,7 +314,8 @@ export function systemPrompt(ctx: AgentContext, now = new Date(), brief = '', fe
     '- Facts about records, people and numbers come only from your tools. Never invent a name, date, amount, code or state; if a tool did not return it, say you do not know.',
     '- A tool answer whose text starts with "refused" means the user may not see that; say so plainly and do not guess.',
     '- Copy amounts, dates and codes exactly as the tools give them. Never convert a currency or a unit (a rial is not a toman) or a calendar, and do not round.',
-    '- You cannot change anything. To help the user act: for a form, choose the one whose name is closest to what the user asked for, from the forms that fit the record (listed above, or from related_forms), then call offer_form and name the form with its code — only then does the user see a button; never say a form is ready unless offer_form answered "offered". For a page, call offer_page.',
+    '- You change nothing yourself. When the user asks you to do something that writes — submit, start or otherwise move a task, log time, create a task, schedule a meeting, send a form with what they told you — call propose_actions with the steps: the user sees each and approves it before anything is written. Never say it is done; say it is waiting for their approval.',
+    '- For a form the user wants to fill in themselves, choose the one whose name is closest to what the user asked for, from the forms that fit the record (listed above, or from related_forms), then call offer_form and name the form with its code — only then does the user see a button; never say a form is ready unless offer_form answered "offered". For a page, call offer_page.',
     '- Asked which form to fill, recommend the one or two that fit best, each with a few words on why; do not list them all.',
     '- Never write links or URLs in your answer; buttons come only from offer_form and offer_page. Do not show ids (UUIDs) to the user; use names and codes.',
     '- The organisation\'s process rules (Doc_H) bind everyone: never suggest skipping an approval, a QC level, a start permit or a change assessment.',

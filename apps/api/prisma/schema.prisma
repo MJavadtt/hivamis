@@ -48,6 +48,7 @@ model Organization {
   companies      Company[]
   holidays       Holiday[]
   signupRequests SignupRequest[]
+  aiPlans        AiPlan[]
 
   @@map("organizations")
 }
@@ -356,6 +357,7 @@ model User {
   signupDecisions      SignupRequest[]       @relation("SignupDecider")
   signupAccounts       SignupRequest[]       @relation("SignupAccount")
   aiConversations      AiConversation[]
+  aiPlans              AiPlan[]
   guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
 
   @@unique([organizationId, email])
@@ -3014,6 +3016,29 @@ model SignupRequest {
 /**
  * ── The local assistant (Hivamis task 5) ──────────────────────────────────
  */
+
+/// What the assistant proposed to do for someone (audit F-4): each step as the exact request it would
+/// make. Nothing runs until that person approves steps; then each runs through the ordinary API with
+/// their own token. The plan and what came of it stay here and in the audit trail.
+model AiPlan {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  /// [{ kind, summaryFa, summaryEn, request: { method, path, body }, issue? }]
+  steps          Json
+  /// PROPOSED | EXECUTED | PARTIAL | FAILED | DECLINED
+  status         String       @default("PROPOSED")
+  /// [{ index, status: DONE | FAILED | DECLINED, code?, message? }]
+  outcome        Json?
+  createdAt      DateTime     @default(now())
+  decidedAt      DateTime?
+
+  @@index([userId, createdAt])
+  @@map("ai_plans")
+}
 
 /// A person's conversation with the assistant — theirs alone; nobody else, administrators included,
 /// reads it. What each turn did (model, tools, timing) goes to ai_interactions for the AI log.

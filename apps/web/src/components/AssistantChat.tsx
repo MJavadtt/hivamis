@@ -6,7 +6,7 @@ import { apiDelete, apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { streamChat, type ChatAction } from '../lib/chat';
 import { formatDateTime } from '../lib/format';
-import { Button, cx, Spinner } from './ui';
+import { Button, cx, IconSpeaker, Spinner } from './ui';
 import { ChatText } from './Markdown';
 import { OpenForm, type Suggestion } from './SuggestedForms';
 import type { ChatModelStatus } from '@hiva/contracts';
@@ -14,12 +14,16 @@ import { tr } from '../i18n';
 import { useFocusTrap } from '../hooks/useDismissable';
 import { assistantBus } from '../lib/guide';
 import { OwlSvg } from './owl/Owl';
+import { VoiceButton } from './VoiceButton';
+import { PlanCard } from './PlanCard';
+import { localVoice, speak, stopSpeaking } from '../lib/voice';
 
 /**
  * The assistant (Hivamis task 5): a conversation with the organisation's own local model, free and
  * without a quota. It knows the page it is opened from — "this project" means the one on screen — and
- * looks things up as the person would. It changes nothing: what it can do is offer a form, ready to
- * fill, or a page, for the person to open.
+ * looks things up as the person would. It changes nothing itself: it offers a form, ready to fill, or
+ * a page, for the person to open — or proposes changes, which wait for the person to approve each one
+ * (audit F-4). It can be spoken to, and read aloud where the device has a voice of its own.
  */
 
 interface Message { role: 'user' | 'assistant'; content: string; actions: ChatAction[]; tools: string[] }
@@ -27,7 +31,21 @@ interface Message { role: 'user' | 'assistant'; content: string; actions: ChatAc
 const TOOL_FA: Record<string, string> = {
   search_records: tr('جستجوی پرونده‌ها…'), get_record: tr('خواندن پرونده…'), my_work: tr('دیدن کارهای شما…'),
   ask_numbers: tr('پرسیدن از عددها…'), search_memory: tr('جستجو در حافظهٔ سازمان…'), related_forms: tr('یافتن فرم‌های مرتبط…'),
+  propose_actions: tr('آماده کردن پیشنهاد…'),
 };
+
+/** A voice on this device for reading replies aloud; voices arrive after the page loads. */
+function useLocalVoice() {
+  const [voice, setVoice] = useState(() => localVoice());
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const synth = window.speechSynthesis;
+    const heard = () => setVoice(localVoice());
+    synth.addEventListener?.('voiceschanged', heard);
+    return () => { synth.removeEventListener?.('voiceschanged', heard); stopSpeaking(); };
+  }, []);
+  return voice;
+}
 
 const PAGES: [RegExp, string][] = [
   [/^\/projects\/([\w-]{36})/, 'project'], [/^\/opportunities\/([\w-]{36})/, 'opportunity'], [/^\/companies\/([\w-]{36})/, 'company'],
@@ -69,7 +87,7 @@ export function AssistantButton() {
   );
 }
 
-export function AssistantChat({ onClose, initialQuestion }: { onClose: () => void; initialQuestion?: string }) {
+export function AssistantChat({ onClose, initialQuestion, initialDraft }: { onClose: () => void; initialQuestion?: string; initialDraft?: string }) {
   const { can } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -77,7 +95,9 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
   const { data: status } = useQuery<ChatModelStatus>({ queryKey: ['/ai/chat/status'], queryFn: () => apiGet('/ai/chat/status'), staleTime: 15_000 });
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft ?? '');
+  const voice = useLocalVoice();
+  const [speaking, setSpeaking] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [queue, setQueue] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,14 +228,21 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
                     : m.content ? <ChatText source={m.content} />
                     : busy && i === messages.length - 1 ? <span className="flex items-center gap-2 text-xs text-ink-500"><Spinner className="size-3.5" />{queue ? tr('در صف — نفر {0}', String(queue)) : tr('در حال فکر کردن…')}</span>
                     : null}
-                  {m.actions.length > 0 && (
+                  {m.actions.filter((a) => a.type === 'plan' && a.planId).map((a) => <PlanCard key={a.planId} action={a} />)}
+                  {m.actions.some((a) => a.type !== 'plan') && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {m.actions.map((a, j) => (
+                      {m.actions.filter((a) => a.type !== 'plan').map((a, j) => (
                         <Button key={j} size="sm" variant={a.type === 'form' ? 'primary' : 'secondary'} onClick={() => act(a)}>
                           {a.type === 'form' ? tr('باز کردن «{0}»', a.label) : a.label}
                         </Button>
                       ))}
                     </div>
+                  )}
+                  {voice && m.role === 'assistant' && m.content && !(busy && i === messages.length - 1) && (
+                    <button type="button" className={cx('mt-1.5 flex items-center gap-1 text-[12px] hover:text-brand-700', speaking === i ? 'text-brand-700' : 'text-ink-500')}
+                      onClick={() => { if (speaking === i) { stopSpeaking(); setSpeaking(null); } else { setSpeaking(i); speak(m.content, voice, () => setSpeaking((n) => (n === i ? null : n))); } }}>
+                      <IconSpeaker className="size-3.5" />{speaking === i ? tr('بس است') : tr('خواندن با صدا')}
+                    </button>
                   )}
                 </div>
               </div>
@@ -232,6 +259,9 @@ export function AssistantChat({ onClose, initialQuestion }: { onClose: () => voi
             placeholder={page.entity ? tr('دربارهٔ همین پرونده یا هر چیز دیگری بپرسید…') : tr('بپرسید…')} aria-label={tr('پیام به دستیار')}
             className="min-h-10 flex-1 resize-none rounded-lg bg-surface px-3 py-2 text-sm text-ink-800 ring-1 ring-inset ring-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
+          {!busy && status?.ready && (
+            <VoiceButton onError={setError} onText={(text) => { setError(null); setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text)); }} />
+          )}
           {busy
             ? <Button type="button" variant="secondary" onClick={() => abort.current?.abort()}>{tr('توقف')}</Button>
             : <Button type="submit" variant="primary" disabled={!draft.trim() || !status?.ready}>{tr('فرستادن')}</Button>}

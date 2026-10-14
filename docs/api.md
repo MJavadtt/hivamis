@@ -846,7 +846,8 @@ The stream's events, in order:
 - `queue` `{ position }`, only while waiting for a free slot
 - `tool` `{ name, args }`, each time the model looks something up
 - `delta` `{ text }`, the answer as it is written
-- `action` `{ type: 'form', label, code, prefill }` or `{ type: 'link', label, path }`
+- `action` `{ type: 'form', label, code, prefill }`, `{ type: 'link', label, path }`, or
+  `{ type: 'plan', label, planId, steps }` (below)
 - `done` `{ messageId, actions }`, or `error` `{ code, message }`
 
 When `context` names a record (`entity`, `id`), that record and the forms that fit it are read
@@ -857,6 +858,32 @@ The model's lookups are this application's own read endpoints, called as the per
 lookup they may not make comes back refused, and the model is told so. Nothing is written: a form
 is only offered, with its fields filled. `prefill` keeps only the form's own fields, and only forms
 the person's unit may send are offered. Links are limited to pages in the application.
+
+#### Voice, and changes the person approves
+
+Audit F-4. Same permission, `ai.chat`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /ai/voice/status` | `{ configured }`: whether `TRANSCRIPTION_URL` is set. The microphone is shown only when it is |
+| `POST /ai/voice/transcribe` | One multipart part, `audio/*` (WebM, Ogg, MP4/M4A, MPEG, WAV, AAC), at most 10 MB. Answers `{ text }`, in Persian unless spoken otherwise. The audio is not kept. 20 a minute. 400 `UNSUPPORTED_TYPE`, 413 `VOICE_TOO_LONG`, 501 `TRANSCRIPTION_NOT_CONFIGURED` |
+| `GET /ai/plans/:id` | `{ id, status, outcome, createdAt, decidedAt, expired }`. Status is `PROPOSED`, `EXECUTED`, `PARTIAL`, `FAILED` or `DECLINED`. Someone else's plan is 404 |
+| `POST /ai/plans/:id/execute` `{ steps: number[] }` | Runs those steps in order, as the caller, through the routes their `request` names; the rest are declined. Answers `{ status, outcome: [{ index, status: DONE\|FAILED\|DECLINED, code?, message? }] }`. 409 `PLAN_DECIDED` once decided; 409 `PLAN_EXPIRED` after 30 minutes |
+| `POST /ai/plans/:id/decline` | Declines every step. Same answer |
+
+A plan arrives in the chat stream as an `action`:
+
+```json
+{ "type": "plan", "label": "تغییرات پیشنهادی", "planId": "…",
+  "steps": [{ "kind": "log_time", "summary": "ثبت ۳ ساعت کار روی «پیش‌نویس لوگو» (TSK-000123) برای ۱۴۰۵/۰۷/۲۱",
+              "request": { "method": "POST", "path": "/tasks/…/time", "body": { "hours": 3, "workedOn": "2026-10-13" } } }] }
+```
+
+- **Step kinds:** `task_submit`, `task_move` (any task move but assigning), `log_time`,
+  `create_task`, `schedule_meeting`, `submit_form`.
+- **`issue`** says, in the reader's language, why a step cannot be approved as it stands; such a
+  step is reported `FAILED` with `NOT_APPROVABLE` if ticked anyway.
+- **Audit actions:** `AI_PLAN_PROPOSED`, `AI_PLAN_EXECUTED`, `AI_PLAN_DECLINED`, on `aiPlan`.
 
 ## The guide's videos
 
