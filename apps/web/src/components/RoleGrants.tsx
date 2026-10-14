@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { PERMISSIONS, PERMISSION_GROUPS, permissionGroup, type Permission } from '@hiva/contracts';
+import { OVERSIGHT_GRANTOR_ROLE, OVERSIGHT_PERMISSIONS, PERMISSIONS, PERMISSION_GROUPS, permissionGroup, type Permission } from '@hiva/contracts';
 import { apiGet, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime, localDigits } from '../lib/format';
@@ -36,7 +36,7 @@ function status(r: RoleRow): { tone: 'success' | 'warning' | 'info'; text: strin
 }
 
 export function RoleGrants() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const editable = can('admin.roles');
   const qc = useQueryClient();
   const toast = useToast();
@@ -65,8 +65,12 @@ export function RoleGrants() {
   if (error || !data || !role) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
 
   const locked = role.fullAccess || !editable;
+  // Audit F-5: oversight is given by the system administrator in their own right, and only by them.
+  const watched = (p: string) => (OVERSIGHT_PERMISSIONS as readonly string[]).includes(p);
+  const grantsOversight = !!user?.roles.includes(OVERSIGHT_GRANTOR_ROLE) && !user?.delegatedRoles?.[OVERSIGHT_GRANTOR_ROLE];
   const toggle = (p: string) => setPicked((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; });
-  const toggleGroup = (ps: string[], on: boolean) => setPicked((s) => { const n = new Set(s); for (const p of ps) { if (on) n.add(p); else n.delete(p); } return n; });
+  // "All" never reaches for oversight: that is a choice of its own (audit F-5).
+  const toggleGroup = (ps: string[], on: boolean) => setPicked((s) => { const n = new Set(s); for (const p of ps) { if (on && !watched(p)) n.add(p); else if (!on) n.delete(p); } return n; });
 
   const save = async () => {
     setBusy(true);
@@ -148,9 +152,15 @@ export function RoleGrants() {
                   <div className="mt-1 space-y-1">
                     {g.permissions.map((p) => (
                       <label key={p} className="flex cursor-pointer items-start gap-2 text-xs text-ink-700">
-                        <input type="checkbox" className="mt-0.5 size-3.5" checked={picked.has(p)} onChange={() => toggle(p)} aria-label={trx(PERMISSIONS[p])} />
+                        <input type="checkbox" className="mt-0.5 size-3.5" checked={picked.has(p)} onChange={() => toggle(p)} aria-label={trx(PERMISSIONS[p])}
+                          disabled={watched(p) && !picked.has(p) && !grantsOversight} />
                         <span>{trx(PERMISSIONS[p])} <span className="ltr font-mono text-[12px] text-ink-400">{p}</span>
                           {!role.fullAccess && !role.defaults.includes(p) && picked.has(p) && <Badge tone="info" className="ms-1">{tr('بیش از پیش‌فرض')}</Badge>}
+                          {watched(p) && (
+                            <span className="mt-0.5 block text-[12px] leading-5 text-amber-800">
+                              {tr('هیچ نقشی به‌طور پیش‌فرض این را ندارد و فقط مدیر سیستم آن را می‌دهد؛ هر بازبینی با دلیلش ثبت می‌شود.')}
+                            </span>
+                          )}
                         </span>
                       </label>
                     ))}

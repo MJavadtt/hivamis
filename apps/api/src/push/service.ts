@@ -21,7 +21,11 @@ import { b64u, encrypt, generateVapidKeys, vapidAuthorization, type VapidKeys } 
 /* ── What reaches the phone ──────────────────────────────────────────────────────────────── */
 
 /** The loops themselves: work that has just arrived and has hours, not days. */
-export const PUSHED_KINDS = new Set(['WORK_ORDER_ISSUED', 'WORK_ORDER_CLARIFIED', 'FORM_APPROVAL_REQUIRED', 'QC_UNIT_REQUIRED']);
+export const PUSHED_KINDS = new Set([
+  'WORK_ORDER_ISSUED', 'WORK_ORDER_CLARIFIED', 'FORM_APPROVAL_REQUIRED', 'QC_UNIT_REQUIRED',
+  // Team chat (audit F-5), as each member chose; the notice names the writer, not the words.
+  'CHAT_MESSAGE', 'CHAT_MENTION',
+]);
 const SLA_KINDS = new Set(['SLA_WARNING', 'SLA_BREACH', 'SLA_PREDICTED_BREACH']);
 /** Loud on the lock screen and delivered promptly even to a phone saving its battery. */
 const URGENT = new Set(['SLA_BREACH', 'SLA_WARNING', 'SLA_PREDICTED_BREACH']);
@@ -273,7 +277,9 @@ async function queueFor(n: PushNotice & { url: string; tag: string | null }): Pr
 export async function pushNotification(n: PushNotice): Promise<string[]> {
   if (!pushable(n)) return [];
   const tag = n.entityType && n.entityId ? `${n.entityType}:${n.entityId}` : null;
-  return queueFor({ ...n, url: mobileUrl(n.entityType, n.entityId), tag });
+  // A conversation opens itself, on the phone as on the desk.
+  const url = n.entityType === 'chatConversation' && n.entityId ? `/chat/${n.entityId}` : mobileUrl(n.entityType, n.entityId);
+  return queueFor({ ...n, url, tag });
 }
 
 /** "Does my phone hear this?" — to every browser of one person, sent and answered before returning. */

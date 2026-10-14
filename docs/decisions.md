@@ -2554,3 +2554,55 @@ the organisation's own, beside them, gives the freedom without that cost.
   - both steps approved and run: the task submitted, the time entered.
 - **What was not run:** the Speaches image and its model fetch. They were configured and tested for
   shape (`059`) only, since there was no Docker daemon on this machine.
+
+## ADR-086 — Team chat, and oversight that everyone is told of
+
+**Decision.** (Audit F-5.)
+
+- **Three kinds of conversation.**
+  - **Direct:** one per pair, keyed by the two ids.
+  - **Group:** private; its owner adds people.
+  - **Channel:** any colleague may find and join it; managers make them (`chat.channel.create`).
+- **Members alone read a conversation.** To anyone else it does not exist (404), as another
+  organisation's record would not.
+- **Messages are records.**
+  - An edit keeps what the message said before.
+  - A removal hides the message and keeps it.
+  - A record's code in a message links to the record, resolved through the search as the reader,
+    so it is a link only for someone who may open the record.
+- **Files are documents.** They go through the same upload route and checks, linked to the
+  conversation. They are served only by the chat, to members, and the documents routes treat them
+  as not there.
+- **Live delivery** is the existing bus. A trigger on `chat_messages` announces that a message
+  exists — never its text — and each stream passes it only to members (a one-minute membership
+  cache, forgotten when membership changes).
+- **Notices follow each member's choice** (every message, mentions only, none, or muted). One notice
+  per conversation until it is read; a mention always gets its own. A notice names the writer and
+  the conversation, not the words, because push and the messenger leave the installation.
+- **Oversight: who may look.**
+  - `chat.oversight` is held by no role by default; the full-access roles hold everything but it.
+  - Only a `SUPER_ADMIN`, in their own right, may add it to a role or give a role that holds it.
+  - It is never delegated and never put on an API key.
+- **Oversight: what a look leaves behind.**
+  - Listing conversations records a row. Reading one needs a reason (10 characters or more), and
+    records the reviewer, the conversation, the time and the reason, in the same transaction as
+    the read.
+  - A trigger refuses to update or delete any `CHAT_OVERSIGHT_*` audit row, and to truncate the
+    table while one exists.
+- **Disclosure.** The owner confirmed the wording on 2026-10-14. It stands on the chat page, in the
+  guide, and under the organisation's rules as the usage policy.
+
+**Rationale.**
+
+- The fix prompt asks for chat with oversight that is disclosed and audited, never covert.
+- Making oversight nobody's by default, and its grant one person's, keeps it a deliberate act.
+  Recording every look in a place the application cannot erase keeps it accountable.
+
+**Limits.**
+
+- A database superuser can disable a trigger. The protection is against the application and its
+  administrators, not against whoever owns the database.
+- Members are not told when their conversation was reviewed. The notice says reviews may happen
+  and are recorded; the audit trail says when.
+- There is no end-to-end encryption: the organisation's server reads what it stores. That is what
+  makes oversight possible, and the notice says so.

@@ -885,6 +885,56 @@ A plan arrives in the chat stream as an `action`:
   step is reported `FAILED` with `NOT_APPROVABLE` if ticked anyway.
 - **Audit actions:** `AI_PLAN_PROPOSED`, `AI_PLAN_EXECUTED`, `AI_PLAN_DECLINED`, on `aiPlan`.
 
+## Team chat
+
+Audit F-5. Every route needs `chat.use`, which every role has unless the administrator takes it
+away; none accepts an API key (`chat.*` are never on a key). A conversation answers only to its
+members: anyone else, in this organisation or another, gets 404.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /chat/conversations?archived=true` | Yours, most recently active first: `id, kind, title, topic, peer, memberCount, unread, muted, notify, role, lastMessage, archived` |
+| `GET /chat/unread` | `{ total, conversations }`: unread messages in conversations you have not muted (the sidebar's count) |
+| `GET /chat/channels` | The organisation's channels, with `memberCount` and whether you `joined` |
+| `POST /chat/conversations` | `{ kind: 'DIRECT', memberIds: [other] }` opens the pair's one conversation (`existing: true` when it was there); `{ kind: 'GROUP', title, topic?, memberIds }`; `{ kind: 'CHANNEL', title, topic?, memberIds? }` needs `chat.channel.create`. 201 `{ id, existing }`. 400 `UNKNOWN_USER` for anyone not an active colleague |
+| `GET /chat/conversations/:id` | The conversation, your own settings (`me`) and its members |
+| `PATCH /chat/conversations/:id` | `{ title?, topic?, archived? }`: owner or administrator; not a direct conversation |
+| `POST /chat/conversations/:id/join` · `/leave` | Join a channel; leave a group or channel (the last owner leaving hands it to the longest-standing member). A direct conversation cannot be left: 400 `DIRECT_FIXED` |
+| `POST /chat/conversations/:id/members` `{ userIds }` · `DELETE …/members/:userId` · `PATCH …/members/:userId` `{ role }` | Owner or administrator adds and removes; the owner sets roles |
+| `PATCH /chat/conversations/:id/me` | `{ muted?, notify?: ALL \| MENTIONS \| NONE }` |
+| `POST /chat/conversations/:id/read` | Marks it read now, with its notices |
+| `GET /chat/conversations/:id/messages?before=&limit=` | Up to 50, oldest first: `{ items, hasMore, records }`. A removed message has `deleted: true` and no text. `records` maps each code the messages name (`PRJ-…`, `TSK-…`, `BRF-…`, `PRP-…`, `CNT-…`, `OPP-…`) to `{ type, id, title }`, only where the reader may open it |
+| `POST /chat/conversations/:id/messages` | `{ body, replyToId?, attachmentIds?, mentionIds? }`. Files must be ones you uploaded to this conversation and not yet sent; only members can be named. 409 `CHAT_ARCHIVED` |
+| `PATCH /chat/messages/:id` | `{ body }`: the author only; what it said before is kept |
+| `DELETE /chat/messages/:id` | The author, or the owner or an administrator of a group or channel (audited as `DELETE` on `chatMessage`). The message is hidden and kept |
+| `GET /chat/files/:id` | A shared file, to members, as a download (`FILE_DOWNLOAD` audited). Before it is sent, only its uploader may fetch it |
+
+**Sharing a file.** `POST /documents` with a multipart field `chatConversationId` **before** the
+file part. It needs `document.write` and membership, and links the file to nothing else
+(400 `CHAT_FILE_ALONE`). The documents routes do not list or serve such a file; the chat does.
+
+**Live.** The `/events` stream carries `chat` `{ conversationId, messageId, op, mine }` to the
+conversation's members, and `{ conversationId, membership: true }` when your own membership
+changes. It never carries what a message says.
+
+**Notices.** `CHAT_MESSAGE` (once per conversation until it is read) and `CHAT_MENTION`, as each
+member chose. The title names the writer and the conversation; there is no body.
+
+### Oversight
+
+`chat.oversight` is held by no role by default, the full-access roles included. Only a
+`SUPER_ADMIN` in their own right may add it to a role or give a role that holds it
+(403 `OVERSIGHT_GRANTOR_ONLY`). It cannot be delegated (400 `NOT_DELEGABLE`) or put on a key.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /chat/oversight/conversations?q=` | The organisation's conversations: members, kind, message count, last activity — not their text. Audited as `CHAT_OVERSIGHT_LIST` |
+| `POST /chat/oversight/conversations/:id/view` | `{ reason (10–500), before? }`: up to 200 messages, read-only, removed ones and earlier wordings (`edits`) included. Audited as `CHAT_OVERSIGHT_VIEW` with the reason, in the same transaction as the read |
+| `POST /chat/oversight/files/:id` | `{ reason }`: one shared file, audited as `CHAT_OVERSIGHT_VIEW` on the document |
+
+Audit rows whose action starts `CHAT_OVERSIGHT_` cannot be updated, deleted or truncated away: a
+database trigger refuses it.
+
 ## The guide's videos
 
 Hivamis task 8. One recorded video per guide section and language, added by the organisation.

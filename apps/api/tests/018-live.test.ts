@@ -127,6 +127,21 @@ describe('Live updates', () => {
     await am.until((e) => e.event === 'notification' && e.data.kind === 'AFTER_RESET', 8000);
   }, 20_000);
 
+  // Audit F-5: a message reaches its conversation's members — that it arrived, never what it says.
+  it('tells a conversation’s members of a message, and nobody else', async () => {
+    const finance = await stream(T.finance);
+    await finance.until((e) => e.event === 'ready');
+    const designerId = (await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } })).id;
+    const c = expectOk(await post('/chat/conversations', T.am, { kind: 'DIRECT', memberIds: [designerId] }), 'direct').id;
+    const m = expectOk(await post(`/chat/conversations/${c}/messages`, T.am, { body: 'فقط برای بهراد' }), 'send');
+    const heard = await designer.until((e) => e.event === 'chat' && e.data.messageId === m.id);
+    expect(heard.data).toEqual({ conversationId: c, messageId: m.id, op: 'insert', mine: false });
+    expect((await am.until((e) => e.event === 'chat' && e.data.messageId === m.id)).data.mine).toBe(true);
+    await sleep(400);
+    expect(finance.events.some((e) => e.event === 'chat')).toBe(false);
+    finance.close();
+  });
+
   it('caps the streams one person may hold open', async () => {
     const more = [await stream(T.finance), await stream(T.finance), await stream(T.finance), await stream(T.finance), await stream(T.finance)];
     const sixth = await stream(T.finance);

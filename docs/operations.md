@@ -912,6 +912,34 @@ step and the exact request, ticks what they want, and confirms.
 
 Nothing needs setting up for this beyond the chat model.
 
+## Team chat and its oversight
+
+Audit F-5. Chat needs no setting up: it uses the database, the file storage, the live stream, and
+the push and messenger channels already configured.
+
+- **Files** shared in a conversation are documents: the same upload checks, the same storage quota
+  (`STORAGE_QUOTA_MB`), the same backup.
+- **Notices** name the writer and the conversation, never the text, because the messenger
+  (Telegram or Bale) is outside the installation.
+- **Nothing is deleted by retention.** A removed message is hidden and kept, as are earlier
+  wordings.
+
+**Oversight** is off for everyone until the system administrator turns it on for named people:
+
+1. Admin → Roles: make a role (say «بازبین گفت‌وگو») and tick **Review conversations**. Only a
+   `SUPER_ADMIN` can tick it.
+2. Admin → Users: give that role to the person. Again, only a `SUPER_ADMIN` can.
+
+Every list and every look is in the audit trail (`CHAT_OVERSIGHT_LIST`, `CHAT_OVERSIGHT_VIEW`, with
+the reason). The database refuses to change or delete those rows, or to truncate the table while
+any exist (trigger `audit_events_keep_oversight`). A database superuser could still disable a
+trigger, so who holds database credentials matters as much as who holds the role.
+
+Everyone is told, in words the owner confirmed on 2026-10-14, on the chat page and under
+**The organisation's rules → Usage policy**:
+
+> گفت‌وگوها روی سامانهٔ سازمان انجام می‌شود. مدیران مجاز ممکن است آن‌ها را بازبینی کنند؛ هر بازبینی با نام بازبین، زمان و دلیلش در سابقهٔ حسابرسی ثبت می‌شود و پاک‌شدنی نیست.
+
 ## The guide owl and its videos
 
 Hivamis task 8. The owl and its guide need no setup: the guide text ships with the application in

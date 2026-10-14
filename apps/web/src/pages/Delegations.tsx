@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { PERMISSIONS, ROLE_LABELS } from '@hiva/contracts';
+import { PERMISSIONS, ROLE_LABELS, OVERSIGHT_PERMISSIONS } from '@hiva/contracts';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useAction } from '../hooks/queries';
@@ -46,7 +46,8 @@ export default function Delegations() {
   );
   const revoke = useAction((id: string) => apiPost(`/delegations/${id}/revoke`), tr('تفویض لغو شد.'));
 
-  const own = (user?.permissions ?? []).filter((p) => !user?.delegated?.[p]);
+  // Oversight of conversations is never passed on (audit F-5).
+  const own = (user?.permissions ?? []).filter((p) => !user?.delegated?.[p] && !(OVERSIGHT_PERMISSIONS as readonly string[]).includes(p));
   const ownRoles = (user?.roles ?? []).filter((r) => !user?.delegatedRoles?.[r]);
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const given = (data ?? []).filter((d) => d.fromUserId === user?.id);

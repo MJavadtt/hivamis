@@ -46,7 +46,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const { projectId, companyId, contractId, deliverableId, proposalId, versions } = req.query as Record<string, string | undefined>;
     return prisma.document.findMany({
       where: {
-        organizationId: actor.organizationId, deletedAt: null,
+        // A file shared in a conversation is its members' (audit F-5), served by the chat alone.
+        organizationId: actor.organizationId, deletedAt: null, chatConversationId: null,
         // The current version of each file, unless every version is asked for (roadmap #42).
         ...(versions === 'all' ? {} : { supersededAt: null }),
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),
@@ -131,7 +132,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
      */
     const replacesId = val('replacesId');
     const replaced = replacesId
-      ? await prisma.document.findFirst({ where: { id: replacesId, organizationId: actor.organizationId, deletedAt: null } })
+      ? await prisma.document.findFirst({ where: { id: replacesId, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null } })
       : null;
     if (replacesId && !replaced) return fail('UNKNOWN_REFERENCE', 'فایلی که نسخهٔ تازه‌اش را می‌فرستید پیدا نشد.', 422);
     if (replaced?.supersededAt) return fail('DOCUMENT_SUPERSEDED', 'نسخهٔ تازه‌تری از این فایل پیش‌تر بارگذاری شده است؛ روی آخرین نسخه کار کنید.', 409);
@@ -165,6 +166,18 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!mimeType.startsWith('image/')) return fail('QC_EVIDENCE_IMAGE', 'شاهد بررسی کیفیت باید عکس باشد.');
       if (Object.values(links).some(Boolean) || brandRole) return fail('QC_EVIDENCE_ALONE', 'عکس شاهد فقط به بررسی کیفیت وصل می‌شود، نه به پرونده‌ای دیگر.');
     }
+    /**
+     * A file shared in a conversation (audit F-5): by a member who may chat, on nothing else. It is
+     * the conversation's — the documents routes do not list or serve it; the chat does, to members.
+     */
+    const chatConversationId = replaced ? null : val('chatConversationId');
+    if (chatConversationId) {
+      const member = actor.permissions.includes('chat.use') && await prisma.chatMember.count({
+        where: { conversationId: chatConversationId, userId: actor.id, leftAt: null, conversation: { organizationId: actor.organizationId, archivedAt: null } },
+      });
+      if (!member) return fail('UNKNOWN_REFERENCE', 'ارجاع «chatConversationId» نامعتبر است.', 422);
+      if (Object.values(links).some(Boolean) || brandRole || qcReviewId) return fail('CHAT_FILE_ALONE', 'فایل گفت‌وگو فقط به همان گفت‌وگو وصل می‌شود.');
+    }
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
       deliverableId: prisma.deliverable, submissionId: prisma.formSubmission, proposalId: prisma.proposal,
@@ -193,7 +206,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
           checksum: hash.digest('hex'),
           projectId: links.projectId, companyId: links.companyId,
           contractId: links.contractId, deliverableId: links.deliverableId,
-          submissionId: links.submissionId, proposalId: links.proposalId, qcReviewId,
+          submissionId: links.submissionId, proposalId: links.proposalId, qcReviewId, chatConversationId,
           tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? replaced?.tags ?? [],
           uploadedById: actor.id,
           lineageId: replaced ? replaced.lineageId ?? replaced.id : id,
@@ -213,7 +226,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_UPLOAD',
       entityType: 'document', entityId: document.id,
-      after: { fileName: document.fileName, sizeBytes: size, ...(replaced ? { replaces: replaced.id, version: document.version } : {}), ...(brandRole ? { brandRole } : {}), ...(qcReviewId ? { qcReviewId } : {}) },
+      after: { fileName: document.fileName, sizeBytes: size, ...(replaced ? { replaces: replaced.id, version: document.version } : {}), ...(brandRole ? { brandRole } : {}), ...(qcReviewId ? { qcReviewId } : {}), ...(chatConversationId ? { chatConversationId } : {}) },
       ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     return reply.code(201).send(document);
@@ -234,7 +247,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
 
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_DOWNLOAD',
@@ -267,7 +280,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
     if (!PREVIEWABLE(doc.mimeType)) throw new AppError(422, 'PREVIEW_UNSUPPORTED', 'این نوع فایل پیش‌نمایش ندارد؛ آن را دریافت کنید.');
     const seen = await prisma.auditEvent.findFirst({
       where: { actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, createdAt: { gte: new Date(Date.now() - 3_600_000) } },
@@ -288,7 +301,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null }, select: { id: true, lineageId: true } });
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null }, select: { id: true, lineageId: true } });
     if (!doc) throw notFound('سند');
     const lineage = doc.lineageId ?? doc.id;
     const rows = await prisma.document.findMany({
@@ -312,7 +325,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const { hold, reason } = parse(legalHoldSchema, req.body ?? {});
-    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId } });
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, chatConversationId: null } });
     if (!doc) throw notFound('سند');
     if (doc.purgedAt) throw conflict('ALREADY_PURGED', 'پروندهٔ این سند پیش‌تر پاک شده است؛ نگه‌داشتی برای آن نمی‌ماند.');
     const updated = await prisma.$transaction(async (tx) => {
@@ -334,7 +347,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.organizationId !== actor.organizationId) throw notFound('سند');
+    if (!doc || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
     // A QC review's evidence (roadmap #49) is taken back only by its reviewer, the same day — a
     // wrong photo corrected, not a record of what was seen edited afterwards.
     if (doc.qcReviewId && (doc.uploadedById !== actor.id || Date.now() - doc.createdAt.getTime() > 24 * 3_600_000)) {

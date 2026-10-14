@@ -21,7 +21,8 @@ export function useLiveStatus(): LiveStatus {
 /** How often a query that live updates cover should still poll: rarely when live, as before when not. */
 export const fallbackInterval = (s: LiveStatus, whenOffline = 60_000) => (s === 'live' ? 5 * 60_000 : whenOffline);
 
-export interface LiveEventHandlers { onTransition: () => void; onNotification: () => void; onCatchUp: () => void }
+export interface ChatSignal { conversationId: string; messageId?: string; op?: string; mine?: boolean; membership?: boolean }
+export interface LiveEventHandlers { onTransition: () => void; onNotification: () => void; onCatchUp: () => void; onChat?: (e: ChatSignal) => void }
 
 /** Parse one SSE block into its event name and JSON data. */
 export function parseBlock(block: string): { event: string; data: unknown } | null {
@@ -70,6 +71,7 @@ export function connectLive(h: LiveEventHandlers, opts: { fetchImpl?: typeof fet
             h.onCatchUp();   // whatever moved while we were not listening
           } else if (e.event === 'transition') h.onTransition();
           else if (e.event === 'notification') h.onNotification();
+          else if (e.event === 'chat' && e.data) h.onChat?.(e.data as ChatSignal);
           else if (e.event === 'reset') h.onCatchUp();
         }
       }
@@ -103,6 +105,12 @@ export function useLiveUpdates(qc: QueryClient) {
         void qc.invalidateQueries({ queryKey: ['/messenger/sandbox/chat'] });
       },
       onCatchUp: refreshScreen,
+      // Team chat (audit F-5): the conversation, the list and the sidebar's count — at once, not in 2 s.
+      onChat: (e) => {
+        void qc.invalidateQueries({ queryKey: ['/chat/conversations', e.conversationId] });
+        void qc.invalidateQueries({ queryKey: ['/chat/conversations', false] });
+        void qc.invalidateQueries({ queryKey: ['/chat/unread'] });
+      },
     });
     return () => { stop(); if (pending) clearTimeout(pending); };
   }, [qc]);

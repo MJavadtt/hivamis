@@ -27,12 +27,14 @@ const MAX_ATTEMPTS = 5;
 export const MESSENGER_KINDS = new Set([
   'FORM_APPROVAL_REQUIRED', 'SLA_BREACH', 'SLA_WARNING', 'SLA_PREDICTED_BREACH',
   'CLIENT_APPROVAL_DECIDED', 'PORTAL_MESSAGE', 'ESIGN_COMPLETED', 'ESIGN_DECLINED',
+  // Team chat (audit F-5): who wrote and where — never what, which stays inside the installation.
+  'CHAT_MESSAGE', 'CHAT_MENTION',
 ]);
 
 const appUrl = (p = '') => `${(env.PUBLIC_APP_URL || env.CORS_ORIGIN.split(',')[0]!.trim()).replace(/\/+$/, '')}${p}`;
 const OPEN_PATH: Record<string, (id: string) => string> = {
   formSubmission: (id) => `/forms?submission=${id}`, project: (id) => `/projects/${id}`, contract: (id) => `/contracts/${id}`,
-  proposal: (id) => `/proposals/${id}`,
+  proposal: (id) => `/proposals/${id}`, chatConversation: (id) => `/chat/${id}`,
 };
 const token = () => randomBytes(9).toString('base64url');
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

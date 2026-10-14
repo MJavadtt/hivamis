@@ -91,6 +91,8 @@ const OVERRIDES: Record<string, (ids: (model: string) => Promise<string>) => Pro
   Document: async () => ({ supersededAt: null, supersededById: null }),
   PushSubscription: async () => ({ disabledAt: null, disabledReason: null }),
   User: async () => ({ phone: null, phoneVerifiedAt: null }),
+  // A direct conversation is a pair's (its key names them); a group needs no pair.
+  ChatConversation: async () => ({ kind: 'GROUP', directKey: null, title: 'B' }),
 };
 
 let counter = 0;

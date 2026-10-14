@@ -285,6 +285,21 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
+/** A file that is handed over only for a POSTed body — a reason, under oversight (audit F-5). */
+export async function postDownload(path: string, body: unknown, fallbackName: string): Promise<void> {
+  const url = new URL(`/api/v1${path}`, window.location.origin);
+  const send = () => fetch(url, { method: 'POST', headers: { ...baseHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let res = await reach(send);
+  if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
+  if (!res.ok) throw await failure(res);
+  const named = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '')?.[1];
+  const href = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = href; a.download = named ? decodeURIComponent(named) : fallbackName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}
+
 /** POST a selection and download the merged PDF it produces. */
 export async function downloadPdfBundle(
   kind: string,

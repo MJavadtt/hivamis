@@ -567,6 +567,50 @@ Two answers are possible, and «دیدم» is not one of them: **در این پ�
 and the decision is written to the project's history. That record is the difference between an
 organisation that learns and one that archives.
 
+## Team chat
+
+**Chat** in the sidebar holds your conversations with colleagues. The number beside it is what you
+have not read yet, in conversations you have not muted.
+
+- **Direct:** you and one colleague. Starting one with someone you have talked to before opens
+  that conversation.
+- **Group:** private. Only the people its owner adds see it.
+- **Channel:** any colleague can find it under **Channels** and join. Managers make channels.
+
+**Writing.** Enter sends; Shift+Enter starts a new line.
+- Type **@** and choose a colleague to name them: they hear of it even if they hear only of
+  mentions.
+- A record's code, such as `PRJ-000016`, becomes a link to the record for anyone who may open it.
+- **+** shares a file. It is kept with the organisation's files, and only the conversation's
+  members can open it.
+- Your own message can be edited or removed. An edit is marked as such, and what it said before
+  is kept; a removed message is hidden from the conversation and kept too.
+
+**Being told.** In each conversation's settings, choose when you hear of it away from the page:
+every message, only when you are named, or never. **Muted** stops notices and leaves it out of
+the count. A notice says who wrote and where, never what: it may reach a phone's lock screen or a
+messenger.
+
+**What everyone is told.** Conversations take place on the organisation's system. Authorised
+administrators may review them; every review is recorded in the audit trail with the reviewer, the
+time and the reason, and cannot be deleted. The same words are on the chat page and under
+**The organisation's rules → Usage policy**.
+
+### Reviewing conversations
+
+Nobody can review conversations by default, not even the managing director. Only the system
+administrator can give it: by granting **Review conversations** to a role, usually a role made for
+it, and giving that role to the person. It cannot be delegated or put on an API key.
+
+1. **Chat → Reviewing conversations** lists the organisation's conversations: who is in each and
+   when it was last used. Each search is recorded.
+2. **Review…** asks why. Write a reason someone else could read and judge.
+3. The conversation opens read-only, removed messages and earlier wordings included. Your name, the
+   time and the reason are recorded, and the database refuses to change or delete that record.
+   Opening a file asks for the same reason and is recorded too.
+
+---
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

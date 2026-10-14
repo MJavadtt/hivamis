@@ -13,7 +13,10 @@ import { env } from '../env.js';
 
 export interface TransitionEvent { t: 'transition'; org: string; entity: string; id: string; from: string; to: string; action: string; actor: string; at: string }
 export interface NotificationEvent { t: 'notification'; user: string; kind: string; severity: string }
-export type LiveEvent = TransitionEvent | NotificationEvent;
+/** Audit F-5: a message written or changed — that it was, never what it says. */
+export interface ChatEvent { t: 'chat'; org: string; conversation: string; message: string; author: string; op: 'insert' | 'update' }
+export interface ChatMembersEvent { t: 'chat_members'; conversation: string; user: string }
+export type LiveEvent = TransitionEvent | NotificationEvent | ChatEvent | ChatMembersEvent;
 
 /** The schema this process's rows live in — `?schema=` on the URL, `public` without it. */
 function target() {

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { ALL_PERMISSIONS, ROLE_CODES, type RoleCode } from '@hiva/contracts';
+import { ALL_PERMISSIONS, OVERSIGHT_PERMISSIONS, ROLE_CODES, type RoleCode } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { hasPermission } from '../auth/plugin.js';
@@ -72,6 +72,9 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
     if (unknownRole) throw badRequest('UNKNOWN_ROLE', `نقش «${unknownRole}» وجود ندارد`);
 
     const from = await grantsOf(fromUserId);
+    // Reading others' conversations is given by the system administrator to a person, not passed on (audit F-5).
+    const personal = permissions.filter((p) => (OVERSIGHT_PERMISSIONS as readonly string[]).includes(p));
+    if (personal.length) throw badRequest('NOT_DELEGABLE', 'دسترسی بازبینی گفت‌وگوها تفویض‌شدنی نیست.', { permissions: personal });
     const notHeld = permissions.filter((p) => !from.permissions.has(p));
     if (notHeld.length) throw badRequest('NOT_HELD', 'نمی‌توان دسترسی‌ای را تفویض کرد که خود ندارید', { permissions: notHeld });
     const roleNotHeld = roles.filter((r) => !from.roles.includes(r as RoleCode));

@@ -8,12 +8,12 @@
  * organisation for a few seconds; the process that makes a change forgets its copy at once.
  */
 import {
-  FULL_ACCESS_ROLES, PERMISSIONS, effectiveRoleMap, permissionsForRoles,
+  FULL_ACCESS_ROLES, OVERSIGHT_GRANTOR_ROLE, OVERSIGHT_PERMISSIONS, PERMISSIONS, effectiveRoleMap, permissionsForRoles,
   type Permission, type RoleCode, type RoleMap,
 } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 import { prisma } from '../db.js';
-import { badRequest } from '../lib/errors.js';
+import { AppError, badRequest } from '../lib/errors.js';
 
 export interface GrantRow { roleCode: string; permissions: string[]; note: string | null; grantedById: string; createdAt: Date }
 export interface OrgGrants {
@@ -68,10 +68,25 @@ export async function grantSnapshot(tx: Tx = prisma): Promise<Record<string, Rec
 }
 
 /**
- * Grant a role exactly these permissions in an organisation. The full-access roles are not grantable:
- * they hold everything. Returns what changed against what the role held a moment ago.
+ * Whether this person may give oversight of conversations (audit F-5): the system administrator, in
+ * their own right — a role delegated to them does not count.
  */
-export async function setRoleGrant(tx: Tx, input: { organizationId: string; roleCode: string; permissions: readonly string[]; note?: string | null; actorId: string }) {
+export const mayGrantOversight = (actor: { roles: readonly string[]; delegatedRoles?: Record<string, string> }) =>
+  actor.roles.includes(OVERSIGHT_GRANTOR_ROLE) && !actor.delegatedRoles?.[OVERSIGHT_GRANTOR_ROLE];
+
+export const oversightRefused = () =>
+  new AppError(403, 'OVERSIGHT_GRANTOR_ONLY', 'دسترسی بازبینی گفت‌وگوها را فقط مدیر سیستم می‌دهد.');
+
+/**
+ * Grant a role exactly these permissions in an organisation. The full-access roles are not grantable:
+ * they hold everything but oversight. Returns what changed against what the role held a moment ago.
+ * Adding an oversight permission is the system administrator's alone; taking it away is anyone's who
+ * manages roles.
+ */
+export async function setRoleGrant(tx: Tx, input: {
+  organizationId: string; roleCode: string; permissions: readonly string[]; note?: string | null; actorId: string;
+  mayGrantOversight: boolean;
+}) {
   if (FULL_ACCESS_ROLES.includes(input.roleCode as RoleCode)) {
     throw badRequest('FULL_ACCESS_ROLE', 'این نقش به همهٔ سامانه دسترسی دارد و دسترسی‌اش کم یا زیاد نمی‌شود.');
   }
@@ -83,5 +98,7 @@ export async function setRoleGrant(tx: Tx, input: { organizationId: string; role
   const row = await tx.roleGrant.create({
     data: { organizationId: input.organizationId, roleCode: input.roleCode, permissions, note: input.note ?? null, grantedById: input.actorId },
   });
-  return { row, added: permissions.filter((p) => !before.has(p)), removed: [...before].filter((p) => !permissions.includes(p)).sort() };
+  const added = permissions.filter((p) => !before.has(p));
+  if (!input.mayGrantOversight && added.some((p) => OVERSIGHT_PERMISSIONS.includes(p as Permission))) throw oversightRefused();
+  return { row, added, removed: [...before].filter((p) => !permissions.includes(p)).sort() };
 }

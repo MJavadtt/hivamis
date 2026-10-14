@@ -98,7 +98,7 @@ export async function buildBundle(
   // 3. Uploaded files.
   const files = req.fileIds.length && user.permissions.includes('document.read')
     ? await prisma.document.findMany({
-        where: { id: { in: [...req.fileIds] }, organizationId: orgId, deletedAt: null },
+        where: { id: { in: [...req.fileIds] }, organizationId: orgId, deletedAt: null, chatConversationId: null },
       })
     : [];
 

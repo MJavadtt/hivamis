@@ -1,11 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
   createUserSchema, updateUserSchema, paginationSchema, roleGrantSchema, createRoleSchema, updateRoleSchema,
-  ALL_PERMISSIONS, FULL_ACCESS_ROLES, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
+  ALL_PERMISSIONS, FULL_ACCESS_ROLES, OVERSIGHT_PERMISSIONS, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
 } from '@hiva/contracts';
 import { findRoles, newRoleCode, roleReferences, rolesOf } from '../auth/roles.js';
 import type { Tx } from '../db.js';
-import { forgetGrants, grantsOf, setRoleGrant } from '../auth/grants.js';
+import { forgetGrants, grantsOf, mayGrantOversight, oversightRefused, setRoleGrant } from '../auth/grants.js';
 import { registerRuleSets, resetRulesCache } from '../workflow/rules.js';
 import { prisma } from '../db.js';
 import { actorFrom, page, parse } from '../lib/http.js';
@@ -19,6 +19,17 @@ import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/en
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { SLA_PAUSE_KINDS, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
+
+/**
+ * Giving someone a role that holds oversight of conversations is giving them oversight (audit F-5):
+ * the system administrator's alone. Roles the person already had are not given again.
+ */
+async function assertMayGive(actor: ReturnType<typeof actorFrom>, roles: readonly string[], had: readonly string[]) {
+  if (mayGrantOversight(actor)) return;
+  const map = (await grantsOf(actor.organizationId)).map;
+  const watched = roles.filter((r) => !had.includes(r)).some((r) => (map[r] ?? []).some((p) => OVERSIGHT_PERMISSIONS.includes(p)));
+  if (watched) throw oversightRefused();
+}
 
 const adminRoutes: FastifyPluginAsync = async (app) => {
   /* ── Users (read is broad; write is admin-only) ──────────────────────── */
@@ -79,6 +90,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!department) throw badRequest('UNKNOWN_DEPARTMENT', 'واحد سازمانی نامعتبر است.');
 
     const roles = await findRoles(prisma, actor.organizationId, input.roleCodes);
+    await assertMayGive(actor, roles.map((r) => r.code), []);
     const position = input.positionId ? await positionOf(prisma, actor.organizationId, input.positionId) : null;
 
     const user = await prisma.user.create({
@@ -146,6 +158,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       const updated = await tx.user.update({ where: { id }, data });
       if (input.roleCodes) {
         const roles = await findRoles(tx, actor.organizationId, input.roleCodes);
+        await assertMayGive(actor, roles.map((r) => r.code), currentRoles);
         rolesNow = roles.map((r) => r.code).sort();
         rolesChanged = JSON.stringify(rolesNow) !== JSON.stringify(currentRoles);
         await tx.userRole.deleteMany({ where: { userId: id } });
@@ -404,7 +417,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     if (!role) throw notFound('نقش');
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const r = await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions: input.permissions, note: input.note, actorId: actor.id });
+        const r = await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions: input.permissions, note: input.note, actorId: actor.id, mayGrantOversight: mayGrantOversight(actor) });
         // The rules a transition is judged by changed: a new version of the permissions set (roadmap #4).
         await registerRuleSets(tx, undefined, `دسترسی نقش «${role.nameFa}»: ${r.added.length} داده، ${r.removed.length} گرفته${input.note ? ` — ${input.note}` : ''}`);
         await audit({
@@ -441,7 +454,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         const created = await tx.role.create({
           data: { code, organizationId: actor.organizationId, isSystem: false, nameFa: input.nameFa, nameEn: input.nameEn, description: input.description ?? null, color: input.color ?? null },
         });
-        await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions, note: input.copyFrom ? `copied from ${input.copyFrom}` : null, actorId: actor.id });
+        await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions, note: input.copyFrom ? `copied from ${input.copyFrom}` : null, actorId: actor.id, mayGrantOversight: mayGrantOversight(actor) });
         await registerRuleSets(tx, undefined, `نقش تازهٔ «${input.nameFa}»${input.copyFrom ? ` از روی ${input.copyFrom}` : ''}`);
         await audit({
           organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'role', entityId: code,
@@ -535,6 +548,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     return ALL_PERMISSIONS.map((code) => ({
       code, nameFa: PERMISSIONS[code],
       grantedTo: (Object.keys(map) as RoleCode[]).filter((r) => map[r].includes(code)),
+      // Audit F-5: given only by the system administrator, never delegated or put on a key.
+      oversight: OVERSIGHT_PERMISSIONS.includes(code),
     }));
   });
 

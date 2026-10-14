@@ -4,6 +4,7 @@ import { actorFrom } from '../lib/http.js';
 import { AppError } from '../lib/errors.js';
 import { openEventStream } from '../lib/sse.js';
 import { liveBus, type LiveEvent } from '../live/bus.js';
+import { forgetMembers, isMember } from '../chat/service.js';
 
 const HEARTBEAT_MS = 25_000;
 const MAX_STREAM_MS = 60 * 60_000;
@@ -42,6 +43,14 @@ const liveRoutes: FastifyPluginAsync = async (app) => {
         send('transition', { entity: e.entity, id: e.id, from: e.from, to: e.to, action: e.action, at: e.at, mine: e.actor === actor.id });
       } else if (e.t === 'notification' && e.user === actor.id) {
         send('notification', { kind: e.kind, severity: e.severity });
+      } else if (e.t === 'chat' && e.org === actor.organizationId && may.has('chat.use')) {
+        // Team chat (audit F-5): to the conversation's members only.
+        void isMember(e.conversation, actor.id).then((member) => {
+          if (member) send('chat', { conversationId: e.conversation, messageId: e.message, op: e.op, mine: e.author === actor.id });
+        }).catch(() => undefined);
+      } else if (e.t === 'chat_members') {
+        forgetMembers(e.conversation);
+        if (e.user === actor.id) send('chat', { conversationId: e.conversation, membership: true });
       }
     }, () => send('reset', {}));
     // Said once the listener is up, so the page knows from when it may stop polling.

@@ -34,7 +34,7 @@ const brandRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findFirst({
-      where: { id, organizationId: actor.organizationId, deletedAt: null },
+      where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null },
       select: {
         id: true, fileName: true, mimeType: true, storedName: true, metadata: true, companyId: true,
         project: { select: { companyId: true } }, deliverable: { select: { project: { select: { companyId: true } } } }, contract: { select: { companyId: true } },

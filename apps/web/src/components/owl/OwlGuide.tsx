@@ -173,6 +173,12 @@ export function OwlGuide() {
   const owlX = card ? (rtl() ? card.left + cardW - size * 0.8 : card.left - size * 0.2) : restX;
   const owlY = card ? Math.max(4, card.top - size * 0.72) : restY;
   const showOwl = !hidden || open || !!tour;
+  // The room the owl takes in its corner, for what sits at the bottom of a page — the chat's Send
+  // button (audit F-5) — to keep clear of; none when it is hidden or away on a tour.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--owl-reserve', showOwl && !tour ? `${GAP + size}px` : '0px');
+    return () => { document.documentElement.style.removeProperty('--owl-reserve'); };
+  }, [showOwl, tour, size]);
 
   // The flight from wherever the owl is drawn now to wherever it should be.
   const perch = useRef<HTMLButtonElement>(null);

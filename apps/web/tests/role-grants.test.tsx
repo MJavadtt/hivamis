@@ -20,7 +20,7 @@ const ROLES = [
 ];
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
-function mount(permissions: string[]) {
+function mount(permissions: string[], roles: string[] = []) {
   setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -28,7 +28,7 @@ function mount(permissions: string[]) {
     const p = url.pathname.replace('/api/v1', '');
     sent.push({ method: init?.method ?? 'GET', path: p, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r' });
-    if (p === '/auth/me') return json({ id: 'u', email: 'a@hiva.local', fullName: 'مدیر', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions, locale: 'fa', mustChangePassword: false });
+    if (p === '/auth/me') return json({ id: 'u', email: 'a@hiva.local', fullName: 'مدیر', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles, permissions, locale: 'fa', mustChangePassword: false });
     if (p === '/roles') return json(ROLES);
     if (p.endsWith('/permissions')) return json({ added: ['report.executive'], removed: ['crm.lead.convert'] });
     return json([]);
@@ -49,6 +49,25 @@ describe('Who may do what', () => {
     expect((await roleButton(/مدیرعامل/)).textContent).toContain('دسترسی کامل');
     expect((await roleButton(/کارشناس فروش/)).textContent).toContain('پیش‌فرض — بازبینی نشده');
     expect((await roleButton(/مشاهده‌گر/)).textContent).toContain('تأیید مدیر سیستم');
+  });
+
+  // Audit F-5: reading others' conversations is given by the system administrator, and only by them.
+  it('leaves oversight to the system administrator: off for anyone else, and never in "all"', async () => {
+    mount(['admin.roles']);
+    fireEvent.click(await roleButton(/کارشناس فروش/));
+    const box = await screen.findByLabelText('بازبینی گفت‌وگوها (با ثبت دلیل در سابقهٔ حسابرسی)') as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+    expect(screen.getByText(/فقط مدیر سیستم آن را می‌دهد/)).toBeDefined();
+    const group = box.closest('fieldset')!;
+    fireEvent.click(within(group).getByRole('button', { name: 'همه' }));
+    expect(box.checked).toBe(false);
+    expect((within(group).getByLabelText('گفت‌وگو با همکاران') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('lets the system administrator give oversight', async () => {
+    mount(['admin.roles'], ['SUPER_ADMIN']);
+    fireEvent.click(await roleButton(/کارشناس فروش/));
+    expect((await screen.findByLabelText('بازبینی گفت‌وگوها (با ثبت دلیل در سابقهٔ حسابرسی)') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('keeps a full-access role fixed', async () => {

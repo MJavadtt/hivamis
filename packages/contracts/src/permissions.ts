@@ -144,6 +144,12 @@ export const PERMISSIONS = {
   'ai.write': 'نوشتن و بازنویسی با دستیار',
   'ai.image': 'ساخت تصویر با دستیار',
   'ai.configure': 'پیکربندی هوش مصنوعی',
+  // Team chat (audit F-5).
+  'chat.use': 'گفت‌وگو با همکاران',
+  'chat.channel.create': 'ساخت کانال گفت‌وگو',
+  // Disclosed oversight: no role holds it by default, only the system administrator gives it, and
+  // every look is recorded with its reason (OVERSIGHT_PERMISSIONS below).
+  'chat.oversight': 'بازبینی گفت‌وگوها (با ثبت دلیل در سابقهٔ حسابرسی)',
   'admin.users': 'مدیریت کاربران',
   'admin.roles': 'مدیریت نقش‌ها و دسترسی‌ها',
   'admin.settings': 'تنظیمات سیستم',
@@ -158,6 +164,18 @@ export const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
+
+/**
+ * Permissions to read what others wrote to each other (audit F-5). Unlike every other permission
+ * they are nobody's by default — not even the full-access roles' — and only the system
+ * administrator (SUPER_ADMIN) may give them: to a role, or a role holding one to a person. They are
+ * never delegated and never put on an API key, and each use is recorded with its reason.
+ */
+export const OVERSIGHT_PERMISSIONS: readonly Permission[] = ['chat.oversight'];
+/** What a full-access role holds: everything but oversight, which is always someone's explicit grant. */
+export const FULL_ACCESS_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p));
+/** The role whose holders alone may give an oversight permission. */
+export const OVERSIGHT_GRANTOR_ROLE = 'SUPER_ADMIN';
 
 const READ_ONLY: Permission[] = [
   'crm.lead.read', 'crm.opportunity.read', 'crm.company.read', 'crm.contact.read',
@@ -249,12 +267,16 @@ const PMO_CORE: Permission[] = [
  * keys, more users, other roles, or exceptions to the rules — a leaked key must not be a way in
  * that outlives its discovery.
  */
-export const NON_KEY_PERMISSIONS: Permission[] = ['admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage', 'rules.manage'];
+export const NON_KEY_PERMISSIONS: Permission[] = [
+  'admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage', 'rules.manage',
+  // Conversations are people's own (audit F-5): no key reads or writes them.
+  'chat.use', 'chat.channel.create', 'chat.oversight',
+];
 
 /**
  * Hivamis task 6: the managing director, the deputy, the system administrator and the account
- * manager hold the whole system — every permission, fixed, not something an administrator can take
- * back. The process rules (Doc_H's guards) still bind them as they bind everyone; a governed
+ * manager hold the whole system — every permission but oversight (audit F-5), fixed, not something an
+ * administrator can take back. The process rules (Doc_H's guards) still bind them as they bind everyone; a governed
  * exception (waiver) remains the way past one.
  */
 export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY', 'ACCOUNT_MANAGER'];
@@ -264,27 +286,27 @@ export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DE
  * the defaults a role starts with — Doc_H's separation of duties — until the administrator reviews it.
  */
 /** What every role holds by default, whatever its part in the process (Hivamis task 5). */
-const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image'];
+const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image', 'chat.use'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
-  SUPER_ADMIN: ALL_PERMISSIONS,
-  CEO: ALL_PERMISSIONS,
-  DEPUTY: ALL_PERMISSIONS,
+  SUPER_ADMIN: FULL_ACCESS_PERMISSIONS,
+  CEO: FULL_ACCESS_PERMISSIONS,
+  DEPUTY: FULL_ACCESS_PERMISSIONS,
   SALES_MANAGER: [
-    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', ...EVERYONE,
+    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', ...EVERYONE,
   ],
   SALES_REP: [...SALES_CORE, ...EVERYONE],
-  ACCOUNT_MANAGER: ALL_PERMISSIONS,
+  ACCOUNT_MANAGER: FULL_ACCESS_PERMISSIONS,
   ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', ...EVERYONE],
+  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', ...EVERYONE],
   PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', ...EVERYONE],
   FINANCE_SPECIALIST: [...FINANCE_CORE, ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', ...EVERYONE],
+  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', ...EVERYONE],
   LEGAL_SPECIALIST: [...LEGAL_CORE, ...EVERYONE],
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };
@@ -293,7 +315,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
 export type RoleMap = Record<string, readonly Permission[]>;
 
 /**
- * The roles as an organisation has them: the full-access roles hold everything whatever is stored;
+ * The roles as an organisation has them: the full-access roles hold everything but oversight, whatever is stored;
  * the rest hold what the administrator granted, or the default until one has been.
  */
 export function effectiveRoleMap(granted: Partial<Record<string, readonly string[]>> = {}): RoleMap {
@@ -301,7 +323,7 @@ export function effectiveRoleMap(granted: Partial<Record<string, readonly string
   const known = (ps: readonly string[]) => ps.filter((p): p is Permission => p in PERMISSIONS);
   for (const role of Object.keys(ROLE_PERMISSIONS) as RoleCode[]) {
     out[role] = FULL_ACCESS_ROLES.includes(role)
-      ? ALL_PERMISSIONS
+      ? FULL_ACCESS_PERMISSIONS
       : (granted[role] ? known(granted[role]!) : ROLE_PERMISSIONS[role]);
   }
   // An organisation's own roles (audit F-3) hold exactly what they were granted — there is no default.
@@ -343,6 +365,7 @@ export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }
   { key: 'report', fa: 'گزارش‌ها', en: 'Reports' },
   { key: 'customer_success', fa: 'موفقیت مشتری', en: 'Customer success' },
   { key: 'ai', fa: 'دستیار هوشمند', en: 'AI assistant' },
+  { key: 'chat', fa: 'گفت‌وگو با همکاران', en: 'Team chat' },
   { key: 'admin', fa: 'مدیریت سیستم', en: 'Administration' },
   { key: 'rules', fa: 'قوانین سازمان', en: "Organisation's rules" },
   { key: 'portal', fa: 'پورتال مشتری', en: 'Client portal' },

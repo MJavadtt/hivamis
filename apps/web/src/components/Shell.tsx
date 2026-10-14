@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { RECORD_PAGES } from '@hiva/contracts';
 import { apiGet, apiPost } from '../lib/api';
 import { OutboxBadge } from './Outbox';
 import { useAuth } from '../lib/auth';
@@ -16,7 +17,7 @@ import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
   IconClose, IconDashboard, IconFile, IconFold, IconLogout, IconMoney, IconSearch,
-  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers,
+  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers, IconChat,
 } from './ui';
 import { loc, tr, trx } from '../i18n';
 import { Avatar } from './Avatar';
@@ -52,6 +53,7 @@ const NAV: NavGroup[] = [
       { to: '/forms', label: tr('فرم‌ها'), icon: IconFile, permission: 'form.read' },
       // No permission of its own: every colleague's page is open to everyone signed in (Hivamis task 4).
       { to: '/people', label: tr('همکاران'), icon: IconUsers },
+      { to: '/chat', label: tr('گفت‌وگو'), icon: IconChat, permission: 'chat.use' },
     ],
   },
   {
@@ -146,7 +148,12 @@ export function Shell({ children }: { children: ReactNode }) {
     queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), enabled: !!user, staleTime: 30_000,
     refetchInterval: fallbackInterval(live, 120_000),
   });
-  const counts: Record<string, number> = { '/my-work': work?.items?.length ?? 0, '/forms': work?.counts?.formApproval ?? 0 };
+  // Team chat (audit F-5): messages not yet read, in conversations not muted.
+  const { data: chat } = useQuery<{ total: number }>({
+    queryKey: ['/chat/unread'], queryFn: () => apiGet('/chat/unread'), enabled: !!user && can('chat.use'), staleTime: 30_000,
+    refetchInterval: fallbackInterval(live, 120_000),
+  });
+  const counts: Record<string, number> = { '/my-work': work?.items?.length ?? 0, '/forms': work?.counts?.formApproval ?? 0, '/chat': chat?.total ?? 0 };
 
   const visibleGroups = NAV
     .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }))
@@ -348,10 +355,8 @@ interface SearchGroup {
   items: SearchItem[];
 }
 
-const SEARCH_ROUTES: Record<string, string> = {
-  company: '/companies', opportunity: '/opportunities', project: '/projects',
-  task: '/tasks', brief: '/briefs', proposal: '/proposals', contract: '/contracts',
-};
+/** Where a found record opens — the same map the chat links a named record by (audit F-5). */
+const SEARCH_ROUTES = RECORD_PAGES;
 
 function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
   const [term, setTerm] = useState('');

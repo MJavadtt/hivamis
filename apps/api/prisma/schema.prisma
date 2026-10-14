@@ -40,15 +40,18 @@ model Organization {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  departments    Department[]
-  users          User[]
+  departments       Department[]
+  users             User[]
   /// Audit F-3: the organisation's own roles and its catalogue of positions.
-  customRoles    Role[]
-  positions      Position[]
-  companies      Company[]
-  holidays       Holiday[]
-  signupRequests SignupRequest[]
-  aiPlans        AiPlan[]
+  customRoles       Role[]
+  positions         Position[]
+  companies         Company[]
+  holidays          Holiday[]
+  signupRequests    SignupRequest[]
+  aiPlans           AiPlan[]
+  /// Audit F-5: team chat.
+  chatConversations ChatConversation[]
+  chatMessages      ChatMessage[]
 
   @@map("organizations")
 }
@@ -358,6 +361,9 @@ model User {
   signupAccounts       SignupRequest[]       @relation("SignupAccount")
   aiConversations      AiConversation[]
   aiPlans              AiPlan[]
+  chatStarted          ChatConversation[]    @relation("ChatConversationCreator")
+  chatMemberships      ChatMember[]
+  chatMessages         ChatMessage[]         @relation("ChatMessageAuthor")
   guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
 
   @@unique([organizationId, email])
@@ -1784,52 +1790,58 @@ model SlaPause {
  */
 
 model Document {
-  id              String          @id @default(uuid())
-  organizationId  String
-  fileName        String
-  storedName      String          @unique
-  mimeType        String
-  sizeBytes       Int
-  checksum        String?
-  version         Int             @default(1)
-  projectId       String?
-  project         Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  companyId       String?
-  company         Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contractId      String?
-  contract        Contract?       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  deliverableId   String?
-  deliverable     Deliverable?    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
-  submissionId    String?
-  submission      FormSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  id                 String            @id @default(uuid())
+  organizationId     String
+  fileName           String
+  storedName         String            @unique
+  mimeType           String
+  sizeBytes          Int
+  checksum           String?
+  version            Int               @default(1)
+  projectId          String?
+  project            Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companyId          String?
+  company            Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contractId         String?
+  contract           Contract?         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  deliverableId      String?
+  deliverable        Deliverable?      @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  submissionId       String?
+  submission         FormSubmission?   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   /// Roadmap #35: a file presented with a proposal — the deck the client is asked to approve.
-  proposalId      String?
-  proposal        Proposal?       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  proposalId         String?
+  proposal           Proposal?         @relation(fields: [proposalId], references: [id], onDelete: Cascade)
   /// Evidence of a QC review (roadmap #49): a photo from the set is the review's, not the deliverable's.
-  qcReviewId      String?
-  qcReview        QcReview?       @relation(fields: [qcReviewId], references: [id], onDelete: Cascade)
+  qcReviewId         String?
+  qcReview           QcReview?         @relation(fields: [qcReviewId], references: [id], onDelete: Cascade)
+  /// Audit F-5: a file shared in a conversation — its members' alone, served only by the chat's own
+  /// route; the message it went with, once sent.
+  chatConversationId String?
+  chatConversation   ChatConversation? @relation(fields: [chatConversationId], references: [id], onDelete: Cascade)
+  chatMessageId      String?
+  chatMessage        ChatMessage?      @relation("ChatAttachments", fields: [chatMessageId], references: [id], onDelete: SetNull)
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
-  clientVisible   Boolean         @default(false)
+  clientVisible      Boolean           @default(false)
   /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
   /// a newer version is uploaded, when and by which file it was superseded. `version` counts within it.
-  lineageId       String?
-  supersededAt    DateTime?
-  supersededById  String?
+  lineageId          String?
+  supersededAt       DateTime?
+  supersededById     String?
   /// What the file itself says: dimensions, colour space, duration, pages, font family.
-  metadata        Json?
+  metadata           Json?
   /// On a client's brand library: LOGO | FONT | GUIDELINE | IMAGE | OTHER.
-  brandRole       String?
-  tags            String[]        @default([])
-  uploadedById    String
-  uploadedBy      User            @relation(fields: [uploadedById], references: [id])
-  createdAt       DateTime        @default(now())
-  deletedAt       DateTime?
+  brandRole          String?
+  tags               String[]          @default([])
+  uploadedById       String
+  uploadedBy         User              @relation(fields: [uploadedById], references: [id])
+  createdAt          DateTime          @default(now())
+  deletedAt          DateTime?
   /// Audit LOG-5: kept as it is, deleted or not, until the hold is lifted — a dispute, an inquiry.
-  legalHold       Boolean         @default(false)
-  legalHoldReason String?
+  legalHold          Boolean           @default(false)
+  legalHoldReason    String?
   /// Audit LOG-5: when the file itself was removed, FILE_RETENTION_DAYS after the document was deleted.
   /// The row stays: what was here, who put it, and when it went.
-  purgedAt        DateTime?
+  purgedAt           DateTime?
 
   annotations     Annotation[]
   envelopesSent   SignatureEnvelope[] @relation("EnvelopeOriginal")
@@ -3038,6 +3050,93 @@ model AiPlan {
 
   @@index([userId, createdAt])
   @@map("ai_plans")
+}
+
+/// Team chat (audit F-5): a direct conversation between two people, a private group, or a channel
+/// any colleague may join. Its members read it; beyond them only a reviewer holding chat.oversight,
+/// each look recorded with its reason.
+model ChatConversation {
+  id             String        @id @default(uuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// DIRECT | GROUP | CHANNEL
+  kind           String
+  title          String?
+  topic          String?
+  /// DIRECT only: the two people's ids, sorted and joined — one conversation per pair.
+  directKey      String?
+  createdById    String
+  createdBy      User          @relation("ChatConversationCreator", fields: [createdById], references: [id])
+  lastMessageAt  DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  members        ChatMember[]
+  messages       ChatMessage[]
+  documents      Document[]
+
+  @@unique([organizationId, directKey])
+  @@index([organizationId, kind])
+  @@map("chat_conversations")
+}
+
+/// Who is in a conversation, and how they want to hear of it. Leaving keeps the row (`leftAt`).
+model ChatMember {
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// OWNER | ADMIN | MEMBER
+  role           String           @default("MEMBER")
+  muted          Boolean          @default(false)
+  /// ALL | MENTIONS | NONE — away from the page; the unread count is always kept.
+  notify         String           @default("ALL")
+  lastReadAt     DateTime?
+  joinedAt       DateTime         @default(now())
+  leftAt         DateTime?
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("chat_members")
+}
+
+/// One message. Edited, it keeps what it said before (chat_message_edits); deleted, it is hidden
+/// from the conversation and kept.
+model ChatMessage {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   ChatConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         User              @relation("ChatMessageAuthor", fields: [authorId], references: [id])
+  body           String
+  replyToId      String?
+  replyTo        ChatMessage?      @relation("ChatReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        ChatMessage[]     @relation("ChatReplies")
+  /// People named in it: they hear of it even when they hear only of mentions.
+  mentionIds     String[]          @default([])
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  deletedById    String?
+  createdAt      DateTime          @default(now())
+  edits          ChatMessageEdit[]
+  attachments    Document[]        @relation("ChatAttachments")
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+/// What a message said before an edit.
+model ChatMessageEdit {
+  id        String      @id @default(uuid())
+  messageId String
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  body      String
+  editedAt  DateTime    @default(now())
+
+  @@index([messageId])
+  @@map("chat_message_edits")
 }
 
 /// A person's conversation with the assistant — theirs alone; nobody else, administrators included,

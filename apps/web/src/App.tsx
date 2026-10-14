@@ -32,6 +32,8 @@ const PeopleDirectory = lazy(() => import('./pages/People').then((m) => ({ defau
 const PersonPage = lazy(() => import('./pages/People').then((m) => ({ default: m.PersonPage })));
 // The phone's three loops (roadmap #49): a screen of its own, without the desktop shell.
 const Mobile = lazy(() => import('./pages/Mobile'));
+const Chat = lazy(() => import('./pages/Chat'));
+const ChatOversight = lazy(() => import('./pages/ChatOversight'));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -116,6 +118,9 @@ export default function App() {
         <Route path="/forms" element={<Guarded permission="form.read" element={<Forms />} />} />
         <Route path="/reports" element={<Guarded permission="report.read" element={<Reports />} />} />
         <Route path="/memory" element={<Memory />} />
+        <Route path="/chat" element={<Guarded permission="chat.use" element={<Chat />} />} />
+        <Route path="/chat/oversight" element={<Guarded permission="chat.oversight" element={<ChatOversight />} />} />
+        <Route path="/chat/:id" element={<Guarded permission="chat.use" element={<Chat />} />} />
         <Route path="/rules" element={<Rules />} />
         <Route path="/onboarding" element={<Guarded permission="admin.settings" element={<Onboarding />} />} />
         <Route path="/ai" element={<Guarded permission="ai.use" element={<Assistant />} />} />

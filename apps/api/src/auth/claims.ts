@@ -1,4 +1,4 @@
-import { permissionsForRoles, type RoleCode } from '@hiva/contracts';
+import { OVERSIGHT_PERMISSIONS, permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { AppError, unauthorized } from '../lib/errors.js';
 import { grantsOf, permissionsFor, versionsFor } from './grants.js';
@@ -57,7 +57,8 @@ async function withDelegations(userId: string, organizationId: string, roles: Ro
     const fromRoles = from.roles.map((r) => r.role.code as RoleCode);
     const fromPerms = new Set<string>(await permissionsFor(organizationId, fromRoles));
     for (const p of d.permissions) {
-      if (!fromPerms.has(p) || permissions.has(p)) continue;
+      // Oversight is never passed on (audit F-5), whatever a delegation row says.
+      if (!fromPerms.has(p) || permissions.has(p) || (OVERSIGHT_PERMISSIONS as readonly string[]).includes(p)) continue;
       permissions.add(p); delegated[p] = d.fromUserId;
     }
     for (const r of d.roles) {

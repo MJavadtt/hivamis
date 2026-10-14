@@ -260,4 +260,15 @@ export const REVIEWED: Record<string, Verdict> = {
     "finance/revenue.ts#loadRevenueData#timeEntry#1",
     "finance/revenue.ts#loadRevenueData#user#1",
   ]),
+  // Audit F-5, team chat.
+  ...of('CHILDREN', [
+    "chat/service.ts#isMember#chatMember#1",
+    "routes/team-chat.ts#GET /chat/conversations/:id#chatMember#1",
+  ]),
+  // At most 200 people chosen for a conversation, 50 named in a message (packages/contracts chat.ts).
+  ...of('IDS', [
+    "routes/team-chat.ts#colleagues#user#1",
+    "routes/team-chat.ts#POST /chat/conversations/:id/messages#chatMember#1",
+  ]),
+  ...of('OWN', ["routes/team-chat.ts#GET /chat/unread#chatMember#1"]),
 };

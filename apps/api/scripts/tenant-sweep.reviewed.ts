@@ -348,4 +348,23 @@ export const REVIEWED: Record<string, Verdict> = {
     "messenger/service.ts#status",
     "messenger/service.ts#unlink",
   ]),
+  // Audit F-5, team chat: each route finds the person's membership in a conversation of their own
+  // organisation first (chat/service.ts#membership), then works by that conversation's id.
+  ...of('EARLIER', [
+    "routes/team-chat.ts#POST /chat/conversations",
+    "routes/team-chat.ts#GET /chat/conversations/:id",
+    "routes/team-chat.ts#POST /chat/conversations/:id/join",
+    "routes/team-chat.ts#POST /chat/conversations/:id/leave",
+    "routes/team-chat.ts#POST /chat/conversations/:id/members",
+    "routes/team-chat.ts#DELETE /chat/conversations/:id/members/:userId",
+    "routes/team-chat.ts#PATCH /chat/conversations/:id/members/:userId",
+    "routes/team-chat.ts#PATCH /chat/conversations/:id/me",
+    "routes/team-chat.ts#POST /chat/conversations/:id/read",
+    "routes/team-chat.ts#POST /chat/conversations/:id/messages",
+    "routes/team-chat.ts#PATCH /chat/messages/:id",
+  ]),
+  ...of('OWN', ["routes/team-chat.ts#GET /chat/unread"]),
+  // isMember: the live stream asks only about events of the reader's own organisation (routes/live.ts);
+  // tellMembers: called after a message was written in a conversation found in the writer's organisation.
+  ...of('CALLER', ["chat/service.ts#isMember", "chat/service.ts#tellMembers"]),
 };
