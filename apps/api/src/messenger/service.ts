@@ -58,16 +58,24 @@ export async function startLink(user: { id: string; organizationId: string }) {
 }
 
 export async function status(userId: string) {
-  const link = await prisma.messengerLink.findUnique({ where: { userId } });
-  return { mode: messengerMode(), linked: !!link && link.provider === messengerMode(), link, bot: env.MESSENGER_BOT_USERNAME || null };
+  const [link, telegram] = await Promise.all([
+    prisma.messengerLink.findUnique({ where: { userId } }),
+    prisma.userIdentity.count({ where: { userId, provider: 'telegram' } }),
+  ]);
+  // Whether the Telegram Mini App signs this person in (audit F-9).
+  return { mode: messengerMode(), linked: !!link && link.provider === messengerMode(), link, bot: env.MESSENGER_BOT_USERNAME || null, miniAppSignIn: telegram > 0 };
 }
 
 export async function unlink(user: { id: string; organizationId: string }) {
   const link = await prisma.messengerLink.findUnique({ where: { userId: user.id } });
   if (!link) return { unlinked: false };
-  await prisma.messengerLink.delete({ where: { id: link.id } });
-  await prisma.messengerAction.updateMany({ where: { userId: user.id, state: { in: ['OPEN', 'AWAITING_REASON'] } }, data: { state: 'EXPIRED' } });
-  await audit({ organizationId: user.organizationId, actorId: user.id, action: 'MESSENGER_UNLINKED', entityType: 'user', entityId: user.id, after: { provider: link.provider } });
+  await prisma.$transaction(async (tx) => {
+    await tx.messengerLink.delete({ where: { id: link.id } });
+    await tx.messengerAction.updateMany({ where: { userId: user.id, state: { in: ['OPEN', 'AWAITING_REASON'] } }, data: { state: 'EXPIRED' } });
+    // The Telegram account was linked with the chat, and goes with it: the Mini App no longer signs in.
+    const { count } = await tx.userIdentity.deleteMany({ where: { userId: user.id, provider: 'telegram' } });
+    await audit({ organizationId: user.organizationId, actorId: user.id, action: 'MESSENGER_UNLINKED', entityType: 'user', entityId: user.id, after: { provider: link.provider, signInIdentityRemoved: count > 0 } }, tx);
+  });
   return { unlinked: true };
 }
 
@@ -138,7 +146,7 @@ export async function pushNotification(n: { userId: string; kind: string; title:
 
 export interface Update {
   update_id?: number;
-  message?: { message_id?: number; chat: { id: number | string }; from?: { username?: string }; text?: string };
+  message?: { message_id?: number; chat: { id: number | string; type?: string }; from?: { id?: number; username?: string }; text?: string };
   callback_query?: { id: string; data?: string; from?: { username?: string }; message?: { message_id?: number; chat: { id: number | string } } };
 }
 
@@ -186,7 +194,7 @@ export async function handleUpdate(p: MessengerProvider, update: Update, caller?
   }
   if (!update.message?.text) return {};
   const code = sentCode;
-  if (code) return { reply: await say(p, orgId, link?.userId ?? null, chatId, await linkChat(p, chatId, code, update.message.from?.username)) };
+  if (code) return { reply: await say(p, orgId, link?.userId ?? null, chatId, await linkChat(p, chatId, code, update.message)) };
   if (link) {
     const waiting = await prisma.messengerAction.findFirst({ where: { userId: link.userId, state: 'AWAITING_REASON', chatId, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
     if (waiting) {
@@ -204,21 +212,41 @@ export async function handleUpdate(p: MessengerProvider, update: Update, caller?
   };
 }
 
-async function linkChat(p: MessengerProvider, chatId: string, code: string, username?: string) {
+/**
+ * Links a chat by the code its person asked for in the app. On Telegram, a private chat is also the
+ * person's Telegram account, so it becomes a sign-in identity for the Mini App (audit F-9): linked
+ * only this way, by a code from a signed-in session — never by matching an email.
+ */
+async function linkChat(p: MessengerProvider, chatId: string, code: string, message: NonNullable<Update['message']>) {
   const a = await prisma.messengerAction.findUnique({ where: { token: code } });
   if (!a || a.kind !== 'LINK' || a.state !== 'OPEN' || a.expiresAt <= new Date()) return 'این کد معتبر نیست یا مهلتش گذشته است؛ در هیوامیس کد تازه بگیرید.';
   const other = await prisma.messengerLink.findUnique({ where: { provider_chatId: { provider: p.name, chatId } } });
   if (other && other.userId !== a.userId) return 'این گفت‌وگو به حساب دیگری در هیوامیس وصل است؛ نخست از آن حساب جدا شوید.';
-  const user = await prisma.user.findUnique({ where: { id: a.userId }, select: { fullName: true, organizationId: true } });
-  await prisma.$transaction([
-    prisma.messengerAction.update({ where: { id: a.id }, data: { state: 'DONE', usedAt: new Date(), chatId } }),
-    prisma.messengerLink.upsert({
+  const telegramId = p.name === 'telegram' && message.chat.type === 'private' && message.from?.id ? String(message.from.id) : null;
+  if (telegramId) {
+    const owner = await prisma.userIdentity.findUnique({ where: { provider_subject: { provider: 'telegram', subject: telegramId } } });
+    if (owner && owner.userId !== a.userId) return 'این حساب تلگرام به حساب دیگری در هیوامیس وصل است؛ نخست از آن حساب جدا شوید.';
+  }
+  const username = message.from?.username ?? null;
+  const user = await prisma.user.findUnique({ where: { id: a.userId }, select: { fullName: true } });
+  await prisma.$transaction(async (tx) => {
+    await tx.messengerAction.update({ where: { id: a.id }, data: { state: 'DONE', usedAt: new Date(), chatId } });
+    await tx.messengerLink.upsert({
       where: { userId: a.userId },
-      create: { organizationId: a.organizationId, userId: a.userId, provider: p.name, chatId, username: username ?? null },
-      update: { provider: p.name, chatId, username: username ?? null, linkedAt: new Date() },
-    }),
-  ]);
-  await audit({ organizationId: a.organizationId, actorId: a.userId, action: 'MESSENGER_LINKED', entityType: 'user', entityId: a.userId, after: { provider: p.name, username: username ?? null } });
+      create: { organizationId: a.organizationId, userId: a.userId, provider: p.name, chatId, username },
+      update: { provider: p.name, chatId, username, linkedAt: new Date() },
+    });
+    // One Telegram account per person: linking another replaces the one before.
+    await tx.userIdentity.deleteMany({ where: { userId: a.userId, provider: 'telegram', ...(telegramId ? { subject: { not: telegramId } } : {}) } });
+    if (telegramId) {
+      await tx.userIdentity.upsert({
+        where: { provider_subject: { provider: 'telegram', subject: telegramId } },
+        create: { userId: a.userId, provider: 'telegram', subject: telegramId },
+        update: {},
+      });
+    }
+    await audit({ organizationId: a.organizationId, actorId: a.userId, action: 'MESSENGER_LINKED', entityType: 'user', entityId: a.userId, after: { provider: p.name, username, signInIdentity: !!telegramId } }, tx);
+  });
   return `اتصال برقرار شد: ${user?.fullName ?? ''}. از این پس اعلان‌های مهم و درخواست‌های تأیید را همین‌جا می‌گیرید.`;
 }
 

@@ -12,7 +12,7 @@ const MODE_FA: Record<string, string> = {
   bale: tr('ربات بله'), telegram: tr('ربات تلگرام'), off: tr('خاموش'),
 };
 
-interface Status { mode: string; linked: boolean; link: { username: string | null; linkedAt: string } | null; bot: string | null }
+interface Status { mode: string; linked: boolean; link: { username: string | null; linkedAt: string } | null; bot: string | null; miniAppSignIn?: boolean }
 interface Chat { id: string; direction: 'IN' | 'OUT'; text: string; buttons: { text: string; action?: string; url?: string }[][] | null; at: string }
 
 /** The sidebar entry: opens the person's own messenger settings. */
@@ -50,6 +50,7 @@ export function MessengerModal({ onClose }: { onClose: () => void }) {
               <div className="flex flex-wrap items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900" data-testid="messenger-linked">
                 <span className="flex-1">{tr('وصل است')}{s.link?.username ? <> — <span className="ltr">@{s.link.username}</span></> : ''} · {formatDateTime(s.link?.linkedAt)}</span>
                 <Button size="sm" variant="ghost" onClick={() => void unlink()}>{tr('جدا کردن')}</Button>
+                {s.miniAppSignIn && <p className="basis-full text-[12.5px]" data-testid="messenger-mini-app">{tr('برنامهٔ هیوامیس درون تلگرام هم با همین حساب باز می‌شود.')}</p>}
               </div>
             ) : code ? (
               <div className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="messenger-code">
@@ -125,10 +126,20 @@ export function MessengerAdmin() {
         <Badge tone={data.mode === 'off' ? 'neutral' : data.configured ? 'success' : 'warning'}>{MODE_FA[data.mode] ?? data.mode}</Badge>
         {data.bot && <span className="ltr text-xs text-ink-500">@{data.bot}</span>}
         <span className="text-xs text-ink-600">{tr('{0} نفر وصل · ۲۴ ساعت گذشته: {1} پیام، {2} ناموفق · در صف {3}', localDigits(data.linked), localDigits(data.last24h.sent), localDigits(data.last24h.failed), localDigits(data.queued))}</span>
-        {['bale', 'telegram'].includes(data.mode) && (
+        {['bale', 'telegram'].includes(data.mode) && data.transport !== 'polling' && (
           <Button size="sm" variant="secondary" className="ms-auto" disabled={!data.configured || !data.webhookSecretSet} onClick={() => void register()}>{tr('ثبت وب‌هوک ربات')}</Button>
         )}
       </div>
+      {data.transport === 'polling' && data.polling && (
+        <p className="border-t border-ink-100 px-4 py-2 text-xs text-ink-600" data-testid="messenger-polling">
+          {tr('ربات پیام‌ها را خودش می‌گیرد (polling)؛ وب‌هوک لازم نیست.')}{' '}
+          {data.polling.stalled
+            ? <Badge tone="danger">{tr('خاموش مانده')}</Badge>
+            : <Badge tone="success">{tr('در حال گوش دادن')}</Badge>}{' '}
+          {data.polling.lastPollAt ? tr('آخرین دریافت {0}', formatDateTime(data.polling.lastPollAt)) : tr('هنوز دریافتی نبوده است')}
+          {data.polling.lastError && <span className="ltr ms-2 text-rose-700">{data.polling.lastError}</span>}
+        </p>
+      )}
     </Card>
   );
 }

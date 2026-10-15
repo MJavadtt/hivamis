@@ -297,6 +297,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/identity.ts#POST /auth/phone/start",
     "routes/identity.ts#POST /auth/phone/verify",
     "routes/identity.ts#POST /auth/signup",
+    "routes/identity.ts#POST /auth/telegram/webapp",
     "routes/identity.ts#googleOutcome",
     "routes/people.ts#POST /me/phone/start",
   ]),

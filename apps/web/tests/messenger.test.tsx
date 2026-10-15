@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MessengerModal } from '../src/components/Messenger';
+import { MessengerAdmin, MessengerModal } from '../src/components/Messenger';
+import { ToastProvider } from '../src/components/ui';
 
 const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status, headers: { 'content-type': 'application/json' } });
 const mount = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MessengerModal onClose={() => {}} /></QueryClientProvider>);
@@ -37,6 +38,24 @@ describe('The messenger, from the app', () => {
     expect(screen.getByText('باز کردن در سیستم').getAttribute('href')).toContain('/forms?submission=s1');
     fireEvent.click(screen.getByText('تأیید'));
     await waitFor(() => expect(posts.at(-1)).toEqual({ url: expect.stringContaining('/messenger/sandbox/press'), body: { action: 'tokA' } }));
+  });
+
+  it('says when the Telegram Mini App also signs this person in (audit F-9)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ mode: 'telegram', linked: true, link: { username: 'behrad_tg', linkedAt: '2026-10-15T08:00:00Z' }, bot: 'hivamis_bot', miniAppSignIn: true })));
+    mount();
+    expect((await screen.findByTestId('messenger-mini-app')).textContent).toContain('درون تلگرام');
+  });
+
+  it('shows the administrator a polling bot’s last fetch, with no webhook to register', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      mode: 'telegram', configured: true, bot: 'hivamis_bot', webhookSecretSet: false, transport: 'polling', linked: 3, last24h: { sent: 4, failed: 0 }, queued: 0,
+      polling: { transport: 'polling', lastPollAt: null, stalled: true, lastError: 'getUpdates: HTTP 502' },
+    })));
+    render(<QueryClientProvider client={new QueryClient()}><ToastProvider><MessengerAdmin /></ToastProvider></QueryClientProvider>);
+    const polling = await screen.findByTestId('messenger-polling');
+    expect(polling.textContent).toContain('خاموش مانده');
+    expect(polling.textContent).toContain('getUpdates: HTTP 502');
+    expect(screen.queryByText('ثبت وب‌هوک ربات')).toBeNull();
   });
 
   it('says so when the messenger is off', async () => {

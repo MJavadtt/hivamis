@@ -127,7 +127,8 @@ come from `tenant:create`, as the installer does.
 | `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
 | `MESSENGER_API_URL` | no | the provider's | Bot API base, e.g. a proxy in front of it |
 | `MESSENGER_BOT_USERNAME` | no | — | Shown to people linking, and used for Telegram deep links |
-| `MESSENGER_WEBHOOK_SECRET` | for `bale`/`telegram` | — | Path segment of the webhook and the Bot API secret token; without it no update is accepted |
+| `MESSENGER_WEBHOOK_SECRET` | for `bale`/`telegram` with `webhook` | — | Path segment of the webhook and the Bot API secret token; without it no update is accepted |
+| `MESSENGER_TRANSPORT` | no | `webhook` | How the bot hears people (audit F-9): `webhook` — the Bot API calls `PUBLIC_APP_URL`; `polling` — the server asks, for a server the Bot API cannot reach (behind NAT, outbound-only) |
 | `MOADIAN_URL` | no | `https://tp.tax.gov.ir/requestsmanager/api/v2/` | The authority's API base. Point it at the authority's test environment for the first live submissions |
 | `MOADIAN_PRIVATE_KEY_PATH` / `MOADIAN_CERTIFICATE_PATH` | for `live` | — | The taxpayer's private key (PEM) registered in the authority's portal, and its certificate (PEM, sent as `x5c`). Keep them out of the repository and readable only by the API process |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | no | made on first use | Web Push (roadmap #49): the key pair that names this server to the browsers' push services, base64url (65-byte public point, 32-byte private scalar). Unset, one pair is generated and kept in `server_keys`. Set it once in production — changing it silences every phone until its owner opens `/m` again. A mismatched pair is refused on first use |
@@ -573,9 +574,23 @@ Roadmap #40. To connect a bot:
 1. Create the bot in the messenger (Bale or Telegram) and take its token and username.
 2. Set `MESSENGER_MODE`, `MESSENGER_BOT_TOKEN`, `MESSENGER_BOT_USERNAME` and a long random
    `MESSENGER_WEBHOOK_SECRET`; `PUBLIC_APP_URL` must be reachable from the messenger's servers.
+   The token goes only into the environment: never into the repository, a ticket or a chat. A
+   token that has been seen anywhere else is revoked in BotFather and replaced.
 3. In **مدیریت ← یکپارچه‌سازی ← پیام‌رسان**, **ثبت وب‌هوک ربات** registers
    `PUBLIC_APP_URL/api/v1/messenger/webhook/<secret>` with the bot.
+   - **Or, where the messenger's servers cannot reach this one**, set `MESSENGER_TRANSPORT=polling`
+     instead (audit F-9). The server then asks for updates itself, clearing any webhook first.
+   - Telegram gives a bot's updates to one reader. With several API instances, a lease in
+     `messenger_poll_state` lets exactly one of them poll; another takes over within two minutes of
+     it stopping.
+   - The same page shows when a poll last completed. It turns red when none has for 80 seconds, and
+     shows the last error (never with the token in it).
 4. Each person links from the sidebar's **پیام‌رسان**: a one-time code they send to the bot.
+   - On Telegram, linking from a private chat also records the person's Telegram account as a way
+     in. The Hivamis Mini App can then sign them in with `POST /api/v1/auth/telegram/webapp`.
+   - That route checks Telegram's signature with the bot token. It takes a launch for one hour, not
+     Telegram's day, and only once: a second use is refused and logged as a failed sign-in.
+   - Disconnecting the chat removes the way in. The way in never counts as someone's last one.
 
 `messenger:send` runs every minute and retries what did not go out (five attempts). The live
 transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a

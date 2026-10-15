@@ -8,6 +8,7 @@ import { AppError, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { configuredProvider, messengerMode, sandboxProvider } from '../messenger/provider.js';
 import { handleUpdate, sandboxChat, startLink, status, unlink, type Update } from '../messenger/service.js';
+import { pollingStatus } from '../messenger/polling.js';
 
 const sandboxSendSchema = z.object({ text: z.string().trim().min(1).max(2000) });
 const sandboxPressSchema = z.object({ action: z.string().regex(/^[\w-]{6,40}$/) });
@@ -69,12 +70,15 @@ const messengerRoutes: FastifyPluginAsync = async (app) => {
       prisma.messengerMessage.count({ where: { organizationId: actor.organizationId, direction: 'OUT', status: 'FAILED', createdAt: { gt: since } } }),
       prisma.messengerMessage.count({ where: { organizationId: actor.organizationId, direction: 'OUT', status: 'QUEUED' } }),
     ]);
-    return { mode: messengerMode(), configured: !!configuredProvider(), bot: env.MESSENGER_BOT_USERNAME || null, webhookSecretSet: !!env.MESSENGER_WEBHOOK_SECRET, linked, last24h: { sent, failed }, queued };
+    const mode = messengerMode();
+    const polling = mode === 'bale' || mode === 'telegram' ? await pollingStatus(mode) : null;
+    return { mode, configured: !!configuredProvider(), bot: env.MESSENGER_BOT_USERNAME || null, webhookSecretSet: !!env.MESSENGER_WEBHOOK_SECRET, transport: env.MESSENGER_TRANSPORT, polling, linked, last24h: { sent, failed }, queued };
   });
 
   app.post('/admin/messenger/webhook', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
     const actor = actorFrom(req);
     const p = configuredProvider();
+    if (env.MESSENGER_TRANSPORT === 'polling') throw new AppError(422, 'MESSENGER_POLLING', 'این نصب پیام‌های ربات را خودش می‌گیرد (polling)؛ وب‌هوک لازم نیست و با آن ناسازگار است.');
     if (!p?.setWebhook || !env.MESSENGER_WEBHOOK_SECRET) throw new AppError(422, 'MESSENGER_NOT_CONFIGURED', 'ربات پیام‌رسان یا رمز وب‌هوک آن تنظیم نشده است.');
     const base = (env.PUBLIC_APP_URL || env.CORS_ORIGIN.split(',')[0]!.trim()).replace(/\/+$/, '');
     await p.setWebhook(`${base}/api/v1/messenger/webhook/${env.MESSENGER_WEBHOOK_SECRET}`, env.MESSENGER_WEBHOOK_SECRET);

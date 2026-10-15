@@ -102,6 +102,11 @@ const envSchema = z.object({
   MESSENGER_API_URL: z.string().default(''),
   MESSENGER_BOT_USERNAME: z.string().default(''),
   MESSENGER_WEBHOOK_SECRET: z.string().default(''),
+  /**
+   * How the bot hears what people send it (audit F-9): `webhook` — the Bot API calls us, which needs
+   * an address it can reach; `polling` — we ask it, which works behind NAT and outbound-only networks.
+   */
+  MESSENGER_TRANSPORT: z.enum(['webhook', 'polling']).default('webhook'),
   MOADIAN_URL: z.string().default('https://tp.tax.gov.ir/requestsmanager/api/v2/'),
   MOADIAN_PRIVATE_KEY_PATH: z.string().default(''),
   MOADIAN_CERTIFICATE_PATH: z.string().default(''),

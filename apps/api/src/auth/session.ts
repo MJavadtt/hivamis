@@ -11,11 +11,11 @@ import { setRefreshCookie } from './cookie.js';
 import { recordFailure } from './throttle.js';
 
 /** How a person proved who they are; recorded with every sign-in. */
-export type SignInMethod = 'password' | 'phone' | 'google';
+export type SignInMethod = 'password' | 'phone' | 'google' | 'telegram';
 
 /**
  * A session for someone who has just proved who they are — by password, a code sent to their mobile,
- * or Google (Hivamis task 4). Every way in ends here, so each gets the same session, the same reset
+ * Google (Hivamis task 4), or the Telegram Mini App (audit F-9). Every way in ends here, so each gets the same session, the same reset
  * of failed attempts and the same audit record, naming the method.
  */
 export async function issueSession(userId: string, req: FastifyRequest, reply: FastifyReply, method: SignInMethod) {

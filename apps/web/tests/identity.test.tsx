@@ -164,6 +164,19 @@ describe('My page', () => {
     await waitFor(() => expect(sent.some((x) => x.method === 'DELETE' && x.path === '/me/sessions/s2')).toBe(true));
   });
 
+  it('shows Telegram as a way into the Mini App, never counted as the last way in (audit F-9)', async () => {
+    const withTelegram = { ...PROFILE, available: { ...PROFILE.available, telegram: true }, identities: [{ id: 'tg1', provider: 'telegram', email: null, createdAt: '2026-10-15T08:00:00Z', lastUsedAt: '2026-10-15T09:00:00Z' }] };
+    const sent = mount(<Me />, (p) => (p === '/me/profile' ? json(withTelegram) : undefined), { signedIn: true });
+    const telegram = await screen.findByTestId('way-telegram');
+    expect(telegram.textContent).toContain('برنامهٔ هیوامیس درون تلگرام');
+    // The mobile is still the only way in: Telegram does not make it removable.
+    expect((screen.getByTestId('way-phone').querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    const remove = telegram.querySelector('button') as HTMLButtonElement;
+    expect(remove.disabled).toBe(false);
+    fireEvent.click(remove);
+    await waitFor(() => expect(sent.some((x) => x.method === 'DELETE' && x.path === '/me/identities/tg1')).toBe(true));
+  });
+
   it('sets a first password for someone who joined without one', async () => {
     const sent = mount(<Me />, (p) => (p === '/me/profile' ? json(PROFILE) : undefined), { signedIn: true });
     const section = await screen.findByTestId('way-password');

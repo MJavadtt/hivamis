@@ -2923,5 +2923,16 @@
   "گام‌ها برای هر دستگاه": "Steps for each device",
   "هیوامیس همراه، برای کار میدانی": "Hivamis Mobile, for field work",
   "روی گوشی، نشانی /m را باز کنید و همان‌جا نصب کنید: برنامه‌ای جدا که با سه کار میدانی — پذیرش سفارش، تأیید فرم و QC واحد — باز می‌شود و اعلان‌هایش را دارد.": "On the phone, open /m and install it there: a separate app that opens on the three field tasks — accepting orders, approving forms and unit QC — with its notices.",
-  "باز کردن هیوامیس همراه": "Open Hivamis Mobile"
+  "باز کردن هیوامیس همراه": "Open Hivamis Mobile",
+  "برنامهٔ هیوامیس درون تلگرام هم با همین حساب باز می‌شود.": "The Hivamis app inside Telegram also opens with this account.",
+  "ربات پیام‌ها را خودش می‌گیرد (polling)؛ وب‌هوک لازم نیست.": "The bot fetches its messages itself (polling); no webhook is needed.",
+  "خاموش مانده": "Stalled",
+  "در حال گوش دادن": "Listening",
+  "آخرین دریافت {0}": "Last fetched {0}",
+  "هنوز دریافتی نبوده است": "Nothing fetched yet",
+  "تلگرام (برنامهٔ درون تلگرام)": "Telegram (the app inside Telegram)",
+  "وصل": "Linked",
+  "ورود از تلگرام برداشته شد.": "Signing in from Telegram was removed.",
+  "برنامهٔ هیوامیس درون تلگرام با همین حساب باز می‌شود. با جدا کردن پیام‌رسان این ورود هم برداشته می‌شود.": "The Hivamis app inside Telegram opens with this account. Unlinking the messenger removes this way in as well.",
+  "با «اتصال پیام‌رسان» از گفت‌وگوی خصوصی با ربات، برنامهٔ هیوامیس درون تلگرام هم با همین حساب باز می‌شود.": "Use “Messenger connection” from a private chat with the bot, and the Hivamis app inside Telegram opens with this account too."
 }

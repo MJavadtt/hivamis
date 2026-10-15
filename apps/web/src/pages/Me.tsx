@@ -23,7 +23,7 @@ interface MyProfile {
   id: string; phone: string | null; phoneVerified: boolean; hasPassword: boolean;
   identities: { id: string; provider: string; email: string | null; createdAt: string; lastUsedAt: string | null }[];
   sessions: { id: string; userAgent: string | null; ipAddress: string | null; createdAt: string; current: boolean }[];
-  available: { phone: boolean; google: boolean };
+  available: { phone: boolean; google: boolean; telegram?: boolean };
 }
 
 const device = (ua: string | null) =>
@@ -169,11 +169,13 @@ function WaysIn({ profile }: { profile: MyProfile }) {
   const qc = useQueryClient();
   const toast = useToast();
   const reload = () => qc.invalidateQueries({ queryKey: ['/me/profile'] });
-  const ways = (profile.hasPassword ? 1 : 0) + (profile.phoneVerified ? 1 : 0) + profile.identities.length;
+  // Telegram opens only the Mini App, and goes with the messenger link: never the last way in (audit F-9).
+  const ways = (profile.hasPassword ? 1 : 0) + (profile.phoneVerified ? 1 : 0) + profile.identities.filter((i) => i.provider !== 'telegram').length;
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try { await fn(); toast(ok); await reload(); } catch (e) { toast((e as Error).message, 'danger'); }
   };
   const google = profile.identities.filter((i) => i.provider === 'google');
+  const telegram = profile.identities.filter((i) => i.provider === 'telegram');
 
   return (
     <Card tour="ways-in" title={tr('روش‌های ورود')} subtitle={tr('دست‌کم یک روش همیشه می‌ماند.')}>
@@ -214,6 +216,24 @@ function WaysIn({ profile }: { profile: MyProfile }) {
             ? !google.length && <Button size="sm" variant="secondary" onClick={() => void goToGoogleLink().catch((e) => toast((e as Error).message, 'danger'))}>{tr('وصل کردن حساب گوگل')}</Button>
             : !google.length && <p className="text-xs text-ink-500">{tr('ورود با گوگل در این نصب پیکربندی نشده است.')}</p>}
         </section>
+
+        {(profile.available.telegram || telegram.length > 0) && (
+          <section className="p-4" data-testid="way-telegram">
+            <p className="mb-2 text-sm font-medium text-ink-800">{tr('تلگرام (برنامهٔ درون تلگرام)')}</p>
+            {telegram.map((t) => (
+              <p key={t.id} className="mb-2 flex flex-wrap items-center gap-2 text-sm text-ink-700">
+                <Badge tone="success">{tr('وصل')}</Badge>
+                {t.lastUsedAt && <span className="text-[12.5px] text-ink-400">{tr('آخرین ورود {0}', formatDateTime(t.lastUsedAt))}</span>}
+                <Button size="sm" variant="ghost" onClick={() => void run(() => apiDelete(`/me/identities/${t.id}`), tr('ورود از تلگرام برداشته شد.'))}>{tr('برداشتن')}</Button>
+              </p>
+            ))}
+            <p className="text-xs leading-6 text-ink-500">
+              {telegram.length
+                ? tr('برنامهٔ هیوامیس درون تلگرام با همین حساب باز می‌شود. با جدا کردن پیام‌رسان این ورود هم برداشته می‌شود.')
+                : tr('با «اتصال پیام‌رسان» از گفت‌وگوی خصوصی با ربات، برنامهٔ هیوامیس درون تلگرام هم با همین حساب باز می‌شود.')}
+            </p>
+          </section>
+        )}
       </div>
     </Card>
   );

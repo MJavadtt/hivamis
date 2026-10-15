@@ -126,6 +126,9 @@ message, a contract signed — reach you there too. An approval request comes wi
 approving from the chat is exactly approving in the app — the same rules decide whether you may,
 and the record says you did it, from the messenger. «رد» asks for the reason first. **جدا کردن**
 disconnects the chat. On an installation without a bot, the same window shows a practice chat.
+With the organisation's Telegram bot, linking from your private chat with the bot also lets the
+Hivamis app inside Telegram open as you. It shows under **روش‌های ورود** on your own page;
+disconnecting the chat removes it too. Nobody is linked by their email: only by the code you send.
 
 ## Sales
 

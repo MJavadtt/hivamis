@@ -2629,5 +2629,12 @@
   "کلید تکرارناپذیری نامعتبر است.": "The idempotency key is not valid.",
   "همین درخواست هم‌اکنون در حال انجام است؛ کمی بعد دوباره بفرستید.": "This same request is being carried out now; send it again in a moment.",
   "این کلید پیش‌تر برای درخواست دیگری به کار رفته است.": "This key was already used for a different request.",
-  "یادداشت تازه روی {0}": "New note on {0}"
+  "یادداشت تازه روی {0}": "New note on {0}",
+  "این حساب تلگرام به حساب دیگری در هیوامیس وصل است؛ نخست از آن حساب جدا شوید.": "This Telegram account is linked to another Hivamis account; unlink it there first.",
+  "ورود از تلگرام در این نصب فعال نیست.": "Signing in from Telegram is not enabled on this installation.",
+  "این ورود کهنه شده است؛ برنامه را از تلگرام دوباره باز کنید.": "This sign-in has expired; open the app from Telegram again.",
+  "امضای تلگرام درست نیست.": "Telegram's signature does not check.",
+  "این حساب تلگرام به هیوامیس وصل نیست. در هیوامیس «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد برای همین ربات بفرستید.": "This Telegram account is not linked to Hivamis. In Hivamis, choose “Messenger connection” and send the code you get to this bot.",
+  "این ورود پیش‌تر به کار رفته است؛ برنامه را از تلگرام دوباره باز کنید.": "This sign-in has already been used; open the app from Telegram again.",
+  "این نصب پیام‌های ربات را خودش می‌گیرد (polling)؛ وب‌هوک لازم نیست و با آن ناسازگار است.": "This installation fetches the bot's messages itself (polling); a webhook is not needed and would conflict with it."
 }

@@ -12,6 +12,8 @@ import { checkCode, issueCode } from '../auth/otp.js';
 import { sendCode, smsAvailable } from '../auth/sms.js';
 import { googleConfigured, startGoogle } from '../auth/google.js';
 import { hasPassword } from './identity.js';
+import { messengerMode } from '../messenger/provider.js';
+import { env } from '../env.js';
 
 /**
  * A page for every person, and one's own page (Hivamis task 4).
@@ -26,9 +28,13 @@ const DONE_TASK_STATES = ['APPROVED', 'CLOSED', 'CANCELLED'];
 const unitOf = (d: { code: string; nameFa: string; nameEn: string; tagColor: string | null } | null) =>
   d ? { code: d.code, nameFa: d.nameFa, nameEn: d.nameEn, color: unitColor(d.code, d.tagColor) } : null;
 
-/** At least one way in must remain: a password, a verified mobile, or a linked account. */
-function waysIn(u: { passwordHash: string; phoneVerifiedAt: Date | null }, identities: number) {
-  return (hasPassword(u.passwordHash) ? 1 : 0) + (u.phoneVerifiedAt ? 1 : 0) + identities;
+/**
+ * At least one way in must remain: a password, a verified mobile, or a linked account. Telegram is
+ * not counted (audit F-9): it opens only the Mini App, goes when the messenger is unlinked, and is
+ * no way back in from a browser.
+ */
+function waysIn(u: { passwordHash: string; phoneVerifiedAt: Date | null }, identities: { provider: string }[]) {
+  return (hasPassword(u.passwordHash) ? 1 : 0) + (u.phoneVerifiedAt ? 1 : 0) + identities.filter((i) => i.provider !== 'telegram').length;
 }
 
 const peopleRoutes: FastifyPluginAsync = async (app) => {
@@ -102,7 +108,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
       id: me.id, phone: me.phone, phoneVerified: !!me.phoneVerifiedAt, hasPassword: hasPassword(me.passwordHash),
       identities: me.identities.map((i) => ({ id: i.id, provider: i.provider, email: i.email, createdAt: i.createdAt, lastUsedAt: i.lastUsedAt })),
       sessions: me.sessions.map((s) => ({ id: s.id, userAgent: s.userAgent, ipAddress: s.ipAddress, createdAt: s.createdAt, current: s.familyId === family })),
-      available: { phone: smsAvailable(), google: googleConfigured() },
+      available: { phone: smsAvailable(), google: googleConfigured(), telegram: messengerMode() === 'telegram' && !!env.MESSENGER_BOT_TOKEN },
     };
   });
 
@@ -136,9 +142,9 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete('/me/phone', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
-    const me = await prisma.user.findUniqueOrThrow({ where: { id: actor.id }, include: { _count: { select: { identities: true } } } });
+    const me = await prisma.user.findUniqueOrThrow({ where: { id: actor.id }, include: { identities: { select: { provider: true } } } });
     if (!me.phoneVerifiedAt) return { phone: me.phone, phoneVerified: false };
-    if (waysIn(me, me._count.identities) <= 1) throw conflict('LAST_WAY_IN', 'این تنها راه ورود شماست؛ نخست رمز عبور بگذارید یا حساب دیگری وصل کنید.');
+    if (waysIn(me, me.identities) <= 1) throw conflict('LAST_WAY_IN', 'این تنها راه ورود شماست؛ نخست رمز عبور بگذارید یا حساب دیگری وصل کنید.');
     await prisma.user.update({ where: { id: actor.id }, data: { phoneVerifiedAt: null } });
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'user', entityId: actor.id, before: { phoneVerified: true }, after: { phoneVerified: false }, reason: 'mobile sign-in removed', ipAddress: actor.ipAddress });
     return { phone: me.phone, phoneVerified: false };
@@ -158,7 +164,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     const me = await prisma.user.findUniqueOrThrow({ where: { id: actor.id }, include: { identities: true } });
     const identity = me.identities.find((i) => i.id === id);
     if (!identity) throw notFound('حساب وصل‌شده');
-    if (waysIn(me, me.identities.length) <= 1) throw conflict('LAST_WAY_IN', 'این تنها راه ورود شماست؛ نخست رمز عبور بگذارید یا شمارهٔ همراه را تأیید کنید.');
+    if (identity.provider !== 'telegram' && waysIn(me, me.identities) <= 1) throw conflict('LAST_WAY_IN', 'این تنها راه ورود شماست؛ نخست رمز عبور بگذارید یا شمارهٔ همراه را تأیید کنید.');
     await prisma.userIdentity.delete({ where: { id } });
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'userIdentity', entityId: id, before: { provider: identity.provider, email: identity.email }, reason: 'account unlinked', ipAddress: actor.ipAddress });
     return { id, removed: true };

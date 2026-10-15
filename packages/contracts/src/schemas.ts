@@ -1121,6 +1121,9 @@ const otpCode = z.string().trim().transform((v) => v.replace(/[۰-۹]/g, (d) => 
 export const phoneStartSchema = z.object({ phone: iranMobileSchema });
 export const phoneVerifySchema = z.object({ phone: iranMobileSchema, code: otpCode });
 
+/** The Telegram Mini App's signed launch data, exchanged once for a session (audit F-9). */
+export const telegramWebAppSchema = z.object({ initData: z.string().min(1).max(4096) });
+
 /** Asking to join with a mobile proved by its code. The administrator decides the rest. */
 export const signupSchema = z.object({
   fullName: z.string().trim().min(3, 'نام و نام خانوادگی را کامل بنویسید').max(120),

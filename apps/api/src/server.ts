@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { env } from './env.js';
 import { prisma } from './db.js';
 import { startJobs } from './jobs/runner.js';
+import { startPolling } from './messenger/polling.js';
 import { demoAccountGate } from './lib/demo-accounts.js';
 import { shutdownPdfEngine } from './pdf/renderer.js';
 import { syncReference } from './setup/reference.js';
@@ -35,8 +36,12 @@ const boss = await startJobs(app.log).catch((err) => {
   return null;
 });
 
+// Audit F-9: the bot asks for its updates, when no webhook can reach this server.
+const stopPolling = startPolling(app.log);
+
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
+  await stopPolling?.().catch(() => undefined);
   await boss?.stop({ graceful: true }).catch(() => undefined);
   // Before app.close(): the browser is a child process that outlives the Node process otherwise,
   // so every restart leaked a Chromium.

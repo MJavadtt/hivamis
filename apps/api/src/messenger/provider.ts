@@ -9,11 +9,12 @@
  *   MESSENGER_MODE=telegram  Telegram's bot API
  *
  * Both live providers speak the Telegram Bot API shape: sendMessage with an inline keyboard,
- * editMessageText, answerCallbackQuery, setWebhook; updates arrive as `message` and
- * `callback_query`. The live transport has been written to that API and exercised against a stand-in,
+ * editMessageText, answerCallbackQuery, setWebhook — or getUpdates, with MESSENGER_TRANSPORT=polling;
+ * updates arrive as `message` and `callback_query`. The live transport has been written to that API and exercised against a stand-in,
  * not against Bale or Telegram themselves.
  */
 import { env } from '../env.js';
+import type { Update } from './service.js';
 
 export type Button = { text: string; action?: string; url?: string };
 export interface MessengerProvider {
@@ -22,6 +23,9 @@ export interface MessengerProvider {
   edit(chatId: string, messageId: string, text: string): Promise<void>;
   answerCallback(callbackId: string, text: string): Promise<void>;
   setWebhook?(url: string, secret: string): Promise<void>;
+  /** Long polling (audit F-9): waits up to `timeoutS` for updates from `offset` on. */
+  getUpdates?(offset: number, timeoutS: number): Promise<Update[]>;
+  deleteWebhook?(): Promise<void>;
 }
 
 export const messengerMode = (): 'off' | 'sandbox' | 'bale' | 'telegram' =>
@@ -37,8 +41,8 @@ export const keyboard = (buttons?: Button[][]) => buttons?.length
 export function botApiProvider(opts: { name: 'bale' | 'telegram'; token: string; baseUrl?: string; fetchImpl?: typeof fetch }): MessengerProvider {
   const f = opts.fetchImpl ?? fetch;
   const base = `${(opts.baseUrl || DEFAULT_API[opts.name]).replace(/\/+$/, '')}/bot${opts.token}`;
-  const call = async (method: string, body: object) => {
-    const res = await f(`${base}/${method}`, { method: 'POST', signal: AbortSignal.timeout(15_000), headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const call = async (method: string, body: object, waitMs = 15_000) => {
+    const res = await f(`${base}/${method}`, { method: 'POST', signal: AbortSignal.timeout(waitMs), headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const json = await res.json().catch(() => null) as { ok?: boolean; result?: any; description?: string } | null;
     // The token is in the URL of every call: an error must never repeat the URL.
     if (!res.ok || !json?.ok) throw new Error(`${method}: ${json?.description ?? `HTTP ${res.status}`}`);
@@ -53,6 +57,9 @@ export function botApiProvider(opts: { name: 'bale' | 'telegram'; token: string;
     async edit(chatId, messageId, text) { await call('editMessageText', { chat_id: chatId, message_id: Number(messageId), text }); },
     async answerCallback(callbackId, text) { await call('answerCallbackQuery', { callback_query_id: callbackId, text }); },
     async setWebhook(url, secret) { await call('setWebhook', { url, secret_token: secret, allowed_updates: ['message', 'callback_query'] }); },
+    // The long poll's own wait, and some room, before the request is given up as hung.
+    async getUpdates(offset, timeoutS) { return await call('getUpdates', { offset, timeout: timeoutS, allowed_updates: ['message', 'callback_query'] }, (timeoutS + 15) * 1000) ?? []; },
+    async deleteWebhook() { await call('deleteWebhook', { drop_pending_updates: false }); },
   };
 }
 

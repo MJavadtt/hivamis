@@ -2708,3 +2708,40 @@ the organisation's own, beside them, gives the freedom without that cost.
 files watched on disk, a background service on iOS, or an app that must be distributed through a
 store or MDM. That would be Tauri, with no Node in the renderer, signed builds documented, and a
 new ADR.
+
+## ADR-090 — Telegram joins Hivamis: one identity, one bot
+
+**Decision.** (Audit F-9, Option A, step 1 of 4.) The meeting platform comes into Hivamis rather
+than being bridged to it (docs/telegram-integration.md). This first step settles who a Telegram
+account is and how the one bot hears it.
+
+- **A Telegram account is a `UserIdentity`** (`provider = 'telegram'`, `subject` = the Telegram user
+  id). It is recorded only when its owner links the messenger from a **private** chat with the code
+  they asked for in a signed-in session. A group chat still receives notices but signs nobody in.
+  - No email or name is ever matched (finding 2).
+  - A Telegram account already someone else's is refused.
+  - Linking another account replaces the first. Disconnecting the chat removes the identity, in the
+    same transaction and the same audit row.
+- **The Mini App signs in** at `POST /auth/telegram/webapp` with its `initData`.
+  - The HMAC is checked with the bot token from the environment.
+  - A launch is taken for **one hour**, not the day Telegram suggests, because the signature has no
+    nonce. It is also taken **once**: its hash is kept as a spent `LoginTicket`, so a copy is refused
+    and logged as `LOGIN_FAILED telegram-replayed` (finding 4).
+  - Forged payloads slow the network; replays slow the Telegram account.
+  - An unlinked account is told how to link, and nothing else. The session is the ordinary one
+    (`issueSession`, method `telegram`).
+- **Telegram is not counted as anyone's last way in.** It opens only the Mini App and goes with the
+  messenger link, so the rule "one way in always remains" counts a password, a mobile and Google.
+- **The bot can poll** (`MESSENGER_TRANSPORT=polling`) where no webhook can reach the server.
+  - A lease row names the one process that reads, since Telegram allows one reader.
+  - The offset is kept, so a restart neither drops nor repeats an update.
+  - Liveness is when a poll last *completed*, which is the platform's lesson. Each request has its
+    own deadline, and the loop restarts with growing pauses.
+
+**Rejected.** Matching the platform's users by email (finding 2), and trusting a launch for 24
+hours. Also rejected: a separate sign-in table for Telegram, since `UserIdentity` already holds
+external accounts with their audit and removal.
+
+**Next.** Step 2 brings the booking domain (resources, bookings, exclusion constraints, the workflow
+with named guards, permissions). Step 3 is the Mini App against Hivamis's API; step 4 the admin pages.
+

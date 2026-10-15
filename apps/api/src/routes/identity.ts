@@ -2,8 +2,9 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
   approveSignupSchema, permissionsForRoles, phoneStartSchema, phoneVerifySchema, rejectSignupSchema, signupSchema,
-  signupSettingsSchema, type RoleCode,
+  signupSettingsSchema, telegramWebAppSchema, type RoleCode,
 } from '@hiva/contracts';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { env, mailEnabled, smsMode } from '../env.js';
 import { actorFrom, parse } from '../lib/http.js';
@@ -21,6 +22,8 @@ import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js
 import { verifyPassword } from '../auth/password.js';
 import { assertMayTry, clearFailures } from '../auth/throttle.js';
 import { findRoles } from '../auth/roles.js';
+import { INIT_DATA_TTL_S, initDataSeal, verifyInitData } from '../auth/telegram-webapp.js';
+import { messengerMode } from '../messenger/provider.js';
 
 /**
  * Signing in with a mobile number or a Google account, and asking to join (Hivamis task 4).
@@ -113,6 +116,47 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     }
     await clearFailures(phone, req.ip);
     return issueSession(user.id, req, reply, 'phone');
+  });
+
+  /* ── by Telegram's Mini App (audit F-9) ─────────────────────────────── */
+
+  /**
+   * The Mini App opened inside Telegram trades its signed launch data for a session — the person's
+   * whose Telegram account was linked from a signed-in Hivamis session, by a code sent to the bot.
+   * Nobody is matched by email or name; an account not linked gets only how to link it. The token
+   * that checks the signature comes from the environment alone.
+   */
+  app.post('/auth/telegram/webapp', { config: RATE }, async (req, reply) => {
+    const { initData } = parse(telegramWebAppSchema, req.body);
+    if (messengerMode() !== 'telegram' || !env.MESSENGER_BOT_TOKEN) throw new AppError(503, 'TELEGRAM_OFF', 'ورود از تلگرام در این نصب فعال نیست.');
+    // A forged payload names nobody, so forgeries slow down the network; a genuine one, its account.
+    await assertMayTry('telegram-webapp', req.ip);
+    const checked = verifyInitData(initData, env.MESSENGER_BOT_TOKEN);
+    if (!checked.ok) {
+      if (checked.reason !== 'STALE') await countFailure('telegram-webapp', req, null, `telegram-${checked.reason.toLowerCase()}`);
+      throw unauthorized(checked.reason === 'STALE' ? 'این ورود کهنه شده است؛ برنامه را از تلگرام دوباره باز کنید.' : 'امضای تلگرام درست نیست.');
+    }
+    const who = `telegram:${checked.telegramId}`;
+    await assertMayTry(who, req.ip);
+    const identity = await prisma.userIdentity.findUnique({ where: { provider_subject: { provider: 'telegram', subject: checked.telegramId } }, include: { user: true } });
+    const user = identity?.user;
+    if (!identity || !user || !user.isActive || user.deletedAt) {
+      throw new AppError(401, 'TELEGRAM_NOT_LINKED', 'این حساب تلگرام به هیوامیس وصل نیست. در هیوامیس «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد برای همین ربات بفرستید.');
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) throw unauthorized('حساب کاربری موقتاً قفل شده است. چند دقیقه دیگر تلاش کنید.');
+    // Each payload once: a second use is someone holding a copy, and is recorded as a failed try.
+    try {
+      await prisma.loginTicket.create({
+        data: { tokenHash: initDataSeal(checked.hash), userId: user.id, method: 'telegram', consumedAt: new Date(), expiresAt: new Date((checked.authDate + INIT_DATA_TTL_S) * 1000) },
+      });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+      await countFailure(who, req, user, 'telegram-replayed');
+      throw unauthorized('این ورود پیش‌تر به کار رفته است؛ برنامه را از تلگرام دوباره باز کنید.');
+    }
+    await clearFailures(who, req.ip);
+    await prisma.userIdentity.update({ where: { id: identity.id }, data: { lastUsedAt: new Date() } });
+    return issueSession(user.id, req, reply, 'telegram');
   });
 
   /* ── by Google ───────────────────────────────────────────────────────── */

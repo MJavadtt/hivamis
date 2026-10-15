@@ -121,6 +121,9 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     // Answers kept for offline replays (audit F-7), past their week.
     const keys = await pruneIdempotencyKeys();
     if (keys) logger.info({ keys }, 'old idempotency keys removed');
+    // Sign-in tickets and spent Mini App payloads (audit F-9): a day past their expiry they refuse nothing.
+    const { count: tickets } = await prisma.loginTicket.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86_400_000) } } });
+    if (tickets) logger.info({ tickets }, 'old sign-in tickets removed');
   });
 
   await boss.work('security:scan', async () => {

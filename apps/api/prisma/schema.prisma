@@ -2617,6 +2617,20 @@ model SignatureEvent {
   @@map("signature_events")
 }
 
+/// Long polling's place in the bot's updates, and which process is reading them (audit F-9).
+/// Telegram gives a bot's updates to one reader: a lease, renewed each poll, decides which.
+model MessengerPollState {
+  provider   String    @id
+  holder     String?
+  leaseUntil DateTime?
+  nextOffset BigInt    @default(0)
+  lastPollAt DateTime?
+  lastError  String?
+  updatedAt  DateTime  @default(now()) @updatedAt
+
+  @@map("messenger_poll_state")
+}
+
 /// Roadmap #40 — a staff member's messenger chat, linked by a one-time code they sent the bot
 /// themselves. Notifications that matter reach them there, and approvals can be decided there.
 model MessengerLink {
