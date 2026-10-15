@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Outbox } from '../components/Outbox';
+import { Freshness } from '../components/Freshness';
+import { offlineQuery } from '../lib/offline';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, WorkflowActions } from '../components/common';
 import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile, cx } from '../components/ui';
@@ -55,9 +57,8 @@ function RiskChip({ risk }: { risk: NonNullable<NonNullable<WorkItem['sla']>['ri
 export default function MyWork() {
   const [kind, setKind] = useState<string | null>(null);
   const live = useLiveStatus();
-  const { data, isLoading, error, refetch } = useQuery<Queue>({
-    queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), refetchInterval: fallbackInterval(live),
-  });
+  // Kept on the device: the work list is what a person opens in the field (audit F-7).
+  const { data, isLoading, error, refetch } = useQuery<Queue>({ ...offlineQuery<Queue>('/me/work'), refetchInterval: fallbackInterval(live) });
 
   const items = (data?.items ?? []).filter((i) => !kind || i.kind === kind);
 
@@ -65,6 +66,8 @@ export default function MyWork() {
     <>
       <PageHeader title={tr('کارهای من')} subtitle={tr('هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد')} />
       <PageBody>
+        <Freshness path="/me/work" />
+        <div className="mb-4 empty:hidden"><Outbox /></div>
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !data ? null : (
           <>
             <div data-tour="tiles" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

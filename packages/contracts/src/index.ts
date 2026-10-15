@@ -15,3 +15,4 @@ export * from './suggest.js';
 export * from './guide.js';
 export * from './chat.js';
 export * from './profile.js';
+export * from './offline.js';

@@ -38,7 +38,8 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
 
   // Per-transition permission is enforced inside transition(); all 99 declared transitions
   // carry one, so there is no unrestricted move to guard against at the route level.
-  app.post('/workflow/:entity/:id/transitions', { preHandler: [app.authenticate] }, async (req) => {
+  // Audit F-7: a move queued offline is sent again until it is answered; the key makes it once.
+  app.post('/workflow/:entity/:id/transitions', { preHandler: [app.authenticate, app.idempotent] }, async (req) => {
     const { entity, id } = req.params as { entity: string; id: string };
     requireEntity(entity);
     const body = parse(transitionSchema, req.body);

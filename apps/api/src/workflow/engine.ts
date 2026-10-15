@@ -1,4 +1,4 @@
-import { availableTransitions, findTransition, WORKFLOWS, type Permission, type TransitionDef } from '@hiva/contracts';
+import { availableTransitions, findTransition, stateLabelFa, WORKFLOWS, type Permission, type TransitionDef } from '@hiva/contracts';
 import { prisma, type Tx } from '../db.js';
 import { AppError, GovernanceError, badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
@@ -8,6 +8,10 @@ import { rulesInForce } from './rules.js';
 import './effects.js';
 import { PROTECTED_FIELDS, effectsFor, guardsFor } from './registry.js';
 import { applyNotifyRules, customGuards, customRulesFor } from './custom.js';
+
+/** A move as people read it — «تحویل خروجی», not `submit` — for the refusals below. */
+const moveLabel = (entity: string, action: string) =>
+  WORKFLOWS[entity]?.transitions.find((t) => t.action === action)?.labelFa ?? action;
 
 /** Prisma delegate for each workflow-managed entity. All of them expose a `state` column. */
 /**
@@ -126,7 +130,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       throw new AppError(
         409,
         'ILLEGAL_TRANSITION',
-        `انتقال «${action}» از وضعیت «${fromState}» مجاز نیست.`,
+        `انتقال «${moveLabel(entity, action)}» از وضعیت «${stateLabelFa(fromState)}» مجاز نیست.`,
         { fromState, requested: action, allowed },
       );
     }
@@ -412,7 +416,7 @@ export async function preflight(
     .filter((t) => !input.action || t.action === input.action);
   if (input.action && candidates.length === 0) {
     throw new AppError(409, 'ILLEGAL_TRANSITION',
-      `انتقال «${input.action}» از وضعیت «${state}» مجاز نیست.`,
+      `انتقال «${moveLabel(entity, input.action)}» از وضعیت «${stateLabelFa(state)}» مجاز نیست.`,
       { fromState: state, requested: input.action, allowed: availableTransitions(entity, state).map((t) => t.action) });
   }
 

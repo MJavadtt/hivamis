@@ -3,8 +3,9 @@ import {
   createBriefSchema, updateBriefSchema, createProposalSchema, updateProposalSchema,
   setPricingSchema, declareCostSchema, createProjectSchema, updateProjectSchema,
   authorizeProjectSchema, createWorkOrderSchema, createTaskSchema, updateTaskSchema,
-  createDeliverableSchema, createRaciSchema, createMilestoneSchema,
+  createDeliverableSchema, createRaciSchema, createMilestoneSchema, taskCommentSchema,
 } from '@hiva/contracts';
+import { withAvatar } from '../profile/avatars.js';
 import { prisma } from '../db.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, parse } from '../lib/http.js';
@@ -766,7 +767,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /** The assignee logs their own time; task.write may log for anyone on the task. */
-  app.post('/tasks/:id/time', { preHandler: [app.authenticate] }, async (req, reply) => {
+  // Audit F-7: an offline queue may send it again; an Idempotency-Key makes the second time a replay.
+  app.post('/tasks/:id/time', { preHandler: [app.authenticate, app.idempotent] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const { actor, task } = await taskFor(req, id);
     const { hours, workedOn, note, userId } = (req.body ?? {}) as { hours?: number; workedOn?: string; note?: string; userId?: string };
@@ -784,6 +786,39 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
       return r;
     });
     return reply.code(201).send(result);
+  });
+
+  /**
+   * Notes on a task (audit F-7) — what someone working on it wants the others to know, written on
+   * site if need be and sent when the phone is back online. Whoever may see the task may read and
+   * write them; the assignee hears of one by someone else.
+   */
+  app.get('/tasks/:id/comments', { preHandler: [app.authenticate, app.requirePermissions('task.read')] }, async (req) => {
+    const { id } = req.params as { id: string };
+    await taskFor(req, id);
+    const rows = await prisma.comment.findMany({
+      where: { taskId: id }, orderBy: { createdAt: 'asc' }, take: 300,
+      select: { id: true, body: true, createdAt: true, author: { select: { id: true, fullName: true, avatarDocumentId: true } } },
+    });
+    return rows.map((c) => ({ ...c, author: withAvatar(c.author) }));
+  });
+
+  app.post('/tasks/:id/comments', { preHandler: [app.authenticate, app.requirePermissions('task.read'), app.idempotent] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const { actor, task } = await taskFor(req, id);
+    const { body } = parse(taskCommentSchema, req.body);
+    const comment = await prisma.$transaction(async (tx) => {
+      const c = await tx.comment.create({
+        data: { entityType: 'task', entityId: id, taskId: id, projectId: task.projectId, body, authorId: actor.id },
+        select: { id: true, body: true, createdAt: true, author: { select: { id: true, fullName: true, avatarDocumentId: true } } },
+      });
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE', entityType: 'comment', entityId: c.id, after: { taskId: id }, ipAddress: actor.ipAddress, requestId: actor.requestId }, tx);
+      return c;
+    });
+    if (task.assigneeId && task.assigneeId !== actor.id) {
+      void notify({ userId: task.assigneeId, kind: 'TASK_COMMENT', title: `یادداشت تازه روی ${task.code}`, entityType: 'task', entityId: id }).catch(() => undefined);
+    }
+    return reply.code(201).send({ ...comment, author: withAvatar(comment.author) });
   });
 
   app.delete('/tasks/:id/time/:entryId', { preHandler: [app.authenticate] }, async (req) => {

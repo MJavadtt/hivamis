@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { changePasswordSchema, loginSchema, updateLocaleSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { avatarUrl } from '../profile/avatars.js';
+import { offlineKeyFor } from '../auth/offline-key.js';
 import { parse, actorFrom } from '../lib/http.js';
 import { AppError, badRequest, conflict, unauthorized } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
@@ -224,7 +225,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       include: { department: true, roles: { include: { role: true } }, organization: true },
     });
     if (!user) throw unauthorized();
+    // Audit F-7: the key the page encrypts its offline copy with — one per sign-in on a device,
+    // so a new sign-in cannot read what an ended one left behind.
+    const sid = (req.user as { sid?: string } | undefined)?.sid;
+    const family = sid ? (await prisma.session.findUnique({ where: { id: sid }, select: { familyId: true } }))?.familyId : undefined;
     return {
+      offlineKey: family ? offlineKeyFor(family) : null,
       id: user.id, email: user.email, fullName: user.fullName, jobTitle: user.jobTitle,
       locale: user.locale, mustChangePassword: user.mustChangePassword, avatarUrl: avatarUrl(user.avatarDocumentId),
       department: user.department ? { code: user.department.code, nameFa: user.department.nameFa } : null,

@@ -2624,5 +2624,10 @@
   "حداکثر حجم عکس {0} مگابایت است.": "A photo may be at most {0} MB.",
   "این فایل عکسِ خوانا نیست.": "This file is not a readable picture.",
   "این پیوند عکس معتبر نیست یا منقضی شده است.": "This photo link is not valid or has expired.",
-  "عکس": "Photo"
+  "عکس": "Photo",
+  "یادداشت خالی است": "The note is empty",
+  "کلید تکرارناپذیری نامعتبر است.": "The idempotency key is not valid.",
+  "همین درخواست هم‌اکنون در حال انجام است؛ کمی بعد دوباره بفرستید.": "This same request is being carried out now; send it again in a moment.",
+  "این کلید پیش‌تر برای درخواست دیگری به کار رفته است.": "This key was already used for a different request.",
+  "یادداشت تازه روی {0}": "New note on {0}"
 }

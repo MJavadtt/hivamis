@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { offlineQuery } from '../lib/offline';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPatch } from '../lib/api';
@@ -59,6 +60,7 @@ export function ProjectsList() {
       <PageBody>
         <EntityList<ProjectRow>
           path="/projects"
+          offline
           searchPlaceholder={tr('جستجو در نام یا هدف پروژه…')}
           rowHref={(r) => `/projects/${r.id}`}
           filters={[
@@ -142,8 +144,8 @@ export function ProjectDetail() {
   const { can } = useAuth();
 
   const { data, isLoading, error, refetch } = useQuery<Project360>({
-    queryKey: [`/projects/${id}/360`],
-    queryFn: () => apiGet(`/projects/${id}/360`),
+    // A project's summary, kept on the device for the field (audit F-7).
+    ...offlineQuery<Project360>(`/projects/${id}/360`),
     enabled: !!id,
   });
 

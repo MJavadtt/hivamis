@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { sendOrQueue } from '../lib/sync';
+import { Freshness } from './Freshness';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
@@ -20,6 +22,9 @@ import { flow, loc, tr, trx } from '../i18n';
  * The available-action list is computed server-side from the workflow definition plus the
  * caller's permissions, so the UI can never offer a move the engine would reject on authority.
  */
+/** Moves a person may make with no connection, queued until there is one (audit F-7). */
+const OFFLINE_MOVES = new Set(['task.submit']);
+
 export function WorkflowActions({
   entity, id, transitions, onDone, size = 'sm',
 }: {
@@ -58,9 +63,21 @@ export function WorkflowActions({
     try {
       const p = PAYLOAD_PROMPTS[`${entity}.${t.action}`];
       const payload = p && extra.trim() !== '' ? { [p.key]: extra.trim() } : undefined;
-      const result = await apiPost<{ toState?: string }>(
-        `/workflow/${entity}/${id}/transitions`, { action: t.action, reason: why, ...(payload ? { payload } : {}) },
-      );
+      const body = { action: t.action, reason: why, ...(payload ? { payload } : {}) };
+      // Handing a task in is the one move that may wait for the network (audit F-7): it is the
+      // person's own, and its guards judge it when it arrives. Every other move needs the server now.
+      let result: { toState?: string } | undefined;
+      if (OFFLINE_MOVES.has(`${entity}.${t.action}`)) {
+        const r = await sendOrQueue<{ toState?: string }>({ kind: 'submit', path: `/workflow/${entity}/${id}/transitions`, body, label: loc(t, 'label'), link: `/tasks/${id}` });
+        if (r.queued) {
+          toast(tr('بدون اتصال: «{0}» در صف ماند و با بازگشت شبکه انجام می‌شود.', t.labelFa));
+          setPending(null);
+          return;
+        }
+        result = r.result;
+      } else {
+        result = await apiPost<{ toState?: string }>(`/workflow/${entity}/${id}/transitions`, body);
+      }
       // Name the state it landed in, not just the action taken — the engine returns it.
       toast(result?.toState
         ? tr('«{0}» انجام شد — وضعیت: {1}', t.labelFa, stateLabelFa(result.toState))
@@ -235,9 +252,11 @@ export interface FilterDef {
 }
 
 export function EntityList<T extends { id: string }>({
-  path, columns, filters, searchPlaceholder, rowHref, emptyTitle, emptyDescription, actions, extraQuery,
+  path, columns, filters, searchPlaceholder, rowHref, emptyTitle, emptyDescription, actions, extraQuery, offline,
 }: {
   path: string;
+  /** Kept on the device to read without a connection (audit F-7): the lists used in the field. */
+  offline?: boolean;
   columns: Column<T>[];
   filters?: FilterDef[];
   searchPlaceholder?: string;
@@ -253,9 +272,8 @@ export function EntityList<T extends { id: string }>({
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
-  const { data, isLoading, error, refetch, isFetching } = useList<T>(path, {
-    page, pageSize: 25, q: search || undefined, ...filterValues, ...extraQuery,
-  });
+  const listQuery = { page, pageSize: 25, q: search || undefined, ...filterValues, ...extraQuery };
+  const { data, isLoading, error, refetch, isFetching } = useList<T>(path, listQuery, undefined, offline);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,6 +283,7 @@ export function EntityList<T extends { id: string }>({
 
   return (
     <Card className="overflow-hidden">
+      {offline && <Freshness path={path} query={listQuery} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-ink-100 p-3">
         <form onSubmit={submitSearch} data-tour="list-search" className="relative flex-1 basis-56 max-w-sm">
           <IconSearch className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-ink-400" />

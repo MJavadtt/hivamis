@@ -528,7 +528,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/forms/submissions', {
-    preHandler: [app.authenticate, app.requirePermissions('form.submit')],
+    preHandler: [app.authenticate, app.requirePermissions('form.submit'), app.idempotent],
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const input = parse(submitFormSchema, req.body);

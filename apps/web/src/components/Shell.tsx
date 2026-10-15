@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { offlineQuery } from '../lib/offline';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RECORD_PAGES } from '@hiva/contracts';
@@ -12,6 +13,7 @@ import { guideBus } from '../lib/guide';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatRelative, formatYear, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
+import { useQueueReplay } from '../lib/sync';
 import { MessengerMenuItem } from './Messenger';
 import {
   Badge, Button, Spinner, cx,
@@ -105,7 +107,7 @@ const NAV: NavGroup[] = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { user, signOut, can, canAny } = useAuth();
+  const { user, signOut, can, canAny, offline } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   // The kit's sidebar folds to a rail of icons (Hivamis task 3); remembered per viewer.
   const [rail, setRail] = useState(() => { try { return localStorage.getItem('hiva.sidebar') === 'rail'; } catch { return false; } });
@@ -115,6 +117,8 @@ export function Shell({ children }: { children: ReactNode }) {
   });
   // One live stream for the signed-in tab (roadmap #39).
   useLiveUpdates(useQueryClient());
+  // What was queued with no signal goes when the signal returns, whatever page is open (audit F-7).
+  useQueueReplay();
 
   /**
    * Whether the sidebar is a permanent column rather than a drawer. Tailwind's lg: breakpoint
@@ -145,7 +149,7 @@ export function Shell({ children }: { children: ReactNode }) {
   // The same query «کارهای من» reads, kept fresh by the live channel.
   const live = useLiveStatus();
   const { data: work } = useQuery<{ items?: unknown[]; counts?: Record<string, number> }>({
-    queryKey: ['/me/work'], queryFn: () => apiGet('/me/work'), enabled: !!user, staleTime: 30_000,
+    ...offlineQuery<{ items?: unknown[]; counts?: Record<string, number> }>('/me/work'), enabled: !!user, staleTime: 30_000,
     refetchInterval: fallbackInterval(live, 120_000),
   });
   // Team chat (audit F-5): messages not yet read, in conversations not muted.
@@ -279,6 +283,12 @@ export function Shell({ children }: { children: ReactNode }) {
         <main className="flex-1 overflow-y-auto lg:rounded-xl">
           {/* The kit's content column: centred, so a wide screen does not stretch a page into lines. */}
           <div className="mx-auto flex min-h-full w-full max-w-[1400px] flex-col">
+            {offline && (
+              // Opened from the device's copy (audit F-7): said once, plainly, above whatever page it is.
+              <p role="status" data-testid="offline-banner" className="mx-3 mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900 ring-1 ring-inset ring-amber-200 sm:mx-5 lg:mx-0">
+                {tr('بدون اتصال — آنچه می‌بینید آخرین نسخهٔ ذخیره‌شده روی همین دستگاه است. زمان، یادداشت، تحویل وظیفه و فرم در صف می‌مانند تا شبکه برگردد؛ تأییدها و کارهای دیگر به اتصال نیاز دارند.')}
+              </p>
+            )}
             <div className="flex-1 pb-6">{children}</div>
             <PageFooter />
           </div>

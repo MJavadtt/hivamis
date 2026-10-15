@@ -17,6 +17,9 @@ import {
 } from '../components/ui';
 import { daysFromNow, formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
 import { TaskTime } from '../components/TaskTime';
+import { TaskComments } from '../components/TaskComments';
+import { Freshness } from '../components/Freshness';
+import { offlineQuery } from '../lib/offline';
 import { tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
 import { PersonLink } from './People';
@@ -53,6 +56,7 @@ export function TasksList() {
       <PageBody>
         <EntityList<any>
           key={String(mineOnly)}
+          offline={mineOnly}
           path="/tasks"
           extraQuery={mineOnly ? { mine: 'true' } : undefined}
           searchPlaceholder={tr('جستجو در عنوان وظیفه…')}
@@ -102,9 +106,7 @@ export function TasksList() {
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
 
-  const { data, isLoading, error, refetch } = useQuery<any>({
-    queryKey: [`/tasks/${id}`], queryFn: () => apiGet(`/tasks/${id}`), enabled: !!id,
-  });
+  const { data, isLoading, error, refetch } = useQuery<any>({ ...offlineQuery(`/tasks/${id}`), enabled: !!id });
 
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
@@ -141,7 +143,9 @@ export function TaskDetail() {
           </Card>
 
           {/* Doc_H §6: no task is valid without a source document behind it. */}
-          <TaskTime taskId={data.id} assigneeId={data.assigneeId ?? null} />
+          <Freshness path={`/tasks/${id}`} />
+          <TaskTime taskId={data.id} taskCode={data.code} assigneeId={data.assigneeId ?? null} />
+          <TaskComments taskId={data.id} taskCode={data.code} />
           <Card title={tr('سند مبنا')} subtitle={tr('Doc_H §۶ — هیچ Task شفاهی معتبر نیست')}>
             <dl className="px-4 py-1">
               <DescRow label={tr('نوع سند')}>{trx(SOURCE_LABELS[data.sourceType] ?? data.sourceType)}</DescRow>

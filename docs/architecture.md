@@ -182,6 +182,10 @@ without a model.
     (`app.inject`), so the state machine, Doc_H guards, SLAs and audit apply as on the page.
   - Speech is turned into text by the installation's own Whisper server (`TRANSCRIPTION_URL`, the
     Compose `speech` profile) and is not kept.
+- **Offline** (ADR-088). The page keeps an AES-GCM copy of what people read in the field
+  (lib/vault.ts, lib/offline.ts) under a per-sign-in key from `/auth/me`. It queues forms, time,
+  task notes and hand-ins (lib/outbox.ts, lib/sync.ts) under keys that four routes honour through
+  `app.idempotent` (lib/idempotency.ts), and shows conflicts for the person to resolve.
 - **Profiles** (ADR-087). A photo is a document a user points at (`users.avatarDocumentId`),
   re-encoded by sharp to a 512px WebP with no metadata, and shown from a signed, day-long address so
   a plain `<img>` can load it. People carry `avatarUrl` wherever the API returns them.

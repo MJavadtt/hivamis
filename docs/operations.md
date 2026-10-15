@@ -912,6 +912,25 @@ step and the exact request, ticks what they want, and confirms.
 
 Nothing needs setting up for this beyond the chat model.
 
+## Working offline
+
+Audit F-7. Nothing to set up; what to know:
+
+- **The copy on a device** is AES-GCM encrypted in IndexedDB under a key derived from the sign-in
+  (an HMAC of the session family with `JWT_SECRET`), held as a key the page cannot export. It
+  covers My Work, the person's tasks, the tasks and projects they opened, the form catalogue and
+  who they are. It is dropped on sign-out, when the server ends the session, and when another
+  sign-in opens the device.
+- **The send queue** holds forms, time, task notes and task hand-ins. Each is replayed with an
+  `Idempotency-Key`; the server keeps each successful answer for seven days in `idempotency_keys`,
+  pruned by the daily `documents:purge` job.
+- **What does not work offline:** approvals, QC verdicts, accepting, starting or assigning work,
+  finance, chat, the assistant, administration — everything that decides for others or that a
+  Doc_H guard must judge against the state of the system now.
+- **Limits.** The queue is not encrypted: it must outlive a session that lapsed while the device was
+  away, or the work in it would be lost. It is per person and removed at sign-out. Rotating
+  `JWT_SECRET` changes every offline key, so each device's copy is dropped at its next sign-in.
+
 ## Profile photos
 
 Audit F-6. A photo is decoded and written anew by [sharp](https://sharp.pixelplumbing.com/) (libvips,

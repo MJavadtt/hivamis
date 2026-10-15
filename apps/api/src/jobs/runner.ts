@@ -8,6 +8,7 @@ import { reindexMemory } from '../memory/index.js';
 import { scanAll } from '../security/scan.js';
 import { pruneFailures } from '../auth/throttle.js';
 import { purgeDeletedFiles } from '../documents/storage.js';
+import { pruneIdempotencyKeys } from '../lib/idempotency.js';
 import { pruneAiToolRows } from '../ai/retention.js';
 import { dispatchWebhooks } from '../integrations/webhooks.js';
 import { runMoadian } from '../tax/submit.js';
@@ -117,6 +118,9 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     // Deleted documents' files, FILE_RETENTION_DAYS on, unless held (audit LOG-5).
     const r = await purgeDeletedFiles();
     if (r.purged) logger.info({ ...r }, 'deleted documents purged');
+    // Answers kept for offline replays (audit F-7), past their week.
+    const keys = await pruneIdempotencyKeys();
+    if (keys) logger.info({ keys }, 'old idempotency keys removed');
   });
 
   await boss.work('security:scan', async () => {

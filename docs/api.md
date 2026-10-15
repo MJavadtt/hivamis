@@ -935,6 +935,31 @@ member chose. The title names the writer and the conversation; there is no body.
 Audit rows whose action starts `CHAT_OVERSIGHT_` cannot be updated, deleted or truncated away: a
 database trigger refuses it.
 
+## Offline replays
+
+Audit F-7. Four writes honour an `Idempotency-Key` header (8–100 characters of `A–Z a–z 0–9 _ . : -`):
+`POST /forms/submissions`, `POST /tasks/:id/time`, `POST /tasks/:id/comments` and
+`POST /workflow/:entity/:id/transitions`.
+
+- **The first request** with a key runs, and a successful answer is kept for seven days.
+- **The same key and the same request again** (method, path and body) gets that answer, with
+  `Idempotent-Replayed: true`, and the work is not done again.
+- **The same key on a different request:** 422 `IDEMPOTENCY_KEY_REUSED`.
+- **While the first is still running:** 409 `IDEMPOTENCY_IN_PROGRESS`. After a minute of silence
+  the first is taken to have died, and the next takes its place.
+- **A refusal (4xx) or a failure (5xx)** is not kept: the key is let go, so a corrected request
+  may use it again.
+- **Keys are per person:** another person's key is another key.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /tasks/:id/comments` | `task.read`: the task's notes, oldest first (300), with `author.avatarUrl` |
+| `POST /tasks/:id/comments` | `task.read`: `{ body (1–2000) }`. 201. Audited as `CREATE` on `comment`; the assignee is told (`TASK_COMMENT`) |
+
+`GET /auth/me` carries `offlineKey`: a 32-byte key (base64url) the page encrypts its offline copy
+with. It is the same for every refresh of one sign-in on a device and different for another sign-in.
+It is derived from the session and never stored.
+
 ## The profile
 
 Audit F-6. Any signed-in person, for themselves.

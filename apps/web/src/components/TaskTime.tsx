@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiDelete, apiGet, apiPost } from '../lib/api';
+import { apiDelete } from '../lib/api';
+import { offlineQuery } from '../lib/offline';
+import { sendOrQueue } from '../lib/sync';
 import { useAuth } from '../lib/auth';
 import { useAction } from '../hooks/queries';
 import { JalaliDateInput } from './JalaliDateInput';
@@ -17,16 +19,22 @@ const h = (v: string | number | null | undefined) => (v == null ? '—' : tr('{0
  * Hours on a task: a number, a day, a note. Against the estimate, so the person who declared
  * the cost sees the reality beside it — that is the Doc_H "cost accuracy" KPI, closed.
  */
-export function TaskTime({ taskId, assigneeId }: { taskId: string; assigneeId: string | null }) {
+export function TaskTime({ taskId, taskCode, assigneeId }: { taskId: string; taskCode?: string; assigneeId: string | null }) {
   const { user, can } = useAuth();
-  const { data, refetch } = useQuery<Time>({ queryKey: ['/tasks', taskId, 'time'], queryFn: () => apiGet(`/tasks/${taskId}/time`) });
+  const { data, refetch } = useQuery<Time>({ ...offlineQuery<Time>(`/tasks/${taskId}/time`), queryKey: ['/tasks', taskId, 'time'] });
   const [hours, setHours] = useState('');
   const [day, setDay] = useState('');
   const [note, setNote] = useState('');
   const mayLog = user?.id === assigneeId || can('task.write');
+  // Out on a set with no signal, the hours wait on the phone and go when it is back (audit F-7).
   const add = useAction(
-    () => apiPost(`/tasks/${taskId}/time`, { hours: Number(hours), ...(day ? { workedOn: day } : {}), ...(note.trim() ? { note: note.trim() } : {}) }),
-    tr('زمان ثبت شد.'),
+    () => sendOrQueue({
+      kind: 'time', path: `/tasks/${taskId}/time`, link: `/tasks/${taskId}`,
+      body: { hours: Number(hours), ...(day ? { workedOn: day } : {}), ...(note.trim() ? { note: note.trim() } : {}) },
+      label: tr('{0} ساعت روی {1}', localDigits(Number(hours)), taskCode ?? tr('وظیفه')),
+    }),
+    (r) => (r.queued ? tr('بدون اتصال: در صف ماند و با بازگشت شبکه ثبت می‌شود.') : tr('زمان ثبت شد.')),
+    { offline: true },
   );
   const remove = useAction((id: string) => apiDelete(`/tasks/${taskId}/time/${id}`), tr('ثبت زمان حذف شد.'));
   if (!data) return null;

@@ -167,6 +167,8 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
   raw?: boolean;
+  /** Sent as they are — an `Idempotency-Key`, for a write an offline queue may send again (audit F-7). */
+  headers?: Record<string, string>;
 }
 
 export async function api<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -183,6 +185,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
         ...baseHeaders(),
         // Signing in and out sets and spends the refresh cookie; the server asks such calls to say they are the app's.
         ...(path.startsWith('/auth/') ? FROM_THE_APP : {}),
+        ...opts.headers,
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });

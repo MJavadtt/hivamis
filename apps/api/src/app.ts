@@ -16,6 +16,7 @@ import { LOG_REDACT } from './lib/log.js';
 import { rateKey, requestContext } from './lib/request-context.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
+import idempotencyPlugin from './lib/idempotency.js';
 import authRoutes from './routes/auth.js';
 import workflowRoutes from './routes/workflow.js';
 import crmRoutes from './routes/crm.js';
@@ -124,6 +125,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await app.register(authPlugin);
+  await app.register(idempotencyPlugin);
 
   app.setErrorHandler((error, req, reply) => {
     // The error goes back in the language the request asked for; logs keep the Persian (Hivamis task 7).

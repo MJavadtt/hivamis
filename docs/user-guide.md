@@ -530,9 +530,9 @@ you edit a Doc_H form, the catalogue stops speaking for it too: your fields stay
 
 **Filling forms with no signal.** The app installs (Add to Home Screen on a phone) and opens
 without a connection: the shell and the form catalogue are cached, so a unit form or a QC form
-can be filled on set or at the client's office. A form submitted offline is held in **صف ارسال
-فرم‌ها** at the top of the forms page and sent by itself when the network returns — the header
-says «آفلاین» meanwhile, and shows how many forms the device is still carrying.
+can be filled on set or at the client's office. A form submitted offline is held in **صف ارسال**
+at the top of the forms page and of My Work, and sent by itself when the network returns — the
+header says «آفلاین» meanwhile, and shows how many items the device is still carrying.
 
 What the queue will not do is pretend. When a queued form finally reaches the server, the rules
 run as they always do: a project closed while the phone was in a pocket refuses the form, and
@@ -540,6 +540,22 @@ the refusal appears in the queue in the server's own words, beside your data, to
 or discard knowingly. Nothing is deleted on your behalf. And a form sent twice — a dropped
 connection after the server already had it — files once: the device stamps each form with its
 own key, and a repeat returns the submission already filed.
+
+**Working with no signal.** Once you have signed in on a device with a connection, the app keeps a
+copy of what you use in the field on that device, encrypted for your sign-in:
+- **To read:** My Work, your tasks, the tasks and projects you opened, the form catalogue, the
+  guide. A page showing the copy says «بدون اتصال — آخرین به‌روزرسانی: …», and if the app opens
+  with no network at all, a banner says so at the top.
+- **To record:** forms, time on a task, notes on a task, and handing a task in. They wait in the
+  send queue and go, oldest first, when the network returns — each once, however often the device
+  has to try.
+- **Not offline:** approvals, QC verdicts, accepting, starting or assigning work, finance, the chat,
+  the assistant and administration. These decide for others or need the system as it is now.
+
+If a queued item meets a record that moved meanwhile — the task was handed in by someone else, or a
+rule now says no — the queue marks it **پرونده در این فاصله تغییر کرده**, in the server's words,
+with three choices: open the record, send again, or drop it. Signing out removes the copy and your
+queue from the device; the app asks first if anything is still unsent.
 
 **Spreadsheets in and out.** Every form offers a CSV template (its columns with Persian labels
 and a hint per column), an export of everything filed on it, and an import. Choose a file and

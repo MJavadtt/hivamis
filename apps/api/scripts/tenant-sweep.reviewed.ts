@@ -372,4 +372,9 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('OWN', ["routes/profile.ts#GET /me/about", "routes/profile.ts#PATCH /me/about"]),
   ...of('CALLER', ["routes/profile.ts#replaceAvatar"]),
   ...of('TOKEN', ["routes/profile.ts#GET /avatars/:id"]),
+  // Audit F-7: idempotency keys are the caller's own, found by their user id; the weekly prune runs
+  // across every organisation; a task's notes are read after the task was found in the caller's.
+  ...of('OWN', ["lib/idempotency.ts#find", "lib/idempotency.ts#idempotencyPlugin"]),
+  ...of('SYSTEM', ["lib/idempotency.ts#pruneIdempotencyKeys"]),
+  ...of('EARLIER', ["routes/delivery.ts#GET /tasks/:id/comments"]),
 };

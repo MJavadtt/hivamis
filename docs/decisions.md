@@ -2636,3 +2636,48 @@ the organisation's own, beside them, gives the freedom without that cost.
   private than that, which matches who sees it: every colleague.
 - The test clone copies `users` and `documents`, which now point at each other. It copies the photo
   link empty and fills it in afterwards (`tests/db-isolation.ts`).
+
+## ADR-088 — Offline: an encrypted copy to read, a queue of four writes, and keys the server honours
+
+**Decision.** (Audit F-7.)
+
+- **Reading.** Pages used in the field read through `cachedGet`. It returns the server's answer and
+  keeps it, or, when the server does not answer, the kept copy marked with when it was kept.
+  - Covered: My Work, the person's tasks, the tasks and projects they open, the form catalogue, and
+    the person themselves.
+  - A refusal is the server's answer and is never replaced by the copy.
+- **Encryption.** The copy is AES-GCM, under a key `/auth/me` gives each sign-in (HMAC of its session
+  family; never stored on the server). The key is held in IndexedDB as a non-exportable `CryptoKey`.
+  - A new sign-in drops the old copy rather than reading it.
+  - Signing out, or the server ending the session, wipes it.
+  - An offline start opens from the copy of the last sign-in, with a banner.
+- **Writing.** The outbox, built for forms (roadmap #19), now holds four kinds: a form, time on a
+  task, a note on a task, and handing a task in.
+  - Each is the exact request it will make, under a key generated on the device, and belongs to the
+    person who made it; a device sends a queue only with its owner's session.
+  - `sendOrQueue` does it at once when the server answers, and queues it under the same key when it
+    does not.
+- **Exactly once.** Four routes honour `Idempotency-Key`.
+  - The first successful answer is kept for a week and returned to the same request.
+  - The key is refused on a different request, and let go on a refusal so a fix can use it.
+- **Conflicts.** A replayed item refused because the record moved — 409, 422 or 404 — is kept as
+  a conflict, in the server's words. The person chooses: open the record, send again, or drop it.
+- **Not offline:** approvals, QC verdicts, accepting, starting or assigning work, finance, chat, the
+  assistant and administration.
+- **Notes on tasks** (`comments`, which had a table and no routes) are added, since the field needs
+  them and the queue carries them.
+
+**Rationale.**
+
+- People work on sets and at clients' offices with poor signal. Reading what one is doing, and
+  recording what one did, are what must not stop.
+- Deciding for others on stale data is what must not happen offline.
+
+**Limits.**
+
+- The queue itself is not encrypted, so that work survives a session that lapsed while away. It is
+  per person and removed at sign-out, after a warning.
+- An answer lost after the server kept it is replayed for seven days. A device offline longer than
+  that, with an item sent but unanswered, may send it once more.
+- A dead first attempt is taken over after a minute. A process that dies between doing the work and
+  recording the answer can let one repeat through; the window is that minute.

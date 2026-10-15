@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { offlineQuery } from '../lib/offline';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
@@ -114,8 +115,8 @@ function Catalogue() {
     categories: { key: string; labelFa: string; count: number }[];
     definitions: FormDefinition[];
   }>({
-    queryKey: ['/forms/definitions'],
-    queryFn: () => apiGet('/forms/definitions'),
+    // The forms a person may need to fill in the field (audit F-7).
+    ...offlineQuery('/forms/definitions'),
   });
 
   const visible = useMemo(() => {

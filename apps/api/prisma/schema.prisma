@@ -52,6 +52,7 @@ model Organization {
   /// Audit F-5: team chat.
   chatConversations ChatConversation[]
   chatMessages      ChatMessage[]
+  idempotencyKeys   IdempotencyKey[]
 
   @@map("organizations")
 }
@@ -373,6 +374,7 @@ model User {
   chatStarted          ChatConversation[]    @relation("ChatConversationCreator")
   chatMemberships      ChatMember[]
   chatMessages         ChatMessage[]         @relation("ChatMessageAuthor")
+  idempotencyKeys      IdempotencyKey[]
   guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
 
   @@unique([organizationId, email])
@@ -3149,6 +3151,30 @@ model ChatMessageEdit {
 
   @@index([messageId])
   @@map("chat_message_edits")
+}
+
+/// Audit F-7: a write a device may send more than once — an offline queue replaying after a lost
+/// answer — is done once. The first successful answer is kept a week and given again to the same
+/// key; the same key on a different request is refused.
+model IdempotencyKey {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key            String
+  method         String
+  path           String
+  /// SHA-256 of the method, path and body: a key answers only the request it was made for.
+  requestHash    String
+  statusCode     Int?
+  response       Json?
+  createdAt      DateTime     @default(now())
+  completedAt    DateTime?
+
+  @@unique([userId, key])
+  @@index([createdAt])
+  @@map("idempotency_keys")
 }
 
 /// A person's conversation with the assistant — theirs alone; nobody else, administrators included,

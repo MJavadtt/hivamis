@@ -14,20 +14,39 @@
  * refuse it on arrival — a project may have been closed while the phone was in a pocket — and
  * the queue keeps the rejection, in Persian, next to the person's own data so they can fix it
  * or drop it knowingly.
+ *
+ * Audit F-7 widened it from forms to the few things a person records about their own work in the
+ * field: a form, time on a task, a note on a task, and handing a task in. Each is the exact request
+ * it will make, under a key the server honours (`Idempotency-Key`), and each is its owner's: a
+ * device sends a queue only with the session of the person who filled it.
  */
 const DB_NAME = 'hiva.outbox';
 const STORE = 'submissions';
 const VERSION = 1;
 
-export type OutboxState = 'QUEUED' | 'SENDING' | 'REJECTED' | 'SENT';
+/**
+ * CONFLICT is a refusal of another kind: the record moved while the device was away — the task was
+ * handed in already, closed, or a rule now says no. The person decides: open it, send again, or drop.
+ */
+export type OutboxState = 'QUEUED' | 'SENDING' | 'REJECTED' | 'CONFLICT' | 'SENT';
+export type OutboxKind = 'form' | 'time' | 'comment' | 'submit';
 
 export interface OutboxItem {
   /** Also the idempotency key the server dedupes on. */
   id: string;
-  formCode: string;
-  formNameFa: string;
-  data: Record<string, unknown>;
-  asDraft: boolean;
+  /** What it is; a form when absent (queued before audit F-7). */
+  kind?: OutboxKind;
+  /** Whose it is: sent only with this person's session. Absent on older forms. */
+  userId?: string;
+  formCode?: string;
+  formNameFa?: string;
+  data?: Record<string, unknown>;
+  asDraft?: boolean;
+  /** Anything but a form: the request it makes, what it is in words, and the record it is about. */
+  path?: string;
+  body?: Record<string, unknown>;
+  label?: string;
+  link?: string;
   createdAt: number;
   attempts: number;
   state: OutboxState;
@@ -118,25 +137,50 @@ async function store(): Promise<Store> {
   return cached;
 }
 
+/** Whose queue this device shows and sends now — set when someone signs in. */
+let owner: string | null = null;
+export const setOutboxOwner = (userId: string | null) => { owner = userId; announce(); };
+export const outboxOwner = () => owner;
+const mine = (i: OutboxItem) => !i.userId || !owner || i.userId === owner;
+
 export async function listOutbox(): Promise<OutboxItem[]> {
   try {
     const all = await (await store()).all();
-    return all.sort((a, b) => a.createdAt - b.createdAt);
+    return all.filter(mine).sort((a, b) => a.createdAt - b.createdAt);
   } catch {
     // Whatever the browser is refusing today, the page still has to render.
     return [];
   }
 }
 
-export async function enqueue(item: Omit<OutboxItem, 'id' | 'createdAt' | 'attempts' | 'state'> & { id?: string }): Promise<OutboxItem> {
+export async function enqueue(item: { formCode: string; formNameFa: string; data: Record<string, unknown>; asDraft: boolean; id?: string }): Promise<OutboxItem> {
   const row: OutboxItem = {
-    id: item.id ?? newKey(),
+    id: item.id ?? newKey(), kind: 'form', ...(owner ? { userId: owner } : {}),
     formCode: item.formCode, formNameFa: item.formNameFa, data: item.data, asDraft: item.asDraft,
     createdAt: Date.now(), attempts: 0, state: 'QUEUED',
   };
   await (await store()).put(row);
   announce();
   return row;
+}
+
+/** Time, a note or a hand-in, queued as the request it will make. */
+export async function enqueueOperation(op: { kind: Exclude<OutboxKind, 'form'>; path: string; body: Record<string, unknown>; label: string; link?: string; id?: string }): Promise<OutboxItem> {
+  const row: OutboxItem = {
+    id: op.id ?? newKey(), kind: op.kind, ...(owner ? { userId: owner } : {}),
+    path: op.path, body: op.body, label: op.label, ...(op.link ? { link: op.link } : {}),
+    createdAt: Date.now(), attempts: 0, state: 'QUEUED',
+  };
+  await (await store()).put(row);
+  announce();
+  return row;
+}
+
+/** Sign-out: what this person queued leaves the device with them. */
+export async function dropOwnersItems(userId: string): Promise<void> {
+  const s = await store();
+  for (const i of await s.all()) if (i.userId === userId) await s.remove(i.id);
+  announce();
 }
 
 export async function updateItem(id: string, patch: Partial<OutboxItem>): Promise<void> {
@@ -170,4 +214,4 @@ const announce = () => {
 };
 
 export const pendingCount = (items: OutboxItem[]) =>
-  items.filter((i) => i.state === 'QUEUED' || i.state === 'SENDING' || i.state === 'REJECTED').length;
+  items.filter((i) => i.state === 'QUEUED' || i.state === 'SENDING' || i.state === 'REJECTED' || i.state === 'CONFLICT').length;
