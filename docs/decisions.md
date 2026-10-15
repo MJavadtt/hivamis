@@ -2681,3 +2681,30 @@ the organisation's own, beside them, gives the freedom without that cost.
   that, with an item sent but unanswered, may send it once more.
 - A dead first attempt is taken over after a minute. A process that dies between doing the work and
   recording the answer can let one repeat through; the window is that minute.
+
+## ADR-089 — The PWA is the client on every platform; no desktop wrapper
+
+**Decision.** (Audit F-8.)
+
+- **One installable web app** serves Android, iOS and iPadOS, Windows, macOS and Linux: `manifest.webmanifest` for the whole app,
+  `manifest-m.webmanifest` for the phone app at `/m` (UI-1).
+- **An Install page** (`/install`, linked from the menu under one's name) gives each device's steps.
+  Where Chrome, Edge or Android offer the install prompt, it is kept at start-up and offered as one
+  click.
+- **No Tauri, Electron or other wrapper.** The fix prompt allows one "only if it adds real value
+  (system-tray notifications, auto-start)". Weighed against what the PWA already does:
+  - **Notices** reach the system tray or lock screen through Web Push on every platform (roadmap
+    #49), on iOS too since 16.4 for an installed app.
+  - **Auto-start:** Edge starts an installed web app at sign-in (edge://apps). A work app people
+    open in the morning does not need more.
+  - **Offline:** the service worker and the encrypted copy (ADR-088) cover it.
+- **What a wrapper would cost:** signing and notarisation certificates for Windows and macOS, an
+  update channel to run, a second build and test matrix, and a native shell to keep patched. All of
+  it for no capability the people using Hivamis lack today.
+- **The server** installs on Ubuntu 22.04/24.04 and Debian 12. `hivamis prereqs` brings Docker from
+  Docker's repository, and CI installs end to end on all three.
+
+**Revisit if** the organisation needs something only a native shell gives: global keyboard shortcuts,
+files watched on disk, a background service on iOS, or an app that must be distributed through a
+store or MDM. That would be Tauri, with no Node in the renderer, signed builds documented, and a
+new ADR.

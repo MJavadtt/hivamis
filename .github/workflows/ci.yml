@@ -95,3 +95,47 @@ jobs:
         run: docker build -f infrastructure/docker/Dockerfile.api -t hiva-os-api:ci .
       - name: Build web image
         run: docker build -f infrastructure/docker/Dockerfile.web -t hiva-os-web:ci .
+
+  # Audit F-8: the installer end to end on each system it promises — on a clean runner, not a dry
+  # run: prerequisites, the stack built from this commit, the organisation made, the API ready
+  # behind nginx, the administrator's activation link printed. Without the assistant's model (a
+  # 5 GB download is not this test's business; F-1 tests that path).
+  install:
+    needs: docker
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { system: ubuntu-22.04, runner: ubuntu-22.04 }
+          - { system: ubuntu-24.04, runner: ubuntu-24.04 }
+          - { system: debian-12, runner: ubuntu-24.04, container: 'debian:12' }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install on ${{ matrix.system }}
+        if: ${{ !matrix.container }}
+        run: |
+          sudo infrastructure/hivamis prereqs
+          infrastructure/hivamis install --org-name 'آژانس آزمایشی' --org-slug ci-agency \
+            --admin-email admin@ci.example --admin-name 'مدیر آزمایشی' --port 8080 --no-ai > install.log 2>&1
+      - name: Install on ${{ matrix.system }} (in a Debian 12 container, using the runner's engine)
+        if: ${{ matrix.container }}
+        # The same path inside and out, so the stack's bind mounts mean the same files to the host's engine.
+        run: |
+          docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:$PWD" -w "$PWD" ${{ matrix.container }} bash -euc '
+              infrastructure/hivamis prereqs
+              infrastructure/hivamis install --org-name "آژانس آزمایشی" --org-slug ci-agency \
+                --admin-email admin@ci.example --admin-name "مدیر آزمایشی" --port 8080 --no-ai' > install.log 2>&1
+      # The activation link the installer prints is a credential: kept in the file, never in the job's log.
+      - name: The installation answers
+        run: |
+          docker compose --project-directory . --env-file .env exec -T api curl -fsS http://127.0.0.1:4000/health/ready
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/auth/me)" = 401
+          grep -q '/activate' install.log
+      - name: Logs on failure
+        if: failure()
+        run: |
+          grep -v -i 'activat' install.log | tail -60 || true
+          docker compose --project-directory . --env-file .env logs --tail 200 || true

@@ -83,6 +83,19 @@ language they were issued in.
 
 ---
 
+## Installing the app
+
+Hivamis installs like an app on a phone, tablet or computer, from the browser you already have — no
+store. **نصب روی این دستگاه** in the menu under your name opens a page with:
+- a one-click **Install** where the browser offers it (Chrome, Edge, Android);
+- the steps for each device: Android, iPhone and iPad, Windows, macOS and Linux;
+- the address of this installation, for your other devices.
+
+On an iPhone or iPad, install from Safari (Share → Add to Home Screen): notices on the phone work
+only for the installed app, from iOS 16.4. On Linux, install from Chrome, Chromium or Edge; Firefox
+does not install web apps. For field work, open `/m` on the phone and install that too: **هیوامیس
+همراه**, which opens on the three field tasks.
+
 ## The dashboard — «داشبورد»
 
 The first page after signing in. Four tiles count what is yours, and each opens the list behind it:

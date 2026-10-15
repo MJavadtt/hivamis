@@ -181,6 +181,17 @@ export const GUIDE: GuideSection[] = [
     ],
   },
   {
+    id: 'install', route: '^/install$', path: '/install', manual: 'Installing the app',
+    title: t('نصب هیوامیس', 'Installing Hivamis'),
+    summary: t('هیوامیس را روی گوشی، تبلت یا رایانه مانند یک برنامه نصب کنید — از همان مرورگری که دارید.',
+      'Install Hivamis on a phone, tablet or computer like an app — from the browser you already have.'),
+    keywords: 'نصب برنامه گوشی آیفون اندروید ویندوز مک install app phone iphone android windows mac',
+    steps: [
+      step(ANY.header, t('یک کلیک یا چند گام', 'One click, or a few steps'), t('جایی که مرورگر اجازه دهد، دکمهٔ «نصب روی این دستگاه» همین‌جاست؛ در Safari و بقیه، گام‌های همان دستگاه را دنبال کنید.',
+        'Where the browser allows it, “Install on this device” is right here; in Safari and the others, follow the steps for that device.')),
+    ],
+  },
+  {
     id: 'me', route: '^/me$', path: '/me', manual: 'Signing in',
     title: t('صفحهٔ من', 'My page'),
     summary: t('روش‌های ورود شما — رمز، شمارهٔ همراه، حساب گوگل — و دستگاه‌هایی که با آن‌ها وارد شده‌اید.',

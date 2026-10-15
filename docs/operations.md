@@ -5,7 +5,11 @@
 ### Docker, with the installer (recommended)
 
 Roadmap #50. On a machine with Docker, Docker Compose v2 and `openssl`, from a checkout of the
-repository:
+repository. On **Ubuntu 22.04, Ubuntu 24.04 or Debian 12**, `sudo infrastructure/hivamis prereqs`
+installs those first (audit F-8): Docker Engine and the Compose plugin from Docker's own repository,
+`openssl` and `curl`, with the engine started at boot. On any other system it says what to install
+and stops. CI runs `prereqs` and `install` end to end on all three, on clean runners (the `install`
+job in `.github/workflows/ci.yml`; Debian 12 in a `debian:12` container using the runner's engine).
 
 ```bash
 infrastructure/hivamis install --org-name "آژانس نمونه" --org-slug nemooneh \

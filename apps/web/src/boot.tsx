@@ -17,6 +17,7 @@ import { AuthProvider } from './lib/auth';
 import { ThemeProvider } from './lib/theme';
 import { LocaleProvider } from './lib/locale';
 import { ToastProvider } from './components/ui';
+import { captureInstallPrompt } from './lib/install';
 import './index.css';
 
 /**
@@ -24,6 +25,9 @@ import './index.css';
  * be filled, where there is no signal (roadmap #19). Registration is deliberately silent and
  * non-blocking: a browser that refuses it simply gets the online-only app.
  */
+// The browser's install offer comes once, early: kept for the Install page (audit F-8).
+captureInstallPrompt();
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   const register = () => void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
   // This module loads after the catalogues, which may be after the page's own load event.

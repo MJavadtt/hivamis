@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -121,6 +121,41 @@ describe('Pictures inside the installation (audit F-2)', () => {
     expect(service('imagegen-pull')).toContain('profiles: [pull]');
     expect(service('api')).toContain('IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}');
     expect(service('api')).toContain('IMAGE_MODE: ${IMAGE_MODE:-off}');
+  });
+
+  // Audit F-8: what the server needs, on the systems the installer promises — Docker from Docker's
+  // own repository for that release — and a plain answer anywhere else.
+  it('prepares Ubuntu 22.04, Ubuntu 24.04 and Debian 12, and says what to do elsewhere', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'hivamis-os-'));
+    try {
+      const prereqs = async (release: string) => {
+        const file = path.join(dir, 'os-release');
+        writeFileSync(file, release);
+        return run('bash', [path.join(ROOT, 'infrastructure/hivamis'), 'prereqs'], { env: { ...process.env, HIVAMIS_DRY_RUN: '1', HIVAMIS_OS_RELEASE: file } })
+          .then((r) => ({ ok: true, out: r.stdout + r.stderr }), (e: { stdout: string; stderr: string }) => ({ ok: false, out: e.stdout + e.stderr }));
+      };
+      for (const [id, version, codename] of [['ubuntu', '22.04', 'jammy'], ['ubuntu', '24.04', 'noble'], ['debian', '12', 'bookworm']] as const) {
+        const r = await prereqs(`ID=${id}\nVERSION_ID="${version}"\nVERSION_CODENAME=${codename}\n`);
+        expect(r.ok, `${id} ${version}`).toBe(true);
+        expect(r.out).toContain(`https://download.docker.com/linux/${id} ${codename} stable`);
+        expect(r.out).toContain('apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin');
+        expect(r.out).toContain('apt-get install -y ca-certificates curl gnupg openssl');
+        expect(r.out).toContain('systemctl enable --now docker');
+      }
+      const other = await prereqs('ID=centos\nVERSION_ID="9"\n');
+      expect(other.ok).toBe(false);
+      expect(other.out).toContain('prereqs knows Ubuntu 22.04, Ubuntu 24.04 and Debian 12; this is centos 9');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('is tested end to end on all three in CI, not only as a dry run', () => {
+    const ci = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+    expect(ci).toMatch(/system: ubuntu-22\.04/);
+    expect(ci).toMatch(/system: ubuntu-24\.04/);
+    expect(ci).toMatch(/system: debian-12, runner: ubuntu-24\.04, container: 'debian:12'/);
+    expect(ci).toContain('infrastructure/hivamis prereqs');
+    // The administrator's activation link is a credential: the job keeps it out of its log.
+    expect(ci).not.toMatch(/--no-ai \| tee/);
   });
 
   // Audit F-4: speech to text on the installation's own server, so a voice never leaves it.

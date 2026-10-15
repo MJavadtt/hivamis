@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Hivamis on one machine, with Docker Compose (roadmap #50).
 #
+#   infrastructure/hivamis prereqs                 (as root) Docker, Compose, openssl, curl on Ubuntu 22.04/24.04 or Debian 12
 #   infrastructure/hivamis install --org-name NAME --org-slug SLUG --admin-email EMAIL --admin-name NAME
 #                                  [--domain HOST] [--port 8080] [--multi] [--model NAME | --no-ai] [--image] [--speech]
 #   infrastructure/hivamis status
@@ -14,6 +15,7 @@
 # HIVAMIS_BACKUP_DIR  where backups go (default: ./backups); RETENTION_DAYS (default 30)
 # HIVAMIS_DRY_RUN=1   print every command instead of running it
 # HIVAMIS_MEMORY_GB, HIVAMIS_GPU=0|1   what the model is chosen for, when detection should not decide
+# HIVAMIS_OS_RELEASE  the os-release file prereqs reads (default /etc/os-release)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,8 +38,8 @@ secret() { openssl rand -base64 "$1" | tr -d '\n/+='; }
 cli() { compose exec -T api node dist/cli.js "$@"; }
 need_tools() {
   [ "$DRY" = 1 ] && return 0
-  command -v docker >/dev/null || die "Docker is not installed."
-  docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is not available (docker compose)."
+  command -v docker >/dev/null || die "Docker is not installed. On Ubuntu 22.04/24.04 or Debian 12: sudo infrastructure/hivamis prereqs"
+  docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is not available (docker compose). On Ubuntu 22.04/24.04 or Debian 12: sudo infrastructure/hivamis prereqs"
 }
 
 wait_healthy() {
@@ -151,6 +153,45 @@ cmd_model() {
       ;;
     *) die "model [pull [NAME]]" ;;
   esac
+}
+
+# ── What the server needs (audit F-8) ──────────────────────────────────────────────────────────
+
+# Docker Engine and Compose from Docker's own repository — the distributions' packages lag behind
+# Compose v2 — with openssl for the secrets and curl for the checks. Only on the systems this is
+# tested on; anywhere else it says what to install rather than guessing.
+cmd_prereqs() {
+  local release="${HIVAMIS_OS_RELEASE:-/etc/os-release}"
+  [ -r "$release" ] || die "cannot read $release to tell which system this is"
+  local id version codename
+  id="$(. "$release"; printf '%s' "${ID:-}")"
+  version="$(. "$release"; printf '%s' "${VERSION_ID:-}")"
+  codename="$(. "$release"; printf '%s' "${VERSION_CODENAME:-}")"
+  case "$id:$version" in
+    ubuntu:22.04|ubuntu:24.04|debian:12) ;;
+    *) die "prereqs knows Ubuntu 22.04, Ubuntu 24.04 and Debian 12; this is ${id:-unknown} ${version:-}. Install Docker Engine with the Compose plugin (https://docs.docker.com/engine/install/), and openssl and curl, then run install." ;;
+  esac
+  [ "$DRY" = 1 ] || [ "$(id -u)" = 0 ] || die "prereqs installs system packages: run it as root (sudo infrastructure/hivamis prereqs)"
+  say "→ $id $version ($codename): Docker Engine, Compose, openssl and curl"
+  run apt-get update
+  run apt-get install -y ca-certificates curl gnupg openssl
+  if [ "$DRY" = 1 ] || ! docker compose version >/dev/null 2>&1; then
+    run install -m 0755 -d /etc/apt/keyrings
+    run curl -fsSL "https://download.docker.com/linux/$id/gpg" -o /etc/apt/keyrings/docker.asc
+    run chmod a+r /etc/apt/keyrings/docker.asc
+    local arch; arch="$( [ "$DRY" = 1 ] && printf amd64 || dpkg --print-architecture)"
+    local line="deb [arch=$arch signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$id $codename stable"
+    if [ "$DRY" = 1 ]; then printf '+ echo %s > /etc/apt/sources.list.d/docker.list\n' "$line"; else printf '%s\n' "$line" > /etc/apt/sources.list.d/docker.list; fi
+    run apt-get update
+    run apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  else
+    say "✓ Docker and Compose are here already"
+  fi
+  # A host with systemd starts the engine now and at every boot; a container using its host's
+  # engine (the CI) has no service to start.
+  if [ "$DRY" = 1 ] || { command -v systemctl >/dev/null && [ -d /run/systemd/system ]; }; then run systemctl enable --now docker; fi
+  [ "$DRY" = 1 ] || docker info >/dev/null 2>&1 || die "Docker is installed but its engine does not answer — see: systemctl status docker"
+  say "✓ ready for: infrastructure/hivamis install …"
 }
 
 cmd_install() {
@@ -331,6 +372,7 @@ cmd_tenant() {
 }
 
 case "${1:-help}" in
+  prereqs) shift; cmd_prereqs ;;
   install) shift; cmd_install "$@" ;;
   status) shift; cmd_status ;;
   model) shift; cmd_model "$@" ;;
@@ -338,5 +380,5 @@ case "${1:-help}" in
   restore) shift; cmd_restore "$@" ;;
   upgrade) shift; cmd_upgrade "$@" ;;
   tenant) shift; cmd_tenant "$@" ;;
-  *) sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 esac

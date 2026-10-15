@@ -271,6 +271,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <Link to="/delegations" data-tour="delegations" className="block rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50 hover:text-ink-900">{tr('تفویض اختیار')}{user?.delegated && Object.keys(user.delegated).length > 0 && <Badge tone="info" className="ms-2">{tr('به نمایندگی')}</Badge>}
               </Link>
               <MessengerMenuItem />
+              <Link to="/install" className="block rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-600 hover:bg-ink-50 hover:text-ink-900">{tr('نصب روی این دستگاه')}</Link>
             </>
           )}
           <Button variant="ghost" size="sm" className={cx('w-full', compact ? 'justify-center px-0' : 'justify-start')} onClick={() => void signOut()} title={compact ? tr('خروج') : undefined} aria-label={compact ? tr('خروج') : undefined}>
