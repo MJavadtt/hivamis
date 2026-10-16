@@ -3,7 +3,7 @@ import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { formatDateTime, localDigits } from '../lib/format';
+import { formatDateTime, localDigits, sep } from '../lib/format';
 import { Button, EmptyState, LoadingBlock, StateBadge, Tabs } from '../components/ui';
 import { BookingEditor, BookingPage } from './Bookings';
 import { tr } from '../i18n';
@@ -115,8 +115,8 @@ function Home() {
                   <StateBadge state={b.state} />
                 </span>
                 <span className="mt-1 block text-xs text-ink-600">
-                  {formatDateTime(b.startsAt)} · {b.room?.name ?? b.placeNote ?? '—'}
-                  {tab === 'approve' && <> · {b.organizer.fullName}</>}
+                  {formatDateTime(b.startsAt)}{sep()}{b.room?.name ?? b.placeNote ?? '—'}
+                  {tab === 'approve' && <>{sep()}{b.organizer.fullName}</>}
                 </span>
               </Link>
             </li>

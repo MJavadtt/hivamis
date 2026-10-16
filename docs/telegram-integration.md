@@ -207,4 +207,6 @@ comes across intact: bookings that cannot collide, enforced by the database.
 3. **The Mini App — built** (ADR-092). It is `/tg` in Hivamis, signed in by the launch data
    Telegram hands it, and opened from the bot's buttons and menu. It runs in Telegram's phone and
    desktop apps; Telegram Web would have to frame it, which Hivamis does not allow.
-4. The admin pages.
+4. **The admin pages — built** (ADR-093): **مدیریت رزرو** (rooms, things, places, catering and
+   the usage report) and **پذیرش** (the reception desk). The platform's admin panel can be
+   retired.

@@ -181,7 +181,7 @@ export const GUIDE: GuideSection[] = [
     ],
   },
   {
-    id: 'bookings', route: '^/bookings(/[^/]+)?$', path: '/bookings', permission: 'meeting.book', manual: 'Booking a meeting',
+    id: 'bookings', route: '^/bookings(/(?!admin$)[^/]+)?$', path: '/bookings', permission: 'meeting.book', manual: 'Booking a meeting',
     title: t('رزرو جلسه', 'Booking a meeting'),
     summary: t('اتاق، تجهیزات، پارکینگ و همکاران را برای جلسه رزرو کنید — بی‌تداخل، با تأیید، و با صورتجلسه در هیوامیس.',
       'Book a room, equipment, parking and colleagues for a meeting — without clashes, approved, and minuted in Hivamis.'),
@@ -191,6 +191,30 @@ export const GUIDE: GuideSection[] = [
         'Give the time and the colleagues: only rooms free and large enough are shown, and any clash is named, with the next free times.')),
       step(undefined, t('تأیید، سپس قطعی', 'Approved, then confirmed'), t('تأییدکننده — مدیر واحد شما — تصمیم می‌گیرد؛ سپس «قطعی کردن» اتاق و افراد را نگه می‌دارد و جلسه‌ای در هیوامیس می‌سازد.',
         'The approver — your unit\'s manager — decides; then “Confirm” holds the room and the people and makes a Hivamis meeting.')),
+    ],
+  },
+  {
+    id: 'booking-admin', route: '^/bookings/admin$', path: '/bookings/admin', anyOf: ['resource.manage', 'meeting.view_all'], manual: 'Booking a meeting',
+    title: t('مدیریت رزرو', 'Booking administration'),
+    summary: t('اتاق‌ها، تجهیزات، پارکینگ و پذیرایی را نگه دارید و ببینید هر اتاق چقدر به کار رفته است.',
+      'Keep the rooms, equipment, parking and catering, and see how much each room is used.'),
+    keywords: 'اتاق پارکینگ پذیرایی گزارش ظرفیت room parking catering report utilisation',
+    steps: [
+      step(undefined, t('اتاق‌ها و منابع', 'Rooms and resources'), t('هر اتاق با صندلی، طبقه، مکان و امکاناتش؛ آنچه دیگر به کار نمی‌رود غیرفعال می‌شود، نه پاک.',
+        'Each room with its seats, floor, place and features; what is no longer used is deactivated, not deleted.')),
+      step(undefined, t('گزارش استفاده', 'Usage report'), t('ساعت‌های رزروشدهٔ هر اتاق در برابر ساعت‌های کاری، و ساعت‌هایی که جلسه‌ها آغاز می‌شوند.',
+        "Each room's booked hours against its working hours, and the hours meetings start in.")),
+    ],
+  },
+  {
+    id: 'reception', route: '^/reception$', path: '/reception', permission: 'reception.checkin', manual: 'Booking a meeting',
+    title: t('پذیرش', 'Reception'),
+    summary: t('مهمانان جلسه‌های امروز: ورود و خروجشان را ثبت کنید؛ برگزارکننده بی‌درنگ باخبر می‌شود.',
+      "Today's meeting guests: check them in and out; the organiser is told at once."),
+    keywords: 'پذیرش مهمان ورود خروج reception guest check in visitor',
+    steps: [
+      step(undefined, t('ثبت ورود', 'Check in'), t('«ثبت ورود» زیر نام مهمان؛ برگزارکنندهٔ جلسه در برنامه، روی گوشی و در پیام‌رسان باخبر می‌شود.',
+        '“Check in” under the guest\'s name; the organiser hears of it in the app, on the phone and in the messenger.')),
     ],
   },
   {

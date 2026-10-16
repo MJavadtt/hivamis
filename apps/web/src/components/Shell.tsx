@@ -57,6 +57,7 @@ const NAV: NavGroup[] = [
       { to: '/people', label: tr('همکاران'), icon: IconUsers },
       { to: '/chat', label: tr('گفت‌وگو'), icon: IconChat, permission: 'chat.use' },
       { to: '/bookings', label: tr('رزرو جلسه'), icon: IconClock, permission: 'meeting.book' },
+      { to: '/reception', label: tr('پذیرش'), icon: IconUsers, permission: 'reception.checkin' },
     ],
   },
   {
@@ -101,6 +102,7 @@ const NAV: NavGroup[] = [
       { to: '/ai', label: tr('دستیار هوشمند'), icon: IconSpark, permission: 'ai.use' },
       // No permission of its own: the rules are for everyone they bind to read (roadmap #47).
       { to: '/rules', label: tr('قوانین سازمان'), icon: IconShield },
+      { to: '/bookings/admin', label: tr('مدیریت رزرو'), icon: IconClock, anyOf: ['resource.manage', 'meeting.view_all'] },
       { to: '/onboarding', label: tr('راه‌اندازی سازمان'), icon: IconClipboard, permission: 'admin.settings' },
       { to: '/admin', label: tr('مدیریت سیستم'), icon: IconSettings, anyOf: ADMIN_PERMISSIONS },
     ],

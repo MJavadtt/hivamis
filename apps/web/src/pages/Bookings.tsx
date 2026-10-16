@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RESOURCE_FEATURES, RESOURCE_FEATURE_LABELS, RESOURCE_TYPE_LABELS, type BookingConflict, type ResourceFeature } from '@hiva/contracts';
 import { apiGet, apiPost, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { formatDateTime, localDigits } from '../lib/format';
+import { formatDateTime, localDigits, sep } from '../lib/format';
 import { PageBody, PageHeader } from '../components/Shell';
 import {
   Badge, Button, Card, DescRow, ErrorBlock, Field, Input, LoadingBlock, Modal, Select, Spinner, StateBadge, Tabs, Textarea, cx, useToast,
@@ -130,18 +130,18 @@ export function BookingPage() {
               <dl className="px-5 py-1">
                 <DescRow label={tr('زمان')}>{span(b)}</DescRow>
                 <DescRow label={tr('مکان')}>
-                  {b.room ? <>{b.room.name}{b.room.floor ? ` · ${tr('طبقهٔ {0}', b.room.floor)}` : ''}{b.room.location ? ` · ${b.room.location.name}` : ''}</> : b.placeNote ?? '—'}
+                  {b.room ? <>{b.room.name}{b.room.floor ? `${sep()}${tr('طبقهٔ {0}', b.room.floor)}` : ''}{b.room.location ? `${sep()}${b.room.location.name}` : ''}</> : b.placeNote ?? '—'}
                 </DescRow>
                 <DescRow label={tr('برگزارکننده')}>{b.organizer.fullName}</DescRow>
                 <DescRow label={tr('تأییدکننده')}>{b.approver?.fullName ?? <span className="text-rose-700">{tr('تعیین نشده')}</span>}</DescRow>
                 {b.parkingSpaces > 0 && <DescRow label={tr('پارکینگ')}>{tr('{0} جا در {1}', localDigits(b.parkingSpaces), b.parking?.name ?? '—')}</DescRow>}
                 {b.resources.length > 0 && <DescRow label={tr('تجهیزات')}>{b.resources.map((r) => `${r.name} (${typeLabel(r.type)})`).join('، ')}</DescRow>}
                 {b.catering.length > 0 && <DescRow label={tr('پذیرایی')}>{b.catering.map((c) => `${isEnglish() ? c.labelEn : c.labelFa} × ${localDigits(c.quantity)}`).join('، ')}</DescRow>}
-                {(b.project || b.company) && <DescRow label={tr('برای')}>{[b.project && `${b.project.code} — ${b.project.name}`, b.company?.legalName].filter(Boolean).join(' · ')}</DescRow>}
+                {(b.project || b.company) && <DescRow label={tr('برای')}>{[b.project && `${b.project.code} — ${b.project.name}`, b.company?.legalName].filter(Boolean).join(sep())}</DescRow>}
                 {b.meeting && (
                   <DescRow label={tr('جلسه در هیوامیس')}>
                     <span className="ltr font-mono text-xs">{b.meeting.code}</span>
-                    {b.project && !inMiniApp() && <> · <Link className="text-brand-700 underline" to={`/projects/${b.project.id}`}>{tr('صورتجلسه در پروژه')}</Link></>}
+                    {b.project && !inMiniApp() && <>{sep()}<Link className="text-brand-700 underline" to={`/projects/${b.project.id}`}>{tr('صورتجلسه در پروژه')}</Link></>}
                   </DescRow>
                 )}
                 {b.decisionNote && <DescRow label={tr('یادداشت تأییدکننده')}>{b.decisionNote}</DescRow>}
@@ -379,7 +379,7 @@ export function BookingEditor({ booking, onClose, onSaved }: { booking?: Booking
               {rooms.map((r) => (
                 <li key={r.id}>
                   <button type="button" onClick={() => setRoomId(r.id)} aria-pressed={roomId === r.id} className={cx('flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-ink-50', roomId === r.id && 'bg-brand-50')}>
-                    <span className="flex-1">{r.name}<span className="block text-xs text-ink-500">{tr('{0} نفر', localDigits(r.capacity))}{r.floor ? ` · ${tr('طبقهٔ {0}', r.floor)}` : ''}{r.features.length ? ` · ${r.features.map(featureLabel).join('، ')}` : ''}</span></span>
+                    <span className="flex-1">{r.name}<span className="block text-xs text-ink-500">{tr('{0} نفر', localDigits(r.capacity))}{r.floor ? `${sep()}${tr('طبقهٔ {0}', r.floor)}` : ''}{r.features.length ? `${sep()}${r.features.map(featureLabel).join(isEnglish() ? ', ' : '، ')}` : ''}</span></span>
                     {roomId === r.id && <span className="text-xs text-brand-700">✓</span>}
                   </button>
                 </li>

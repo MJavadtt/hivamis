@@ -12,6 +12,8 @@ import { assertOwnReferences } from '../lib/scope.js';
 import { assertVisible, seesAll, visibleAmong, visibleWhere, type BookingViewer } from '../bookings/access.js';
 import { conflictsFor, freeRooms, suggestSlots } from '../bookings/availability.js';
 import { approversFor, bookingView, LIST_SELECT, saveDraft } from '../bookings/service.js';
+import { bookingAnalytics } from '../bookings/analytics.js';
+import { notify } from '../mail/notify.js';
 
 /**
  * Meeting bookings (audit F-9): the places and things that can be booked, whether a time works, and
@@ -28,6 +30,8 @@ const listSchema = paginationSchema.extend({
 const scheduleSchema = z.object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine((q) => q.to > q.from && q.to.getTime() - q.from.getTime() <= 31 * 86_400_000, { message: 'بازه حداکثر یک ماه است.' });
 const respondSchema = z.object({ response: z.enum(['ACCEPTED', 'DECLINED']) });
+const spanSchema = (maxDays: number) => z.object({ from: z.coerce.date(), to: z.coerce.date() })
+  .refine((q) => q.to > q.from && q.to.getTime() - q.from.getTime() <= maxDays * 86_400_000, { message: 'بازهٔ زمانی نامعتبر است.' });
 const resourceFilter = z.object({ type: z.enum(RESOURCE_TYPES).optional(), all: z.coerce.boolean().default(false) });
 
 /** A car park with no spaces books nothing; the database refuses it too. */
@@ -252,6 +256,82 @@ const bookingRoutes: FastifyPluginAsync = async (app) => {
       await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'BOOKING_RESPONDED', entityType: 'booking', entityId: id, before: { response: seat.response }, after: { response }, ipAddress: actor.ipAddress, requestId: actor.requestId }, tx);
       return after;
     });
+  });
+
+  /* ── reception (audit F-9, step 4) ───────────────────────────────────── */
+
+  /**
+   * The desk's day: confirmed meetings with outside guests, who is expected and who has arrived.
+   * Reception sees names, companies and the room — not the meeting's description or catering.
+   */
+  app.get('/reception', { preHandler: [app.authenticate, app.requirePermissions('reception.checkin')] }, async (req) => {
+    const actor = actorFrom(req);
+    const q = parse(spanSchema(2), req.query);
+    const bookings = await prisma.booking.findMany({
+      where: { organizationId: actor.organizationId, state: { in: ['CONFIRMED', 'COMPLETED'] }, startsAt: { lt: q.to }, endsAt: { gt: q.from }, guests: { some: {} } },
+      select: {
+        id: true, code: true, title: true, startsAt: true, endsAt: true, placeNote: true, parkingSpaces: true,
+        room: { select: { name: true, floor: true } }, organizer: { select: { id: true, fullName: true } },
+        guests: { select: { id: true, fullName: true, company: true, isVip: true, checkedInAt: true, checkedOutAt: true }, orderBy: { fullName: 'asc' } },
+      },
+      orderBy: { startsAt: 'asc' }, take: 200,
+    });
+    return bookings;
+  });
+
+  const guestAt = async (organizationId: string, id: string) => {
+    const g = await prisma.bookingGuest.findFirst({
+      where: { id, organizationId, booking: { state: { in: ['CONFIRMED', 'COMPLETED'] } } },
+      select: { id: true, fullName: true, company: true, checkedInAt: true, checkedOutAt: true, booking: { select: { id: true, code: true, title: true, organizerId: true } } },
+    });
+    if (!g) throw notFound('مهمان');
+    return g;
+  };
+
+  app.post('/reception/guests/:id/check-in', { preHandler: [app.authenticate, app.requirePermissions('reception.checkin')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const g = await guestAt(actor.organizationId, id);
+    if (g.checkedInAt) throw new AppError(409, 'ALREADY_CHECKED_IN', 'ورود این مهمان پیش‌تر ثبت شده است.');
+    const after = await prisma.$transaction(async (tx) => {
+      const row = await tx.bookingGuest.update({ where: { id }, data: { checkedInAt: new Date(), checkedInById: actor.id } });
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'GUEST_CHECKED_IN', entityType: 'booking', entityId: g.booking.id, after: { guestId: id, fullName: g.fullName }, ipAddress: actor.ipAddress, requestId: actor.requestId }, tx);
+      return row;
+    });
+    // The organiser hears that their guest is at the door.
+    await notify({
+      userId: g.booking.organizerId, kind: 'BOOKING_GUEST_ARRIVED', title: `مهمان شما رسید: ${g.fullName}`,
+      body: `${g.booking.code} — ${g.booking.title}${g.company ? ` · ${g.company}` : ''}`, entityType: 'booking', entityId: g.booking.id, severity: 'INFO',
+    });
+    return after;
+  });
+
+  app.post('/reception/guests/:id/check-out', { preHandler: [app.authenticate, app.requirePermissions('reception.checkin')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const g = await guestAt(actor.organizationId, id);
+    if (!g.checkedInAt) throw new AppError(409, 'NOT_CHECKED_IN', 'ورود این مهمان هنوز ثبت نشده است.');
+    if (g.checkedOutAt) throw new AppError(409, 'ALREADY_CHECKED_OUT', 'خروج این مهمان پیش‌تر ثبت شده است.');
+    return prisma.$transaction(async (tx) => {
+      const row = await tx.bookingGuest.update({ where: { id }, data: { checkedOutAt: new Date() } });
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'GUEST_CHECKED_OUT', entityType: 'booking', entityId: g.booking.id, after: { guestId: id, fullName: g.fullName }, ipAddress: actor.ipAddress, requestId: actor.requestId }, tx);
+      return row;
+    });
+  });
+
+  /* ── how the rooms are used (audit F-9, step 4) ──────────────────────── */
+
+  /**
+   * For whoever runs the rooms: how many bookings and how they ended, each room's booked hours
+   * against its working hours, the busiest hours of the day, and catering ordered.
+   */
+  app.get('/booking/analytics', book, async (req) => {
+    const actor = actorFrom(req);
+    if (!actor.permissions.includes('resource.manage') && !actor.permissions.includes('meeting.view_all')) {
+      throw new AppError(403, 'FORBIDDEN', 'گزارش رزروها با مسئول اتاق‌ها یا دارندهٔ «مشاهدهٔ همهٔ رزروهای جلسه» است.');
+    }
+    const q = parse(spanSchema(366), req.query);
+    return bookingAnalytics(actor.organizationId, q.from, q.to);
   });
 };
 

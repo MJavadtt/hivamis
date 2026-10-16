@@ -2718,5 +2718,12 @@
   "هیوامیس": "Hivamis",
   "حجم درخواست بیش از حد مجاز است.": "The request is too large.",
   "نوع محتوای درخواست پذیرفته نیست.": "The request's content type is not accepted.",
-  "بدنهٔ درخواست نادرست است.": "The request body is malformed."
+  "بدنهٔ درخواست نادرست است.": "The request body is malformed.",
+  "بازهٔ زمانی نامعتبر است.": "The time span is not valid.",
+  "مهمان": "Guest",
+  "ورود این مهمان پیش‌تر ثبت شده است.": "This guest has already been checked in.",
+  "مهمان شما رسید: {0}": "Your guest has arrived: {0}",
+  "ورود این مهمان هنوز ثبت نشده است.": "This guest has not been checked in yet.",
+  "خروج این مهمان پیش‌تر ثبت شده است.": "This guest has already been checked out.",
+  "گزارش رزروها با مسئول اتاق‌ها یا دارندهٔ «مشاهدهٔ همهٔ رزروهای جلسه» است.": "The bookings report is for whoever manages the rooms or holds “See all meeting bookings”."
 }

@@ -387,6 +387,9 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/bookings.ts#PATCH /booking/locations/:id",
     "routes/bookings.ts#PATCH /booking/resources/:id",
     "routes/bookings.ts#PATCH /booking/catering/:id",
+    // The guest is found in the caller's organisation (guestAt) before the desk marks them.
+    "routes/bookings.ts#POST /reception/guests/:id/check-in",
+    "routes/bookings.ts#POST /reception/guests/:id/check-out",
   ]),
   ...of('OWN', ["bookings/service.ts#approversFor", "routes/bookings.ts#POST /bookings/:id/respond"]),
   ...of('ENGINE', [

@@ -31,6 +31,7 @@ export const MESSENGER_KINDS = new Set([
   'CHAT_MESSAGE', 'CHAT_MENTION',
   // Meeting bookings (audit F-9): decided and confirmed from the chat, by single-use buttons (finding 1).
   'BOOKING_APPROVAL_REQUIRED', 'BOOKING_APPROVED', 'BOOKING_CHANGES_REQUESTED', 'BOOKING_REJECTED', 'BOOKING_INVITED', 'BOOKING_CANCELLED',
+  'BOOKING_GUEST_ARRIVED',
 ]);
 
 const appUrl = (p = '') => `${(env.PUBLIC_APP_URL || env.CORS_ORIGIN.split(',')[0]!.trim()).replace(/\/+$/, '')}${p}`;

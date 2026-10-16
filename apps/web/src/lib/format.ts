@@ -251,3 +251,10 @@ export function jalaliFirstWeekday(jy: number, jm: number): number {
 export function todayJalaliParts(): JalaliParts {
   return isoToJalaliParts(new Date().toISOString())!;
 }
+
+/**
+ * Between items on one line. In Persian, a middle dot beside a digit reads as the Persian zero (۰):
+ * «۲ جلسه · ۲ ساعت» looks like «۲ جلسه ۰ ۲ ساعت» (found in F-9's browser check). Persian takes its
+ * comma; English keeps the dot.
+ */
+export const sep = (): string => (isEnglish() ? ' · ' : '، ');

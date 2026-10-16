@@ -677,6 +677,15 @@ booking is confirmed.
 6. **تغییر زمان** sends a confirmed booking back for approval at the new time. **لغو رزرو** frees
    everything; a meeting that never had minutes is removed with it.
 
+**For the office.** **مدیریت رزرو** keeps the rooms (seats, floor, place, what each offers), the
+equipment, parking and cars, and the catering a booking can ask for. Whatever is no longer used is
+deactivated, not deleted. Its **گزارش استفاده** shows how full each room has been against its
+working hours, when meetings start, and what catering was ordered.
+
+**At reception.** **پذیرش** lists today's confirmed meetings with outside guests. **ثبت ورود** marks a
+guest in and tells the organiser at once; **ثبت خروج** marks them out. Tomorrow's list is a tab
+away.
+
 Invited colleagues answer **می‌آیم** or **نمی‌آیم** on the booking. A booking is seen only by its
 organiser, its approver and the people invited, and by whoever holds **See all meeting bookings**.
 Rooms, equipment, parking and catering are kept by whoever holds **Manage rooms, equipment,

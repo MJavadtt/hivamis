@@ -2820,3 +2820,31 @@ external calendars and the waitlist are not ported: none is used by the people w
 unknown content type, a body too large) were answered 500 and logged as faults. They now answer 400,
 415 or 413.
 
+
+## ADR-093 — The meeting platform's admin panel becomes Hivamis pages, and it retires
+
+**Decision.** (Audit F-9, Option A, step 4 of 4.) The meeting platform's separate admin panel is
+not ported as an app. Its work becomes three Hivamis pages, in both languages, each behind its own
+permission:
+
+- **مدیریت رزرو** (`/bookings/admin`, `resource.manage`):
+  - rooms, equipment, parking and vehicles, with seats or spaces, floor, location and a room's
+    features;
+  - places;
+  - catering options with their unit price.
+  - Things are deactivated, never deleted: a booking that used one still names it.
+- **The report**, on the same page, also for `meeting.view_all`. It shows bookings by how they
+  ended; each room's booked hours against its working hours (the organisation's working days and
+  hours, less holidays); the hours meetings start in; and catering ordered with its cost. It counts
+  holds, not requests: what the rooms actually held.
+- **پذیرش** (`/reception`, `reception.checkin`): the day's confirmed meetings with outside guests.
+  - Reception checks each guest in and out, once each, with an audit row in the same transaction.
+  - Checking a guest in tells the organiser at once: in the app, on the phone and in the messenger.
+  - The desk sees names, companies, rooms and times, not a meeting's description or catering.
+  - A guest of a booking not yet confirmed is not expected, and cannot be checked in.
+
+With this, Option A is complete. The four findings are closed by construction, and the meeting
+platform's API, bot and admin panel can be switched off once its people have linked Telegram here.
+Its data is not migrated automatically: a booking made there is booked here again, or entered by
+the office. A migration script would have to map its people by email, which finding 2 forbids
+without each person's proof.

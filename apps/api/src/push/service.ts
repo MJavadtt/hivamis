@@ -26,7 +26,7 @@ export const PUSHED_KINDS = new Set([
   // Team chat (audit F-5), as each member chose; the notice names the writer, not the words.
   'CHAT_MESSAGE', 'CHAT_MENTION',
   // Meeting bookings (audit F-9): a request waiting on its approver, a booking to confirm, an invitation.
-  'BOOKING_APPROVAL_REQUIRED', 'BOOKING_APPROVED', 'BOOKING_INVITED', 'BOOKING_CANCELLED',
+  'BOOKING_APPROVAL_REQUIRED', 'BOOKING_APPROVED', 'BOOKING_INVITED', 'BOOKING_CANCELLED', 'BOOKING_GUEST_ARRIVED',
 ]);
 const SLA_KINDS = new Set(['SLA_WARNING', 'SLA_BREACH', 'SLA_PREDICTED_BREACH']);
 /** Loud on the lock screen and delivered promptly even to a phone saving its battery. */

@@ -605,11 +605,16 @@ announcing it. Eitaa, Slack and Teams are not connected.
 
 ## Meeting bookings
 
-Audit F-9. Rooms, equipment, parking and vehicles are booked under **رزرو جلسه**. Until the admin
-pages arrive (F-9 step 4), they are added with the API by someone holding `resource.manage`:
-`POST /api/v1/booking/locations`, `/booking/resources` (`type`, `name`, `capacity`, `features`) and
-`/booking/catering`. The demo seed adds three rooms, a projector, a guest car park, a car and three
+Audit F-9. Rooms, equipment, parking and vehicles are booked under **رزرو جلسه**, and kept under
+**مدیریت رزرو** by whoever holds `resource.manage`. That page has rooms and things, places, catering
+and a usage report; things are deactivated, not deleted. The reception desk is **پذیرش**, for
+`reception.checkin`. The demo seed adds three rooms, a projector, a guest car park, a car and three
 catering options.
+
+- **Retiring the meeting platform.** Once its people have linked Telegram here and the bot runs from
+  Hivamis, stop the platform's API, bot and admin panel. Revoke its old bot token if it was a
+  different bot. Its bookings are not migrated automatically: matching its people to Hivamis
+  accounts by email is what finding 2 forbids.
 
 - The migration enables `btree_gist`, a trusted extension the database's owner may create. A
   managed PostgreSQL that forbids it must allow it before upgrading.

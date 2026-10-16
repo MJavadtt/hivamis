@@ -239,6 +239,43 @@ describe('Meeting bookings', () => {
     expect((await press(sandboxChat(id.creative!), approve!.action!)).answer).toBe('این دکمه پیش‌تر به کار رفته است.');
   });
 
+  it('lets reception check guests in and out, and tells the organiser they have arrived', async () => {
+    const b = await approved({ guests: [{ fullName: 'مهسا نوری', company: 'پگاه سبز', isVip: true }] });
+    const draftOnly = expectOk(await post('/bookings', T.designer, draft({ guests: [{ fullName: 'مهمان پیش‌نویس' }] })), 'draft');
+    const guest = await prisma.bookingGuest.findFirstOrThrow({ where: { bookingId: b.id } });
+    // Not yet confirmed: the desk does not expect them.
+    expect((await post(`/reception/guests/${guest.id}/check-in`, T.admin)).status).toBe(404);
+    expectOk(await move(T.designer, b.id, 'confirm'), 'confirm');
+    const held = await prisma.booking.findUniqueOrThrow({ where: { id: b.id } });
+    const day = { from: new Date(held.startsAt.getTime() - 6 * H).toISOString(), to: new Date(held.startsAt.getTime() + 6 * H).toISOString() };
+    expect((await get('/reception', T.designer, day)).status).toBe(403);
+    const desk = expectOk(await get('/reception', T.admin, day), 'reception') as { id: string; guests: { fullName: string }[] }[];
+    expect(desk.map((x) => x.id)).toContain(b.id);
+    expect(desk.map((x) => x.id)).not.toContain(draftOnly.id);
+
+    expect((await post(`/reception/guests/${guest.id}/check-out`, T.admin)).body.error.code).toBe('NOT_CHECKED_IN');
+    expectOk(await post(`/reception/guests/${guest.id}/check-in`, T.admin), 'in');
+    expect((await post(`/reception/guests/${guest.id}/check-in`, T.admin)).body.error.code).toBe('ALREADY_CHECKED_IN');
+    expect(await prisma.notification.count({ where: { userId: id.designer, kind: 'BOOKING_GUEST_ARRIVED', entityId: b.id } })).toBe(1);
+    expectOk(await post(`/reception/guests/${guest.id}/check-out`, T.admin), 'out');
+    expect(await prisma.auditEvent.count({ where: { entityId: b.id, action: { in: ['GUEST_CHECKED_IN', 'GUEST_CHECKED_OUT'] } } })).toBe(2);
+  });
+
+  it('reports how the rooms are used, to whoever runs them', async () => {
+    const span = { from: new Date().toISOString(), to: new Date(Date.now() + 30 * 86_400_000).toISOString() };
+    expect((await get('/booking/analytics', T.designer, span)).status).toBe(403);
+    const r = expectOk(await get('/booking/analytics', T.admin, span), 'analytics');
+    expect(r.bookings.total).toBeGreaterThan(0);
+    expect(r.bookings.byState.CONFIRMED).toBeGreaterThan(0);
+    const damavand = r.rooms.find((x: { name: string }) => x.name === 'اتاق جلسهٔ دماوند');
+    expect(damavand.meetings).toBeGreaterThan(0);
+    expect(damavand.hours).toBeGreaterThan(0);
+    expect(damavand.utilization).toBeGreaterThan(0);
+    expect(r.workingHoursPerRoom).toBeGreaterThan(0);
+    expect(r.startsByHour).toHaveLength(24);
+    expect(r.startsByHour.reduce((a: number, b: number) => a + b, 0)).toBe(r.rooms.reduce((a: number, x: { meetings: number }) => a + x.meetings, 0));
+  });
+
   it('keeps places and things to whoever manages them, with an audit row', async () => {
     expect((await post('/booking/resources', T.designer, { type: 'ROOM', name: 'اتاق تازه', capacity: 4 })).status).toBe(403);
     const made = await post('/booking/resources', T.admin, { type: 'ROOM', name: 'اتاق تازه', capacity: 4, features: ['DISPLAY'] });
