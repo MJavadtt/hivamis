@@ -149,6 +149,7 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 | [PDF export](docs/pdf-export.md) | Document PDFs and who may export them (خروجی PDF اسناد و ترتیب دسترسی) |
 | [User guide](docs/user-guide.md) · [راهنمای کاربر](docs/user-guide.fa.md) | Per-role walkthrough of daily work, in English and Persian |
 | [Audit of October 2026](docs/audit-2026-10.md) | Every audit item: status, commit and the test that proves it |
+| [گزارش نهایی ایرادها](docs/bug-report.fa.md) | Every bug found and fixed since task 10, by category, in Persian |
 | [Telegram integration](docs/telegram-integration.md) | The meeting platform brought into Hivamis, and why that way |
 | [Market analysis](docs/market-analysis.md) | Competitive benchmark and the gap this fills |
 
