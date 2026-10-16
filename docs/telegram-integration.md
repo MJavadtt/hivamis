@@ -204,5 +204,7 @@ comes across intact: bookings that cannot collide, enforced by the database.
 2. **The booking domain — built** (ADR-091). Findings 1 and 3 are closed. Bot buttons are
    single-use action tokens that move a booking through the workflow as the person pressing them. A
    booking is read only by those it concerns. Clashes are refused by the database.
-3. The Mini App against Hivamis.
+3. **The Mini App — built** (ADR-092). It is `/tg` in Hivamis, signed in by the launch data
+   Telegram hands it, and opened from the bot's buttons and menu. It runs in Telegram's phone and
+   desktop apps; Telegram Web would have to frame it, which Hivamis does not allow.
 4. The admin pages.

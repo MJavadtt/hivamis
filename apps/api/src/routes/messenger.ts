@@ -7,7 +7,7 @@ import { actorFrom, parse } from '../lib/http.js';
 import { AppError, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { configuredProvider, messengerMode, sandboxProvider } from '../messenger/provider.js';
-import { handleUpdate, sandboxChat, startLink, status, unlink, type Update } from '../messenger/service.js';
+import { handleUpdate, miniAppUrl, sandboxChat, startLink, status, unlink, type Update } from '../messenger/service.js';
 import { pollingStatus } from '../messenger/polling.js';
 
 const sandboxSendSchema = z.object({ text: z.string().trim().min(1).max(2000) });
@@ -84,6 +84,18 @@ const messengerRoutes: FastifyPluginAsync = async (app) => {
     await p.setWebhook(`${base}/api/v1/messenger/webhook/${env.MESSENGER_WEBHOOK_SECRET}`, env.MESSENGER_WEBHOOK_SECRET);
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'MESSENGER_WEBHOOK_SET', entityType: 'organization', entityId: actor.organizationId, after: { provider: p.name } });
     return { ok: true };
+  });
+
+  /** The bot's menu button opens the Mini App (audit F-9). Telegram takes only an https address. */
+  app.post('/admin/messenger/menu-button', { preHandler: [app.authenticate, app.requirePermissions('admin.settings')] }, async (req) => {
+    const actor = actorFrom(req);
+    const p = configuredProvider();
+    if (!p?.setMenuButton || p.name !== 'telegram') throw new AppError(422, 'MESSENGER_NOT_CONFIGURED', 'دکمهٔ برنامه فقط برای ربات تلگرام ثبت می‌شود.');
+    const url = miniAppUrl();
+    if (!url.startsWith('https://')) throw new AppError(422, 'MINI_APP_NEEDS_HTTPS', 'تلگرام برنامه را فقط از نشانی https باز می‌کند؛ PUBLIC_APP_URL را با https بگذارید.');
+    await p.setMenuButton('هیوامیس', url);
+    await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'MESSENGER_MENU_SET', entityType: 'organization', entityId: actor.organizationId, after: { provider: p.name, url } });
+    return { ok: true, url };
   });
 };
 

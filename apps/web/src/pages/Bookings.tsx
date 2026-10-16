@@ -43,6 +43,8 @@ const featureLabel = (f: string) => (isEnglish() ? RESOURCE_FEATURE_LABELS[f as 
 const typeLabel = (t: keyof typeof RESOURCE_TYPE_LABELS) => (isEnglish() ? RESOURCE_TYPE_LABELS[t].en : RESOURCE_TYPE_LABELS[t].fa);
 const span = (b: { startsAt: string; endsAt: string }) => `${formatDateTime(b.startsAt)} — ${formatDateTime(b.endsAt).split(' ').at(-1)}`;
 const DURATIONS = [30, 45, 60, 90, 120, 180, 240, 480];
+/** Inside Telegram's Mini App (audit F-9), where the rest of Hivamis is not a link away. */
+const inMiniApp = () => window.location.pathname.startsWith('/tg');
 const RESPONSES: Record<string, () => string> = { PENDING: () => tr('بی‌پاسخ'), ACCEPTED: () => tr('می‌آید'), DECLINED: () => tr('نمی‌آید') };
 
 /* ── the list ─────────────────────────────────────────────────────────────── */
@@ -139,7 +141,7 @@ export function BookingPage() {
                 {b.meeting && (
                   <DescRow label={tr('جلسه در هیوامیس')}>
                     <span className="ltr font-mono text-xs">{b.meeting.code}</span>
-                    {b.project && <> · <Link className="text-brand-700 underline" to={`/projects/${b.project.id}`}>{tr('صورتجلسه در پروژه')}</Link></>}
+                    {b.project && !inMiniApp() && <> · <Link className="text-brand-700 underline" to={`/projects/${b.project.id}`}>{tr('صورتجلسه در پروژه')}</Link></>}
                   </DescRow>
                 )}
                 {b.decisionNote && <DescRow label={tr('یادداشت تأییدکننده')}>{b.decisionNote}</DescRow>}
@@ -184,7 +186,7 @@ export function BookingPage() {
           </div>
         </div>
       </PageBody>
-      {editing && <BookingEditor booking={b} onClose={() => setEditing(false)} />}
+      {editing && <BookingEditor booking={b} onClose={() => setEditing(false)} onSaved={() => void refetch()} />}
       {rescheduling && <Reschedule booking={b} onClose={() => setRescheduling(false)} />}
     </>
   );
@@ -268,7 +270,7 @@ function nextHour() {
   return d.toISOString();
 }
 
-function BookingEditor({ booking, onClose }: { booking?: Booking; onClose: () => void }) {
+export function BookingEditor({ booking, onClose, onSaved }: { booking?: Booking; onClose: () => void; onSaved?: (id: string) => void }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
@@ -312,7 +314,7 @@ function BookingEditor({ booking, onClose }: { booking?: Booking; onClose: () =>
       toast(send ? tr('رزرو برای تأیید فرستاده شد.') : tr('پیش‌نویس رزرو ذخیره شد.'));
       await qc.invalidateQueries();
       onClose();
-      navigate(`/bookings/${saved.id}`);
+      if (onSaved) onSaved(saved.id); else navigate(`/bookings/${saved.id}`);
     } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(null); }
   };
   const ready = title.trim().length >= 3 && !Number.isNaN(new Date(start).getTime());

@@ -117,6 +117,9 @@ export function MessengerAdmin() {
   const toast = useToast();
   const { data } = useQuery<any>({ queryKey: ['/admin/messenger'], queryFn: () => apiGet('/admin/messenger') });
   if (!data) return null;
+  const menu = async () => {
+    try { await apiPost('/admin/messenger/menu-button'); toast(tr('دکمهٔ برنامه در ربات ثبت شد.')); } catch (e: any) { toast(e?.message ?? tr('انجام نشد.'), 'danger'); }
+  };
   const register = async () => {
     try { await apiPost('/admin/messenger/webhook'); toast(tr('وب‌هوک ربات ثبت شد.')); } catch (e: any) { toast(e?.message ?? tr('انجام نشد.'), 'danger'); }
   };
@@ -126,6 +129,9 @@ export function MessengerAdmin() {
         <Badge tone={data.mode === 'off' ? 'neutral' : data.configured ? 'success' : 'warning'}>{MODE_FA[data.mode] ?? data.mode}</Badge>
         {data.bot && <span className="ltr text-xs text-ink-500">@{data.bot}</span>}
         <span className="text-xs text-ink-600">{tr('{0} نفر وصل · ۲۴ ساعت گذشته: {1} پیام، {2} ناموفق · در صف {3}', localDigits(data.linked), localDigits(data.last24h.sent), localDigits(data.last24h.failed), localDigits(data.queued))}</span>
+        {data.mode === 'telegram' && (
+          <Button size="sm" variant="secondary" className="ms-auto" disabled={!data.configured} onClick={() => void menu()} title={tr('دکمهٔ کنار جعبهٔ پیام در تلگرام، که برنامهٔ هیوامیس را باز می‌کند')}>{tr('ثبت دکمهٔ برنامه در ربات')}</Button>
+        )}
         {['bale', 'telegram'].includes(data.mode) && data.transport !== 'polling' && (
           <Button size="sm" variant="secondary" className="ms-auto" disabled={!data.configured || !data.webhookSecretSet} onClick={() => void register()}>{tr('ثبت وب‌هوک ربات')}</Button>
         )}

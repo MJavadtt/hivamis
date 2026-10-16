@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHmac, randomBytes } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { call, closeApp, expectOk, get, login, post } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
-import { botApiProvider, type MessengerProvider } from '../src/messenger/provider.js';
+import { botApiProvider, keyboard, type MessengerProvider } from '../src/messenger/provider.js';
 import { handleUpdate, type Update } from '../src/messenger/service.js';
 import { INIT_DATA_TTL_S, verifyInitData } from '../src/auth/telegram-webapp.js';
 import { claimLease, pollOnce } from '../src/messenger/polling.js';
@@ -48,8 +50,22 @@ describe('The Mini App’s launch data', () => {
   });
 });
 
+describe('A malformed request', () => {
+  afterAll(async () => { await closeApp(); });
+  it('is the client’s to fix — 400, not a server fault', async () => {
+    const token = await login('designer@hiva.local');
+    const empty = await call('POST', '/messenger/link', { token, headers: { 'content-type': 'application/json' } });
+    expect(empty.status).toBe(400);
+    expect(empty.body.error.code).toBe('BAD_REQUEST');
+    const broken = await call('POST', '/auth/telegram/webapp', { headers: { 'content-type': 'application/json' }, payload: '{"initData":' });
+    expect(broken.status).toBe(400);
+    const unknownType = await call('POST', '/auth/telegram/webapp', { headers: { 'content-type': 'application/x-unknown' }, payload: 'x' });
+    expect(unknownType.status).toBe(415);
+  });
+});
+
 describe('Telegram as a way in', () => {
-  const saved = { mode: env.MESSENGER_MODE, token: env.MESSENGER_BOT_TOKEN, transport: env.MESSENGER_TRANSPORT };
+  const saved = { mode: env.MESSENGER_MODE, token: env.MESSENGER_BOT_TOKEN, transport: env.MESSENGER_TRANSPORT, api: env.MESSENGER_API_URL, app: env.PUBLIC_APP_URL };
   const sent: { method: string; body: any }[] = [];
   let bot: MessengerProvider;
   let T: Record<string, string>;
@@ -70,6 +86,7 @@ describe('Telegram as a way in', () => {
   });
   afterAll(async () => {
     env.MESSENGER_MODE = saved.mode; env.MESSENGER_BOT_TOKEN = saved.token; env.MESSENGER_TRANSPORT = saved.transport;
+    env.MESSENGER_API_URL = saved.api; env.PUBLIC_APP_URL = saved.app;
     await closeApp();
   });
 
@@ -91,6 +108,10 @@ describe('Telegram as a way in', () => {
     const row = await prisma.auditEvent.findFirstOrThrow({ where: { action: 'MESSENGER_LINKED', entityId: designerId }, orderBy: { createdAt: 'desc' } });
     expect(row.after).toMatchObject({ provider: 'telegram', signInIdentity: true });
     expect(expectOk(await get('/messenger/me', T.designer), 'status')).toMatchObject({ linked: true, miniAppSignIn: true });
+    // The reply opens the Mini App, from a button only Telegram shows.
+    const welcome = sent.filter((m) => m.method === 'sendMessage' && String(m.body.text).includes('اتصال برقرار شد')).at(-1)!;
+    expect(welcome.body.reply_markup.inline_keyboard[0][0].web_app.url).toMatch(/\/tg$/);
+    expect(keyboard([[{ text: 'x', webApp: 'https://h.example/tg' }]])).toEqual({ inline_keyboard: [[{ text: 'x', web_app: { url: 'https://h.example/tg' } }]] });
 
     // Someone else cannot take the same Telegram account with a code of their own.
     expect(await linkFrom(T.sales, 5550001)).toContain('به حساب دیگری در هیوامیس وصل است');
@@ -176,6 +197,30 @@ describe('Telegram as a way in', () => {
     expect(state).toMatchObject({ holder: 'host-b', nextOffset: 903n });
     // Each was answered, as the webhook would have answered it.
     expect(sent.filter((s) => s.method === 'sendMessage' && s.body.chat_id === '5557001')).toHaveLength(3);
+  });
+
+  it('sets the bot’s menu button to open the Mini App, only at an https address', async () => {
+    const calls: { path: string; body: any }[] = [];
+    const standIn = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => { raw += c; });
+      req.on('end', () => { calls.push({ path: req.url ?? '', body: JSON.parse(raw || '{}') }); res.setHeader('content-type', 'application/json'); res.end('{"ok":true,"result":true}'); });
+    });
+    await new Promise<void>((r) => standIn.listen(0, '127.0.0.1', r));
+    try {
+      env.MESSENGER_API_URL = `http://127.0.0.1:${(standIn.address() as AddressInfo).port}`;
+      env.PUBLIC_APP_URL = 'http://localhost:5173';
+      expect((await post('/admin/messenger/menu-button', T.admin)).body.error.code).toBe('MINI_APP_NEEDS_HTTPS');
+      env.PUBLIC_APP_URL = 'https://hivamis.example';
+      expectOk(await post('/admin/messenger/menu-button', T.admin), 'menu');
+      expect(calls.at(-1)!.path).toMatch(/\/setChatMenuButton$/);
+      expect(calls.at(-1)!.body).toEqual({ menu_button: { type: 'web_app', text: 'هیوامیس', web_app: { url: 'https://hivamis.example/tg' } } });
+      expect(await prisma.auditEvent.count({ where: { action: 'MESSENGER_MENU_SET' } })).toBe(1);
+      expect((await post('/admin/messenger/menu-button', T.designer)).status).toBe(403);
+    } finally {
+      standIn.close();
+      env.MESSENGER_API_URL = saved.api; env.PUBLIC_APP_URL = saved.app;
+    }
   });
 
   it('tells the administrator how the bot listens, and refuses a webhook while it polls', async () => {

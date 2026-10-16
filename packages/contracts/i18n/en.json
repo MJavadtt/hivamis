@@ -2711,5 +2711,12 @@
   "رزرو رد شد": "Booking rejected",
   "رزرو نیازمند اصلاح است": "Booking needs changes",
   "دعوت به جلسه: {0}": "Meeting invitation: {0}",
-  "جلسه لغو شد: {0}": "Meeting cancelled: {0}"
+  "جلسه لغو شد: {0}": "Meeting cancelled: {0}",
+  "رزرو جلسه و کارهای من": "Book a meeting, and my work",
+  "دکمهٔ برنامه فقط برای ربات تلگرام ثبت می‌شود.": "The app button is set only for a Telegram bot.",
+  "تلگرام برنامه را فقط از نشانی https باز می‌کند؛ PUBLIC_APP_URL را با https بگذارید.": "Telegram opens the app only from an https address; set PUBLIC_APP_URL with https.",
+  "هیوامیس": "Hivamis",
+  "حجم درخواست بیش از حد مجاز است.": "The request is too large.",
+  "نوع محتوای درخواست پذیرفته نیست.": "The request's content type is not accepted.",
+  "بدنهٔ درخواست نادرست است.": "The request body is malformed."
 }

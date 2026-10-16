@@ -591,6 +591,12 @@ Roadmap #40. To connect a bot:
    - That route checks Telegram's signature with the bot token. It takes a launch for one hour, not
      Telegram's day, and only once: a second use is refused and logged as a failed sign-in.
    - Disconnecting the chat removes the way in. The way in never counts as someone's last one.
+5. The Mini App is `PUBLIC_APP_URL/tg`. **ثبت دکمهٔ برنامه در ربات** sets the bot's menu button to it,
+   and a linked person's replies from the bot carry a button that opens it.
+   - Telegram opens a Mini App only from https, and the action refuses an http address.
+   - BotFather's `/setdomain` is not needed: it is for the Login Widget, not for Mini Apps.
+   - The app runs in Telegram's phone and desktop apps. Telegram Web frames pages, and Hivamis
+     forbids framing (`frame-ancestors 'none'`), so there it does not open.
 
 `messenger:send` runs every minute and retries what did not go out (five attempts). The live
 transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a

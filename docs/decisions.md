@@ -2788,3 +2788,35 @@ Hivamis module.
 (step 4). Until then rooms and catering are managed through the API. Recurring bookings, templates,
 external calendars and the waitlist are not ported: none is used by the people who book today.
 
+## ADR-092 — The Telegram Mini App is Hivamis's own page, signed in by what Telegram hands it
+
+**Decision.** (Audit F-9, Option A, step 3 of 4.)
+
+- **One app, one address.** The Mini App is `/tg` in the Hivamis web app, not a separate build. Its
+  bookings are the same pages, rules and buttons as in the browser (`BookingPage`, `BookingEditor`),
+  in a narrow frame without the sidebar, in the person's own language from the catalogues.
+- **Sign-in.** Telegram puts the signed launch data in the address fragment (`#tgWebAppData=…`),
+  which never reaches a server.
+  - The page reads it once and removes it from the address at once, so it never stays in history, a
+    screenshot or a shared link.
+  - It trades the data at `POST /auth/telegram/webapp` (ADR-090) for the ordinary session.
+  - A second use of the same data is refused, and an unlinked account is told how to link.
+- **No Telegram script.** The page's policy allows only its own scripts (`script-src 'self'`). The
+  fragment carries all the page needs, and "ready" and "expand" go through the webview's own bridge
+  where there is one.
+- **Not inside Telegram Web.** Telegram's phone and desktop apps open the page in a webview of its
+  own. Telegram Web would frame it, and the policy keeps `frame-ancestors 'none'` against
+  clickjacking. Allowing one outside origin to frame every page of Hivamis is not worth one client
+  of three.
+- **The bot opens it.**
+  - A linked person's replies from the bot carry a «رزرو جلسه و کارهای من» button that opens the
+    app.
+  - **ثبت دکمهٔ برنامه در ربات** (administration) sets the bot's menu button (`setChatMenuButton`),
+    with an audit row.
+  - Telegram opens a Mini App only from https: without an https `PUBLIC_APP_URL`, the action says so
+    rather than setting a dead button.
+
+**Found on the way.** Fastify's own refusals of a malformed request (an empty or broken JSON body, an
+unknown content type, a body too large) were answered 500 and logged as faults. They now answer 400,
+415 or 413.
+

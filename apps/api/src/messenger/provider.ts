@@ -16,7 +16,8 @@
 import { env } from '../env.js';
 import type { Update } from './service.js';
 
-export type Button = { text: string; action?: string; url?: string };
+/** `webApp` opens the Telegram Mini App at that address (audit F-9); only Telegram shows it. */
+export type Button = { text: string; action?: string; url?: string; webApp?: string };
 export interface MessengerProvider {
   name: 'sandbox' | 'bale' | 'telegram';
   send(chatId: string, text: string, buttons?: Button[][]): Promise<{ messageId: string }>;
@@ -26,6 +27,8 @@ export interface MessengerProvider {
   /** Long polling (audit F-9): waits up to `timeoutS` for updates from `offset` on. */
   getUpdates?(offset: number, timeoutS: number): Promise<Update[]>;
   deleteWebhook?(): Promise<void>;
+  /** The button beside the message box that opens the Mini App (audit F-9). */
+  setMenuButton?(text: string, url: string): Promise<void>;
 }
 
 export const messengerMode = (): 'off' | 'sandbox' | 'bale' | 'telegram' =>
@@ -33,9 +36,12 @@ export const messengerMode = (): 'off' | 'sandbox' | 'bale' | 'telegram' =>
 
 const DEFAULT_API: Record<'bale' | 'telegram', string> = { bale: 'https://tapi.bale.ai', telegram: 'https://api.telegram.org' };
 
-/** Telegram's inline keyboard: callback buttons carry `a:<token>`, link buttons a URL. */
+/** Telegram's inline keyboard: callback buttons carry `a:<token>`, link buttons a URL, app buttons a Mini App. */
 export const keyboard = (buttons?: Button[][]) => buttons?.length
-  ? { inline_keyboard: buttons.map((row) => row.map((b) => (b.url ? { text: b.text, url: b.url } : { text: b.text, callback_data: `a:${b.action}` }))) }
+  ? { inline_keyboard: buttons.map((row) => row.map((b) => (
+      b.webApp ? { text: b.text, web_app: { url: b.webApp } }
+        : b.url ? { text: b.text, url: b.url }
+          : { text: b.text, callback_data: `a:${b.action}` }))) }
   : undefined;
 
 export function botApiProvider(opts: { name: 'bale' | 'telegram'; token: string; baseUrl?: string; fetchImpl?: typeof fetch }): MessengerProvider {
@@ -60,6 +66,7 @@ export function botApiProvider(opts: { name: 'bale' | 'telegram'; token: string;
     // The long poll's own wait, and some room, before the request is given up as hung.
     async getUpdates(offset, timeoutS) { return await call('getUpdates', { offset, timeout: timeoutS, allowed_updates: ['message', 'callback_query'] }, (timeoutS + 15) * 1000) ?? []; },
     async deleteWebhook() { await call('deleteWebhook', { drop_pending_updates: false }); },
+    async setMenuButton(text, url) { await call('setChatMenuButton', { menu_button: { type: 'web_app', text, web_app: { url } } }); },
   };
 }
 

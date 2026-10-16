@@ -37,6 +37,7 @@ const ChatOversight = lazy(() => import('./pages/ChatOversight'));
 const Install = lazy(() => import('./pages/Install'));
 const Bookings = lazy(() => import('./pages/Bookings'));
 const BookingPage = lazy(() => import('./pages/Bookings').then((m) => ({ default: m.BookingPage })));
+const TelegramApp = lazy(() => import('./pages/TelegramApp'));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -64,6 +65,15 @@ export default function App() {
       <div className="flex h-full items-center justify-center">
         <LoadingBlock label={tr('در حال آماده‌سازی…')} />
       </div>
+    );
+  }
+
+  // The Telegram Mini App (audit F-9) signs in by itself, from what Telegram hands it.
+  if (/^\/tg(\/|$)/.test(pathname)) {
+    return (
+      <Suspense fallback={<LoadingBlock />}>
+        <ErrorBoundary><TelegramApp /></ErrorBoundary>
+      </Suspense>
     );
   }
 

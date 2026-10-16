@@ -174,11 +174,16 @@ export interface Update {
 export interface Handled { reply?: string; answer?: string }
 
 /** A reply. A chat that belongs to no organisation is answered directly and filed nowhere. */
-async function say(p: MessengerProvider, organizationId: string | null, userId: string | null, chatId: string, text: string) {
-  if (organizationId) await queue(p, { organizationId, userId, chatId, text });
-  else await p.send(chatId, text).catch(() => undefined);
+async function say(p: MessengerProvider, organizationId: string | null, userId: string | null, chatId: string, text: string, buttons?: Button[][]) {
+  if (organizationId) await queue(p, { organizationId, userId, chatId, text, buttons });
+  else await p.send(chatId, text, buttons).catch(() => undefined);
   return text;
 }
+
+/** The Mini App's address, and a button that opens it — on Telegram, for a linked person (audit F-9). */
+export const miniAppUrl = () => appUrl('/tg');
+const openApp = (p: MessengerProvider): Button[][] | undefined =>
+  p.name === 'telegram' ? [[{ text: 'رزرو جلسه و کارهای من', webApp: miniAppUrl() }]] : undefined;
 
 /**
  * One message or button press from the bot.
@@ -214,7 +219,11 @@ export async function handleUpdate(p: MessengerProvider, update: Update, caller?
   }
   if (!update.message?.text) return {};
   const code = sentCode;
-  if (code) return { reply: await say(p, orgId, link?.userId ?? null, chatId, await linkChat(p, chatId, code, update.message)) };
+  if (code) {
+    const said = await linkChat(p, chatId, code, update.message);
+    const linked = await prisma.messengerLink.findUnique({ where: { provider_chatId: { provider: p.name, chatId } }, select: { userId: true } });
+    return { reply: await say(p, orgId, linked?.userId ?? null, chatId, said, linked ? openApp(p) : undefined) };
+  }
   if (link) {
     const waiting = await prisma.messengerAction.findFirst({ where: { userId: link.userId, state: 'AWAITING_REASON', chatId, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
     if (waiting) {
@@ -229,7 +238,7 @@ export async function handleUpdate(p: MessengerProvider, update: Update, caller?
   return {
     reply: await say(p, orgId, link?.userId ?? null, chatId, link
       ? 'این ربات اعلان‌ها و درخواست‌های تأیید هیوامیس را می‌فرستد؛ برای تصمیم، دکمه‌های زیر هر پیام را بزنید.'
-      : 'برای اتصال، در هیوامیس «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد همین‌جا بفرستید.'),
+      : 'برای اتصال، در هیوامیس «اتصال پیام‌رسان» را بزنید و کدی را که می‌گیرد همین‌جا بفرستید.', link ? openApp(p) : undefined),
   };
 }
 

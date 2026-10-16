@@ -3002,5 +3002,14 @@
   "دفتر مشتری، اتاق مدیرعامل، …": "The client's office, the CEO's room, …",
   "جای پارک": "Parking spaces",
   "برگزینید": "Choose",
-  "تعداد {0}": "Number of {0}"
+  "تعداد {0}": "Number of {0}",
+  "دکمهٔ برنامه در ربات ثبت شد.": "The app button was set on the bot.",
+  "دکمهٔ کنار جعبهٔ پیام در تلگرام، که برنامهٔ هیوامیس را باز می‌کند": "The button beside the message box in Telegram that opens the Hivamis app",
+  "ثبت دکمهٔ برنامه در ربات": "Set the app button on the bot",
+  "در حال ورود از تلگرام…": "Signing in from Telegram…",
+  "این صفحه از درون تلگرام، با دکمهٔ ربات سازمان باز می‌شود.": "This page opens from inside Telegram, with the organisation's bot button.",
+  "ورود به هیوامیس در مرورگر": "Sign in to Hivamis in the browser",
+  "جلسه‌های پیش رو": "Coming meetings",
+  "جلسهٔ پیش رویی نیست": "No meetings coming up",
+  "{0} رزرو": "{0} bookings"
 }

@@ -138,6 +138,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     if ((error as { statusCode?: number }).statusCode === 429) {
       return send(429, { code: 'RATE_LIMITED', message: 'تعداد درخواست‌ها بیش از حد مجاز است.' });
     }
+    // Fastify's own refusals of a malformed request — an empty or broken JSON body, an unknown content
+    // type, a body too large — are the client's to fix, not a server fault (found in F-9's browser check).
+    const status = (error as { statusCode?: number }).statusCode;
+    if (typeof status === 'number' && status >= 400 && status < 500 && /^FST_/.test(String((error as { code?: string }).code))) {
+      return status === 413 ? send(413, { code: 'PAYLOAD_TOO_LARGE', message: 'حجم درخواست بیش از حد مجاز است.' })
+        : status === 415 ? send(415, { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'نوع محتوای درخواست پذیرفته نیست.' })
+          : send(400, { code: 'BAD_REQUEST', message: 'بدنهٔ درخواست نادرست است.' });
+    }
     // Prisma unique-constraint violation
     if ((error as { code?: string }).code === 'P2002') {
       return send(409, { code: 'DUPLICATE', message: 'رکورد تکراری است.' });

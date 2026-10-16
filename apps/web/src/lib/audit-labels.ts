@@ -21,7 +21,7 @@ export const ACTION_LABELS: Record<string, string> = {
   CLIENT_APPROVAL_REQUESTED: tr('درخواست تأیید مشتری'), CLIENT_APPROVAL_DECIDED: tr('تصمیم مشتری'),
   CLIENT_APPROVAL_CANCELLED: tr('لغو درخواست تأیید مشتری'), CLIENT_REPORT_SENT: tr('ارسال گزارش به مشتری'),
   ESIGN_SENT: tr('ارسال برای امضای الکترونیک'), ESIGN_VOIDED: tr('ابطال امضای الکترونیک'),
-  MESSENGER_LINKED: tr('اتصال پیام‌رسان'), MESSENGER_UNLINKED: tr('قطع پیام‌رسان'), MESSENGER_WEBHOOK_SET: tr('تنظیم وب‌هوک پیام‌رسان'),
+  MESSENGER_LINKED: tr('اتصال پیام‌رسان'), MESSENGER_UNLINKED: tr('قطع پیام‌رسان'), MESSENGER_WEBHOOK_SET: tr('تنظیم وب‌هوک پیام‌رسان'), MESSENGER_MENU_SET: tr('ثبت دکمهٔ برنامه در ربات'),
   MEETING_TRANSCRIBED: tr('رونویسی جلسه'), LESSON_REVIEWED: tr('بررسی درس آموخته'),
   GUIDE_VIDEO_UPLOAD: tr('بارگذاری ویدیوی راهنما'), GUIDE_VIDEO_DELETE: tr('حذف ویدیوی راهنما'),
   TAX_SUBMISSION_PREPARED: tr('آماده‌سازی ارسال به سامانهٔ مؤدیان'), REVENUE_PERIOD_CLOSED: tr('بستن دورهٔ درآمد'),

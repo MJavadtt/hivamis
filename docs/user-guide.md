@@ -130,6 +130,11 @@ With the organisation's Telegram bot, linking from your private chat with the bo
 Hivamis app inside Telegram open as you. It shows under **روش‌های ورود** on your own page;
 disconnecting the chat removes it too. Nobody is linked by their email: only by the code you send.
 
+**In Telegram.** Once linked, the bot's **رزرو جلسه و کارهای من** button (or the button beside the
+message box) opens Hivamis inside Telegram, already signed in as you. It shows your coming meetings,
+what waits on your approval and **رزرو تازه**, all as in the browser. It opens in Telegram's phone
+and desktop apps, not in Telegram Web.
+
 ## Sales
 
 **Your loop: acquire → qualify → brief → present → close.**
