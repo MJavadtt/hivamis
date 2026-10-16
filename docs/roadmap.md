@@ -66,3 +66,22 @@ Status vocabulary, and it is used strictly:
 | 48 | Migration and onboarding toolkit | 20 | Verified | 88db859 |
 | 49 | Mobile for the three short-SLA loops | 39 | Verified (real push service: not exercised) | next |
 | 50 | Multi-tenancy and on-premise installer | — | Verified (upgrade sync and CLI against the running system); provisioning and isolation Tested; installer Tested in dry run | next |
+
+## After the fifty — the October 2026 audit
+
+The independent audit of `3c5ccd8` and the fix prompt that followed it: defects fixed (see
+[docs/audit-2026-10.md](audit-2026-10.md)), and nine capabilities the owner asked for, built end to
+end — contracts, migration, API, both languages, guides, ADRs.
+
+| # | Capability | Status | Commit |
+|---|---|---|---|
+| F-1 | AI inside the installation (local model, no data leaving) | Verified | 8465916 |
+| F-2 | AI capabilities for everyone under the role model | Verified | ab8cead |
+| F-3 | Roles and positions the administrator manages | Verified | 6a451ff |
+| F-4 | Voice assistant with confirm-before-act | Verified | 6259e33 |
+| F-5 | Team chat with disclosed oversight | Verified | 964b662 |
+| F-6 | Profile photo and description | Verified | a83d58f |
+| F-7 | Offline that keeps people working | Verified | ca76bd3 |
+| F-8 | Install on every platform | Verified (the CI install job needs a remote to run) | e32e461 |
+| F-9 | The Telegram meeting platform, brought in: identity, bookings, Mini App, admin and reception | Verified (Telegram itself: Adapter — exercised with a local token, not against Telegram) | 9241614, 5a2f315, 95b8e11, b499b74 |
+

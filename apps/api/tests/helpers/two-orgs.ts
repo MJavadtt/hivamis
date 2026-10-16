@@ -83,7 +83,8 @@ const OVERRIDES: Record<string, (ids: (model: string) => Promise<string>) => Pro
   Annotation: async () => ({ kind: 'PIN', x: 0.5, y: 0.5, note: 'B' }),
   SignupRequest: async () => ({ method: 'PHONE', phone: '09120000999', status: 'PENDING' }),
   PortalMessage: async (ids) => ({ userId: await ids('User'), portalUserId: null, body: 'B' }),
-  TaxSubmission: async () => ({ taxId: 'B'.repeat(22) }),
+  // Unique across the installation: each organisation filled gets its own (audit Phase 6, both orgs).
+  TaxSubmission: async () => ({ taxId: `B${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`.padEnd(22, 'X').slice(0, 22) }),
   CustomRule: async () => ({ kind: 'NOTIFY' }),
   AiMessage: async () => ({ role: 'user', toolName: null }),
   OAuthState: async () => ({ mode: 'LOGIN', userId: null }),

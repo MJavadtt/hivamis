@@ -41,7 +41,7 @@
     "pg-boss": "^10.1.6",
     "pino": "^9.6.0",
     "playwright-core": "^1.63.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -202,7 +202,7 @@ without a model.
 
 ## Data model
 
-59 tables. The domain groups:
+129 tables. The domain groups:
 
 | Group | Core tables |
 |---|---|
@@ -217,6 +217,9 @@ without a model.
 | Closure | `closure_checklists`, `feedbacks`, `lessons_learned` |
 | Engines | `form_definitions`, `form_submissions`, `form_approvals`, `sla_policies`, `sla_clocks` |
 | Cross-cutting | `documents`, `comments`, `audit_events`, `state_transitions`, `notifications`, `ai_interactions`, `counters` |
+| Sign-in and devices | `user_identities` (Google, Telegram), `login_tickets`, `sessions`, `otp_codes`, `push_subscriptions`, `idempotency_keys` |
+| Conversations | `chat_conversations`, `chat_members`, `chat_messages`, `chat_message_edits` (audit F-5); `messenger_links`, `messenger_actions`, `messenger_messages`, `messenger_poll_state` |
+| Bookings (audit F-9) | `booking_locations`, `bookable_resources`, `bookings`, `booking_participants`, `booking_resources`, `booking_guests`, `catering_options`, `booking_catering`, `resource_holds`, `person_holds` |
 
 Design rules applied throughout:
 
@@ -225,9 +228,10 @@ Design rules applied throughout:
 - Every business record carries a human code (`PRJ-000016`) allocated by an atomic
   `INSERT … ON CONFLICT DO UPDATE … RETURNING`, so concurrent requests never collide.
 - Soft delete where history matters; hard delete only where it does not.
-- `organizationId` on every tenant-scoped table and in every lookup — single-organisation today.
-  Turning this into SaaS needs tenant resolution and provisioning rather than a schema migration;
-  ADR-008 lists exactly what is missing.
+- `organizationId` on every tenant-scoped table and in every lookup; one installation may hold
+  several organisations (roadmap #50, see Multi-tenancy below).
+- Where a clash must be impossible, the database refuses it: two exclusion constraints keep one
+  room, piece of equipment or person from being held twice at once (ADR-091).
 
 ## Multi-tenancy
 

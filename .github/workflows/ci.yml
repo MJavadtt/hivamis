@@ -95,6 +95,10 @@ jobs:
         run: docker build -f infrastructure/docker/Dockerfile.api -t hiva-os-api:ci .
       - name: Build web image
         run: docker build -f infrastructure/docker/Dockerfile.web -t hiva-os-web:ci .
+      - name: Check the nginx configuration
+        # The configuration as the image ships it, tested by nginx itself (audit Phase 6). `api` is
+        # given a placeholder address so the check needs no running stack.
+        run: docker run --rm --add-host api:127.0.0.1 hiva-os-web:ci nginx -t
 
   # Audit F-8: the installer end to end on each system it promises — on a clean runner, not a dry
   # run: prerequisites, the stack built from this commit, the organisation made, the API ready

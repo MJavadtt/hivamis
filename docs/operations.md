@@ -35,6 +35,24 @@ organisations.
 Serves on `http://localhost:8080`. Only the web container publishes a port; the API and database
 are reachable only on the internal network.
 
+### Compose profiles
+
+The core stack (`db`, `api`, `web`) always runs. Everything else is a profile, chosen in `.env` with
+`COMPOSE_PROFILES` (comma-separated). The installer sets it from its flags, and picks the GPU variant
+by itself when `nvidia-smi` finds a GPU.
+
+| Profile | Service | Installer flag | What it adds |
+| --- | --- | --- | --- |
+| `ai` | `ollama` | (default) | The chat assistant's local model, on the CPU |
+| `ai-gpu` | `ollama-gpu` | (default, NVIDIA GPU found) | The same model on the GPU |
+| `image` | `imagegen` | `--image` | Pictures from a description, on the CPU (`IMAGE_MODE=local`) |
+| `image-gpu` | `imagegen-gpu` | `--image`, GPU found | The same on the GPU |
+| `speech` | `speech` | `--speech` | Speech to text inside the building (`TRANSCRIPTION_URL`) |
+| `pull` | `ollama-pull`, `imagegen-pull`, `speech-pull` | — | Run once to fetch models. The only containers that reach the internet; the others sit on the internal `ai` network |
+
+`--no-ai` leaves the model out (`CHAT_MODE=off`, no profile). `IMAGE_MODE=off` and an unset
+`TRANSCRIPTION_URL` hide the picture and microphone buttons.
+
 ### Docker, by hand
 
 ```bash

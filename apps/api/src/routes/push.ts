@@ -11,6 +11,15 @@ import { checkEndpoint, checkKeys, sendTest, subscribe, vapidKeys } from '../pus
  * Web Push (roadmap #49): each person's own browsers. Everything here is about the signed-in
  * person's devices only — nobody subscribes, lists or removes anyone else's.
  */
+/**
+ * The push service a subscription names. Every endpoint the API takes is checked first, but one row
+ * that is not a URL — restored, imported, hand-written — must not fail the person's whole list
+ * (found by the Phase 6 sweep in a second organisation).
+ */
+const hostOf = (endpoint: string): string => {
+  try { return new URL(endpoint).hostname; } catch { return '—'; }
+};
+
 const pushRoutes: FastifyPluginAsync = async (app) => {
   const signedIn = { preHandler: [app.authenticate] };
 
@@ -25,7 +34,7 @@ const pushRoutes: FastifyPluginAsync = async (app) => {
     const me = actorFrom(req);
     const rows = await prisma.pushSubscription.findMany({ where: { userId: me.id }, orderBy: { lastSeenAt: 'desc' } });
     return rows.map((s) => ({
-      id: s.id, host: new URL(s.endpoint).hostname, userAgent: s.userAgent, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt,
+      id: s.id, host: hostOf(s.endpoint), userAgent: s.userAgent, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt,
       lastSuccessAt: s.lastSuccessAt, failures: s.failures, disabledAt: s.disabledAt, disabledReason: s.disabledReason,
     }));
   });
