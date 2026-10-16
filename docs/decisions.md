@@ -2848,3 +2848,32 @@ platform's API, bot and admin panel can be switched off once its people have lin
 Its data is not migrated automatically: a booking made there is booked here again, or entered by
 the office. A migration script would have to map its people by email, which finding 2 forbids
 without each person's proof.
+
+## ADR-094 — The owner's logo, traced once and drawn everywhere from one source
+
+**Decision.** (2026-10-16.) The owner gave the Hiva logo, light and dark: the mark (rings wound by a
+key) and the wordmark «Hiva» over «Branding|Creativity».
+
+- **Traced, not embedded.** `apps/api/scripts/brand-trace.mjs` traces the artwork into paths.
+  - It uses marching squares on the anti-aliased image, so edges fall between pixels.
+  - Each contour is simplified, then drawn as smooth curves through midpoints, except at real
+    corners. Smoothing a letter's joint rounded it into a blob.
+  - Blurring first to calm compression noise cost the thin inner rings, so the trace takes the image
+    as it is.
+  - The paths live in `packages/contracts/src/brand.ts`, about 30 KB. The app (`HivaLogo`), the PDFs
+    and the icon script draw from that one source.
+  - The trace is reproducible from `docs/brand/hiva-logo-light.webp`.
+- **No font for the logo.** Its monospaced type is part of the drawing. Shipping the face would add
+  a font file and a licence question, for six letters. The interface keeps Ray, the organisation's
+  licensed face, which also sets Persian.
+- **Ink colour.** The logo takes the text colour: black on the light canvas, white on the dark, as
+  the two artworks show. It is never mirrored for right-to-left.
+- **A small mark for small sizes.** Below 32px seven rings blur into grey. `icon-small.svg` draws
+  three rings and the key for the browser tab and the favicon. Everything larger uses the traced
+  mark.
+- **Mail gets a PNG.** Mail clients show no SVG, so mails carry `public/brand/hiva-logo-email.png`
+  from the installation's address, with alt text. The PDFs carry the vector logo, which prints sharp.
+
+**Rejected.**
+- Embedding the raster artwork: blurry when scaled, and unusable in the dark theme.
+- Redrawing the logo by hand: a likeness, not the owner's logo.

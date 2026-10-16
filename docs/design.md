@@ -71,16 +71,48 @@ component carries its own dark style. The status tints are the one exception (se
   colour washed over the card and their text shades (700–900) are light, so every badge and notice
   box reads there. Fills (600) keep their colour.
 
+## The logo
+
+The owner's logo (2026-10-16, ADR-094): the **mark** — rings wound by a key — and the **wordmark**
+«Hiva» over «Branding|Creativity» in a light monospaced type. The artwork is kept in `docs/brand/`
+(`hiva-logo-light.webp`, `hiva-logo-dark.webp`). It is traced into paths in
+`packages/contracts/src/brand.ts` by `apps/api/scripts/brand-trace.mjs`, so it is sharp at every
+size and needs no font.
+
+- **Ink only.** Black on light, white on dark, as the artwork shows both. In the app the logo takes
+  the text colour (`text-ink-900`, which turns white in the dark theme). It is never recoloured to the
+  accent and never put on a gradient, except the phone app's bar, where it is white.
+- **Never mirrored.** In a right-to-left page the key still points right, as drawn.
+- **Sizes.**
+  - The whole lockup only where it has room: the sign-in page, PDFs, mails. Below about 110px tall
+    its tagline cannot be read.
+  - The mark alone at 28–56px: the sidebar, the phone bar, the public pages.
+  - Below 32px, the mark drawn for small sizes (`public/icon-small.svg`): three rings and the key,
+    for the browser tab.
+- **Type.** The wordmark's type exists only inside the drawing. The interface keeps Ray (above): it
+  is the organisation's chosen and licensed face, and the wordmark's mono is a Latin display face
+  with no Persian.
+- **Where it is.**
+  - In the app: the sidebar with «هیوامیس», the phone bar, the start-up screen, the sign-in, sign-up,
+    activation and Google pages, the phone app, the Telegram Mini App, the client portal, and the
+    approval and e-signature pages.
+  - Outside it: every PDF's masthead (vector) and running footer (the mark), and every mail's head (a
+    PNG on the installation's address, `public/brand/hiva-logo-email.png`, with alt text).
+  - The app's icons, below.
+
 ## The icon
 
-The installed app's icon is the logo tile: the accent gradient with the mark in white. It is drawn
-once, in `apps/web/public/icon.svg`. `pnpm icons` makes every PNG from it (ADR-080):
+The installed app's icon is the Hiva mark in white on a near-black tile (#111111), as the dark
+artwork has it. It is drawn once, in `apps/web/public/icon.svg`; the tab's small mark is
+`public/icon-small.svg`. `pnpm icons` makes every PNG from them (ADR-080, ADR-094):
 
 - the plain and the maskable icon;
 - Apple's touch icon;
-- the white notification badge.
+- the 32px favicon (from the small mark);
+- the white notification badge;
+- the mail logo.
 
-Change the SVG, then run `pnpm icons`; a test fails until the PNGs match.
+Change an SVG, then run `pnpm icons`; a test fails until the PNGs match.
 
 ## Layout and the kit's components
 

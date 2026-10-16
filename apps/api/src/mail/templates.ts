@@ -1,4 +1,5 @@
 import { esc } from '../pdf/fmt.js';
+import { env } from '../env.js';
 
 /**
  * RTL Persian email bodies.
@@ -14,6 +15,12 @@ export interface MailBody {
   text: string;
 }
 
+/**
+ * The owner's logo heads every mail (2026-10-16): a PNG on the installation's own address, because
+ * mail clients show no SVG. A client that holds images back shows the alt text instead.
+ */
+const logoUrl = () => `${(env.PUBLIC_APP_URL || env.CORS_ORIGIN.split(',')[0]!.trim()).replace(/\/+$/, '')}/brand/hiva-logo-email.png`;
+
 const SYSTEM_FONTS =
   "'Vazirmatn','IRANSans','Segoe UI',Tahoma,Arial,sans-serif";
 
@@ -23,6 +30,7 @@ function shell(title: string, lines: string[], action?: { label: string; url: st
 <body style="margin:0;padding:24px;background:#f8fafc;font-family:${SYSTEM_FONTS};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;">
     <tr><td style="background:#ffffff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;">
+      <img src="${esc(logoUrl())}" alt="Hiva" width="120" height="60" style="display:block;margin:0 0 10px;border:0;">
       <p style="margin:0 0 4px;font-size:12px;color:#64748b;">هیوامیس — سامانه عملیات سازمانی</p>
       <h1 style="margin:0 0 16px;font-size:17px;color:#0f172a;">${esc(title)}</h1>
       ${lines.map((l) => `<p style="margin:0 0 10px;font-size:14px;line-height:1.9;color:#334155;">${l}</p>`).join('')}

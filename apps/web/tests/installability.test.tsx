@@ -71,8 +71,10 @@ describe('Installable on every platform (audit UI-1)', () => {
   });
 
   it('the PNGs were drawn from the current icon.svg (pnpm icons), and none was swapped by hand', () => {
-    const lock = JSON.parse(read('scripts/icons.lock.json')) as { source: string; files: Record<string, string> };
+    const lock = JSON.parse(read('scripts/icons.lock.json')) as { source: string; small: string; files: Record<string, string> };
     const sha = (b: Buffer | string) => createHash('sha256').update(b).digest('hex');
+    // The tab's mark is drawn for 16–32px (the Hiva mark, 2026-10-16); its PNG comes from it too.
+    expect(lock.small, 'icon-small.svg changed: run `pnpm icons` and commit the PNGs').toBe(sha(read('public/icon-small.svg')));
     expect(lock.source, 'icon.svg changed: run `pnpm icons` and commit the PNGs').toBe(sha(read('public/icon.svg')));
     for (const [file, hash] of Object.entries(lock.files)) {
       expect(sha(readFileSync(pub(`icons/${file}`))), file).toBe(hash);

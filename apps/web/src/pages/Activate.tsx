@@ -3,6 +3,7 @@ import { ApiError, apiGet, apiPost } from '../lib/api';
 import { Button, Field, Input } from '../components/ui';
 import { formatDate } from '../lib/format';
 import { tr } from '../i18n';
+import { HivaLogo } from '../components/Brand';
 
 /**
  * A person brought in by the onboarding import sets their first password here (roadmap #48): no
@@ -28,6 +29,7 @@ export default function Activate({ token }: { token: string }) {
   return (
     <main dir="rtl" className="grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl bg-surface p-6 shadow-sm ring-1 ring-ink-200" data-testid="activate">
+        <HivaLogo kind="mark" className="h-10 text-ink-900" label={tr('هیوامیس')} />
         <h1 className="text-lg font-semibold text-ink-900">{tr('هیوامیس — گذاشتن رمز عبور')}</h1>
         {error && <p className="rounded bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
         {done ? (

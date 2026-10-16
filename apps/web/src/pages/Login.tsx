@@ -4,6 +4,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { Button, Field, Input, cx } from '../components/ui';
 import { localDigits } from '../lib/format';
 import { tr } from '../i18n';
+import { HivaLogo } from '../components/Brand';
 
 /**
  * Signing in (Hivamis task 4): with the work email and password, with a code sent to one's mobile,
@@ -79,7 +80,8 @@ export default function Login() {
     <div className="flex min-h-full items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl btn-accent text-xl font-bold">{tr('ه')}</span>
+          {/* The owner's logo, whole: the mark, «Hiva» and its line (2026-10-16). */}
+          <HivaLogo className="mx-auto mb-4 h-28 text-ink-900 sm:h-32" label="Hiva — Branding | Creativity" />
           <h1 className="text-xl font-semibold text-ink-900">{tr('هیوامیس')}</h1>
           {/* Whose sign-in this is — on an installation with several organisations, the one of this address (roadmap #50). */}
           {methods?.organization && <p className="mt-1 text-sm font-bold text-ink-700" dir="auto" data-testid="login-org">{methods.organization}</p>}

@@ -7,6 +7,7 @@ import { formatDateTime, localDigits, sep } from '../lib/format';
 import { Button, EmptyState, LoadingBlock, StateBadge, Tabs } from '../components/ui';
 import { BookingEditor, BookingPage } from './Bookings';
 import { tr } from '../i18n';
+import { BrandLockup } from '../components/Brand';
 
 /**
  * The Telegram Mini App (audit F-9, step 3): Hivamis's own page, opened from the organisation's bot.
@@ -70,7 +71,7 @@ export default function TelegramApp() {
   return (
     <div className="mx-auto min-h-screen max-w-2xl" data-testid="tg-app">
       <header className="flex items-center gap-2 px-4 py-3">
-        <Link to="/tg" className="flex-1 text-base font-bold text-ink-900">{tr('هیوامیس')}</Link>
+        <Link to="/tg" className="flex-1"><BrandLockup /></Link>
         <span className="text-xs text-ink-500">{user.fullName}</span>
       </header>
       <Routes>

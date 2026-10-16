@@ -3,6 +3,7 @@ import { apiPost, markSignedIn } from '../lib/api';
 import { tr } from '../i18n';
 import { Button, Field, Input } from '../components/ui';
 import { localDigits } from '../lib/format';
+import { HivaLogo } from '../components/Brand';
 
 /**
  * Where Google sends the browser back (Hivamis task 4). The server put a single-use ticket in the
@@ -46,6 +47,7 @@ export default function GoogleReturn() {
   return (
     <main className="grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl bg-surface p-6 text-center shadow-sm ring-1 ring-ink-200" data-testid="google-return">
+        <HivaLogo kind="mark" className="mx-auto h-10 text-ink-900" label={tr('هیوامیس')} />
         {offer ? <LinkProof token={offer} /> : error ? (
           <>
             <p role="alert" className="text-sm leading-6 text-rose-700">{error}</p>

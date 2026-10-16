@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/hiva-logo-white.svg">
+    <img src="docs/brand/hiva-logo.svg" alt="Hiva — Branding | Creativity" height="120">
+  </picture>
+</p>
+
 # هیوامیس (Hivamis) — سیستم‌عامل سازمانی
 
 An enterprise operating platform for the Hiva advertising agency, built directly from the

@@ -14,6 +14,7 @@ import { VoiceButton } from '../components/VoiceButton';
 import { AssistantChat } from '../components/AssistantChat';
 import { Badge, Button, Checkbox, EmptyState, ErrorBlock, Field, IconBell, IconClose, LoadingBlock, Spinner, Textarea, cx, useToast } from '../components/ui';
 import { loc, tr, trx } from '../i18n';
+import { HivaLogo } from '../components/Brand';
 
 /**
  * The phone (roadmap #49): three things, done well, and nothing else. Accepting a work order,
@@ -548,7 +549,8 @@ export default function Mobile() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="btn-accent sticky top-0 z-30 flex items-center justify-between gap-2 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
-        <div className="min-w-0">
+        <HivaLogo kind="mark" className="h-8 text-white" label={tr('هیوامیس')} />
+        <div className="min-w-0 flex-1">
           <h1 className="text-sm font-semibold">{tr('هیوامیس همراه')}</h1>
           <p className="truncate text-[12.5px] text-white/70">
             {user?.fullName} · <span className={cx('inline-block size-1.5 rounded-full align-middle', live === 'live' ? 'bg-emerald-400' : live === 'connecting' ? 'bg-amber-400' : 'bg-rose-400')} aria-hidden />{' '}

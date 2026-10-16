@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="هیوامیس">
+  <!-- The Hiva mark drawn for 16–32px (the browser tab): three rings and the key, strokes heavy enough
+       to survive the pixels. The full mark, with every ring, is icon.svg. -->
+  <rect width="192" height="192" rx="40" fill="#111111"/>
+  <g fill="none" stroke="#ffffff" stroke-width="13">
+    <rect x="22" y="26" width="104" height="140" rx="52"/>
+    <rect x="48" y="58" width="52" height="76" rx="26"/>
+  </g>
+  <rect x="68" y="84" width="12" height="24" rx="6" fill="#ffffff"/>
+  <path fill="#ffffff" fill-rule="evenodd" d="M126 88h22v16h-22z M152 50a18 18 0 1 1 0 36a18 18 0 1 1 0-36z M152 62a6 6 0 1 0 0 12a6 6 0 1 0 0-12z M152 106a18 18 0 1 1 0 36a18 18 0 1 1 0-36z M152 118a6 6 0 1 0 0 12a6 6 0 1 0 0-12z M140 80h24v32h-24z"/>
+</svg>

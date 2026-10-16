@@ -20,6 +20,7 @@ import {
 } from './pages/Operations';
 import { ContractDetail, ContractsList, Finance } from './pages/Commercial';
 import { tr } from './i18n';
+import { HivaLogo } from './components/Brand';
 
 // Reports pulls in the charting library; loading it on demand keeps first paint light.
 const Reports = lazy(() => import('./pages/Reports'));
@@ -64,7 +65,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2">
+        <HivaLogo kind="mark" className="h-14 text-ink-900" label={tr('هیوامیس')} />
         <LoadingBlock label={tr('در حال آماده‌سازی…')} />
       </div>
     );

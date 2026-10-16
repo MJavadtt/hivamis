@@ -1,5 +1,9 @@
 import { prisma } from '../db.js';
+import { hivaSvg } from '@hiva/contracts';
 import { chip, date, dateTime, esc, metaGrid, table, text } from './fmt.js';
+
+/** The owner's logo on every printed page's masthead (2026-10-16): vector, so it prints sharp. */
+const LOGO = hivaSvg('logo', { color: '#0f172a', title: 'Hiva' });
 
 /** Masthead shared by every printed document. */
 export function docHeader(opts: {
@@ -10,7 +14,7 @@ export function docHeader(opts: {
 }): string {
   return `<div class="doc-head">
   <div>
-    <div class="brand">هیوامیس — سامانه عملیات سازمانی</div>
+    <div class="brand"><span class="logo">${LOGO}</span><span>هیوامیس — سامانه عملیات سازمانی</span></div>
     <h1>${esc(opts.title)}</h1>
     ${opts.subtitle ? `<div class="muted">${esc(opts.subtitle)}</div>` : ''}
   </div>

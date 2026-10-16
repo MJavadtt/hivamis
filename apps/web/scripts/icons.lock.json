@@ -1,12 +1,14 @@
 {
-  "source": "35df6be8ccf440bce6f1941f27886eebe59922383d63f67339ae949488cc81df",
+  "source": "ff4389c07cdf47673d5bdaab2d47b2c5a2f2cb91d80fba6cecb34bea3c403793",
+  "small": "dab55da68e66c71b5114ee69a34c75996ffcc0b4a3744e641afbc4319c03736f",
   "files": {
-    "icon-192.png": "159465b388acace5c7c11660176aa680fba73ee9139ace9690ed7ae991e788d0",
-    "icon-512.png": "2694ab7f56b810a09f68a8f28f75f2594c6c97eead948958291b51085364efcc",
-    "favicon-32.png": "3d1508e97a46282e80ce857b1f40fb3f65fd902b3f74443c9d30cacc4e981333",
-    "icon-maskable-192.png": "d99fea12be518abd17b12084f9c843898bc41e1525109d0e1a233f66cb31ad3c",
-    "icon-maskable-512.png": "9fdeffe30cdb0023a1d71c8e5b0ae5ac2f7ddb11e43aca2437778c6d2d98ec7c",
-    "apple-touch-icon.png": "baf18d038babc4844755740dcbcac171f280d21b5950f55b44131ade51c3d2c3",
-    "badge-96.png": "bd54c719bfad6beebad2117b08970b1ff659a299ac10ae4154c1db8afde74fdb"
+    "icon-192.png": "be0b67d18f337f0be47fe007bfdf63d53106b3d6daa08dd2f22512fc21f5a52f",
+    "icon-512.png": "170ada2a3e4e5096c45e229f7875bbe75476a075841203e42d8e88d1fd181211",
+    "favicon-32.png": "7f5e3956bd13cf15dd4331b2726dd13de7552db3f75656288c41d5b72e8c171f",
+    "icon-maskable-192.png": "3c1a54f6277d91aaa2c7a1e7f759e6ca03ae517a3c16b86db2e5c76a8d795ec6",
+    "icon-maskable-512.png": "ab74e661cd7170bbb7e000d5b607399b5b6cad4aa164af831cff059b62d18c2f",
+    "apple-touch-icon.png": "a29824ba7ebd83e1d8663ddbbd249cd8da2417845f0ba7203ce8b373224bc123",
+    "badge-96.png": "1f314fe9204eae27e3e6434328e884b5c9c5e5e2ef13480c89670bbc2ce56378",
+    "../brand/hiva-logo-email.png": "752edac4b550f8ec630c22c500eba62b47d27cf5de9692c08cd6c4fa1c594d6b"
   }
 }

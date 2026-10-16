@@ -4,6 +4,7 @@ import { Button, Field, Input, Select, Textarea } from '../components/ui';
 import { GoogleButton } from './Login';
 import { localDigits } from '../lib/format';
 import { loc, tr } from '../i18n';
+import { HivaLogo } from '../components/Brand';
 
 /**
  * Asking to join (Hivamis task 4) — with a mobile proved by a code, or with a Google account. It
@@ -69,7 +70,7 @@ export default function Signup() {
     <main className="grid min-h-screen place-items-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-12 place-items-center rounded-xl btn-accent text-xl font-bold">{tr('ه')}</span>
+          <HivaLogo kind="mark" className="mx-auto mb-3 h-12 text-ink-900" label={tr('هیوامیس')} />
           <h1 className="text-xl font-semibold text-ink-900">{tr('درخواست عضویت')}</h1>
           {options && <p className="mt-1 text-sm text-ink-500">{tr('در هیوامیسِ {0}', options.organization)}</p>}
         </div>

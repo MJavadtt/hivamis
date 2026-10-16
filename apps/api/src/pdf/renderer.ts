@@ -6,6 +6,7 @@ import { AppError } from '../lib/errors.js';
 import { env } from '../env.js';
 import { esc } from './fmt.js';
 import { resolveExecutable } from './browser-path.js';
+import { hivaSvg } from '@hiva/contracts';
 
 export { resolveExecutable };
 
@@ -151,10 +152,13 @@ const headerTemplate = (right: string) => `
   <span>هیوامیس — سامانه عملیات سازمانی</span><span>${esc(right)}</span>
 </div>`;
 
+/** The mark, small, in the running footer: Chrome draws header and footer apart from the page. */
+const FOOT_MARK = hivaSvg('mark', { color: '#94a3b8', height: 10 });
+
 const footerTemplate = (note: string) => `
 <div style="font-family:-apple-system,sans-serif;font-size:7pt;color:#94a3b8;width:100%;
-            padding:0 14mm;display:flex;justify-content:space-between;direction:rtl;">
-  <span>${esc(note)}</span>
+            padding:0 14mm;display:flex;justify-content:space-between;align-items:center;direction:rtl;">
+  <span style="display:flex;align-items:center;gap:4px;">${FOOT_MARK}${esc(note)}</span>
   <span>صفحه <span class="pageNumber"></span> از <span class="totalPages"></span></span>
 </div>`;
 
@@ -176,7 +180,8 @@ h3{font-size:9.5pt;margin:4mm 0 1.5mm;font-weight:700;color:#334155;page-break-a
 p{margin:0 0 2mm;}
 .doc-head{border-bottom:2.5px solid #0f172a;padding-bottom:4mm;margin-bottom:5mm;
   display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;}
-.brand{font-size:8pt;color:#64748b;letter-spacing:.4px;}
+.brand{font-size:8pt;color:#64748b;letter-spacing:.4px;display:flex;align-items:center;gap:3mm;margin-bottom:2mm;}
+.brand .logo svg{height:12mm;width:auto;display:block;}
 .code{font-family:ui-monospace,monospace;font-size:9pt;color:#475569;direction:ltr;text-align:left;}
 .chip{display:inline-block;padding:.6mm 2.4mm;border-radius:2.5mm;font-size:7.5pt;
   background:#f1f5f9;color:#334155;border:.4px solid #cbd5e1;}

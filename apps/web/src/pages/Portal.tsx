@@ -6,6 +6,7 @@ import { formatDate, formatDateTime, formatNumber, localDigits } from '../lib/fo
 import { ApprovalDecision, type ApprovalApi, type Receipt, type View } from './ApprovePublic';
 import { loc, locale, tr, trx } from '../i18n';
 import { fallbackMessage } from '../lib/api';
+import { HivaLogo } from '../components/Brand';
 
 /*
  * Roadmap #34 — the client portal. A separate little app under /portal: its own sign-in, its own
@@ -73,7 +74,9 @@ function Signed({ children }: { children: React.ReactNode }) {
     <>
       <header className="border-b border-ink-200 bg-surface">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/portal" className="text-sm font-semibold text-brand-700">{tr('پورتال مشتری')}</Link>
+          <Link to="/portal" className="flex items-center gap-2 text-sm font-semibold text-ink-900">
+            <HivaLogo kind="mark" className="h-7" label={tr('هیوامیس')} />{tr('پورتال مشتری')}
+          </Link>
           <Button size="sm" variant="ghost" onClick={() => { tokenSet(null); window.location.assign('/portal/login'); }}>{tr('خروج')}</Button>
         </div>
       </header>

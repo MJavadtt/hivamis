@@ -25,6 +25,7 @@ import { loc, tr, trx } from '../i18n';
 import { Avatar } from './Avatar';
 import { QuickForms } from './QuickForms';
 import { AssistantButton } from './AssistantChat';
+import { BrandLockup, HivaLogo } from './Brand';
 
 interface NavItem {
   to: string;
@@ -193,9 +194,8 @@ export function Shell({ children }: { children: ReactNode }) {
         )}
       >
         <div className={cx('flex h-16 shrink-0 items-center gap-2 px-3', compact ? 'justify-center' : 'justify-between')}>
-          <Link to="/" className="flex min-w-0 items-center gap-2.5" title={tr('هیوامیس')}>
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg btn-accent text-sm font-bold">{tr('ه')}</span>
-            {!compact && <span className="truncate text-[14px] font-bold text-ink-800">{tr('هیوامیس')}</span>}
+          <Link to="/" className="flex min-w-0 items-center" title={tr('هیوامیس')} data-testid="brand">
+            <BrandLockup compact={compact} />
           </Link>
           <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-50 lg:hidden" onClick={() => setMobileOpen(false)} aria-label={tr('بستن منو')}>
             <IconClose className="size-4" />
@@ -330,7 +330,7 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
           <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
         </svg>
       </button>
-      <Link to="/" className="grid size-8 shrink-0 place-items-center rounded-lg btn-accent text-sm font-bold lg:hidden" aria-label={tr('هیوامیس')}>{tr('ه')}</Link>
+      <Link to="/" className="grid size-8 shrink-0 place-items-center text-ink-900 lg:hidden" aria-label={tr('هیوامیس')}><HivaLogo kind="mark" className="h-7" label={tr('هیوامیس')} /></Link>
       <div className="hidden flex-1 sm:contents"><GlobalSearch /></div>
       <button type="button" onClick={() => setSearching(true)} aria-label={tr('جستجو')}
         className="grid size-8 place-items-center rounded-lg text-ink-600 hover:bg-ink-50 hover:text-ink-900 sm:hidden">

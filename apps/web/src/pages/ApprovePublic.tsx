@@ -3,6 +3,7 @@ import { Button, Checkbox, Field, Input, Textarea } from '../components/ui';
 import { formatDateTime, formatNumber, localDigits } from '../lib/format';
 import { locale, tr, trx } from '../i18n';
 import { fallbackMessage } from '../lib/api';
+import { HivaLogo } from '../components/Brand';
 
 /*
  * Roadmap #35 — the page a client opens from the approval link. No account and no session: the
@@ -191,7 +192,10 @@ function Page({ org, children }: { org?: string; children: React.ReactNode }) {
   return (
     <div className="min-h-full px-4 py-8" dir="rtl">
       <main className="mx-auto max-w-2xl space-y-5 rounded-xl bg-surface p-5 shadow-sm ring-1 ring-ink-200 sm:p-7">
-        {org && <p className="text-xs font-medium text-brand-700">{tr('{0} — درخواست تأیید', org)}</p>}
+        <div className="flex items-center gap-2 text-ink-900">
+          <HivaLogo kind="mark" className="h-7" label={tr('هیوامیس')} />
+          {org && <p className="text-xs font-medium text-brand-700">{tr('{0} — درخواست تأیید', org)}</p>}
+        </div>
         {children}
       </main>
     </div>
