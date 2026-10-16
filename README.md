@@ -139,8 +139,10 @@ Doc_H/                 The organisation's own process documentation (input, unmo
 | [Requirements traceability](docs/traceability.md) | Every Doc_H requirement → code → test |
 | [API reference](docs/api.md) | Endpoints, auth, errors, conventions |
 | [Operations](docs/operations.md) | Deployment, backup, monitoring, troubleshooting |
-| [docs/pdf-export.md](docs/pdf-export.md) — خروجی PDF اسناد و ترتیب دسترسی
-| [User guide](docs/user-guide.md) | Per-role walkthrough of daily work |
+| [PDF export](docs/pdf-export.md) | Document PDFs and who may export them (خروجی PDF اسناد و ترتیب دسترسی) |
+| [User guide](docs/user-guide.md) · [راهنمای کاربر](docs/user-guide.fa.md) | Per-role walkthrough of daily work, in English and Persian |
+| [Audit of October 2026](docs/audit-2026-10.md) | Every audit item: status, commit and the test that proves it |
+| [Telegram integration](docs/telegram-integration.md) | The meeting platform brought into Hivamis, and why that way |
 | [Market analysis](docs/market-analysis.md) | Competitive benchmark and the gap this fills |
 
 ---
@@ -151,5 +153,18 @@ Implemented and verified: the full Doc_H lifecycle from Lead through Closure and
 Cross-sell, all 130 forms, the workflow/SLA/form engines, three-level QC, change control,
 contract and finance flows, Customer 360, Project 360, the traffic board, six report surfaces,
 the audited AI layer, and RBAC with an immutable audit trail.
+
+The fifty capabilities of [the roadmap](docs/roadmap.md) are built. After them, the October 2026
+audit's defects were fixed and nine capabilities added ([audit record](docs/audit-2026-10.md)):
+
+- an AI assistant that runs inside the installation;
+- writing and pictures for every role;
+- roles and positions the administrator manages;
+- speaking to the assistant, with confirm-before-act;
+- team chat with disclosed oversight;
+- profile photos;
+- working offline;
+- installing on every platform;
+- meeting bookings, with the Telegram Mini App, the bot and reception.
 
 See [Known limitations](docs/operations.md#known-limitations) for what is deliberately out of scope.
