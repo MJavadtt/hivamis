@@ -14,6 +14,7 @@ import { googleConfigured, startGoogle } from '../auth/google.js';
 import { hasPassword } from './identity.js';
 import { messengerMode } from '../messenger/provider.js';
 import { env } from '../env.js';
+import { teamOf } from '../lib/teams.js';
 
 /**
  * A page for every person, and one's own page (Hivamis task 4).
@@ -48,9 +49,13 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
         ...(term ? { OR: [{ fullName: { contains: term, mode: 'insensitive' } }, { jobTitle: { contains: term, mode: 'insensitive' } }, { email: { contains: term, mode: 'insensitive' } }] } : {}),
       },
       orderBy: { fullName: 'asc' }, take: 500,
-      select: { id: true, fullName: true, jobTitle: true, email: true, avatarDocumentId: true, department: { select: { code: true, nameFa: true, nameEn: true, tagColor: true } } },
+      select: {
+        id: true, fullName: true, jobTitle: true, email: true, avatarDocumentId: true,
+        department: { select: { code: true, nameFa: true, nameEn: true, tagColor: true } },
+        team: { select: { id: true, nameFa: true, nameEn: true, color: true } },
+      },
     });
-    return people.map((p) => withAvatar({ ...p, department: unitOf(p.department) }));
+    return people.map((p) => withAvatar({ ...p, department: unitOf(p.department), team: teamOf(p.team) }));
   });
 
   app.get('/people/:id', { preHandler: [app.authenticate] }, async (req) => {
@@ -58,7 +63,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const person = await prisma.user.findFirst({
       where: { id, organizationId: actor.organizationId, deletedAt: null },
-      include: { department: true, roles: { include: { role: true } } },
+      include: { department: true, team: true, roles: { include: { role: true } } },
     });
     if (!person) throw notFound('شخص');
     const self = person.id === actor.id;
@@ -80,7 +85,7 @@ const peopleRoutes: FastifyPluginAsync = async (app) => {
 
     return {
       id: person.id, fullName: person.fullName, jobTitle: person.jobTitle, email: person.email, isActive: person.isActive,
-      joinedAt: person.createdAt, department: unitOf(person.department),
+      joinedAt: person.createdAt, department: unitOf(person.department), team: teamOf(person.team),
       // What they wrote about themselves (audit F-6), for every colleague.
       avatarUrl: avatarUrl(person.avatarDocumentId), bio: person.bio, pronouncedName: person.pronouncedName, skills: person.skills, links: person.links,
       roles: person.roles.map((r) => r.role.code),

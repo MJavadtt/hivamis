@@ -19,6 +19,7 @@ import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/en
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { SLA_PAUSE_KINDS, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
+import { teamInUnit } from '../lib/teams.js';
 
 /**
  * Giving someone a role that holds oversight of conversations is giving them oversight (audit F-5):
@@ -62,6 +63,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
             weeklyCapacityHours: true,
             lastLoginAt: true,
             positionId: true,
+            team: { select: { id: true, nameFa: true, nameEn: true, color: true } },
             roles: { select: { role: { select: { code: true, nameFa: true, nameEn: true, color: true } } } },
           }
         : {}),
@@ -92,6 +94,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const roles = await findRoles(prisma, actor.organizationId, input.roleCodes);
     await assertMayGive(actor, roles.map((r) => r.code), []);
     const position = input.positionId ? await positionOf(prisma, actor.organizationId, input.positionId) : null;
+    const teamId = input.teamId ? await teamInUnit(prisma, actor.organizationId, input.teamId, department.id) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -100,6 +103,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         email: input.email.toLowerCase(),
         fullName: input.fullName,
         positionId: position?.id ?? null,
+        teamId,
         // The title follows the position; written by hand only where there is none.
         jobTitle: position?.nameFa ?? input.jobTitle ?? null,
         phone: input.phone ?? null,
@@ -146,6 +150,11 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       });
       if (!dep) throw badRequest('UNKNOWN_DEPARTMENT', 'واحد سازمانی نامعتبر است.');
       data.departmentId = dep.id;
+      // A new unit: the old unit's team no longer holds, unless one of the new unit's is given.
+      if (dep.id !== before.departmentId && input.teamId === undefined) data.teamId = null;
+    }
+    if (input.teamId !== undefined) {
+      data.teamId = input.teamId ? await teamInUnit(prisma, actor.organizationId, input.teamId, (data.departmentId as string | undefined) ?? before.departmentId!) : null;
     }
 
     const currentRoles = (
@@ -207,8 +216,13 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       include: { _count: { select: { users: true } } },
       orderBy: { sortOrder: 'asc' },
     });
+    // The managers' names, for the units page (list 3, item 6).
+    const managers = new Map((await prisma.user.findMany({
+      where: { id: { in: units.map((u) => u.managerId).filter((x): x is string => !!x) }, organizationId: actor.organizationId },
+      select: { id: true, fullName: true },
+    })).map((m) => [m.id, m]));
     // `color` is what every screen shows the unit in; `tagColor` is the administrator's choice, if any.
-    return units.map((u) => ({ ...u, color: unitColor(u.code, u.tagColor) }));
+    return units.map((u) => ({ ...u, color: unitColor(u.code, u.tagColor), manager: u.managerId ? managers.get(u.managerId) ?? null : null }));
   });
 
   /**

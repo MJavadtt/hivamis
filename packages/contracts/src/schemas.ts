@@ -65,6 +65,8 @@ export const createUserSchema = z.object({
   roleCodes: z.array(roleCodeSchema).min(1),
   /** Audit F-3: the position from the organisation's catalogue; jobTitle stays as the fallback. */
   positionId: z.string().uuid().nullish(),
+  /** A team within the person's unit (list 3, item 6), or none. */
+  teamId: z.string().uuid().nullish(),
   jobTitle: z.string().trim().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   weeklyCapacityHours: z.coerce.number().min(0).max(80).default(40),
@@ -73,6 +75,26 @@ export const createUserSchema = z.object({
 export const updateUserSchema = createUserSchema.partial().omit({ password: true });
 
 const COLOR = z.string().regex(/^#[0-9a-f]{6}$/, 'رنگ را به شکل #rrggbb بدهید');
+
+/**
+ * A unit as the organisation runs it (list 3, item 6): its names, which it keeps across upgrades once
+ * changed (null returns the code's), and its manager. The ten units themselves are Doc_H's and stay.
+ */
+export const unitUpdateSchema = z.object({
+  nameFa: z.string().trim().min(2, 'نام واحد را بنویسید').max(60).nullish(),
+  nameEn: z.string().trim().min(2).max(60).nullish(),
+  managerId: z.string().uuid().nullish(),
+});
+
+/** A team within a unit — Creative's «طراحی» and «ویدئو» — with its lead and colour. */
+export const teamSchema = z.object({
+  departmentCode: z.enum(DEPARTMENT_CODES),
+  nameFa: z.string().trim().min(2, 'نام تیم را بنویسید').max(60),
+  nameEn: z.string().trim().max(60).default(''),
+  leadId: z.string().uuid().nullish(),
+  color: COLOR.nullish(),
+});
+export const teamUpdateSchema = teamSchema.omit({ departmentCode: true }).partial();
 
 /** A role the organisation makes (audit F-3): from scratch, or as a copy of another's permissions. */
 export const createRoleSchema = z.object({

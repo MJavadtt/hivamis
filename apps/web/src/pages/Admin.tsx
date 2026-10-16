@@ -29,6 +29,7 @@ import { ModelCard } from '../components/ModelStatus';
 import { Positions } from '../components/Positions';
 import { UserEditor, type EditableUser } from '../components/UserEditor';
 import { ACTION_LABELS } from '../lib/audit-labels';
+import { Units } from '../components/Units';
 
 /** Each tab is the part of administration one permission holds; only its holders see it (Hivamis task 6). */
 const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
@@ -37,7 +38,7 @@ const ADMIN_TABS: { key: string; label: string; anyOf: string[] }[] = [
   { key: 'positions', label: tr('سمت‌ها'), anyOf: ['admin.users'] },
   { key: 'sla', label: tr('سیاست‌های SLA'), anyOf: ['admin.settings'] },
   { key: 'calendar', label: tr('تقویم کاری'), anyOf: ['admin.settings'] },
-  { key: 'units', label: tr('رنگ واحدها'), anyOf: ['admin.settings'] },
+  { key: 'units', label: tr('واحدها و تیم‌ها'), anyOf: ['admin.settings'] },
   { key: 'rules', label: tr('نسخه‌های قوانین'), anyOf: ['admin.audit'] },
   { key: 'lab', label: tr('آزمایشگاه قانون'), anyOf: ['admin.audit'] },
   { key: 'designer', label: tr('طراح فرم'), anyOf: ['admin.settings'] },
@@ -70,7 +71,7 @@ export default function Admin() {
         {tab === 'positions' && <Positions />}
         {tab === 'sla' && <SlaPolicies />}
         {tab === 'calendar' && <WorkCalendars />}
-        {tab === 'units' && <UnitColors />}
+        {tab === 'units' && <div className="space-y-5"><Units /><UnitColors /></div>}
         {tab === 'rules' && <RuleVersions />}
         {tab === 'lab' && <RuleLab />}
         {tab === 'designer' && <FormDesigner />}

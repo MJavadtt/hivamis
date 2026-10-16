@@ -8,7 +8,7 @@ import { Badge, Card, EmptyState, ErrorBlock, Input, LoadingBlock, StateBadge } 
 import { Code } from '../components/common';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Avatar } from '../components/Avatar';
-import { UnitTag } from '../components/UnitTag';
+import { TeamTag, UnitTag } from '../components/UnitTag';
 import { tr, trx } from '../i18n';
 import { roleName, useRoles } from '../lib/roles';
 
@@ -18,7 +18,7 @@ import { roleName, useRoles } from '../lib/roles';
  */
 
 interface Unit { code: string; nameFa: string; nameEn: string; color: string }
-interface PersonRow { id: string; fullName: string; jobTitle: string | null; email: string; department: Unit | null; avatarUrl?: string | null }
+interface PersonRow { id: string; fullName: string; jobTitle: string | null; email: string; department: Unit | null; team?: { nameFa: string; nameEn: string; color: string | null } | null; avatarUrl?: string | null }
 interface Person extends PersonRow {
   bio: string | null; pronouncedName: string | null; skills: string[]; links: string[];
   isActive: boolean; joinedAt: string; roles: string[]; self: boolean;
@@ -61,6 +61,8 @@ export function PeopleDirectory() {
                     <p className="truncate text-xs text-ink-500">{trx(p.jobTitle) || '—'}</p>
                   </div>
                   {p.department && <UnitTag code={p.department.code} />}
+              <TeamTag team={p.team} />
+                  <TeamTag team={p.team} />
                 </Link>
               </li>
             ))}

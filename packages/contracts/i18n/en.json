@@ -2725,5 +2725,12 @@
   "مهمان شما رسید: {0}": "Your guest has arrived: {0}",
   "ورود این مهمان هنوز ثبت نشده است.": "This guest has not been checked in yet.",
   "خروج این مهمان پیش‌تر ثبت شده است.": "This guest has already been checked out.",
-  "گزارش رزروها با مسئول اتاق‌ها یا دارندهٔ «مشاهدهٔ همهٔ رزروهای جلسه» است.": "The bookings report is for whoever manages the rooms or holds “See all meeting bookings”."
+  "گزارش رزروها با مسئول اتاق‌ها یا دارندهٔ «مشاهدهٔ همهٔ رزروهای جلسه» است.": "The bookings report is for whoever manages the rooms or holds “See all meeting bookings”.",
+  "نام واحد را بنویسید": "Write the unit's name",
+  "نام تیم را بنویسید": "Write the team's name",
+  "این تیم در واحد این شخص نیست.": "This team is not in this person's unit.",
+  "مدیر واحد باید از کارکنان فعال همین واحد باشد.": "The unit's manager must be one of its active people.",
+  "سرپرست تیم باید از کارکنان فعال همین واحد باشد.": "The team lead must be one of the unit's active people.",
+  "تیمی با این نام در این واحد هست.": "This unit already has a team by that name.",
+  "تیم": "Team"
 }

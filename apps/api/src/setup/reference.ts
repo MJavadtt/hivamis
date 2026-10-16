@@ -70,9 +70,10 @@ export async function syncOrganization(db: Db, organizationId: string): Promise<
 
   let order = 0;
   for (const code of DEPARTMENT_CODES) {
-    const existing = await db.department.findUnique({ where: { organizationId_code: { organizationId, code } }, select: { id: true } });
+    const existing = await db.department.findUnique({ where: { organizationId_code: { organizationId, code } }, select: { id: true, namesOwned: true } });
     if (existing) {
-      await db.department.update({ where: { id: existing.id }, data: { nameFa: DEPARTMENT_LABELS[code].fa, nameEn: DEPARTMENT_LABELS[code].en } });
+      // A unit the organisation renamed keeps its names (list 3, item 6); the others follow the code.
+      if (!existing.namesOwned) await db.department.update({ where: { id: existing.id }, data: { nameFa: DEPARTMENT_LABELS[code].fa, nameEn: DEPARTMENT_LABELS[code].en } });
     } else {
       await db.department.create({
         data: {

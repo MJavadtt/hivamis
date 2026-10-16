@@ -58,7 +58,7 @@ describe('Administration', () => {
   it('opens on the part its holder may use, and shows no other', async () => {
     const asked = mount(<Admin />, ['admin.settings']);
     await screen.findByRole('tab', { name: 'منابع سرنخ' });
-    expect(await tabs()).toEqual(['سیاست‌های SLA', 'تقویم کاری', 'رنگ واحدها', 'طراح فرم', 'مسیریابی فرم‌ها', 'منابع سرنخ']);
+    expect(await tabs()).toEqual(['سیاست‌های SLA', 'تقویم کاری', 'واحدها و تیم‌ها', 'طراح فرم', 'مسیریابی فرم‌ها', 'منابع سرنخ']);
     await screen.findByRole('tab', { name: 'سیاست‌های SLA', selected: true });
     expect(asked).not.toContain('/users');
     expect(asked).not.toContain('/audit-events');

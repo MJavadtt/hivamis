@@ -33,6 +33,8 @@ function mount(ui: React.ReactNode, extra: (path: string, method: string) => Res
     if (p === '/auth/refresh') return json({ accessToken: 't' });
     if (p === '/auth/me') return json({ id: 'u', email: 'a@hiva.local', fullName: 'مدیر', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions: ['admin.roles', 'admin.users'], locale: 'fa', mustChangePassword: false });
     if (p === '/roles') return json(ROLES);
+    // The organisation's units and teams (list 3, item 6), which the user editor offers.
+    if (p === '/departments' || p === '/teams') return json([]);
     if (p === '/positions') return json([{ id: 'p1', nameFa: 'طراح ارشد', nameEn: '', departmentCode: 'CR', defaultRoleCodes: ['C_K3P9QZ2A'], archived: false, holders: 2 }]);
     return json({});
   }));

@@ -2877,3 +2877,28 @@ key) and the wordmark «Hiva» over «Branding|Creativity».
 **Rejected.**
 - Embedding the raster artwork: blurry when scaled, and unusable in the dark theme.
 - Redrawing the logo by hand: a likeness, not the owner's logo.
+
+## ADR-095 — Units the organisation runs: named, managed and divided into teams
+
+**Decision.** (List 3, item 6: "editable roles and units, e.g. split Creative". Roles were F-3,
+ADR-084.)
+
+- **The ten units stay.** Doc_H's process is written against them: work orders go to a unit, unit QC
+  is a unit manager's, revenue and capacity are read per unit. A unit an organisation made from
+  nothing would sit outside every rule. So units are renamed and managed, not added.
+- **Names.** `PATCH /departments/:code` takes Persian and English names and sets `namesOwned`.
+  Reference sync then leaves them alone; before, every upgrade wrote the code's names back. `null`
+  returns the code's names.
+- **Manager.** The same call chooses the manager, who must be one of the unit's active people. Every
+  notice and default approver that reads a unit's manager follows.
+- **Teams are the split.** A `Team` sits in one unit, with a lead from it, a colour and an archive
+  date. `users.teamId` puts a person in one team of their own unit.
+  - The API checks the team, and a trigger (`hiva_team_in_unit`, resolved through the table's own
+    schema) refuses any other.
+  - Moving a person to another unit leaves the old team behind.
+  - Winding a team up releases its members, in the same transaction and audit row; the team stays.
+- **Shown where people are.** The people directory and person pages show the team beside the unit,
+  and the user editor offers the unit's teams.
+
+**Rejected.** Custom units: they need every guard, notice and report to learn units it does not know.
+Teams give the split the owner described, inside the rules.

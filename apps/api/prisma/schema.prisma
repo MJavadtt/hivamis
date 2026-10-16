@@ -203,11 +203,14 @@ model Department {
   sortOrder         Int          @default(0)
   /// The unit's tag colour, `#rrggbb` (Hivamis task 9); null shows the default from @hiva/contracts.
   tagColor          String?
+  /// The organisation renamed the unit (list 3, item 6): an upgrade keeps its names.
+  namesOwned        Boolean      @default(false)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
   users     User[]
   positions Position[]
+  teams     Team[]
 
   @@unique([organizationId, code])
   @@map("departments")
@@ -382,6 +385,11 @@ model User {
   bookingSeats         BookingParticipant[]
   personHolds          PersonHold[]
   guestsCheckedIn      BookingGuest[]        @relation("GuestCheckedInBy")
+
+  /// List 3, item 6: the team within the person's unit, if any.
+  teamId   String?
+  team     Team?   @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
+  teamsLed Team[]  @relation("TeamLead")
 
   @@unique([organizationId, email])
   @@index([organizationId, departmentId])
@@ -3504,4 +3512,27 @@ model PersonHold {
 
   @@index([bookingId])
   @@map("person_holds")
+}
+
+/// A team within one of Doc_H's units (list 3, item 6): Creative's «طراحی» and «ویدئو». The unit stays
+/// what the process routes to; the team says who works together inside it.
+model Team {
+  id             String     @id @default(uuid())
+  organizationId String
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  nameFa         String
+  nameEn         String     @default("")
+  leadId         String?
+  lead           User?      @relation("TeamLead", fields: [leadId], references: [id], onDelete: SetNull)
+  color          String?
+  /// Set when the team is wound up; its members are left without a team, its history stays.
+  archivedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  members        User[]     @relation("TeamMembers")
+
+  @@unique([organizationId, departmentId, nameFa])
+  @@index([departmentId])
+  @@map("teams")
 }

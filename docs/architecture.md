@@ -202,11 +202,11 @@ without a model.
 
 ## Data model
 
-129 tables. The domain groups:
+130 tables. The domain groups:
 
 | Group | Core tables |
 |---|---|
-| Identity | `organizations`, `departments`, `users`, `roles`, `permissions`, `sessions` |
+| Identity | `organizations`, `departments`, `teams` (within a unit), `users`, `roles`, `permissions`, `sessions` |
 | CRM | `companies`, `contacts`, `leads`, `opportunities`, `activities` |
 | Commercial | `briefs`, `proposals`, `proposal_versions`, `cost_declarations`, `handoffs` |
 | Delivery | `projects`, `execution_authorizations`, `milestones`, `raci_assignments`, `work_orders`, `tasks`, `deliverables` |

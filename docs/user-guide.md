@@ -463,6 +463,20 @@ hours — a production unit that works Thursdays, a shift unit with different ho
 person their own, plus leaves. Blank means "same as the level above". Deadlines are computed in
 the hours of whoever holds them: a clock owned by someone on leave does not run.
 
+**Units and teams («واحدها و تیم‌ها» under Admin).** Doc_H's ten units stay what the process routes
+to — work orders, unit QC, approvals — but the organisation runs them:
+
+- **ویرایش واحد** renames a unit in Persian and English; an upgrade keeps the name. **بازگشت به
+  نام‌های اصلی** returns it to the product's.
+- The same window chooses the unit's **manager**, from the unit's own people. Unit QC notices and
+  booking approvals go to them.
+- **تیم تازه** divides a unit: «split Creative» is Creative with «طراحی» and «ویدئو» inside it, each
+  with a lead from the unit and a colour. In the user editor a person is put in a team of their own
+  unit; moving them to another unit leaves the old team behind.
+- **بستن** winds a team up. Its members are left without a team; its record stays.
+
+People's pages show the team beside the unit.
+
 **Unit colours («رنگ واحدها» under Admin).** Every unit appears as a coloured tag — in work-order,
 task, deliverable and revision tables, the traffic board, the unit reports and the user list. Each
 unit starts in a colour of its own; the system administrator changes it with one click on a swatch,

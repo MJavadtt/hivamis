@@ -16,6 +16,11 @@ export interface Unit {
   color: string;
   /** The administrator's choice, or null for the default. */
   tagColor: string | null;
+  /** List 3, item 6: the unit's manager, and whether the organisation renamed it. */
+  managerId?: string | null;
+  manager?: { id: string; fullName: string } | null;
+  namesOwned?: boolean;
+  _count?: { users: number };
 }
 
 /** The organisation's units — the same list the calendar and form pages read, kept five minutes. */
@@ -37,6 +42,33 @@ export function UnitTag({ code, className }: { code: string | null | undefined; 
       data-unit={code}
     >
       <span className="truncate">{name}</span>
+    </span>
+  );
+}
+
+/** A team within a unit (list 3, item 6). */
+export interface Team {
+  id: string; departmentCode: string; nameFa: string; nameEn: string; color: string | null;
+  lead: { id: string; fullName: string } | null; members: number; archivedAt: string | null;
+}
+
+/** The organisation's open teams, kept five minutes like the units. */
+export function useTeams() {
+  return useQuery<Team[]>({ queryKey: ['/teams'], queryFn: () => apiGet('/teams'), staleTime: 300_000 });
+}
+
+/** A team as a quiet tag beside its unit's: an outline in the team's colour, if it has one. */
+export function TeamTag({ team, className }: { team: { nameFa: string; nameEn: string; color: string | null } | null | undefined; className?: string }) {
+  if (!team) return null;
+  const color = team.color ?? 'var(--color-ink-400)';
+  return (
+    <span
+      className={cx('inline-flex max-w-[10rem] items-center gap-1 rounded-md px-1.5 py-0.5 text-[12.5px] font-medium leading-4 text-ink-700 ring-1 ring-inset', className)}
+      style={{ ['--tw-ring-color' as string]: color }}
+      data-team={team.nameEn || team.nameFa}
+    >
+      <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+      <span className="truncate">{loc(team, 'name')}</span>
     </span>
   );
 }

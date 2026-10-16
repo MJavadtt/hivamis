@@ -402,4 +402,10 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/notices.ts#participants",
   ]),
   ...of('MESSENGER', ["messenger/service.ts#decideBooking"]),
+  // List 3, item 6: a unit or team is found in the caller's organisation before it is changed.
+  ...of('EARLIER', [
+    "routes/units.ts#PATCH /departments/:code",
+    "routes/units.ts#PATCH /teams/:id",
+    "routes/units.ts#POST /teams/:id/archive",
+  ]),
 };

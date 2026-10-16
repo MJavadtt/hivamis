@@ -285,4 +285,6 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/notices.ts#participants#bookingParticipant#1",
   ]),
   ...of('REFERENCE', ["bookings/availability.ts#suggestSlots#holiday#1"]),
+  // List 3, item 6: the managers of the organisation's ten units, by id.
+  ...of('IDS', ["routes/admin.ts#GET /departments#user#1"]),
 };
