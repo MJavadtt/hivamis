@@ -651,6 +651,34 @@ it, and giving that role to the person. It cannot be delegated or put on an API 
 
 ---
 
+## Booking a meeting
+
+**رزرو جلسه** in the sidebar books a room, equipment, parking and colleagues for a meeting. Nothing
+can be booked twice: the system checks as you write, and the database refuses a clash when the
+booking is confirmed.
+
+1. **رزرو تازه**: the title, the start and the length. Pick the colleagues to invite, add any outside
+   guests by name, and say what the room needs (a display, video conference…).
+2. The **room** list shows only rooms free at that time with a seat for everyone. A clash — a
+   colleague already in another meeting, too little parking — is named in red, with the next free
+   times one click away. Choose **جای دیگری** for a meeting somewhere that is not booked here.
+3. The **approver** is your unit's manager unless you choose another person who may approve. You
+   cannot approve your own booking.
+4. **ذخیره و فرستادن برای تأیید** sends it. The approver is told in the app, on the phone and in the
+   messenger, where **تأیید** and **رد** work as they do here. They can also send it back for changes.
+5. Once approved, **قطعی کردن** holds the room, the parking and the people. The invited colleagues
+   are told, and the booking becomes a Hivamis meeting (**MTG-…**), whose minutes are written
+   afterwards.
+6. **تغییر زمان** sends a confirmed booking back for approval at the new time. **لغو رزرو** frees
+   everything; a meeting that never had minutes is removed with it.
+
+Invited colleagues answer **می‌آیم** or **نمی‌آیم** on the booking. A booking is seen only by its
+organiser, its approver and the people invited, and by whoever holds **See all meeting bookings**.
+Rooms, equipment, parking and catering are kept by whoever holds **Manage rooms, equipment,
+parking and catering**.
+
+---
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

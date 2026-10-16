@@ -201,7 +201,8 @@ comes across intact: bookings that cannot collide, enforced by the database.
 1. **Identity and the one bot — built** (ADR-090). Findings 2 and 4 are closed. A Telegram account
    is linked only by the code sent from a private chat. The Mini App's launch is taken for an hour
    and once. The bot can long-poll, one reader by lease.
-2. The booking domain — next. Findings 1 and 3 close with it: bot buttons as single-use action
-   tokens, and no meeting shown to someone who may not read it.
+2. **The booking domain — built** (ADR-091). Findings 1 and 3 are closed. Bot buttons are
+   single-use action tokens that move a booking through the workflow as the person pressing them. A
+   booking is read only by those it concerns. Clashes are refused by the database.
 3. The Mini App against Hivamis.
 4. The admin pages.

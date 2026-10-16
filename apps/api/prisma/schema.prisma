@@ -376,6 +376,12 @@ model User {
   chatMessages         ChatMessage[]         @relation("ChatMessageAuthor")
   idempotencyKeys      IdempotencyKey[]
   guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
+  /// Audit F-9: meeting bookings.
+  bookingsOrganized    Booking[]             @relation("BookingOrganizer")
+  bookingsToApprove    Booking[]             @relation("BookingApprover")
+  bookingSeats         BookingParticipant[]
+  personHolds          PersonHold[]
+  guestsCheckedIn      BookingGuest[]        @relation("GuestCheckedInBy")
 
   @@unique([organizationId, email])
   @@index([organizationId, departmentId])
@@ -457,6 +463,9 @@ model Company {
   formSubmissions FormSubmission[]
 
   // What a contact's composite key points at: a contact's organisation is its company's (ADR-067).
+  /// Audit F-9: meetings booked with the client.
+  bookings Booking[]
+
   @@unique([id, organizationId])
   @@index([organizationId])
   @@map("companies")
@@ -815,6 +824,9 @@ model Project {
   handoffs          Handoff[]
   formSubmissions   FormSubmission[]
   comments          Comment[]
+
+  /// Audit F-9: meetings booked for the project.
+  bookings Booking[]
 
   @@unique([organizationId, legacyRef])
   @@index([organizationId, state])
@@ -1487,6 +1499,9 @@ model Meeting {
   createdById       String
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  /// Audit F-9: the booking whose confirmation made this meeting.
+  booking Booking?
 
   @@index([projectId])
   @@map("meetings")
@@ -3272,4 +3287,221 @@ model SignInFailure {
   @@index([identifier, network, createdAt])
   @@index([createdAt])
   @@map("sign_in_failures")
+}
+
+/**
+ * ═══════════════════════ Meeting bookings (audit F-9) ═══════════════════════
+ * The Telegram meeting platform's domain, in Hivamis: rooms, equipment, parking and vehicles, and
+ * the bookings that hold them. Every row carries its organisation. A confirmed booking's holds are
+ * rows the database refuses to overlap (exclusion constraints on a generated range), so no race in
+ * the application can book one room, or one person, twice.
+ */
+
+/// Where bookable things are: a building or floor of the organisation's, or somewhere outside.
+model BookingLocation {
+  id             String             @id @default(uuid())
+  organizationId String
+  name           String
+  kind           String             @default("INSIDE")
+  address        String?
+  building       String?
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  resources      BookableResource[]
+
+  @@unique([organizationId, name])
+  @@map("booking_locations")
+}
+
+/// A room, a piece of equipment, a car park or a vehicle a meeting can hold.
+model BookableResource {
+  id             String            @id @default(uuid())
+  organizationId String
+  type           String
+  name           String
+  description    String?
+  locationId     String?
+  location       BookingLocation?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  /// Seats for a room, spaces for parking; one for anything booked whole.
+  capacity       Int               @default(1)
+  floor          String?
+  features       String[]          @default([])
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  roomOf         Booking[]         @relation("BookingRoom")
+  parkingOf      Booking[]         @relation("BookingParking")
+  bookedWith     BookingResource[]
+  holds          ResourceHold[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, type])
+  @@map("bookable_resources")
+}
+
+/// A meeting booked: when, where, who and what it needs. Its state moves only through the workflow.
+model Booking {
+  id             String               @id @default(uuid())
+  organizationId String
+  code           String               @unique
+  state          String               @default("DRAFT")
+  title          String
+  description    String?
+  kind           String               @default("INTERNAL")
+  startsAt       DateTime
+  endsAt         DateTime
+  organizerId    String
+  organizer      User                 @relation("BookingOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  approverId     String?
+  approver       User?                @relation("BookingApprover", fields: [approverId], references: [id], onDelete: SetNull)
+  roomId         String?
+  room           BookableResource?    @relation("BookingRoom", fields: [roomId], references: [id], onDelete: SetNull)
+  /// Where, when it is not a bookable room.
+  placeNote      String?
+  parkingId      String?
+  parking        BookableResource?    @relation("BookingParking", fields: [parkingId], references: [id], onDelete: SetNull)
+  parkingSpaces  Int                  @default(0)
+  projectId      String?
+  project        Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  companyId      String?
+  company        Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  /// The Hivamis meeting made on confirmation, where its minutes are kept.
+  meetingId      String?              @unique
+  meeting        Meeting?             @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  submittedAt    DateTime?
+  decidedAt      DateTime?
+  /// Why it was rejected, or what to change.
+  decisionNote   String?
+  confirmedAt    DateTime?
+  cancelledAt    DateTime?
+  cancelReason   String?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  participants   BookingParticipant[]
+  resources      BookingResource[]
+  guests         BookingGuest[]
+  catering       BookingCatering[]
+  resourceHolds  ResourceHold[]
+  personHolds    PersonHold[]
+
+  @@index([organizationId, state])
+  @@index([organizationId, startsAt])
+  @@index([organizerId])
+  @@index([approverId])
+  @@map("bookings")
+}
+
+model BookingParticipant {
+  bookingId      String
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  response       String    @default("PENDING")
+  respondedAt    DateTime?
+
+  @@id([bookingId, userId])
+  @@index([userId])
+  @@map("booking_participants")
+}
+
+/// Equipment or a vehicle a booking asks for, besides its room and parking.
+model BookingResource {
+  bookingId      String
+  booking        Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  resourceId     String
+  resource       BookableResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  organizationId String
+
+  @@id([bookingId, resourceId])
+  @@index([resourceId])
+  @@map("booking_resources")
+}
+
+/// Someone from outside the organisation, expected at reception.
+model BookingGuest {
+  id             String    @id @default(uuid())
+  organizationId String
+  bookingId      String
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fullName       String
+  company        String?
+  email          String?
+  phone          String?
+  isVip          Boolean   @default(false)
+  checkedInAt    DateTime?
+  checkedOutAt   DateTime?
+  checkedInById  String?
+  checkedInBy    User?     @relation("GuestCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+
+  @@index([bookingId])
+  @@map("booking_guests")
+}
+
+model CateringOption {
+  id             String            @id @default(uuid())
+  organizationId String
+  labelFa        String
+  labelEn        String
+  unitPrice      Decimal           @default(0) @db.Decimal(14, 2)
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  orders         BookingCatering[]
+
+  @@unique([organizationId, labelFa])
+  @@map("catering_options")
+}
+
+model BookingCatering {
+  bookingId      String
+  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  optionId       String
+  option         CateringOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+  organizationId String
+  quantity       Int
+
+  @@id([bookingId, optionId])
+  @@map("booking_catering")
+}
+
+/// What a confirmed booking occupies. `period` is generated from the two instants; an exclusion
+/// constraint refuses two exclusive holds of one resource that overlap. Parking is shared up to its
+/// capacity, counted under an advisory lock.
+model ResourceHold {
+  id             String                  @id @default(uuid())
+  organizationId String
+  resourceId     String
+  resource       BookableResource        @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  bookingId      String
+  booking        Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  startsAt       DateTime
+  endsAt         DateTime
+  spaces         Int                     @default(1)
+  exclusive      Boolean                 @default(true)
+  period         Unsupported("tsrange")?
+  createdAt      DateTime                @default(now())
+
+  @@index([bookingId])
+  @@map("resource_holds")
+}
+
+/// A person held by a confirmed booking: nobody is in two meetings at once.
+model PersonHold {
+  id             String                  @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingId      String
+  booking        Booking                 @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  startsAt       DateTime
+  endsAt         DateTime
+  period         Unsupported("tsrange")?
+  createdAt      DateTime                @default(now())
+
+  @@index([bookingId])
+  @@map("person_holds")
 }

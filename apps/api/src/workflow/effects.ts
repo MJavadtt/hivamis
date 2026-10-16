@@ -4,6 +4,7 @@ import { logTime } from '../reports/time.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { cascadeState } from './engine.js';
 import { registerEffect } from './registry.js';
+import { BOOKING_EFFECTS } from '../bookings/workflow.js';
 
 export interface EffectContext {
   tx: Tx;
@@ -199,6 +200,9 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   'mediaOrder.confirm_delivery': async ({ reason }) => ({ airedAt: new Date(), proofNote: reason ?? null }),
   'mediaOrder.reconcile': async () => ({ reconciledAt: new Date() }),
   'mediaOrder.cancel': async ({ reason }) => ({ cancelReason: reason ?? null }),
+
+  // Audit F-9: booking a meeting.
+  ...BOOKING_EFFECTS,
 };
 
 // The core's effects enter the registry the way an extension's do (roadmap #47): first on their

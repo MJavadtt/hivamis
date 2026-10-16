@@ -61,7 +61,7 @@ node --env-file=.env dist/server.js     # API
 
 ## Reference data and seeding
 
-The reference data comprises units, roles and permissions, the 30 SLA policies and the 130 form
+The reference data comprises units, roles and permissions, the 31 SLA policies and the 130 form
 definitions. **It comes from the code, and is brought up to it on every start of the API**
 (roadmap #50, `REFERENCE_SYNC=on`):
 
@@ -596,6 +596,21 @@ Roadmap #40. To connect a bot:
 transport follows the Telegram Bot API, which Bale's bot API mirrors; it has been exercised against a
 stand-in, not against either service — link one person and approve one form end to end before
 announcing it. Eitaa, Slack and Teams are not connected.
+
+## Meeting bookings
+
+Audit F-9. Rooms, equipment, parking and vehicles are booked under **رزرو جلسه**. Until the admin
+pages arrive (F-9 step 4), they are added with the API by someone holding `resource.manage`:
+`POST /api/v1/booking/locations`, `/booking/resources` (`type`, `name`, `capacity`, `features`) and
+`/booking/catering`. The demo seed adds three rooms, a projector, a guest car park, a car and three
+catering options.
+
+- The migration enables `btree_gist`, a trusted extension the database's owner may create. A
+  managed PostgreSQL that forbids it must allow it before upgrading.
+- Clashes are refused by exclusion constraints on `resource_holds` and `person_holds`. A refused hold
+  in the API's log (`23P01`) is a lost race reported to the person, not a fault.
+- `reception.checkin` and `meeting.view_all` are nobody's but the full-access roles' until the
+  administrator grants them to a role, for example a reception role made for it.
 
 ## Signing in with a mobile or Google, and asking to join
 

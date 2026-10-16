@@ -301,6 +301,30 @@ export const MEDIA_ORDER_WORKFLOW: WorkflowDef = {
   ],
 };
 
+/**
+ * Audit F-9 — booking a meeting: a room, equipment, parking, the people. The organiser drafts it;
+ * the approver assigned to it decides; the organiser confirms, which is when the room and the people
+ * are held — by the database, which refuses an overlap — and the Hivamis meeting is made. Moving a
+ * confirmed booking sends it back for approval and lets go of what it held.
+ */
+export const BOOKING_WORKFLOW: WorkflowDef = {
+  entity: 'booking',
+  labelFa: 'رزرو جلسه',
+  initial: 'DRAFT',
+  states: ['DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED', 'APPROVED', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'COMPLETED'],
+  terminal: ['REJECTED', 'CANCELLED', 'COMPLETED'],
+  transitions: [
+    { from: ['DRAFT', 'CHANGES_REQUESTED'], to: 'PENDING_APPROVAL', action: 'submit', labelFa: 'فرستادن برای تأیید', labelEn: 'Send for approval', permission: 'meeting.book', guards: ['booking.organizerOnly', 'booking.inFuture', 'booking.approverAssigned', 'booking.noConflict'], startsSla: 'SLA_BOOKING_APPROVAL' },
+    { from: ['PENDING_APPROVAL'], to: 'APPROVED', action: 'approve', labelFa: 'تأیید رزرو', labelEn: 'Approve', permission: 'meeting.approve', guards: ['booking.assignedApprover', 'booking.noConflict'], stopsSla: ['SLA_BOOKING_APPROVAL'] },
+    { from: ['PENDING_APPROVAL'], to: 'CHANGES_REQUESTED', action: 'request_changes', labelFa: 'درخواست اصلاح', labelEn: 'Request changes', permission: 'meeting.approve', guards: ['booking.assignedApprover'], stopsSla: ['SLA_BOOKING_APPROVAL'], requiresReason: true },
+    { from: ['PENDING_APPROVAL'], to: 'REJECTED', action: 'reject', labelFa: 'رد رزرو', labelEn: 'Reject', permission: 'meeting.approve', guards: ['booking.assignedApprover'], stopsSla: ['SLA_BOOKING_APPROVAL'], requiresReason: true },
+    { from: ['APPROVED'], to: 'CONFIRMED', action: 'confirm', labelFa: 'قطعی کردن', labelEn: 'Confirm', permission: 'meeting.book', guards: ['booking.organizerOnly', 'booking.inFuture', 'booking.noConflict'] },
+    { from: ['APPROVED', 'CONFIRMED'], to: 'PENDING_APPROVAL', action: 'reschedule', labelFa: 'تغییر زمان', labelEn: 'Reschedule', permission: 'meeting.book', guards: ['booking.organizerOnly', 'booking.newTimeGiven', 'booking.noConflict'], startsSla: 'SLA_BOOKING_APPROVAL', requiresReason: true },
+    { from: ['CONFIRMED'], to: 'COMPLETED', action: 'complete', labelFa: 'برگزار شد', labelEn: 'Mark as held', permission: 'meeting.book', guards: ['booking.organizerOnly', 'booking.hasEnded'] },
+    { from: ['DRAFT', 'PENDING_APPROVAL', 'CHANGES_REQUESTED', 'APPROVED', 'CONFIRMED'], to: 'CANCELLED', action: 'cancel', labelFa: 'لغو رزرو', labelEn: 'Cancel', permission: 'meeting.book', guards: ['booking.organizerOrOverseer'], stopsSla: ['SLA_BOOKING_APPROVAL'], requiresReason: true },
+  ],
+};
+
 export const WORKFLOWS: Record<string, WorkflowDef> = {
   lead: LEAD_WORKFLOW,
   opportunity: OPPORTUNITY_WORKFLOW,
@@ -316,6 +340,7 @@ export const WORKFLOWS: Record<string, WorkflowDef> = {
   invoice: INVOICE_WORKFLOW,
   outsourceRequest: OUTSOURCE_WORKFLOW,
   mediaOrder: MEDIA_ORDER_WORKFLOW,
+  booking: BOOKING_WORKFLOW,
 };
 
 export function findTransition(entity: string, from: string, action: string): TransitionDef | undefined {
@@ -348,6 +373,8 @@ export const WORKFLOW_READ_PERMISSION: Record<string, Permission> = {
   outsourceRequest: 'supplier.read',
   // What was paid for media and at what commission is pricing data.
   mediaOrder: 'pricing.read',
+  // A booking is read by those it concerns, or with meeting.view_all; the routes check which.
+  booking: 'meeting.book',
 };
 
 /** True when `entity` names a declared state machine. Guards dynamic lookups. */

@@ -91,7 +91,7 @@ load record → find declared transition → check permission → check mandator
   → stop SLA clocks → start SLA clocks
 ```
 
-- **Definitions** (`packages/contracts/src/workflows.ts`) are declarative: 14 state machines,
+- **Definitions** (`packages/contracts/src/workflows.ts`) are declarative: 15 state machines,
   every transition naming its permission, guards, mandatory-reason flag and SLA effects.
 - **Guards** (`src/workflow/guards.ts`) are the Doc_H rules RBAC cannot express — "a project may
   not activate without an authorization record", "nothing reaches the client without a passing
@@ -141,8 +141,8 @@ hour, plus holidays — all configurable per organisation.
 
 Clocks start and stop from workflow transitions and form submissions. A scheduled job moves
 clocks to `AT_RISK` at the warning threshold and `BREACHED` past due, notifying the owner.
-All 30 policies are transcribed from Doc_H slide 33 and the RACI matrix, each carrying its
-`docRef` back to the source.
+All 31 policies carry a `docRef` back to their source: 30 are transcribed from Doc_H slide 33 and
+the RACI matrix, and one decides a meeting booking within half a working day (audit F-9).
 
 Every notice leaves through `notify()` (`src/mail/notify.ts`): the in-app row, the messenger (#40),
 email for the kinds that warrant it, and — for the three loops whose deadlines are hours — **Web
@@ -272,7 +272,7 @@ backs up, restores and upgrades a Compose installation.
 | Password storage | Argon2id, 19 MiB / 2 iterations / 1 lane (OWASP) |
 | Session | 15-minute access JWT, held in the page's memory only; opaque refresh token in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/v1/auth` (`Secure` in production), spent only by a request carrying `X-Hiva-Refresh: 1` from the app's own origin (audit SEC-4), and stored only as SHA-256 digest; rotated single-use, each rotation carrying its sign-in's `familyId`. Replaying a spent token is treated as theft: every session for that user is revoked and a `REFRESH_TOKEN_REUSE` audit event is written. Every request also checks that what the access token was issued on still stands (audit SEC-3, `auth/standing.ts`): its sign-in has a live row, its holder is active, not deleted and not locked, and its `av` equals the holder's `authVersion`, which a role change, a deactivation, a password change or a delegation's end raises. Otherwise `401 SESSION_REVOKED`, and the client's refresh fails for a session that is over. The check is cached per session for at most five seconds; the process that makes a change forgets its copy at once, so it holds there on the next request and on any other process within the five seconds |
 | Brute force | Login and refresh rate limits. Wrong passwords and codes are kept against (what was typed, the client's /24 or /64): three free, then a doubling wait, then that pair blocked for fifteen minutes at ten — never the account, which anyone could otherwise keep locked (audit SEC-10). Fifty failures on one account in an hour raise a security alert. A missing or password-less account still pays for an Argon2 check, so timing does not tell who exists. `TRUST_PROXY` defaults to trusting no proxy, so a forged `X-Forwarded-For` cannot move a client between rate-limit buckets |
-| Authorization | 116 permissions across 16 roles (and any an organisation makes, audit F-3), checked per route and again inside the workflow engine. The managing director, deputy, system administrator and account manager hold every permission but `chat.oversight`, fixed — oversight is nobody's until the system administrator gives it (audit F-5); every other role holds what the organisation's administrator granted (`role_grants`, with history), or its default until reviewed (Hivamis task 6). A grant is a new version of the permissions rule set, and an access token is stamped with each of its roles' grant counts: a token whose role was granted anew since is refused with `401 GRANTS_CHANGED`, and the client takes a fresh one at once — a permission taken away stops working on the next request. Doc_H's guards bind every role, full access included |
+| Authorization | 121 permissions across 16 roles (and any an organisation makes, audit F-3), checked per route and again inside the workflow engine. The managing director, deputy, system administrator and account manager hold every permission but `chat.oversight`, fixed — oversight is nobody's until the system administrator gives it (audit F-5); every other role holds what the organisation's administrator granted (`role_grants`, with history), or its default until reviewed (Hivamis task 6). A grant is a new version of the permissions rule set, and an access token is stamped with each of its roles' grant counts: a token whose role was granted anew since is refused with `401 GRANTS_CHANGED`, and the client takes a fresh one at once — a permission taken away stops working on the next request. Doc_H's guards bind every role, full access included |
 | Audit | Every consequential mutation writes who / what / when / before / after / why; sensitive fields redacted |
 | Injection | Prisma parameterises everything; the two raw queries use bound parameters or a fixed allow-list. Path parameters naming an entity are validated against the declared workflow list before any dynamic delegate lookup |
 | State integrity | Each workflow table carries a CHECK constraint pinning `state` to its declared vocabulary, generated from `packages/contracts` by `prisma/generate-state-constraints.mts`. The engine remains the only sanctioned writer; the constraint means a direct UPDATE or a data import cannot introduce an undeclared state either |

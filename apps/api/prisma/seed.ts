@@ -717,6 +717,26 @@ async function seedDemo(
       },
     });
   }
+
+  // ── Rooms, things and parking to book meetings with (audit F-9) ──────────────
+  const office = await prisma.bookingLocation.create({ data: { organizationId: orgId, name: 'دفتر مرکزی', building: 'ساختمان ولیعصر' } });
+  for (const r of [
+    { type: 'ROOM', name: 'اتاق جلسهٔ البرز', capacity: 12, floor: '۳', features: ['VIDEO_CONFERENCE', 'DISPLAY', 'WHITEBOARD', 'MICROPHONE'] },
+    { type: 'ROOM', name: 'اتاق جلسهٔ دماوند', capacity: 6, floor: '۲', features: ['DISPLAY', 'WHITEBOARD'] },
+    { type: 'ROOM', name: 'اتاق گفت‌وگوی کوچک', capacity: 3, floor: '۲', features: [] },
+    { type: 'EQUIPMENT', name: 'ویدئوپروژکتور سیار', capacity: 1, floor: null, features: [] },
+    { type: 'PARKING', name: 'پارکینگ مهمان', capacity: 6, floor: '-۱', features: [] },
+    { type: 'VEHICLE', name: 'خودروی شرکت', capacity: 4, floor: null, features: [] },
+  ] as const) {
+    await prisma.bookableResource.create({ data: { organizationId: orgId, locationId: office.id, ...r, features: [...r.features] } });
+  }
+  for (const c of [
+    { labelFa: 'چای و قهوه', labelEn: 'Tea and coffee', unitPrice: 150_000 },
+    { labelFa: 'میوه و شیرینی', labelEn: 'Fruit and pastries', unitPrice: 400_000 },
+    { labelFa: 'ناهار', labelEn: 'Lunch', unitPrice: 1_800_000 },
+  ]) {
+    await prisma.cateringOption.create({ data: { organizationId: orgId, ...c } });
+  }
 }
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);

@@ -94,7 +94,8 @@ All six recurring cycles Doc_H names are implemented and covered by end-to-end t
 
 ## SLA catalogue
 
-All 30 policies come from Doc_H slide 33 and the RACI matrix, each storing its `docRef`.
+All 31 policies store a `docRef`: 30 come from Doc_H slide 33 and the RACI matrix, and one is the
+meeting-booking approval (audit F-9).
 Durations are business hours against the organisation calendar.
 
 The column below is Doc_H's own wording. Two needed interpretation when encoded:
@@ -122,6 +123,7 @@ very different amounts of the day; it is carried as a one-day approximation. Bot
 | Project closure report | 3 working days |
 | Customer feedback | 7 days |
 | Close project | 2 working days |
+| Meeting booking approval (audit F-9) | 4 working hours |
 
 **Waiting on someone else.** A clock measures the party it was started against. When that party
 is waiting — on the client for an answer, on a supplier for a proof, on another unit for an

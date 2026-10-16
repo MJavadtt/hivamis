@@ -32,7 +32,7 @@ export const SCHEMA_PREFIX = 't_';
  * is only safe while the migrations stay free of dollar-quoted bodies, and these counts are
  * what notices if that stops being true. Update them when a migration adds or drops objects.
  */
-export const TEMPLATE_SHAPE = { tables: 119, checkConstraints: 102, foreignKeys: 191 } as const;
+export const TEMPLATE_SHAPE = { tables: 129, checkConstraints: 111, foreignKeys: 211 } as const;
 
 /** Load .env.test into process.env. env.ts validates at import time, so this must run first. */
 export function loadTestEnv(): void {
@@ -232,19 +232,25 @@ export async function tablesInDependencyOrder(
   return { order: ordered, deferred };
 }
 
-/** Copy every row of `from` into the (already migrated, empty) schema `into`. */
+/**
+ * Copy every row of `from` into the (already migrated, empty) schema `into`. Generated columns (a
+ * booking hold's period, audit F-9) are left to the database to compute; it refuses a value for them.
+ */
 export async function copyData(
   db: PrismaClient, from: string, into: string, plan: CopyPlan,
 ): Promise<void> {
   await db.$transaction(async (tx) => {
+    const generated = new Set((await tx.$queryRawUnsafe<Array<{ t: string }>>(
+      `SELECT DISTINCT table_name AS t FROM information_schema.columns WHERE table_schema = $1 AND is_generated = 'ALWAYS'`, from,
+    )).map((r) => r.t));
     for (const table of plan.order) {
       const later = plan.deferred.filter((d) => d.table === table).map((d) => d.column);
-      if (!later.length) {
+      if (!later.length && !generated.has(table)) {
         await tx.$executeRawUnsafe(`INSERT INTO "${into}"."${table}" SELECT * FROM "${from}"."${table}"`);
         continue;
       }
       const columns = (await tx.$queryRawUnsafe<Array<{ name: string }>>(
-        `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`, from, table,
+        `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND is_generated = 'NEVER' ORDER BY ordinal_position`, from, table,
       )).map((c) => c.name);
       const pick = columns.map((c) => (later.includes(c) ? `NULL AS "${c}"` : `"${c}"`)).join(', ');
       await tx.$executeRawUnsafe(`INSERT INTO "${into}"."${table}" (${columns.map((c) => `"${c}"`).join(', ')}) SELECT ${pick} FROM "${from}"."${table}"`);

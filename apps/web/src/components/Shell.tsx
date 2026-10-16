@@ -19,7 +19,7 @@ import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
   IconClose, IconDashboard, IconFile, IconFold, IconLogout, IconMoney, IconSearch,
-  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers, IconChat,
+  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers, IconChat, IconClock,
 } from './ui';
 import { loc, tr, trx } from '../i18n';
 import { Avatar } from './Avatar';
@@ -56,6 +56,7 @@ const NAV: NavGroup[] = [
       // No permission of its own: every colleague's page is open to everyone signed in (Hivamis task 4).
       { to: '/people', label: tr('همکاران'), icon: IconUsers },
       { to: '/chat', label: tr('گفت‌وگو'), icon: IconChat, permission: 'chat.use' },
+      { to: '/bookings', label: tr('رزرو جلسه'), icon: IconClock, permission: 'meeting.book' },
     ],
   },
   {

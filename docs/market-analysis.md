@@ -80,7 +80,7 @@ feature list; it is that the rules are structural rather than advisory.
 | **Cost/price separation of duties** | Not offered | Declare ≠ set ≠ approve, three different roles |
 | **Eight-condition closure gate** | Not offered | Enforced, not a checklist |
 | **Every form as a routed, approved, SLA-tracked object** | Partial (custom fields) | 130 forms, schema-driven |
-| **Working-hours SLA engine** | Rare | 30 policies on the organisation's own calendar |
+| **Working-hours SLA engine** | Rare | 31 policies on the organisation's own calendar |
 | **AI that is permission-bound and useful without a model** | Emerging, model-dependent | Deterministic rule findings first; model additive; fully audited |
 
 ## Honest assessment

@@ -124,6 +124,12 @@ export const PERMISSIONS = {
   'governance.waive': 'صدور استثنا بر قوانین حاکم',
   'meeting.read': 'مشاهده جلسات',
   'meeting.write': 'ثبت جلسه و صورتجلسه',
+  // Booking rooms and resources for meetings (audit F-9): the meeting platform's roles, as permissions.
+  'meeting.book': 'رزرو جلسه، اتاق و تجهیزات',
+  'meeting.approve': 'تأیید رزرو جلسه',
+  'meeting.view_all': 'مشاهدهٔ همهٔ رزروهای جلسه',
+  'resource.manage': 'مدیریت اتاق‌ها، تجهیزات، پارکینگ و پذیرایی',
+  'reception.checkin': 'پذیرش مهمانان جلسه',
 
   // Documents, forms, reporting
   'document.read': 'مشاهده اسناد',
@@ -286,27 +292,27 @@ export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DE
  * the defaults a role starts with — Doc_H's separation of duties — until the administrator reviews it.
  */
 /** What every role holds by default, whatever its part in the process (Hivamis task 5). */
-const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image', 'chat.use'];
+const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image', 'chat.use', 'meeting.book'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   SUPER_ADMIN: FULL_ACCESS_PERMISSIONS,
   CEO: FULL_ACCESS_PERMISSIONS,
   DEPUTY: FULL_ACCESS_PERMISSIONS,
   SALES_MANAGER: [
-    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', ...EVERYONE,
+    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', 'meeting.approve', ...EVERYONE,
   ],
   SALES_REP: [...SALES_CORE, ...EVERYONE],
   ACCOUNT_MANAGER: FULL_ACCESS_PERMISSIONS,
   ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', ...EVERYONE],
+  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
   PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
   FINANCE_SPECIALIST: [...FINANCE_CORE, ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', ...EVERYONE],
+  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
   LEGAL_SPECIALIST: [...LEGAL_CORE, ...EVERYONE],
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };
@@ -360,6 +366,7 @@ export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }
   { key: 'supplier', fa: 'تأمین‌کنندگان', en: 'Suppliers' },
   { key: 'governance', fa: 'حاکمیت، ریسک و استثنا', en: 'Governance, risk and waivers' },
   { key: 'meeting', fa: 'جلسه', en: 'Meetings' },
+  { key: 'reception', fa: 'پذیرش', en: 'Reception' },
   { key: 'document', fa: 'اسناد', en: 'Documents' },
   { key: 'form', fa: 'فرم‌ها', en: 'Forms' },
   { key: 'report', fa: 'گزارش‌ها', en: 'Reports' },

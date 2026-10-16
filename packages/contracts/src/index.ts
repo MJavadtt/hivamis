@@ -16,3 +16,4 @@ export * from './guide.js';
 export * from './chat.js';
 export * from './profile.js';
 export * from './offline.js';
+export * from './bookings.js';

@@ -271,4 +271,18 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/team-chat.ts#POST /chat/conversations/:id/messages#chatMember#1",
   ]),
   ...of('OWN', ["routes/team-chat.ts#GET /chat/unread#chatMember#1"]),
+  // Audit F-9: meeting bookings — ids from a bounded request, one booking's own rows, the holidays.
+  ...of('IDS', [
+    "bookings/access.ts#visibleAmong#booking#1",
+    "bookings/availability.ts#conflictsFor#bookableResource#1",
+    "bookings/service.ts#checkNames#bookableResource#1",
+    "bookings/workflow.ts#meetingFor#user#1",
+  ]),
+  ...of('CHILDREN', [
+    "bookings/workflow.ts#needsOf#bookingParticipant#1",
+    "bookings/workflow.ts#needsOf#bookingResource#1",
+    "bookings/workflow.ts#meetingFor#bookingGuest#1",
+    "workflow/notices.ts#participants#bookingParticipant#1",
+  ]),
+  ...of('REFERENCE', ["bookings/availability.ts#suggestSlots#holiday#1"]),
 };

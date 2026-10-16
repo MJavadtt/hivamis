@@ -181,6 +181,19 @@ export const GUIDE: GuideSection[] = [
     ],
   },
   {
+    id: 'bookings', route: '^/bookings(/[^/]+)?$', path: '/bookings', permission: 'meeting.book', manual: 'Booking a meeting',
+    title: t('رزرو جلسه', 'Booking a meeting'),
+    summary: t('اتاق، تجهیزات، پارکینگ و همکاران را برای جلسه رزرو کنید — بی‌تداخل، با تأیید، و با صورتجلسه در هیوامیس.',
+      'Book a room, equipment, parking and colleagues for a meeting — without clashes, approved, and minuted in Hivamis.'),
+    keywords: 'رزرو اتاق جلسه پارکینگ پروژکتور مهمان book room meeting parking projector guest reservation',
+    steps: [
+      step(ANY.header, t('رزرو تازه', 'A new booking'), t('زمان و همکاران را بدهید: فقط اتاق‌های آزادِ بزرگ‌به‌اندازه نشان داده می‌شوند و هر تداخلی با نام گفته می‌شود، با زمان‌های آزاد بعدی.',
+        'Give the time and the colleagues: only rooms free and large enough are shown, and any clash is named, with the next free times.')),
+      step(undefined, t('تأیید، سپس قطعی', 'Approved, then confirmed'), t('تأییدکننده — مدیر واحد شما — تصمیم می‌گیرد؛ سپس «قطعی کردن» اتاق و افراد را نگه می‌دارد و جلسه‌ای در هیوامیس می‌سازد.',
+        'The approver — your unit\'s manager — decides; then “Confirm” holds the room and the people and makes a Hivamis meeting.')),
+    ],
+  },
+  {
     id: 'install', route: '^/install$', path: '/install', manual: 'Installing the app',
     title: t('نصب هیوامیس', 'Installing Hivamis'),
     summary: t('هیوامیس را روی گوشی، تبلت یا رایانه مانند یک برنامه نصب کنید — از همان مرورگری که دارید.',

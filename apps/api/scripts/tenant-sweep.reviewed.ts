@@ -378,4 +378,25 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('OWN', ["lib/idempotency.ts#find", "lib/idempotency.ts#idempotencyPlugin"]),
   ...of('SYSTEM', ["lib/idempotency.ts#pruneIdempotencyKeys"]),
   ...of('EARLIER', ["routes/delivery.ts#GET /tasks/:id/comments"]),
+  // Audit F-9: meeting bookings. Visibility is a where-object built by visibleWhere, carrying the
+  // organisation; drafts and resources are changed after being found in the caller's; the workflow's
+  // guards, effects and notices read a booking the engine loaded; the bot moves it as the chat's owner.
+  ...of('LIST', ["bookings/access.ts#assertVisible", "bookings/access.ts#visibleAmong", "routes/bookings.ts#GET /bookings"]),
+  ...of('EARLIER', [
+    "bookings/service.ts#saveDraft",
+    "routes/bookings.ts#PATCH /booking/locations/:id",
+    "routes/bookings.ts#PATCH /booking/resources/:id",
+    "routes/bookings.ts#PATCH /booking/catering/:id",
+  ]),
+  ...of('OWN', ["bookings/service.ts#approversFor", "routes/bookings.ts#POST /bookings/:id/respond"]),
+  ...of('ENGINE', [
+    "bookings/holds.ts#release",
+    "bookings/workflow.ts#needsOf",
+    "bookings/workflow.ts#'booking.assignedApprover'",
+    "bookings/workflow.ts#meetingFor",
+    "bookings/workflow.ts#'booking.cancel'",
+    "workflow/notices.ts#bookingNotices",
+    "workflow/notices.ts#participants",
+  ]),
+  ...of('MESSENGER', ["messenger/service.ts#decideBooking"]),
 };

@@ -4,8 +4,19 @@ import {
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
+import { assertVisible } from '../bookings/access.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { allowedFor, delegate, transition, workflowFor, preflight } from '../workflow/engine.js';
+
+/**
+ * A booking is read by those it concerns (audit F-9, finding 3): to anyone else, its moves, history
+ * and checklist are as absent as the booking itself. Other entities are gated by permission alone.
+ */
+async function assertRecordVisible(entity: string, id: string, req: Parameters<typeof actorFrom>[0]): Promise<void> {
+  if (entity !== 'booking') return;
+  const a = actorFrom(req);
+  await assertVisible({ id: a.id, organizationId: a.organizationId, permissions: a.permissions, delegated: a.delegated }, id);
+}
 
 /**
  * The universal state-change endpoint. Every lifecycle move in the platform funnels through
@@ -42,6 +53,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
   app.post('/workflow/:entity/:id/transitions', { preHandler: [app.authenticate, app.idempotent] }, async (req) => {
     const { entity, id } = req.params as { entity: string; id: string };
     requireEntity(entity);
+    await assertRecordVisible(entity, id, req);
     const body = parse(transitionSchema, req.body);
     const actor = actorFrom(req);
     return transition({
@@ -63,6 +75,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
     const { entity, id } = req.params as { entity: string; id: string };
     requireEntity(entity);
     await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    await assertRecordVisible(entity, id, req);
 
     const actor = actorFrom(req);
     return prisma.stateTransition.findMany({
@@ -82,6 +95,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
     const { entity, id } = req.params as { entity: string; id: string };
     requireEntity(entity);
     await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    await assertRecordVisible(entity, id, req);
     return preflight(prisma, { entity, id, actor: actorFrom(req) });
   });
 
@@ -89,6 +103,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
     const { entity, id, action } = req.params as { entity: string; id: string; action: string };
     requireEntity(entity);
     await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    await assertRecordVisible(entity, id, req);
     const result = await preflight(prisma, { entity, id, actor: actorFrom(req), action });
     return { state: result.state, ...result.transitions[0] };
   });
@@ -97,6 +112,7 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
     const { entity, id } = req.params as { entity: string; id: string };
     requireEntity(entity);
     await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    await assertRecordVisible(entity, id, req);
 
     const actor = actorFrom(req);
     const record = await delegate(prisma, entity).findFirst({

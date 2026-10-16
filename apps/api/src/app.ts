@@ -59,6 +59,7 @@ import positionRoutes from './routes/positions.js';
 import aiPlanRoutes from './routes/ai-plans.js';
 import teamChatRoutes from './routes/team-chat.js';
 import profileRoutes from './routes/profile.js';
+import bookingRoutes from './routes/bookings.js';
 import guideRoutes from './routes/guide.js';
 import delegationRoutes from './routes/delegations.js';
 import waiverRoutes from './routes/waivers.js';
@@ -224,6 +225,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(aiPlanRoutes);
     await api.register(teamChatRoutes);
     await api.register(profileRoutes);
+    await api.register(bookingRoutes);
     await api.register(guideRoutes);
   }, { prefix: '/api/v1' });
 

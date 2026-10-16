@@ -15,6 +15,8 @@ export type LabelTone =
   | 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'progress';
 
 export const STATE_LABELS: Record<string, { fa: string; tone: LabelTone }> = {
+  CHANGES_REQUESTED: { fa: 'نیازمند اصلاح', tone: 'warning' },
+  CONFIRMED: { fa: 'قطعی', tone: 'success' },
   ACCEPTED: { fa: 'پذیرفته‌شده', tone: 'progress' },
   ACCOUNT: { fa: 'اکانت', tone: 'neutral' },
   ACTIVE: { fa: 'در حال اجرا', tone: 'success' },

@@ -29,4 +29,5 @@ export const ACTION_LABELS: Record<string, string> = {
   GENERATE: tr('ساخت با دستیار'),
   CHAT_OVERSIGHT_LIST: tr('فهرست گفت‌وگوها برای بازبینی'), CHAT_OVERSIGHT_VIEW: tr('بازبینی گفت‌وگو'),
   AI_PLAN_PROPOSED: tr('پیشنهاد تغییر از دستیار'), AI_PLAN_EXECUTED: tr('اجرای پیشنهاد تأییدشدهٔ دستیار'), AI_PLAN_DECLINED: tr('رد پیشنهاد دستیار'),
+  BOOKING_RESPONDED: tr('پاسخ به دعوت جلسه'),
 };

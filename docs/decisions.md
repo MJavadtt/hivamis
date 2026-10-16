@@ -2745,3 +2745,46 @@ external accounts with their audit and removal.
 **Next.** Step 2 brings the booking domain (resources, bookings, exclusion constraints, the workflow
 with named guards, permissions). Step 3 is the Mini App against Hivamis's API; step 4 the admin pages.
 
+## ADR-091 — Bookings are a Hivamis workflow, and the database refuses a clash
+
+**Decision.** (Audit F-9, Option A, step 2 of 4.) The meeting platform's booking domain becomes a
+Hivamis module.
+
+- **Tables.** Locations, bookable resources (room, equipment, parking, vehicle, other), bookings,
+  participants, requested resources, guests, catering options and orders, and holds. Every one carries
+  `organizationId`, and every value it can take is a CHECK constraint.
+- **Holds are the truth for clashes.** A confirmed booking writes `resource_holds` and `person_holds`.
+  Their `period` is a generated `tsrange` over the two instants, half-open, so a meeting ending at
+  10:00 does not clash with one starting then. Two exclusion constraints (btree_gist) refuse an
+  overlapping hold of one room, piece of equipment, vehicle or person, whatever wrote it.
+- **Parking is shared** up to a capacity, which no exclusion constraint expresses. It is counted at
+  the busiest instant of the window, under transaction-scoped advisory locks taken in a fixed order.
+  Under the same locks the availability check runs again, so a lost race is named rather than raw.
+- **The workflow** (`booking`, the 15th machine) moves `DRAFT → PENDING_APPROVAL → APPROVED →
+  CONFIRMED → COMPLETED`. It also has changes requested, rejection, rescheduling (back to approval,
+  holds released) and cancellation. Every move goes through `transition()` with named guards:
+  `organizerOnly`, `organizerOrOverseer`, `inFuture`, `approverAssigned`, `assignedApprover` (the
+  named approver or their delegate), `newTimeGiven`, `noConflict` (details list each clash) and
+  `hasEnded`. A refusal answers 422 with `details.rule`.
+- **Approval clock.** Submitting starts `SLA_BOOKING_APPROVAL`, four working hours.
+- **The approver is named on the booking.** By default it is the organiser's unit manager, when that
+  manager's own roles grant `meeting.approve`. It is never the organiser; the database also refuses
+  that.
+- **One meeting.** Confirming makes the Hivamis `Meeting` (MTG-…), or brings an existing one in step,
+  with an audit row in the same transaction. Cancelling removes a meeting that was never minuted, with
+  its `DELETE` audit row. A minuted meeting stays.
+- **Reading (finding 3).** A booking is read by its organiser, its approver or the approver's
+  stand-in, its participants, and holders of `meeting.view_all`. To anyone else, `/bookings/:id` and
+  the workflow's history, preflight and moves answer 404. A clash names another booking's code only to
+  someone who may read it.
+- **The bot (finding 1).** An approval request reaches the approver's messenger with «تأیید / رد».
+  An approved booking reaches its organiser with «قطعی کن». Each button is a single-use action
+  token for one person and one move, and pressing it runs `transition()` as that person with their
+  permissions of now.
+- **Permissions.** `meeting.book` (everyone), `meeting.approve` (the managers), `meeting.view_all`,
+  `resource.manage` and `reception.checkin` (full access; the administrator grants them to a role).
+
+**Not yet.** The Mini App (step 3); the admin pages for rooms, catering, reception and analytics
+(step 4). Until then rooms and catering are managed through the API. Recurring bookings, templates,
+external calendars and the waitlist are not ported: none is used by the people who book today.
+

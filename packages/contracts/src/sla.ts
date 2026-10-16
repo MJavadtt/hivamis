@@ -58,6 +58,7 @@ export const SLA_POLICIES: readonly SlaPolicyDef[] = [
   { code: 'SLA_FEEDBACK', labelFa: 'دریافت Feedback مشتری', labelEn: 'Collect customer feedback', hours: 7 * D, warnAt: 0.8, docRef: 'SLA sheet — حداکثر ۷ روز' },
   { code: 'SLA_PROJECT_CLOSE', labelFa: 'بستن پروژه', labelEn: 'Close project', hours: 2 * D, warnAt: 0.75, docRef: 'SLA sheet — حداکثر ۲ روز پس از تکمیل Closure' },
   { code: 'SLA_FORM_APPROVAL', labelFa: 'تأیید فرم', labelEn: 'Form approval', hours: 1 * D, warnAt: 0.75, docRef: 'Default form-engine SLA' },
+  { code: 'SLA_BOOKING_APPROVAL', labelFa: 'تأیید رزرو جلسه', labelEn: 'Meeting booking approval', hours: 4, warnAt: 0.75, docRef: 'Audit F-9 — a booking is decided within half a working day' },
 ];
 
 export const SLA_BY_CODE = new Map(SLA_POLICIES.map((p) => [p.code, p]));

@@ -35,6 +35,8 @@ const Mobile = lazy(() => import('./pages/Mobile'));
 const Chat = lazy(() => import('./pages/Chat'));
 const ChatOversight = lazy(() => import('./pages/ChatOversight'));
 const Install = lazy(() => import('./pages/Install'));
+const Bookings = lazy(() => import('./pages/Bookings'));
+const BookingPage = lazy(() => import('./pages/Bookings').then((m) => ({ default: m.BookingPage })));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -121,6 +123,8 @@ export default function App() {
         <Route path="/memory" element={<Memory />} />
         <Route path="/install" element={<Install />} />
         <Route path="/chat" element={<Guarded permission="chat.use" element={<Chat />} />} />
+        <Route path="/bookings" element={<Guarded permission="meeting.book" element={<Bookings />} />} />
+        <Route path="/bookings/:id" element={<Guarded permission="meeting.book" element={<BookingPage />} />} />
         <Route path="/chat/oversight" element={<Guarded permission="chat.oversight" element={<ChatOversight />} />} />
         <Route path="/chat/:id" element={<Guarded permission="chat.use" element={<Chat />} />} />
         <Route path="/rules" element={<Rules />} />

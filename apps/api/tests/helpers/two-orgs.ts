@@ -93,6 +93,10 @@ const OVERRIDES: Record<string, (ids: (model: string) => Promise<string>) => Pro
   User: async () => ({ phone: null, phoneVerifiedAt: null }),
   // A direct conversation is a pair's (its key names them); a group needs no pair.
   ChatConversation: async () => ({ kind: 'GROUP', directKey: null, title: 'B' }),
+  // A booking and its holds span a time (audit F-9): an hour, from tomorrow.
+  Booking: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000), approverId: null }),
+  ResourceHold: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000) }),
+  PersonHold: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000) }),
 };
 
 let counter = 0;

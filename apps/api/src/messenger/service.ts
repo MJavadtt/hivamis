@@ -29,12 +29,14 @@ export const MESSENGER_KINDS = new Set([
   'CLIENT_APPROVAL_DECIDED', 'PORTAL_MESSAGE', 'ESIGN_COMPLETED', 'ESIGN_DECLINED',
   // Team chat (audit F-5): who wrote and where — never what, which stays inside the installation.
   'CHAT_MESSAGE', 'CHAT_MENTION',
+  // Meeting bookings (audit F-9): decided and confirmed from the chat, by single-use buttons (finding 1).
+  'BOOKING_APPROVAL_REQUIRED', 'BOOKING_APPROVED', 'BOOKING_CHANGES_REQUESTED', 'BOOKING_REJECTED', 'BOOKING_INVITED', 'BOOKING_CANCELLED',
 ]);
 
 const appUrl = (p = '') => `${(env.PUBLIC_APP_URL || env.CORS_ORIGIN.split(',')[0]!.trim()).replace(/\/+$/, '')}${p}`;
 const OPEN_PATH: Record<string, (id: string) => string> = {
   formSubmission: (id) => `/forms?submission=${id}`, project: (id) => `/projects/${id}`, contract: (id) => `/contracts/${id}`,
-  proposal: (id) => `/proposals/${id}`, chatConversation: (id) => `/chat/${id}`,
+  proposal: (id) => `/proposals/${id}`, chatConversation: (id) => `/chat/${id}`, booking: (id) => `/bookings/${id}`,
 };
 const token = () => randomBytes(9).toString('base64url');
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -138,6 +140,24 @@ export async function pushNotification(n: { userId: string; kind: string; title:
     ] });
     buttons.push([{ text: 'تأیید', action: approve }, { text: 'رد', action: reject }]);
   }
+  // Audit F-9: a booking is decided, or confirmed, from the chat by buttons of the same kind — one
+  // person, one booking, one move, once — and the move is the workflow's, with its guards (finding 1).
+  if (n.entityType === 'booking' && n.entityId && (n.kind === 'BOOKING_APPROVAL_REQUIRED' || n.kind === 'BOOKING_APPROVED')) {
+    const expiresAt = new Date(Date.now() + ACTION_TTL_MS);
+    const of = { organizationId: link.organizationId, userId: n.userId, kind: 'BOOKING_DECISION', expiresAt };
+    if (n.kind === 'BOOKING_APPROVAL_REQUIRED') {
+      const approve = token(), reject = token();
+      await prisma.messengerAction.createMany({ data: [
+        { ...of, token: approve, payload: { bookingId: n.entityId, decision: 'APPROVE', pair: reject } },
+        { ...of, token: reject, payload: { bookingId: n.entityId, decision: 'REJECT', pair: approve } },
+      ] });
+      buttons.push([{ text: 'تأیید', action: approve }, { text: 'رد', action: reject }]);
+    } else {
+      const confirm = token();
+      await prisma.messengerAction.create({ data: { ...of, token: confirm, payload: { bookingId: n.entityId, decision: 'CONFIRM' } } });
+      buttons.push([{ text: 'قطعی کن', action: confirm }]);
+    }
+  }
   buttons.push([{ text: 'باز کردن در سیستم', url: open }]);
   await queue(p, { organizationId: link.organizationId, userId: n.userId, chatId: link.chatId, text: [n.title, n.body].filter(Boolean).join('\n'), buttons, kind: n.kind });
 }
@@ -202,7 +222,8 @@ export async function handleUpdate(p: MessengerProvider, update: Update, caller?
         await prisma.messengerAction.update({ where: { id: waiting.id }, data: { state: 'EXPIRED' } });
         return { reply: await say(p, orgId, link.userId, chatId, 'رد فرم لغو شد؛ از سامانه تصمیم بگیرید.') };
       }
-      return { reply: await say(p, orgId, link.userId, chatId, await decide(p, link.userId, waiting, text)) };
+      const decided = waiting.kind === 'BOOKING_DECISION' ? decideBooking(p, link.userId, waiting, text) : decide(p, link.userId, waiting, text);
+      return { reply: await say(p, orgId, link.userId, chatId, await decided) };
     }
   }
   return {
@@ -254,12 +275,13 @@ async function pressed(p: MessengerProvider, link: { userId: string } | null, da
   const t = /^a:([\w-]{6,40})$/.exec(data)?.[1];
   const a = t ? await prisma.messengerAction.findUnique({ where: { token: t } }) : null;
   // A button only works from the chat linked to the person it was sent to.
-  if (!a || !link || a.userId !== link.userId || a.kind !== 'FORM_DECISION') return 'این دکمه برای شما نیست.';
+  if (!a || !link || a.userId !== link.userId || !['FORM_DECISION', 'BOOKING_DECISION'].includes(a.kind)) return 'این دکمه برای شما نیست.';
   if (a.state !== 'OPEN') return 'این دکمه پیش‌تر به کار رفته است.';
   if (a.expiresAt <= new Date()) {
     await prisma.messengerAction.update({ where: { id: a.id }, data: { state: 'EXPIRED' } });
     return 'مهلت این دکمه گذشته است؛ از سامانه تصمیم بگیرید.';
   }
+  if (a.kind === 'BOOKING_DECISION' && (a.payload as { decision: string }).decision !== 'REJECT') return decideBooking(p, a.userId, a, null);
   const payload = a.payload as { submissionId: string; decision: 'APPROVE' | 'REJECT'; pair: string };
   if (payload.decision === 'REJECT') {
     // A rejection needs its reason, as in the app: the next message from this chat is taken as it.
@@ -303,6 +325,43 @@ async function decide(p: MessengerProvider, userId: string, a: { id: string; tok
     if (original) {
       const text = `${original.text}\n\n${outcome} (از پیام‌رسان)`;
       await prisma.messengerMessage.update({ where: { id: original.id }, data: { text, buttons: [[{ text: 'باز کردن در سیستم', url: appUrl(`/forms?submission=${payload.submissionId}`) }]] } });
+      await p.edit(a.chatId, a.messageId, text).catch(() => undefined);
+    }
+  }
+  return outcome;
+}
+
+/**
+ * A booking moved from the chat (audit F-9): through `transition()`, as the person whose chat this
+ * is, with their permissions of now — so the approver guard, the organiser guard and the conflict
+ * check stand exactly as they do in the app. The meeting platform's bot called the domain directly
+ * and skipped them (finding 1).
+ */
+async function decideBooking(p: MessengerProvider, userId: string, a: { id: string; token: string; payload: unknown; chatId: string | null; messageId: string | null }, reason: string | null): Promise<string> {
+  const payload = a.payload as { bookingId: string; decision: 'APPROVE' | 'REJECT' | 'CONFIRM'; pair?: string };
+  await prisma.messengerAction.updateMany({ where: { token: { in: [a.token, ...(payload.pair ? [payload.pair] : [])] } }, data: { state: 'DONE', usedAt: new Date() } });
+  const action = ({ APPROVE: 'approve', REJECT: 'reject', CONFIRM: 'confirm' } as const)[payload.decision];
+  let outcome: string;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true, deletedAt: true } });
+    if (!user?.isActive || user.deletedAt) throw new AppError(403, 'FORBIDDEN', 'حساب شما در هیوامیس فعال نیست.');
+    const { claims } = await claimsFor(userId);
+    const { transition } = await import('../workflow/engine.js');
+    const out = await transition({
+      entity: 'booking', id: payload.bookingId, action, reason: reason ?? undefined,
+      actor: { id: claims.sub, organizationId: claims.organizationId, permissions: claims.permissions, delegated: claims.delegated },
+    });
+    outcome = { approve: '✅ رزرو تأیید شد.', reject: '⛔️ رزرو رد شد.', confirm: '✅ رزرو قطعی شد؛ اتاق و افراد نگه داشته شدند.' }[action] + ` (${out.record.code})`;
+    await prisma.messengerAction.update({ where: { id: a.id }, data: { result: { ok: true, state: out.toState } } });
+  } catch (e) {
+    outcome = `انجام نشد: ${e instanceof Error ? e.message : String(e)}`;
+    await prisma.messengerAction.update({ where: { id: a.id }, data: { result: { ok: false, error: outcome } } });
+  }
+  if (a.chatId && a.messageId) {
+    const original = await prisma.messengerMessage.findFirst({ where: { chatId: a.chatId, providerMessageId: a.messageId, direction: 'OUT' } });
+    if (original) {
+      const text = `${original.text}\n\n${outcome} (از پیام‌رسان)`;
+      await prisma.messengerMessage.update({ where: { id: original.id }, data: { text, buttons: [[{ text: 'باز کردن در سیستم', url: appUrl(`/bookings/${payload.bookingId}`) }]] } });
       await p.edit(a.chatId, a.messageId, text).catch(() => undefined);
     }
   }

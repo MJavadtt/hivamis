@@ -35,6 +35,7 @@ export function delegate(tx: Tx, entity: string): any {
     invoice: tx.invoice,
     outsourceRequest: tx.outsourceRequest,
     mediaOrder: tx.mediaOrder,
+    booking: tx.booking,
   };
   const d = map[entity];
   if (!d) throw badRequest('UNKNOWN_ENTITY', `موجودیت «${entity}» فاقد ماشین حالت است.`);
@@ -373,6 +374,7 @@ function resolveSlaOwner(record: Record<string, any>): string | null {
     record.ownerId ??
     record.accountOwnerId ??
     record.reviewerId ??
+    record.approverId ??
     record.createdById ??
     null
   );
