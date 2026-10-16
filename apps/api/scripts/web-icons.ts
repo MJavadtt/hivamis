@@ -1,12 +1,18 @@
 /**
- * The web app's PNG icons, drawn from `apps/web/public/icon.svg` by the same Chrome that renders
- * PDFs (audit UI-1). An SVG alone installs without a proper icon on iOS and on part of Android.
+ * The web app's icons (audit UI-1), drawn from the owner's Hiva mark (packages/contracts/src/brand.ts,
+ * ADR-094) by the same Chrome that renders PDFs. An SVG alone installs without a proper icon on iOS
+ * and on part of Android.
  *
  *   pnpm icons
  *
- * The tile is the Hiva mark (packages/contracts/src/brand.ts) in white on black, as the owner's dark
- * artwork has it (2026-10-16). One source, five shapes:
- *   - `any`: the rounded tile as drawn, 192 and 512 (and 32 for a tab).
+ * First it writes the two sources from the mark, white on a near-black tile, as the owner's dark
+ * artwork has it:
+ *   - `public/hiva-icon.svg`: the mark as drawn, for 48px and up;
+ *   - `public/hiva-icon-small.svg`: the same mark, larger on the tile and its lines a little heavier,
+ *     for a browser tab's 16–32px, where the thin rings would otherwise blur away.
+ *
+ * Then five shapes:
+ *   - `any`: the rounded tile as drawn, 192 and 512 (and 32 for a tab, from the small source).
  *   - `maskable`: the tile's fill to every edge and the mark inside the safe zone (a circle of 40%
  *     radius — the launcher cuts its own shape), 192 and 512.
  *   - Apple's touch icon: 180, full-bleed — iOS rounds the corners itself and fills transparency black.
@@ -14,25 +20,39 @@
  *
  * And the whole logo for emails, which show no SVG: `public/brand/hiva-logo-email.png`, ink on clear.
  *
- * The PNGs are committed; `icons.lock.json` keeps the SVG's hash, so a test notices when the source
- * changed and the PNGs did not.
+ * The files carry `hiva-` names: a browser and an installed app keep an icon by its address, so the
+ * new mark reached them only under a new one. The PNGs are committed; `icons.lock.json` keeps the
+ * sources' hashes, so a test notices when a source changed and the PNGs did not.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
-import { hivaSvg } from '@hiva/contracts';
+import { HIVA_MARK, hivaSvg } from '@hiva/contracts';
 import { resolveExecutable } from '../src/pdf/browser-path.js';
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
-const source = readFileSync(path.join(web, 'public/icon.svg'), 'utf8');
-/** The mark redrawn for 16–32px: every ring of the full one would blur into grey at that size. */
-const small = readFileSync(path.join(web, 'public/icon-small.svg'), 'utf8');
+
+/** The mark, white, centred in a box of `box` units on the 192-unit tile; `stroke` thickens its lines. */
+const markTile = (box: number, stroke = 0) => {
+  const o = (192 - box) / 2, s = box / HIVA_MARK.w, ty = o + (box - HIVA_MARK.h * s) / 2;
+  const heavier = stroke ? ` stroke="#ffffff" stroke-width="${stroke}" stroke-linejoin="round"` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="هیوامیس">
+  <defs></defs>
+  <rect width="192" height="192" rx="40" fill="#111111"/>
+  <path fill="#ffffff" fill-rule="evenodd"${heavier} transform="translate(${o} ${ty.toFixed(2)}) scale(${s.toFixed(5)})" d="${HIVA_MARK.d}"/>
+</svg>
+`;
+};
+const source = markTile(150);
+const small = markTile(164, 14);
+writeFileSync(path.join(web, 'public/hiva-icon.svg'), source);
+writeFileSync(path.join(web, 'public/hiva-icon-small.svg'), small);
 
 const part = (re: RegExp, what: string) => {
   const m = source.match(re);
-  if (!m) throw new Error(`icon.svg has no ${what}`);
+  if (!m) throw new Error(`hiva-icon.svg has no ${what}`);
   return m[0];
 };
 const defs = source.match(/<defs>[\s\S]*?<\/defs>/)?.[0] ?? '';
@@ -41,21 +61,21 @@ const mark = part(/<path[^>]*\/>/, '<path> mark');
 const fill = tile.match(/fill="([^"]+)"/)?.[1] ?? '#000';
 const svg = (viewBox: string, body: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${defs}${body}</svg>`;
 
-// The mark fills a 144-unit box at the tile's centre; at 85% its farthest ink stays inside even the
+// The mark fills a 150-unit box at the tile's centre; at 85% its farthest ink stays inside even the
 // tightest launcher mask.
 const fullBleed = svg('0 0 192 192', `<rect width="192" height="192" fill="${fill}"/><g transform="translate(96 96) scale(.85) translate(-96 -96)">${mark}</g>`);
-const badge = svg('24 24 144 144', mark.replace(/fill="[^"]*"/, 'fill="#ffffff"'));
+const badge = svg('21 21 150 150', mark.replace(/fill="[^"]*"/, 'fill="#ffffff"'));
 // 360 wide, shown at 180 in a mail: sharp on a phone's screen.
 const logo = hivaSvg('logo', { color: '#111111' });
 
 const outputs: { file: string; size: number; height?: number; svg: string }[] = [
-  { file: 'icon-192.png', size: 192, svg: source },
-  { file: 'icon-512.png', size: 512, svg: source },
-  { file: 'favicon-32.png', size: 32, svg: small },
-  { file: 'icon-maskable-192.png', size: 192, svg: fullBleed },
-  { file: 'icon-maskable-512.png', size: 512, svg: fullBleed },
-  { file: 'apple-touch-icon.png', size: 180, svg: fullBleed },
-  { file: 'badge-96.png', size: 96, svg: badge },
+  { file: 'hiva-192.png', size: 192, svg: source },
+  { file: 'hiva-512.png', size: 512, svg: source },
+  { file: 'hiva-favicon-32.png', size: 32, svg: small },
+  { file: 'hiva-maskable-192.png', size: 192, svg: fullBleed },
+  { file: 'hiva-maskable-512.png', size: 512, svg: fullBleed },
+  { file: 'hiva-apple-touch.png', size: 180, svg: fullBleed },
+  { file: 'hiva-badge-96.png', size: 96, svg: badge },
   { file: '../brand/hiva-logo-email.png', size: 360, height: 181, svg: logo },
 ];
 

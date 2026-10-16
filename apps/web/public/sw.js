@@ -117,8 +117,8 @@ self.addEventListener('push', (event) => {
       dir: 'rtl',
       lang: 'fa',
       // PNG: Android shows no SVG here. The badge is the mark alone, which it paints in one colour.
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-96.png',
+      icon: '/icons/hiva-192.png',
+      badge: '/icons/hiva-badge-96.png',
       data: { url: ownPage(data.url) },
     });
     // An open app re-reads its queue at once, rather than at its next poll.

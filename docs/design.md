@@ -87,8 +87,8 @@ size and needs no font.
   - The whole lockup only where it has room: the sign-in page, PDFs, mails. Below about 110px tall
     its tagline cannot be read.
   - The mark alone at 28–56px: the sidebar, the phone bar, the public pages.
-  - Below 32px, the mark drawn for small sizes (`public/icon-small.svg`): three rings and the key,
-    for the browser tab.
+  - Below 32px (the browser tab), the same mark, larger on its tile and its lines a little heavier
+    (`public/hiva-icon-small.svg`). Even at 32px it is the logo itself, rings and key.
 - **Type.** The wordmark's type exists only inside the drawing. The interface keeps Ray (above): it
   is the organisation's chosen and licensed face, and the wordmark's mono is a Latin display face
   with no Persian.
@@ -103,8 +103,10 @@ size and needs no font.
 ## The icon
 
 The installed app's icon is the Hiva mark in white on a near-black tile (#111111), as the dark
-artwork has it. It is drawn once, in `apps/web/public/icon.svg`; the tab's small mark is
-`public/icon-small.svg`. `pnpm icons` makes every PNG from them (ADR-080, ADR-094):
+artwork has it. `pnpm icons` draws both sources from the mark itself — `public/hiva-icon.svg`, and
+`public/hiva-icon-small.svg` for the tab — and every PNG from them (ADR-080, ADR-094). The files are
+named `hiva-…`: browsers and installed apps keep an icon by its address, so a new icon needs a new
+one.
 
 - the plain and the maskable icon;
 - Apple's touch icon;
@@ -112,7 +114,7 @@ artwork has it. It is drawn once, in `apps/web/public/icon.svg`; the tab's small
 - the white notification badge;
 - the mail logo.
 
-Change an SVG, then run `pnpm icons`; a test fails until the PNGs match.
+Change the mark, then run `pnpm icons`; a test fails until the PNGs match.
 
 ## Layout and the kit's components
 

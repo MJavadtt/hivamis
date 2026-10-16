@@ -2285,7 +2285,8 @@ its agency, could have an account in only one of them. In single-organisation mo
 
 **Decision.** (Audit UI-1.)
 
-- **One source, committed PNGs.** `apps/web/public/icon.svg` is the mark. `pnpm icons` draws every PNG
+- **One source, committed PNGs.** `apps/web/public/icon.svg` is the mark (since ADR-094,
+  `hiva-icon.svg`, itself drawn from the traced logo). `pnpm icons` draws every PNG
   from it with the Chrome the PDF renderer already uses, and the PNGs are committed:
   - `any` at 192 and 512, plus a 32px tab icon;
   - `maskable` at 192 and 512: the fill reaches every edge and the mark sits inside the safe zone;
@@ -2868,9 +2869,13 @@ key) and the wordmark «Hiva» over «Branding|Creativity».
   licensed face, which also sets Persian.
 - **Ink colour.** The logo takes the text colour: black on the light canvas, white on the dark, as
   the two artworks show. It is never mirrored for right-to-left.
-- **A small mark for small sizes.** Below 32px seven rings blur into grey. `icon-small.svg` draws
-  three rings and the key for the browser tab and the favicon. Everything larger uses the traced
-  mark.
+- **The logo itself, even in the tab.** At a browser tab's size the thin rings blur into grey, so
+  the tab's icon (`hiva-icon-small.svg`) sets the same traced mark larger on its tile, with its
+  lines a little heavier. A simplified three-ring drawing was tried first; the owner asked for the
+  logo itself on the app's icon. Both icon sources are generated from the mark by `pnpm icons`.
+- **New names for new icons.** Browsers and installed apps keep an icon by its address, so the
+  icons are `hiva-…` files: the old addresses would have kept the old «H» tile on screens that had
+  it.
 - **Mail gets a PNG.** Mail clients show no SVG, so mails carry `public/brand/hiva-logo-email.png`
   from the installation's address, with alt text. The PDFs carry the vector logo, which prints sharp.
 
