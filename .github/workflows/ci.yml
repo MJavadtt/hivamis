@@ -27,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The version comes from package.json's packageManager; naming it here too is an error.
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
 
       - uses: actions/setup-node@v4
         with:
@@ -64,6 +64,8 @@ jobs:
           sed -i 's#^JOBS_ENABLED=.*#JOBS_ENABLED=false#' .env.test
           sed -i 's#^RATE_LIMIT_MAX=.*#RATE_LIMIT_MAX=100000#' .env.test
           sed -i 's#^LOGIN_RATE_LIMIT_MAX=.*#LOGIN_RATE_LIMIT_MAX=100000#' .env.test
+          # The tests bring their own push service; nothing goes to a real one.
+          sed -i 's#^PUSH_DELIVERY=.*#PUSH_DELIVERY=off#' .env.test
 
       - name: Run the API test suite
         working-directory: apps/api
