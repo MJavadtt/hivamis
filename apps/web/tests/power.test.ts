@@ -52,8 +52,11 @@ describe('The low-power fallback', () => {
   it('four cores or fewer is a low-power device; an unknown count is not', () => {
     expect([1, 2, 4].map((c) => fewCores(c))).toEqual([true, true, true]);
     expect([6, 8, 16].map((c) => fewCores(c))).toEqual([false, false, false]);
-    expect(fewCores(undefined)).toBe(false);
     expect(fewCores(0)).toBe(false);
+    // Unknown is a browser that does not say. Not `fewCores(undefined)`: that takes the default,
+    // which is this machine's own count (four on CI's runner).
+    vi.stubGlobal('navigator', { ...navigator, hardwareConcurrency: undefined });
+    expect(fewCores()).toBe(false);
   });
 
   it('times frames by their median, so one long frame does not decide', async () => {
