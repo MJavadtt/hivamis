@@ -2,14 +2,16 @@ FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /repo
 
-COPY package.json pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/contracts/package.json packages/contracts/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY packages/contracts packages/contracts
 COPY apps/web apps/web
-RUN pnpm --filter @hiva/web build
+# The in-app help is the user guide itself, read at build time (src/lib/help.ts).
+COPY docs/user-guide.md docs/user-guide.fa.md docs/
+RUN pnpm --filter @hiva/contracts build && pnpm --filter @hiva/web build
 
 FROM nginx:1.27-alpine AS runtime
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html

@@ -1,0 +1,18 @@
+# What a build is given. Without this, a build on a developer's machine would copy their
+# node_modules (built for macOS) and their .env files, secrets included, into the image.
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.docker.example
+.git
+.claude
+**/storage
+**/storage-test
+backups
+**/coverage
+**/*.log
+**/.DS_Store
+**/playwright-report
+**/test-results
