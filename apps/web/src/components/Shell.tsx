@@ -26,6 +26,7 @@ import { Avatar } from './Avatar';
 import { QuickForms } from './QuickForms';
 import { AssistantButton } from './AssistantChat';
 import { BrandLockup, HivaLogo } from './Brand';
+import { ActingBanner } from './ActingBanner';
 
 interface NavItem {
   to: string;
@@ -287,6 +288,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <main className="flex-1 overflow-y-auto lg:rounded-xl">
           {/* The kit's content column: centred, so a wide screen does not stretch a page into lines. */}
           <div className="mx-auto flex min-h-full w-full max-w-[1400px] flex-col">
+            <ActingBanner className="mx-3 mt-3 sm:mx-5 lg:mx-0" />
             {offline && (
               // Opened from the device's copy (audit F-7): said once, plainly, above whatever page it is.
               <p role="status" data-testid="offline-banner" className="mx-3 mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900 ring-1 ring-inset ring-amber-200 sm:mx-5 lg:mx-0">

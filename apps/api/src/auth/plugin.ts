@@ -30,6 +30,24 @@ export function hasPermission(req: FastifyRequest, perm: Permission): boolean {
   return req.user?.permissions.includes(perm) ?? false;
 }
 
+/**
+ * What a system administrator working in someone's account may not do there (owner's report,
+ * 2026-10-23): what only the person can — their password, mobile, sign-ins and sessions, the
+ * browsers and messenger that reach them, a delegation or a signature in their name — and their
+ * private conversations, with colleagues or the assistant, which stay under oversight with a reason
+ * recorded (audit F-5). Everything else is open, and recorded with the administrator's name.
+ */
+const ACTING_NEVER = ['/api/v1/auth/', '/api/v1/push/', '/api/v1/messenger/', '/api/v1/chat/', '/api/v1/ai/chat', '/api/v1/ai/conversations'];
+const ACTING_READ_ONLY = ['/api/v1/me/', '/api/v1/delegations', '/api/v1/esign', '/api/v1/admin/api-keys', '/api/v1/admin/webhooks', '/api/v1/admin/users/'];
+const ACTING_ALLOWED = ['GET /api/v1/auth/me', 'POST /api/v1/auth/act-as/end'];
+
+export function refusedWhileActing(method: string, url: string): boolean {
+  const path = url.split('?')[0]!;
+  if (ACTING_ALLOWED.includes(`${method} ${path}`)) return false;
+  if (ACTING_NEVER.some((p) => path.startsWith(p))) return true;
+  return method !== 'GET' && method !== 'HEAD' && ACTING_READ_ONLY.some((p) => path.startsWith(p));
+}
+
 const authPlugin: FastifyPluginAsync = async (app) => {
   app.decorateRequest('user', undefined);
 
@@ -70,6 +88,14 @@ const authPlugin: FastifyPluginAsync = async (app) => {
     // away stops working now, not when the token would have expired.
     if (staleFor(await grantsOf(claims.organizationId), claims.roles, claims.gv)) {
       throw new AppError(401, 'GRANTS_CHANGED', 'دسترسی‌های نقش شما تغییر کرده است؛ دوباره بارگیری می‌شود.');
+    }
+    if (claims.imp) {
+      // The administrator at the keyboard, for every audit row this request writes.
+      const ctx = requestContext.getStore();
+      if (ctx) ctx.actingAdminId = claims.imp;
+      if (refusedWhileActing(req.method, req.url)) {
+        throw new AppError(403, 'NOT_WHILE_ACTING', 'این کار فقط با ورود خودِ این شخص انجام می‌شود، نه هنگام کار مدیر سیستم در حساب او.');
+      }
     }
     req.user = claims;
   });

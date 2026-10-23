@@ -477,6 +477,43 @@ to — work orders, unit QC, approvals — but the organisation runs them:
 
 People's pages show the team beside the unit.
 
+**Users («کاربران» under Admin).** The system administrator runs every account:
+
+- **«کاربر تازه» (New user)** makes someone with a name, a user name (their email) and a password,
+  and gives them a unit and roles.
+  - «ساختن» makes a 16-character password with no look-alike characters. Hand it over in person.
+  - Clear «در نخستین ورود، رمز تازه‌ای برای خودش بگذارد» and the given password stays theirs.
+- **«مدیریت» (Manage)** beside each person has four parts:
+  - **Details and roles** — name, user name, mobile, position, unit, team and roles.
+  - **Permissions** — beyond the roles, for this one person. The ticks are what their roles give.
+    - Ticking what the roles do not give grants it to them ("granted to this person").
+    - Clearing what they do give withholds it ("withheld from this person").
+    - «همان نقش‌ها» undoes both.
+    - A change applies at once; nobody is signed out.
+  - **Password** — a new one; all of their current sign-ins end.
+  - **Account** — activate or deactivate, remove, and work in their account.
+- **Removing.** Someone with history in the system — work done, a document uploaded, even one sign-in
+  — is removed:
+  - they can no longer sign in and are in no list;
+  - their name stays in the history;
+  - their email is free for the next person.
+
+  Someone with no history is deleted completely. Hand their open work to someone else first.
+- **Above everyone.** Only a system administrator gives or takes the system administrator role, or
+  changes a system administrator's account — not even the managing director. The organisation always
+  keeps at least one active system administrator.
+
+**Working in someone else's account.** From a person's «حساب», with a reason written, the system
+administrator enters their account. They see what the person sees and work in their place: approving
+the forms left during a leave, handing over a stuck task.
+
+- For the whole time, an amber bar above every page says whose account it is, with «بازگشت به حساب
+  خودم» (Back to my account).
+- It lasts half an hour, and the person is told, with the reason.
+- Everything done is recorded in the record's history as "… done by the system administrator, …".
+- The person's password, mobile, sign-ins, signature and private conversations are not reachable
+  this way. Reviewing conversations stays the usual route, with its recorded reason.
+
 **Unit colours («رنگ واحدها» under Admin).** Every unit appears as a coloured tag — in work-order,
 task, deliverable and revision tables, the traffic board, the unit reports and the user list. Each
 unit starts in a colour of its own; the system administrator changes it with one click on a swatch,

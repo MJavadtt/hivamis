@@ -1,6 +1,7 @@
 import { BOOKING_MAX_HOURS, permissionsForRoles } from '@hiva/contracts';
 import { prisma, type Tx } from '../db.js';
 import { grantsOf } from '../auth/grants.js';
+import { applyOverrides, overridesOf } from '../auth/overrides.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
 import { claimsFor } from '../auth/claims.js';
@@ -38,7 +39,8 @@ export async function approverIds(organizationId: string, among?: readonly strin
     where: { organizationId, isActive: true, deletedAt: null, ...(among ? { id: { in: [...among] } } : {}) },
     select: { id: true, roles: { select: { role: { select: { code: true } } } } }, take: 5000,
   });
-  return new Set(users.filter((u) => permissionsForRoles(u.roles.map((r) => r.role.code), map).includes('meeting.approve')).map((u) => u.id));
+  const own = await overridesOf(users.map((u) => u.id));
+  return new Set(users.filter((u) => applyOverrides(permissionsForRoles(u.roles.map((r) => r.role.code), map), own.get(u.id)).includes('meeting.approve')).map((u) => u.id));
 }
 
 export const mayApprove = async (userId: string, organizationId: string) => (await approverIds(organizationId, [userId])).has(userId);

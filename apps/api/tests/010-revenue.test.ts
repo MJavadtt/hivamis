@@ -84,9 +84,12 @@ describe('Revenue earned as the work is done', () => {
     // 10 logged; 10 + 20 still to do on the two open tasks → a quarter.
     expect(asThen.progress).toBe(0.25);
 
-    // Since then: the submitted one was approved, and the open one cancelled.
-    await move(late, 'SUBMITTED', 'APPROVED', 'qc_approve', at(cur!, 1));
-    await move(dropped, 'IN_PROGRESS', 'CANCELLED', 'cancel', at(cur!, 1));
+    // Since then: the submitted one was approved, and the open one cancelled — after last month ended
+    // and before now. On a month's first day, "a day in" is still to come, and read at now the change
+    // would not have happened yet.
+    const since = new Date(Math.max(cur!.start.getTime() + 1_000, Math.min(at(cur!, 1).getTime(), now.getTime() - 1_000)));
+    await move(late, 'SUBMITTED', 'APPROVED', 'qc_approve', since);
+    await move(dropped, 'IN_PROGRESS', 'CANCELLED', 'cancel', since);
     await prisma.task.update({ where: { id: late }, data: { state: 'APPROVED' } });
     await prisma.task.update({ where: { id: dropped }, data: { state: 'CANCELLED' } });
     const reRead = positionAt(await loadRevenueData(prisma, org, [p]), p, m1!.end);

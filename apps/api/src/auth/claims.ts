@@ -1,7 +1,8 @@
 import { OVERSIGHT_PERMISSIONS, permissionsForRoles, type RoleCode } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { AppError, unauthorized } from '../lib/errors.js';
-import { grantsOf, permissionsFor, versionsFor } from './grants.js';
+import { grantsOf, versionsFor } from './grants.js';
+import { applyOverrides, overridesOf, userPermissions } from './overrides.js';
 
 /** The claims a user signs in with — roles, permissions, delegations as of now. Also used by the messenger (#40). */
 export async function claimsFor(userId: string) {
@@ -15,7 +16,8 @@ export async function claimsFor(userId: string) {
   const roles = user.roles.map((r) => r.role.code as RoleCode);
   // As the organisation's administrator granted them (Hivamis task 6); `gv` dates the grants.
   const grants = await grantsOf(user.organizationId);
-  const native = permissionsForRoles(roles, grants.map);
+  // The roles' permissions, with the person's own grants and denials (owner's report, 2026-10-23).
+  const native = applyOverrides(permissionsForRoles(roles, grants.map), (await overridesOf([user.id])).get(user.id));
   const { permissions, delegated, delegatedRoles, roles: allRoles } = await withDelegations(user.id, user.organizationId, roles, native);
   return {
     user,
@@ -55,7 +57,7 @@ async function withDelegations(userId: string, organizationId: string, roles: Ro
     });
     if (!from?.isActive) continue;
     const fromRoles = from.roles.map((r) => r.role.code as RoleCode);
-    const fromPerms = new Set<string>(await permissionsFor(organizationId, fromRoles));
+    const fromPerms = new Set<string>(await userPermissions({ id: d.fromUserId, organizationId, roles: fromRoles }));
     for (const p of d.permissions) {
       // Oversight is never passed on (audit F-5), whatever a delegation row says.
       if (!fromPerms.has(p) || permissions.has(p) || (OVERSIGHT_PERMISSIONS as readonly string[]).includes(p)) continue;

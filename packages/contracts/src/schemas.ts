@@ -70,9 +70,33 @@ export const createUserSchema = z.object({
   jobTitle: z.string().trim().max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   weeklyCapacityHours: z.coerce.number().min(0).max(80).default(40),
+  /** Whether the person must choose their own password at the first sign-in; on unless the administrator says. */
+  mustChangePassword: z.boolean().default(true),
 });
 
-export const updateUserSchema = createUserSchema.partial().omit({ password: true });
+export const updateUserSchema = createUserSchema.partial().omit({ password: true, mustChangePassword: true });
+
+/** The administrator sets a person's password (owner's report, 2026-10-23); their sign-ins end. */
+export const setUserPasswordSchema = z.object({
+  password: z.string().min(12, 'رمز عبور دست‌کم ۱۲ نویسه باشد').max(200),
+  mustChangePassword: z.boolean().default(true),
+});
+
+/** One person's own permissions, on top of their roles: given (`grant`) and withheld (`deny`). */
+export const userPermissionsSchema = z.object({
+  grant: z.array(z.string().min(1).max(80)).max(400).default([]),
+  deny: z.array(z.string().min(1).max(80)).max(400).default([]),
+});
+
+/** Why the system administrator works in this account; the person is told, and the history keeps it. */
+export const actAsSchema = z.object({
+  reason: z.string().trim().min(3, 'دلیل را بنویسید').max(300),
+});
+
+/** Removing a person: why, for the history. */
+export const removeUserSchema = z.object({
+  reason: z.string().trim().max(300).optional(),
+});
 
 const COLOR = z.string().regex(/^#[0-9a-f]{6}$/, 'رنگ را به شکل #rrggbb بدهید');
 

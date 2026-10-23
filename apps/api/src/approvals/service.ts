@@ -26,7 +26,7 @@ import {
   checkEvidence, GENESIS, hashOf, hashStoredFile, sha256,
   type Evidence, type EvidenceEvent, type Manifest, type ManifestFile, type Problem,
 } from './evidence.js';
-import { permissionsFor } from '../auth/grants.js';
+import { userPermissions } from '../auth/overrides.js';
 
 /** Where mail to the client goes, and whether it is on — shared with the portal (#34). */
 export const approvalMail = clientMail;
@@ -367,7 +367,7 @@ export async function decide(
 async function applyDecision(a: NonNullable<Approval>) {
   const kind = SUBJECT[a.subjectType as SubjectType];
   const requester = await prisma.user.findUnique({ where: { id: a.requestedById }, select: { organizationId: true, isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
-  const permissions = requester?.isActive && !requester.deletedAt ? await permissionsFor(requester.organizationId, requester.roles.map((r) => r.role.code)) : [];
+  const permissions = requester?.isActive && !requester.deletedAt ? await userPermissions({ id: a.requestedById, organizationId: requester.organizationId, roles: requester.roles.map((r) => r.role.code) }) : [];
   const approve = a.decision === 'APPROVE';
   try {
     await transition({

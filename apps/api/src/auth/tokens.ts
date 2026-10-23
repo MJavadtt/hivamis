@@ -25,15 +25,21 @@ export interface AccessTokenClaims {
   sid?: string;
   /** The holder's `authVersion` when it was issued (audit SEC-3): a role, password or status change dates it. */
   av?: number;
+  /**
+   * The system administrator working in this person's account (owner's report, 2026-10-23). `sub` is
+   * whose account it is; this is who is at the keyboard, and every audit row says so.
+   */
+  imp?: string;
 }
 
-export async function signAccessToken(claims: AccessTokenClaims): Promise<string> {
+/** `ttl` overrides the usual lifetime: a session in someone else's account is short and never refreshed. */
+export async function signAccessToken(claims: AccessTokenClaims, ttl: string = env.ACCESS_TOKEN_TTL): Promise<string> {
   return new SignJWT({ ...claims } as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setSubject(claims.sub)
-    .setExpirationTime(env.ACCESS_TOKEN_TTL)
+    .setExpirationTime(ttl)
     .sign(secret);
 }
 

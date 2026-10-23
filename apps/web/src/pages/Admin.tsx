@@ -6,7 +6,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Code } from '../components/common';
 import {
   Badge, Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Select,
-  Table, Tabs, Td, Th, Tr,
+  Table, Tabs, Td, Th, Tr, IconPlus,
 } from '../components/ui';
 import { formatDateTime, localDigits } from '../lib/format';
 import { useAuth } from '../lib/auth';
@@ -27,7 +27,7 @@ import { SignupRequests, SmsSandbox } from '../components/SignupRequests';
 import { PersonLink } from './People';
 import { ModelCard } from '../components/ModelStatus';
 import { Positions } from '../components/Positions';
-import { UserEditor, type EditableUser } from '../components/UserEditor';
+import { NewUser, UserEditor, type EditableUser } from '../components/UserEditor';
 import { ACTION_LABELS } from '../lib/audit-labels';
 import { Units } from '../components/Units';
 
@@ -92,6 +92,7 @@ function Users() {
     queryKey: ['/users'], queryFn: () => apiGet('/users', { pageSize: 100 }),
   });
   const [editing, setEditing] = useState<EditableUser | null>(null);
+  const [creating, setCreating] = useState(false);
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
 
@@ -107,6 +108,7 @@ function Users() {
     <Card
       title={tr('کاربران سازمان')}
       subtitle={detailed ? undefined : tr('برای مشاهده نقش‌ها و وضعیت حساب، دسترسی مدیریت کاربران لازم است.')}
+      action={detailed ? <Button size="sm" variant="primary" onClick={() => setCreating(true)}><IconPlus className="size-4" />{' '}{tr('کاربر تازه')}</Button> : undefined}
     >
       <Table>
         <thead className="bg-ink-50/60">
@@ -131,7 +133,7 @@ function Users() {
                   <Td className="nums text-xs">{tr('{0} ساعت', localDigits(Number(u.weeklyCapacityHours ?? 0)))}</Td>
                   <Td className="text-xs">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : '—'}</Td>
                   <Td>{u.isActive ? <Badge tone="success">{tr('فعال')}</Badge> : <Badge tone="neutral">{tr('غیرفعال')}</Badge>}</Td>
-                  <Td><Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tr('ویرایش')}</Button></Td>
+                  <Td><Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tr('مدیریت')}</Button></Td>
                 </>
               )}
             </Tr>
@@ -140,6 +142,7 @@ function Users() {
       </Table>
     </Card>
     {editing && <UserEditor user={editing} onClose={() => setEditing(null)} onSaved={() => refetch()} />}
+    {creating && <NewUser onClose={() => setCreating(false)} onSaved={() => refetch()} />}
     </div>
   );
 }
@@ -208,7 +211,7 @@ function AuditTrail() {
             {data?.items.map((e: any) => (
               <Tr key={e.id}>
                 <Td className="whitespace-nowrap text-xs">{formatDateTime(e.createdAt)}</Td>
-                <Td className="text-xs">{e.actor?.fullName ?? tr('سیستم')}</Td>
+                <Td className="text-xs">{e.actor?.fullName ?? tr('سیستم')}{e.impersonator && <span className="block text-amber-700">{tr('به دست مدیر سیستم، {0}', e.impersonator.fullName)}</span>}</Td>
                 <Td><Badge tone={e.action === 'PERMISSION_DENIED' || e.action === 'LOGIN_FAILED' ? 'danger'
                   : e.action === 'APPROVE' ? 'success' : 'neutral'}>
                   {trx(ACTION_LABELS[e.action] ?? e.action)}

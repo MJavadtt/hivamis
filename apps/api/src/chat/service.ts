@@ -142,7 +142,21 @@ export async function recordsNamed(app: FastifyInstance, readerId: string, autho
  * messenger outside the installation. One notice per conversation until it is read; a mention
  * always gets its own.
  */
-export async function tellMembers(message: { id: string; conversationId: string; authorId: string; mentionIds: string[] }) {
+type Told = { id: string; conversationId: string; authorId: string; mentionIds: string[] };
+
+/**
+ * One conversation's notices, one message after another. They run after the answer, unawaited: two
+ * messages a moment apart both found nobody told yet, and the reader was told twice.
+ */
+const telling = new Map<string, Promise<void>>();
+export function tellMembers(message: Told): Promise<void> {
+  const next = (telling.get(message.conversationId) ?? Promise.resolve()).catch(() => undefined).then(() => tellMembersNow(message));
+  telling.set(message.conversationId, next);
+  void next.finally(() => { if (telling.get(message.conversationId) === next) telling.delete(message.conversationId); }).catch(() => undefined);
+  return next;
+}
+
+async function tellMembersNow(message: Told) {
   const c = await prisma.chatConversation.findUnique({
     where: { id: message.conversationId },
     select: {

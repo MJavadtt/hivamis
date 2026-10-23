@@ -63,6 +63,9 @@ export async function audit(input: AuditInput, tx: Tx = prisma): Promise<void> {
       onBehalfOfId: input.onBehalfOfId ?? null,
       // Which API key, when the request came through one (#46) — without every caller passing it.
       apiKeyId: requestContext.getStore()?.apiKeyId ?? null,
+      // Who was at the keyboard, when a system administrator worked in the actor's account: written
+      // here, from the request, so no caller can leave it out (owner's report, 2026-10-23).
+      impersonatorId: requestContext.getStore()?.actingAdminId ?? null,
       actorId: input.actorId ?? null,
       before: (scrub(input.before) as object) ?? undefined,
       after: (scrub(input.after) as object) ?? undefined,

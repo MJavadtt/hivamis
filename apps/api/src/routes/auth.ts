@@ -17,6 +17,7 @@ import { assertMayTry, clearFailures, spendPasswordTime } from '../auth/throttle
 import { hasPassword } from './identity.js';
 import { hostScope } from '../lib/tenant.js';
 import { assertFromTheApp, clearRefreshCookie, refreshCookie, setRefreshCookie } from '../auth/cookie.js';
+import { actingFor, endActing } from '../auth/acting.js';
 
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
 export { claimsFor };
@@ -218,6 +219,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(204).send();
   });
 
+  // The system administrator leaves someone's account (owner's report, 2026-10-23).
+  app.post('/auth/act-as/end', { preHandler: [app.authenticate] }, async (req, reply) => {
+    await endActing(req, req.user!);
+    return reply.code(204).send();
+  });
+
   app.get('/auth/me', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
     const user = await prisma.user.findUnique({
@@ -229,8 +236,11 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     // so a new sign-in cannot read what an ended one left behind.
     const sid = (req.user as { sid?: string } | undefined)?.sid;
     const family = sid ? (await prisma.session.findUnique({ where: { id: sid }, select: { familyId: true } }))?.familyId : undefined;
+    // A system administrator in this account: the screen says so, and keeps nothing of it offline.
+    const acting = await actingFor(req.user);
     return {
-      offlineKey: family ? offlineKeyFor(family) : null,
+      offlineKey: family && !acting ? offlineKeyFor(family) : null,
+      actingAs: acting,
       id: user.id, email: user.email, fullName: user.fullName, jobTitle: user.jobTitle,
       locale: user.locale, mustChangePassword: user.mustChangePassword, avatarUrl: avatarUrl(user.avatarDocumentId),
       department: user.department ? { code: user.department.code, nameFa: user.department.nameFa } : null,

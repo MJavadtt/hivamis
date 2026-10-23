@@ -6,7 +6,7 @@ import { hasPermission } from '../auth/plugin.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { endSessions } from '../auth/session.js';
-import { permissionsFor } from '../auth/grants.js';
+import { userPermissions } from '../auth/overrides.js';
 
 /** A delegation may not run longer than this; a longer absence is a role change, not a delegation. */
 export const MAX_DELEGATION_DAYS = 90;
@@ -31,7 +31,7 @@ const delegationRoutes: FastifyPluginAsync = async (app) => {
       where: { id: userId }, select: { organizationId: true, isActive: true, roles: { select: { role: { select: { code: true } } } } },
     });
     const roles = (user?.roles ?? []).map((r) => r.role.code as RoleCode);
-    return { active: user?.isActive ?? false, roles, permissions: new Set<string>(user ? await permissionsFor(user.organizationId, roles) : []) };
+    return { active: user?.isActive ?? false, roles, permissions: new Set<string>(user ? await userPermissions({ id: userId, organizationId: user.organizationId, roles }) : []) };
   }
 
   app.post('/delegations', { preHandler: [app.authenticate] }, async (req, reply) => {

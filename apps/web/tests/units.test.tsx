@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
+import { AuthProvider } from '../src/lib/auth';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { Units } from '../src/components/Units';
 import { UserEditor } from '../src/components/UserEditor';
 
@@ -24,11 +26,15 @@ const PEOPLE = [
 ];
 
 function mount(ui: React.ReactNode) {
+  // The user editor shows the administrator's tabs: someone is signed in.
+  setAccessToken('t'); markSignedIn(true);
   const sent: { method: string; path: string; body: any }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const p = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '');
     const method = init?.method ?? 'GET';
     sent.push({ method, path: p, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    if (p === '/auth/refresh') return json({ accessToken: 't' });
+    if (p === '/auth/me') return json({ id: 'a', email: 'a@hiva.local', fullName: 'مدیر', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions: ['admin.users'], locale: 'fa', mustChangePassword: false });
     if (p === '/departments') return json(UNITS);
     if (p === '/teams' && method === 'GET') return json(TEAMS);
     if (p === '/people') return json(PEOPLE);
@@ -36,7 +42,7 @@ function mount(ui: React.ReactNode) {
     if (p === '/positions') return json([]);
     return json({});
   }));
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><MemoryRouter>{ui}</MemoryRouter></ToastProvider></QueryClientProvider>);
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><AuthProvider><MemoryRouter>{ui}</MemoryRouter></AuthProvider></ToastProvider></QueryClientProvider>);
   return sent;
 }
 

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TOKEN_REFRESHED_EVENT, apiGet, apiPost, markSignedIn, restoreSession, setAccessToken, wasSignedIn } from './api';
+import { QueryClientContext } from '@tanstack/react-query';
+import { ACTING_ENDED_EVENT, TOKEN_REFRESHED_EVENT, apiGet, apiPost, isActing, markSignedIn, restoreSession, setAccessToken, setActing, wasSignedIn } from './api';
 import { adoptAccountLocale } from './locale';
 import { forgetPushOnSignOut } from './push';
 import { openVault, resumeVault, vaultGet, vaultPut, wipeVault } from './vault';
@@ -24,6 +25,8 @@ export interface CurrentUser {
   /** permission → who delegated it; absent for what the user holds in their own right. */
   delegated?: Record<string, string>;
   delegatedRoles?: Record<string, string>;
+  /** The system administrator working in this account, and until when (owner's report, 2026-10-23). */
+  actingAs?: { by: { id: string; fullName: string }; until: string } | null;
 }
 
 interface AuthState {
@@ -44,6 +47,10 @@ interface AuthState {
   /** True when the user holds at least one of the listed permissions. */
   canAny: (...perms: string[]) => boolean;
   hasRole: (...roles: string[]) => boolean;
+  /** The system administrator opens this person's account, giving the reason they are told. */
+  actAs: (userId: string, reason: string) => Promise<void>;
+  /** Back to the administrator's own account. */
+  endActing: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -54,13 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreachable, setUnreachable] = useState(false);
   const [offline, setOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // The screens' cache, cleared on every change of account; absent where a test mounts this alone.
+  const queryClient = useContext(QueryClientContext);
 
   const loadUser = useCallback(async () => {
     try {
       const { offlineKey, ...me } = await apiGet<CurrentUser & { offlineKey?: string | null }>('/auth/me');
       // This sign-in's encrypted copy, with who the person is in it, for a start with no network (audit F-7).
-      if (await openVault(me.id, offlineKey)) void vaultPut('me', me);
-      setOutboxOwner(me.id);
+      // Not in someone else's account: nothing of theirs stays on the administrator's device.
+      if (!me.actingAs && await openVault(me.id, offlineKey)) void vaultPut('me', me);
+      setOutboxOwner(me.actingAs ? null : me.id);
       setOffline(false);
       setUser(me);
       adoptAccountLocale(me.locale);
@@ -82,6 +92,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
     return () => window.removeEventListener(TOKEN_REFRESHED_EVENT, onRefresh);
   }, [loadUser]);
+
+  // The half hour in someone's account ran out: the administrator's own account again, with nothing
+  // of the other one left on the screen.
+  useEffect(() => {
+    const back = () => { queryClient?.clear(); void loadUser(); };
+    window.addEventListener(ACTING_ENDED_EVENT, back);
+    return () => window.removeEventListener(ACTING_ENDED_EVENT, back);
+  }, [loadUser, queryClient]);
+
+  const actAs = useCallback(async (userId: string, reason: string) => {
+    const r = await apiPost<{ accessToken: string }>(`/users/${userId}/act-as`, { reason });
+    queryClient?.clear();
+    setAccessToken(r.accessToken);
+    setActing(true);
+    await loadUser();
+  }, [loadUser, queryClient]);
+
+  const endActing = useCallback(async () => {
+    if (isActing()) { try { await apiPost('/auth/act-as/end'); } catch { /* it ends with its token regardless */ } }
+    setActing(false);
+    setAccessToken(null);
+    queryClient?.clear();
+    if ((await restoreSession()) === 'ok') await loadUser(); else setUser(null);
+  }, [loadUser, queryClient]);
 
   // Restore the session from the refresh cookie on first paint. A server that does not answer —
   // restarting, a deploy, the network — is not a refusal: it is tried again, rather than signing the
@@ -135,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signInWith]);
 
   const signOut = useCallback(async () => {
+    // In someone's account, signing out means leaving it, not ending the administrator's sign-in.
+    if (isActing()) { await endActing(); return; }
     // What is still queued leaves the device with the person — said before it goes (audit F-7).
     const waiting = pendingCount(await listOutbox());
     if (waiting && !window.confirm(tr('{0} کار هنوز ارسال نشده است و با خروج از این دستگاه پاک می‌شود. خارج می‌شوید؟', localDigits(waiting)))) return;
@@ -152,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOutboxOwner(null);
     setOffline(false);
     setUser(null);
-  }, []);
+  }, [endActing]);
 
   const value = useMemo<AuthState>(() => {
     const perms = new Set(user?.permissions ?? []);
@@ -169,8 +205,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       can: (...need) => need.every((p) => perms.has(p)),
       canAny: (...need) => need.some((p) => perms.has(p)),
       hasRole: (...roles) => roles.some((r) => user?.roles.includes(r)),
+      actAs,
+      endActing,
     };
-  }, [user, loading, unreachable, offline, signIn, signInWith, signOut, loadUser]);
+  }, [user, loading, unreachable, offline, signIn, signInWith, signOut, loadUser, actAs, endActing]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

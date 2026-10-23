@@ -24,7 +24,7 @@ import { hashToken } from '../auth/tokens.js';
 import { transition } from '../workflow/engine.js';
 import { esignMode, httpProvider, type ESignProvider, type SignerState } from './provider.js';
 import { SANDBOX_ISSUER, sandboxProvider } from './sandbox.js';
-import { permissionsFor } from '../auth/grants.js';
+import { userPermissions } from '../auth/overrides.js';
 
 const DAY = 86_400_000;
 const storageRoot = () => path.resolve(env.STORAGE_DIR);
@@ -47,7 +47,7 @@ async function signatories(organizationId: string) {
   });
   const out = [];
   for (const u of users) {
-    if ((await permissionsFor(organizationId, u.roles.map((r) => r.role.code))).includes('contract.sign')) {
+    if ((await userPermissions({ id: u.id, organizationId, roles: u.roles.map((r) => r.role.code) })).includes('contract.sign')) {
       const { roles: _r, ...rest } = u;
       out.push(rest);
     }
@@ -215,7 +215,7 @@ async function complete(envelopeId: string, provider: ESignProvider, providerRef
   if (!done) { await unlink(path.join(storageRoot(), storedName)).catch(() => undefined); return { status: 'COMPLETED' }; }
 
   const creator = await prisma.user.findUnique({ where: { id: done.createdById }, select: { organizationId: true, isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } });
-  const permissions = creator?.isActive && !creator.deletedAt ? await permissionsFor(creator.organizationId, creator.roles.map((r) => r.role.code)) : [];
+  const permissions = creator?.isActive && !creator.deletedAt ? await userPermissions({ id: done.createdById, organizationId: creator.organizationId, roles: creator.roles.map((r) => r.role.code) }) : [];
   let error: string | null = null;
   try {
     await transition({

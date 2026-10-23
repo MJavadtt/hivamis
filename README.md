@@ -94,6 +94,14 @@ administrator, who sets a password from a one-time link. The stack serves the SP
 brings the reference data up to the code. Only the web container publishes a port. `hivamis backup`,
 `restore`, `upgrade`, `status` and `tenant` cover the rest; see docs/operations.md.
 
+- **The assistant's model.** `hivamis model auto` chooses it again for the machine (GPU or not, its
+  memory) and switches to it. `sudo hivamis prereqs` makes an NVIDIA card reachable to Docker.
+- **A clean start.** `hivamis reset --admin EMAIL` empties the organisation but for that system
+  administrator, keeping the settings and the history. It takes a backup first and asks for the
+  administrator's new password.
+- **https.** Run it behind https (`--domain` and a certificate in front): over plain http the
+  password travels in the clear.
+
 ---
 
 ## Repository layout

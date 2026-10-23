@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
   createUserSchema, updateUserSchema, paginationSchema, roleGrantSchema, createRoleSchema, updateRoleSchema,
+  setUserPasswordSchema, userPermissionsSchema, actAsSchema, removeUserSchema, OVERSIGHT_GRANTOR_ROLE,
   ALL_PERMISSIONS, FULL_ACCESS_ROLES, OVERSIGHT_PERMISSIONS, PERMISSIONS, ROLE_PERMISSIONS, type RoleCode,
 } from '@hiva/contracts';
 import { findRoles, newRoleCode, roleReferences, rolesOf } from '../auth/roles.js';
@@ -20,6 +21,10 @@ import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
 import { SLA_PAUSE_KINDS, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
 import { teamInUnit } from '../lib/teams.js';
+import { overridesOf, setOverrides, applyOverrides } from '../auth/overrides.js';
+import { hasHistory, removeUser } from '../auth/remove-user.js';
+import { startActing } from '../auth/acting.js';
+import { permissionsFor } from '../auth/grants.js';
 
 /**
  * Giving someone a role that holds oversight of conversations is giving them oversight (audit F-5):
@@ -27,9 +32,38 @@ import { teamInUnit } from '../lib/teams.js';
  */
 async function assertMayGive(actor: ReturnType<typeof actorFrom>, roles: readonly string[], had: readonly string[]) {
   if (mayGrantOversight(actor)) return;
+  // The system administrator is above every other role (owner's report, 2026-10-23): only one gives
+  // or takes that role, the managing director included.
+  if (roles.includes(OVERSIGHT_GRANTOR_ROLE) !== had.includes(OVERSIGHT_GRANTOR_ROLE)) {
+    throw forbidden('نقش مدیر سیستم را فقط مدیر سیستم می‌دهد یا می‌گیرد.');
+  }
   const map = (await grantsOf(actor.organizationId)).map;
   const watched = roles.filter((r) => !had.includes(r)).some((r) => (map[r] ?? []).some((p) => OVERSIGHT_PERMISSIONS.includes(p)));
   if (watched) throw oversightRefused();
+}
+
+/**
+ * A person the administrator acts on. A system administrator's own account is changed only by a
+ * system administrator (owner's report, 2026-10-23).
+ */
+async function targetOf(actor: ReturnType<typeof actorFrom>, id: string) {
+  const t = await prisma.user.findFirst({
+    where: { id, organizationId: actor.organizationId, deletedAt: null },
+    select: { id: true, organizationId: true, fullName: true, email: true, isActive: true, roles: { select: { role: { select: { code: true } } } } },
+  });
+  if (!t) throw notFound('کاربر');
+  const roleCodes = t.roles.map((r) => r.role.code);
+  const isSystemAdmin = roleCodes.includes(OVERSIGHT_GRANTOR_ROLE);
+  if (isSystemAdmin && !mayGrantOversight(actor)) throw forbidden('حساب مدیر سیستم را فقط مدیر سیستم تغییر می‌دهد.');
+  return { ...t, roleCodes, isSystemAdmin };
+}
+
+/** The organisation always keeps one system administrator who can sign in. */
+async function assertNotLastAdmin(organizationId: string, userId: string) {
+  const others = await prisma.user.count({
+    where: { organizationId, id: { not: userId }, isActive: true, deletedAt: null, roles: { some: { role: { code: OVERSIGHT_GRANTOR_ROLE } } } },
+  });
+  if (!others) throw badRequest('LAST_SYSTEM_ADMIN', 'این تنها مدیر سیستم فعال سازمان است؛ نخست مدیر سیستم دیگری تعیین کنید.');
 }
 
 const adminRoutes: FastifyPluginAsync = async (app) => {
@@ -63,6 +97,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
             weeklyCapacityHours: true,
             lastLoginAt: true,
             positionId: true,
+            phone: true,
+            mustChangePassword: true,
             team: { select: { id: true, nameFa: true, nameEn: true, color: true } },
             roles: { select: { role: { select: { code: true, nameFa: true, nameEn: true, color: true } } } },
           }
@@ -109,8 +145,9 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
         phone: input.phone ?? null,
         weeklyCapacityHours: input.weeklyCapacityHours,
         passwordHash: await hashPassword(input.password),
-        // A newly provisioned account must rotate its password on first sign-in.
-        mustChangePassword: true,
+        // A new account chooses its own password at the first sign-in, unless the administrator says
+        // the one they gave is to stay (owner's report, 2026-10-23).
+        mustChangePassword: input.mustChangePassword,
         roles: { create: roles.map((r) => ({ roleId: r.id })) },
       },
       select: { id: true, email: true, fullName: true },
@@ -129,6 +166,8 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(updateUserSchema, req.body);
+    const target = await targetOf(actor, id);
+    if (target.isSystemAdmin && input.roleCodes && !input.roleCodes.includes(OVERSIGHT_GRANTOR_ROLE)) await assertNotLastAdmin(actor.organizationId, id);
     const before = await prisma.user.findFirst({
       where: { id, organizationId: actor.organizationId },
     });
@@ -136,6 +175,14 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
 
     const data: Record<string, unknown> = {};
     if (input.fullName) data.fullName = input.fullName;
+    // The user name they sign in with (owner's report, 2026-10-23): unique in the organisation.
+    if (input.email && input.email.toLowerCase() !== before.email) {
+      const email = input.email.toLowerCase();
+      if (await prisma.user.count({ where: { organizationId: actor.organizationId, email, id: { not: id } } })) {
+        throw conflict('EMAIL_TAKEN', 'این نام کاربری (ایمیل) را کس دیگری در سازمان دارد.');
+      }
+      data.email = email;
+    }
     if (input.jobTitle !== undefined) data.jobTitle = input.jobTitle;
     if (input.positionId !== undefined) {
       const position = input.positionId ? await positionOf(prisma, actor.organizationId, input.positionId) : null;
@@ -199,13 +246,108 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     if (id === actor.id) throw badRequest('SELF_DEACTIVATE', 'غیرفعال‌سازی حساب خودتان مجاز نیست.');
-    const target = await prisma.user.findFirst({
-      where: { id, organizationId: actor.organizationId },
-      select: { id: true, organizationId: true },
-    });
-    if (!target) throw notFound('کاربر');
+    const target = await targetOf(actor, id);
+    if (target.isSystemAdmin) await assertNotLastAdmin(actor.organizationId, id);
     await prisma.$transaction((tx) => deactivateUser(tx, target, actor, 'deactivated'));
     return { id, isActive: false };
+  });
+
+  /* ── The administrator's hand on each account (owner's report, 2026-10-23) ─────────────── */
+
+  app.post('/users/:id/activate', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const target = await targetOf(actor, id);
+    if (!target.isActive) {
+      await prisma.user.update({ where: { id }, data: { isActive: true, lockedUntil: null } });
+      await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ACTIVATE', entityType: 'user', entityId: id, ipAddress: actor.ipAddress, requestId: actor.requestId });
+    }
+    return { id, isActive: true };
+  });
+
+  /** The administrator sets the password; every sign-in of the person ends with the old one. */
+  app.post('/users/:id/password', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const input = parse(setUserPasswordSchema, req.body);
+    await targetOf(actor, id);
+    const passwordHash = await hashPassword(input.password);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id }, data: { passwordHash, mustChangePassword: input.mustChangePassword, lockedUntil: null } });
+      if (id !== actor.id) await endSessions(tx, id, 'PASSWORD_SET_BY_ADMIN');
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'PASSWORD_SET', entityType: 'user', entityId: id,
+        after: { mustChangePassword: input.mustChangePassword }, ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+    });
+    return { id, mustChangePassword: input.mustChangePassword };
+  });
+
+  /** Whether removing this person keeps their name in the history, for the question asked first. */
+  app.get('/users/:id/removal', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    await targetOf(actor, id);
+    return { hasHistory: await hasHistory(prisma, id) };
+  });
+
+  /**
+   * Removing a person (the owner's answer): with history, removed and their name kept in it; with
+   * none, deleted outright. Never oneself, never the last system administrator.
+   */
+  app.delete('/users/:id', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const { reason } = parse(removeUserSchema, req.body ?? {});
+    if (id === actor.id) throw badRequest('SELF_REMOVE', 'حذف حساب خودتان مجاز نیست.');
+    const target = await targetOf(actor, id);
+    if (target.isSystemAdmin) await assertNotLastAdmin(actor.organizationId, id);
+    const result = await prisma.$transaction(async (tx) => {
+      const how = await removeUser(tx, target);
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'user', entityId: id,
+        before: { fullName: target.fullName, email: target.email, roles: target.roleCodes }, after: { removed: how },
+        reason: reason ?? null, ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      return how;
+    });
+    return { id, result };
+  });
+
+  /** One person's permissions: what their roles give, what is given or withheld for them, and the sum. */
+  app.get('/users/:id/permissions', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const target = await targetOf(actor, id);
+    const fromRoles = await permissionsFor(actor.organizationId, target.roleCodes);
+    const own = (await overridesOf([id])).get(id) ?? { grant: [], deny: [] };
+    return { fromRoles, grant: own.grant.sort(), deny: own.deny.sort(), effective: applyOverrides(fromRoles, own).sort(), isSystemAdmin: target.isSystemAdmin };
+  });
+
+  app.put('/users/:id/permissions', { preHandler: [app.authenticate, app.requirePermissions('admin.roles')] }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const input = parse(userPermissionsSchema, req.body);
+    const target = await targetOf(actor, id);
+    const changed = await prisma.$transaction(async (tx) => {
+      const r = await setOverrides(tx, {
+        organizationId: actor.organizationId, userId: id, userRoles: target.roleCodes, grant: input.grant, deny: input.deny,
+        actorId: actor.id, mayGrantOversight: mayGrantOversight(actor),
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'PERMISSIONS_SET', entityType: 'user', entityId: id,
+        before: r.before, after: r.after, ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      return r.after;
+    });
+    return { id, ...changed };
+  });
+
+  /** The system administrator works in this person's account, openly (src/auth/acting.ts). */
+  app.post('/users/:id/act-as', { preHandler: [app.authenticate, app.requirePermissions('admin.users')] }, async (req) => {
+    const { id } = req.params as { id: string };
+    const { reason } = parse(actAsSchema, req.body);
+    return startActing(req, req.user!, id, reason);
   });
 
   /* ── Reference data ──────────────────────────────────────────────────── */
@@ -644,7 +786,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
     };
     const [items, total] = await Promise.all([
       prisma.auditEvent.findMany({
-        where, include: { actor: { select: { id: true, fullName: true, email: true } } },
+        where, include: { actor: { select: { id: true, fullName: true, email: true } }, impersonator: { select: { id: true, fullName: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (q.page - 1) * q.pageSize, take: q.pageSize,
       }),

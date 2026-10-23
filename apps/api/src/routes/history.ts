@@ -30,7 +30,7 @@ const historyRoutes: FastifyPluginAsync = async (app) => {
     const events = await prisma.auditEvent.findMany({
       where: { organizationId: actor.organizationId, entityType, entityId },
       orderBy: { createdAt: 'asc' },
-      include: { actor: { select: { id: true, fullName: true } } },
+      include: { actor: { select: { id: true, fullName: true } }, impersonator: { select: { id: true, fullName: true } } },
     });
     if (events.length === 0) throw notFound('تاریخچه');
     // "A, as B's delegate" needs B's name too.
@@ -66,6 +66,8 @@ const historyRoutes: FastifyPluginAsync = async (app) => {
         actorId: ev.actorId, actorName: actorName(events.find((e) => e.id === ev.id)!),
         onBehalfOfId: ev.onBehalfOfId ?? null,
         onBehalfOfName: ev.onBehalfOfId ? (delegatorNames.get(ev.onBehalfOfId) ?? null) : null,
+        // The system administrator at the keyboard, when it was done in this person's account.
+        actingAdminName: events.find((e) => e.id === ev.id)?.impersonator?.fullName ?? null,
         changes: redact(ev.changes, redaction),
         details: ev.details,
       })),

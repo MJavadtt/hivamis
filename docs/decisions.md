@@ -2907,3 +2907,132 @@ ADR-084.)
 
 **Rejected.** Custom units: they need every guard, notice and report to learn units it does not know.
 Teams give the split the owner described, inside the rules.
+
+## ADR-096 — The refresh cookie is Secure exactly when the page came over https
+
+**Decision.** (The owner's report, 2026-10-23: "the language button sends me to the sign-in page".)
+
+- **What happened.** The refresh token's cookie was `Secure` whenever `NODE_ENV=production`, and the
+  images always run in production. The owner's server was reached at `http://its-address`. A browser
+  drops a Secure cookie that arrives over plain http, so the session never outlived the page. Every
+  reload signed the person out; the language switch reloads.
+- **The cookie follows the request.** `Secure` is set when the request is https. Behind nginx that is
+  `X-Forwarded-Proto`, which nginx sets itself (a client's own header is replaced) and `TRUST_PROXY`
+  lets the API read. The Google sign-in's nonce cookie follows the same rule.
+- **Still recommended: https.** Over plain http the password and the session travel in the clear, and
+  browsers withhold service workers and push. `install --domain` and a certificate in front remain
+  the way to run it (docs/operations.md).
+
+**Rejected.** Keeping NODE_ENV as the switch and telling owners to use https: a server reached once
+over http kept signing everyone out with no sign of why.
+
+## ADR-097 — The assistant's model: a mixture of experts, read in full, on the GPU when there is one
+
+**Decision.** (The owner's report, 2026-10-23: qwen3:14b "very slow, and runs no functions"; the
+server has an NVIDIA GPU of 24 GB or more.)
+
+- **qwen3:30b where it fits.** It is a mixture of experts: 30B parameters with about 3B at work for
+  each word. It is both stronger than the dense 14b and several times faster.
+  - On a GPU: from 20 GB (about 19 GB of weights).
+  - On a CPU: from 32 GB of memory.
+  - Below that: qwen3:14b (GPU from 10 GB), qwen3:8b, qwen3:4b.
+- **The model reads everything it is given.** `num_ctx` was 8192. The prompt, the tools, a page's forms
+  and five rounds of tool answers ran past it, and Ollama cut from the front, where the tools are; the
+  model then had no functions to call. It is now `OLLAMA_NUM_CTX`: 32768 for 30b, 16384 otherwise
+  (8192 below 12 GB).
+- **The GPU is used, not assumed.** Docker reaches an NVIDIA card only through NVIDIA's container
+  toolkit, which nothing installed.
+  - `hivamis prereqs` installs the toolkit and configures Docker when the driver is present.
+  - When there is a card but no driver, it says so and how to fix it.
+  - `install` and `model auto` refuse the GPU profile while Docker cannot reach the card.
+  - `hivamis model` shows where the model sits now ("100% GPU" or "100% CPU").
+- **`hivamis model auto`.** It chooses again for the machine as it is now and switches: the profile,
+  the model, the context, the fetch, the API's restart.
+
+**Rejected.**
+- A dense 32b on 24 GB: it fits only with a short context, and is slower for the same answers.
+- A cloud model: the organisation's records stay on its own machine (Hivamis task 5).
+
+## ADR-098 — The system administrator above every role: each person's permissions, and removing people
+
+**Decision.** (The owner's report, 2026-10-23: the administrator defines users with a user name and a
+password, gives them roles, controls each one's access, and deletes and edits users and roles.)
+
+- **A person's own permissions.** `user_permission_overrides` holds a permission given to one person
+  (`grant`) or withheld from them (`deny`). What a person may do is their roles' permissions, plus
+  their grants, less their denials. This is computed in one place (`auth/overrides.ts`) and used
+  wherever one person's permissions are read: the token, delegations, e-signature, approvals, API
+  keys, webhooks, booking approvers.
+  - A change raises the person's `authVersion`. Their token is refused at its next use and the app
+    takes a fresh one, so the change applies at once without signing them out.
+  - The system administrator is not narrowed.
+  - Oversight of conversations is given only by the system administrator, as for a role (F-5).
+- **The system administrator's role and account are a system administrator's.** Only one gives or
+  takes `SUPER_ADMIN`, or changes, deactivates or removes a system administrator's account; the
+  managing director included. The organisation always keeps one active system administrator.
+- **The administrator sets passwords.** A new person is made with a user name (their email) and a
+  password. They choose their own at the first sign-in unless the administrator says the given one
+  stays. `POST /users/:id/password` sets another and ends their sessions. The user name can be changed.
+- **Removing a person (the owner's answer).**
+  - With history, they are removed: marked deleted, no sign-in, gone from every list and picker. Their
+    address and mobile are freed and their name stays where the history names them. History is any
+    row that points at them, read from the schema: a task, a document, an approval, an audit row
+    (their own sign-ins included).
+  - With no history (made and never used), they are deleted outright.
+  - Their own state goes either way: sessions, roles, links, sign-in methods, private assistant
+    conversations.
+- **Roles.** An organisation's own roles are renamed, recoloured and deleted (F-3). Doc_H's built-in
+  roles are renamed and re-granted but not deleted: the workflows refer to them by name.
+
+## ADR-099 — The system administrator works in anyone's account, openly
+
+**Decision.** (The owner's report, 2026-10-23: the administrator sees and edits everything of
+everyone's, and can do it in their place, above the managing director and the deputy.)
+
+- **The permissions were already there.** The system administrator holds every permission but
+  oversight, which they grant. What they lacked was the person's place: about fifty checks across the
+  code ask who is acting (the assignee submits, the approver approves).
+- **So the administrator enters the account.**
+  - `POST /users/:id/act-as` with a reason opens a session in the person's account. It lasts thirty
+    minutes, its token is never refreshed, and it is tied to the administrator, who must still stand.
+  - The screen says whose account it is, and that everything is recorded under the administrator's
+    name, for the whole time, with the way back.
+  - The person is told, with the reason.
+  - Every audit row written under that session carries `impersonatorId`, from the request's context,
+    so no caller can leave it out. Record history reads "… done by the system administrator, X".
+- **What stays the person's.** Their password, mobile, sign-ins and sessions, the browsers and
+  messenger that reach them, a delegation or a signature in their name, and their private
+  conversations, with colleagues and with the assistant. Conversations remain under oversight with a
+  recorded reason (F-5). Nothing of the account is kept offline on the administrator's device.
+- **Never covert.** A system administrator cannot enter another's account, and the history keeps every
+  entry and exit.
+
+**Rejected.**
+- An exception for the administrator in every check: about fifty edits, each one a way for a rule
+  to be skipped unseen.
+- Acting without telling the person: the owner's requirements say no covert access.
+
+## ADR-100 — A clean start for an organisation, the history kept
+
+**Decision.** (The owner's report, 2026-10-23: every user and every record but the system
+administrator is deleted; the owner's answer: the history stays.)
+
+- **`hivamis reset --admin EMAIL`** runs on the server. In order, it:
+  1. says what it will delete;
+  2. asks for `RESET`;
+  3. asks twice for the administrator's new password, unseen;
+  4. backs up the database and files;
+  5. runs `org:reset`.
+
+  The password reaches the API on standard input, never on a command line.
+- **What stays.**
+  - What the organisation is: units, roles and grants, positions, teams, forms and routing, rules,
+    SLA, calendars, tax and accounting settings, rooms and resources, guide videos, keys.
+  - The history: the audit trail, the workflow's transitions, security alerts, and the numbering
+    counters, so no new record takes a code the history gives another.
+- **What goes.** Every other record of the organisation, children before parents. The order is found by
+  trying, each try in its own savepoint, so a schema change does not need a list kept by hand. The
+  documents' files go after the commit.
+- **The people** are removed as ADR-098 removes one, and the administrator kept signs in afresh.
+
+**Rejected.** A new installation: it would lose the history the owner asked to keep, and the settings.

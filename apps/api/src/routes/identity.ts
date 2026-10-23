@@ -14,6 +14,7 @@ import { hostScope, organizationForHost, organizationForRequest, requestHost, te
 import { appUrl, notify } from '../mail/notify.js';
 import { enqueueMail } from '../jobs/runner.js';
 import { grantsOf } from '../auth/grants.js';
+import { applyOverrides, overridesOf } from '../auth/overrides.js';
 import { issueSession, countFailure } from '../auth/session.js';
 import { checkCode, issueCode } from '../auth/otp.js';
 import { maskCode, sendCode, smsAvailable } from '../auth/sms.js';
@@ -62,8 +63,9 @@ async function notifyAdmins(organizationId: string, title: string, body: string,
     where: { organizationId, isActive: true, deletedAt: null },
     select: { id: true, roles: { select: { role: { select: { code: true } } } } },
   });
+  const own = await overridesOf(people.map((p) => p.id));
   for (const p of people) {
-    const perms = permissionsForRoles(p.roles.map((r) => r.role.code as RoleCode), grants.map);
+    const perms = applyOverrides(permissionsForRoles(p.roles.map((r) => r.role.code as RoleCode), grants.map), own.get(p.id));
     if (perms.includes('admin.users')) await notify({ userId: p.id, kind: 'SIGNUP_REQUESTED', title, body, entityType: 'signupRequest', entityId });
   }
 }

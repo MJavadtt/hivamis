@@ -19,6 +19,16 @@ const store = {
 };
 
 export const setAccessToken = (t: string | null) => { accessToken = t; };
+
+/**
+ * The system administrator working in someone's account (owner's report, 2026-10-23). That token is
+ * never refreshed: when it runs out, the refresh brings back the administrator's own, and the app is
+ * told to show their account again.
+ */
+let acting = false;
+export const setActing = (on: boolean) => { acting = on; };
+export const isActing = () => acting;
+export const ACTING_ENDED_EVENT = 'hiva:acting-ended';
 export const getAccessToken = () => accessToken;
 export const markSignedIn = (on: boolean) => store.set(SIGNED_IN_KEY, on ? '1' : null);
 /** Signed in here before — with the cookie, or with a token from before it. */
@@ -114,6 +124,8 @@ function refreshOnce(): Promise<RefreshOutcome> {
       const data = await res.json();
       setAccessToken(data.accessToken);
       markSignedIn(true);
+      // The cookie is the administrator's: a refresh while in someone's account is the way back out.
+      if (acting) { acting = false; window.dispatchEvent(new CustomEvent(ACTING_ENDED_EVENT)); }
       // Whatever asked for it — a page, the live stream, an expiring token — the new token says what
       // its holder may now do; the app compares and re-reads the user when that changed (Hivamis task 6).
       window.dispatchEvent(new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: { permissions: tokenPermissions(data.accessToken) } }));

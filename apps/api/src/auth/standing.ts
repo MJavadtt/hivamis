@@ -19,6 +19,9 @@ const TTL_MS = 5_000;
 
 interface Standing {
   userId: string;
+  /** The system administrator this session was opened for, and whether they still stand. */
+  impersonatorId: string | null;
+  impersonatorStands: boolean;
   live: boolean;
   usable: boolean;
   lockedUntil: Date | null;
@@ -37,8 +40,9 @@ async function read(sid: string): Promise<Standing | null> {
   const s = await prisma.session.findUnique({
     where: { id: sid },
     select: {
-      userId: true, familyId: true, revokedAt: true, revokedReason: true, expiresAt: true,
+      userId: true, familyId: true, revokedAt: true, revokedReason: true, expiresAt: true, impersonatorId: true,
       user: { select: { isActive: true, deletedAt: true, lockedUntil: true, authVersion: true } },
+      impersonator: { select: { isActive: true, deletedAt: true, roles: { select: { role: { select: { code: true } } } } } },
     },
   });
   if (!s) return null;
@@ -47,23 +51,33 @@ async function read(sid: string): Promise<Standing | null> {
   if (!live && s.revokedReason === 'ROTATED') {
     live = (await prisma.session.count({ where: { familyId: s.familyId, revokedAt: null, expiresAt: { gt: now } } })) > 0;
   }
+  const admin = s.impersonator;
   return {
     userId: s.userId, live, usable: s.user.isActive && !s.user.deletedAt,
+    impersonatorId: s.impersonatorId,
+    // Still a system administrator, in their own right, and still here.
+    impersonatorStands: !!admin && admin.isActive && !admin.deletedAt && admin.roles.some((r) => r.role.code === 'SUPER_ADMIN'),
     lockedUntil: s.user.lockedUntil, authVersion: s.user.authVersion, at: Date.now(),
   };
 }
 
 /** Why this token no longer stands, or null when it does. */
-export async function revokedBecause(claims: Pick<AccessTokenClaims, 'sub' | 'sid' | 'av'>): Promise<string | null> {
+export async function revokedBecause(claims: Pick<AccessTokenClaims, 'sub' | 'sid' | 'av' | 'imp'>): Promise<string | null> {
   // Every token a person signs in with names its session; one that does not was not issued here.
   if (!claims.sid) return 'no session';
   let s = cache.get(claims.sid);
   if (!s || Date.now() - s.at >= TTL_MS) {
     s = (await read(claims.sid)) ?? undefined;
     if (!s) { cache.delete(claims.sid); return 'no session'; }
-    if (Math.max(freshUntil.get(s.userId) ?? 0, allFreshUntil) <= Date.now()) cache.set(claims.sid, s);
+    // A session in someone's account stands or falls with its administrator too.
+    const fresh = Math.max(freshUntil.get(s.userId) ?? 0, s.impersonatorId ? freshUntil.get(s.impersonatorId) ?? 0 : 0, allFreshUntil);
+    if (fresh <= Date.now()) cache.set(claims.sid, s);
   }
   if (s.userId !== claims.sub) return 'not this person’s session';
+  // A token says it is the administrator's work in this account exactly when its session was opened
+  // for that: neither can be claimed without the other.
+  if ((s.impersonatorId ?? null) !== (claims.imp ?? null)) return 'not this session’s administrator';
+  if (s.impersonatorId && !s.impersonatorStands) return 'the administrator no longer stands';
   if (!s.live) return 'session ended';
   if (!s.usable) return 'account inactive';
   if (s.lockedUntil && s.lockedUntil > new Date()) return 'account locked';
@@ -74,7 +88,7 @@ export async function revokedBecause(claims: Pick<AccessTokenClaims, 'sub' | 'si
 /** Forget what is known of a person's sessions (or everyone's), and read them fresh for the next TTL. */
 export function forgetStanding(userId?: string): void {
   if (!userId) { cache.clear(); allFreshUntil = Date.now() + TTL_MS; return; }
-  for (const [sid, s] of cache) if (s.userId === userId) cache.delete(sid);
+  for (const [sid, s] of cache) if (s.userId === userId || s.impersonatorId === userId) cache.delete(sid);
   const until = Date.now() + TTL_MS;
   freshUntil.set(userId, until);
   // Not a leak: a person whose window passed has nothing to remember.

@@ -14,6 +14,7 @@ export const WHY = {
   PERIOD: "One accounting period's documents not yet exported.",
   BOUNDED: "Small by rule: five codes an hour per number, fifteen demo accounts, twelve periods a year.",
   ALL: "Revenue recognition needs every row to be right; cut, it would be wrong. Measured instead (audit PERF-3: 2,000 projects in 0.7 s).",
+  RESET: "A clean start reads, once and from the command line, every row it is about to delete (owner's report, 2026-10-23).",
 } as const;
 
 export type Verdict = keyof typeof WHY;
@@ -287,4 +288,9 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('REFERENCE', ["bookings/availability.ts#suggestSlots#holiday#1"]),
   // List 3, item 6: the managers of the organisation's ten units, by id.
   ...of('IDS', ["routes/admin.ts#GET /departments#user#1"]),
+  // The owner's report (2026-10-23): one person's own permissions, the organisation's people, and a
+  // clean start reading what it deletes.
+  ...of('IDS', ["auth/overrides.ts#overridesOf#userPermissionOverride#1"]),
+  ...of('PEOPLE', ["setup/reset.ts#adminOf#user#1", "setup/reset.ts#resetOrganization#user#1"]),
+  ...of('RESET', ["setup/reset.ts#resetOrganization#document#1"]),
 };

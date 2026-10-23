@@ -10,6 +10,8 @@ export interface RequestContext {
   apiKeyId?: string;
   /** The person the assistant is reading for (audit PERF-1). See {@link asAgentFor}. */
   agentFor?: string;
+  /** The system administrator working in the authenticated person's account, if one is (owner's report, 2026-10-23). */
+  actingAdminId?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();

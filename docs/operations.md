@@ -158,7 +158,8 @@ come from `tenant:create`, as the installer does.
 | `AI_MODEL` | no | claude-sonnet-4-5 | |
 | `CHAT_MODE` | no | `ollama` | The chat assistant (Hivamis task 5): `ollama`, a model served by Ollama, or `off`. See [The chat assistant](#the-chat-assistant-local-model) |
 | `OLLAMA_URL` | no | `http://127.0.0.1:11434`; `http://ollama:11434` in Compose | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
-| `OLLAMA_MODEL` | no | `qwen3:14b`; in Compose, chosen by the installer for the machine's memory | A model that supports tool calling and writes Persian |
+| `OLLAMA_MODEL` | no | `qwen3:8b`; in Compose, chosen by the installer for the machine (ADR-097) | A model that supports tool calling and writes Persian |
+| `OLLAMA_NUM_CTX` | no | `16384`; the installer sets 32768 for `qwen3:30b` | How much the model reads at once, in tokens: prompt, tools, history and tool answers. Too few, and the model loses its tools |
 | `COMPOSE_PROFILES` | no (Compose) | `ai` | The model's service: `ai` on the CPU, `ai-gpu` on NVIDIA GPUs, empty for none (audit F-1) |
 | `OLLAMA_KEEP_ALIVE` | no (Compose) | `30m` | How long the model stays loaded after the last question |
 | `IMAGE_MODE` | no | `off` | Pictures with the assistant (audit F-2): `local`, a self-hosted LocalAI server, or `off`. See [Pictures](#pictures) |
@@ -271,6 +272,35 @@ rules, forms, records and address.
     own way (task 6).
   - Record numbers (PRJ-…) run on one sequence for the whole installation, so they never collide.
   - A person's email is unique within their organisation (audit LOG-4); the same person may have an account in two. At an organisation's own address, sign-in is to that organisation's account. At the installation's own address the password decides, and if the same email and password hold in two organisations, the person is asked to use their organisation's address.
+
+## Reached over https, or the session does not last
+
+The refresh token's cookie is `Secure` when the page came over https (ADR-096), and plain otherwise,
+so a server reached at `http://its-address` keeps people signed in. But over plain http the password
+and the session travel in the clear, and browsers withhold service workers and notices on the phone.
+Run it with a domain: `install --domain hivamis.example.com`, a certificate in front of port 8080 (a
+reverse proxy or the host's own nginx with Let's Encrypt), and `X-Forwarded-Proto` passed through.
+
+## A clean start for an organisation
+
+`infrastructure/hivamis reset --admin EMAIL` empties an organisation but for one system administrator
+(ADR-100). In order, it:
+
+1. says what it will delete;
+2. asks for `RESET`;
+3. asks twice for that administrator's new password, without showing it — Enter keeps the current one;
+4. backs up the database and files;
+5. deletes.
+
+What stays:
+
+- what the organisation is: units, roles and their grants, positions, teams, forms and routing,
+  rules, SLA policies, calendars, tax and accounting settings, rooms and resources;
+- the history: the audit trail, the workflow's transitions, security alerts, the numbering counters.
+
+The other people are removed: those the history names keep their name in it; the others are deleted.
+`--slug` names the organisation when the installation has several. Undo is the backup it took:
+`hivamis restore --db … --storage … --yes`.
 
 ## Production readiness checklist
 
@@ -787,26 +817,39 @@ The stack carries the model server as the `ollama` service:
 - **Fetched by a separate container.** `ollama-pull` (profile `pull`) is the only part that may reach
   the internet, and it runs only when asked.
 
-The installer sizes the model to the machine and writes the choice to `.env`. It uses the GPU's
-memory when an NVIDIA GPU is present, and the machine's memory otherwise:
+The installer sizes the model to the machine and writes the choice to `.env` (ADR-097). It uses the
+GPU's memory when an NVIDIA GPU is present, and the machine's memory otherwise. `qwen3:30b` is a
+mixture of experts: 30B parameters with about 3B at work for each word, so it is stronger than the
+dense 14b and several times faster.
 
-| Memory | `OLLAMA_MODEL` | Download | Memory while answering |
-| --- | --- | --- | --- |
-| 24 GB or more | `qwen3:14b` | ~9 GB | ~11 GB |
-| 12–23 GB | `qwen3:8b` | ~5 GB | ~7 GB |
-| under 12 GB | `qwen3:4b` | ~2.5 GB | ~4 GB |
+| On | Memory | `OLLAMA_MODEL` | `OLLAMA_NUM_CTX` | Download |
+| --- | --- | --- | --- | --- |
+| GPU | 20 GB or more | `qwen3:30b` | 32768 | ~19 GB |
+| GPU | 10–19 GB | `qwen3:14b` | 16384 | ~9 GB |
+| GPU | 6–9 GB | `qwen3:8b` | 8192 | ~5 GB |
+| CPU | 32 GB or more | `qwen3:30b` | 32768 | ~19 GB |
+| CPU | 12–31 GB | `qwen3:8b` | 16384 | ~5 GB |
+| CPU | under 12 GB | `qwen3:4b` | 8192 | ~2.5 GB |
 
-- **The profile.** `COMPOSE_PROFILES=ai` runs the model on the CPU. `ai-gpu` runs it on NVIDIA GPUs
-  and needs the NVIDIA Container Toolkit on the host. The installer chooses `ai-gpu` when
-  `nvidia-smi` sees a GPU.
+- **The profile.** `COMPOSE_PROFILES=ai` runs the model on the CPU, and `ai-gpu` on NVIDIA GPUs.
+  - Docker reaches the card only through the NVIDIA Container Toolkit. `sudo infrastructure/hivamis
+    prereqs` installs it when the card's driver is present.
+  - When the card has no driver, `prereqs` says so. The driver is the system's:
+    `sudo ubuntu-drivers install`, then a restart, then `prereqs` again.
+  - The installer chooses `ai-gpu` when `nvidia-smi` sees a GPU, and refuses it while Docker cannot
+    reach the card.
 - **The installer waits for the model.** It fetches the model once the stack is up, shows the
   download's progress, and refuses to finish if the model is not in the store afterwards.
 - **Options:**
   - `--model NAME` chooses a model outright;
   - `--no-ai` leaves the model out (`CHAT_MODE=off`, no profile).
-- **Later changes:** `infrastructure/hivamis model` shows the model and what the machine would
-  get. `infrastructure/hivamis model pull [NAME]` fetches a model, switches to it and restarts the
-  API. `upgrade` fetches the configured model if the store lacks it.
+- **Later changes:**
+  - `infrastructure/hivamis model` shows the model, what the machine would get, and where the model
+    sits now ("100% GPU" is the card).
+  - `infrastructure/hivamis model auto` chooses again for the machine as it is now — a GPU made
+    reachable since the install, more memory — and switches: profile, model, context, fetch, API.
+  - `infrastructure/hivamis model pull [NAME]` fetches a model, switches to it and restarts the API.
+  - `upgrade` fetches the configured model if the store lacks it.
 
 **Hardware, honestly.** The application, its database and the PDF renderer need about 2 GB. Add to
 that the model's memory from the table. Speed depends on the hardware:

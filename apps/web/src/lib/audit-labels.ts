@@ -8,6 +8,10 @@ import { tr } from '../i18n';
 export const ACTION_LABELS: Record<string, string> = {
   CREATE: tr('ایجاد'), UPDATE: tr('ویرایش'), DELETE: tr('حذف'), STATE_TRANSITION: tr('تغییر وضعیت'),
   APPROVE: tr('تأیید'), REJECT: tr('رد'), REVOKE: tr('لغو'), LOGIN: tr('ورود'), LOGIN_FAILED: tr('ورود ناموفق'),
+  // The system administrator's hand on accounts (owner's report, 2026-10-23).
+  ACT_AS_STARTED: tr('آغاز کار مدیر سیستم در حساب'), ACT_AS_ENDED: tr('پایان کار مدیر سیستم در حساب'),
+  PASSWORD_SET: tr('تعیین رمز عبور به دست مدیر'), PERMISSIONS_SET: tr('تعیین دسترسی‌های شخصی'), ACTIVATE: tr('فعال‌سازی حساب'),
+  ORGANIZATION_RESET: tr('شروع دوباره سازمان (با نگه‌داشتن سابقه)'),
   LOGOUT: tr('خروج'), PERMISSION_DENIED: tr('دسترسی رد شد'), AI_ACTION: tr('عملیات هوش مصنوعی'),
   FILE_UPLOAD: tr('بارگذاری فایل'), FILE_DOWNLOAD: tr('دریافت فایل'), FILE_VIEW: tr('مشاهدهٔ فایل'), EXPORT: tr('خروجی‌گیری'),
   BULK_IMPORT: tr('ورود گروهی داده'), TRANSITION_BLOCKED: tr('گذار متوقف‌شده'), GUARD_REMOVED: tr('حذف شرط'),

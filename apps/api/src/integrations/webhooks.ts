@@ -31,7 +31,7 @@ import { env } from '../env.js';
 import { AppError } from '../lib/errors.js';
 import { notify } from '../mail/notify.js';
 import { delegate } from '../workflow/engine.js';
-import { permissionsFor } from '../auth/grants.js';
+import { userPermissions } from '../auth/overrides.js';
 
 export const BACKOFF_MINUTES = [1, 5, 30, 120, 720];
 export const MAX_ATTEMPTS = BACKOFF_MINUTES.length + 1;
@@ -169,7 +169,7 @@ export async function enqueueDeliveries(limitPerSubscription = 500): Promise<num
   for (const sub of subs) {
     // The creator's own authority, read now: a webhook cannot outlive or outgrow its creator.
     if (!sub.createdBy.isActive || sub.createdBy.deletedAt) continue;
-    const perms = await permissionsFor(sub.organizationId, sub.createdBy.roles.map((r) => r.role.code));
+    const perms = await userPermissions({ id: sub.createdById, organizationId: sub.organizationId, roles: sub.createdBy.roles.map((r) => r.role.code) });
     const rows = await prisma.stateTransition.findMany({
       where: {
         organizationId: sub.organizationId, txid: { lt: below },

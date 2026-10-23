@@ -75,7 +75,9 @@ export async function* chat(messages: ChatMessage[], tools: ToolSpec[], signal: 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       model: ollama.model, messages, tools, stream: true, think: false,
-      options: { temperature: 0.3, num_ctx: 8192 },
+      // 8192 was too few: the prompt, the tools, a page's forms and five rounds of tool answers ran
+      // past it, and the model lost its tools from the front (the owner's report, 2026-10-23).
+      options: { temperature: 0.3, num_ctx: env.OLLAMA_NUM_CTX },
       keep_alive: '30m',
     }),
   });

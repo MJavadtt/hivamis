@@ -196,7 +196,9 @@ const envSchema = z.object({
   IMAGE_URL: z.string().default('http://127.0.0.1:8080'),
   IMAGE_MODEL: z.string().default('sd-1.5-ggml'),
   OLLAMA_URL: z.string().default('http://127.0.0.1:11434'),
-  OLLAMA_MODEL: z.string().default('qwen3:14b'),
+  OLLAMA_MODEL: z.string().default('qwen3:8b'),
+  /** How much the model reads at once, in tokens: prompt, tools, history and tool answers together. */
+  OLLAMA_NUM_CTX: z.coerce.number().int().min(2048).max(262144).default(16384),
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
   /** The guide's videos (Hivamis task 8): a screen recording is larger than a document, so it has its own limit. */
   GUIDE_VIDEO_MAX_MB: z.coerce.number().int().min(1).max(2048).default(200),

@@ -53,6 +53,7 @@ model Organization {
   chatConversations ChatConversation[]
   chatMessages      ChatMessage[]
   idempotencyKeys   IdempotencyKey[]
+  userPermissionOverrides UserPermissionOverride[]
 
   @@map("organizations")
 }
@@ -330,6 +331,11 @@ model User {
 
   roles                UserRole[]
   sessions             Session[]
+  /// Sessions a system administrator opened to work in this person's account (owner's report, 2026-10-23).
+  actingSessions       Session[]             @relation("SessionImpersonator")
+  /// Permissions given to or withheld from this person, on top of their roles.
+  permissionOverrides  UserPermissionOverride[] @relation("UserPermissionOverrides")
+  permissionOverridesGiven UserPermissionOverride[] @relation("UserPermissionOverridesGiven")
   ownedLeads           Lead[]                @relation("LeadOwner")
   sourcedLeads         Lead[]                @relation("LeadSourceUser")
   ownedOpportunities   Opportunity[]         @relation("OpportunityOwner")
@@ -339,7 +345,8 @@ model User {
   assignedTasks        Task[]                @relation("TaskAssignee")
   workOrderOwnerships  WorkOrder[]           @relation("WorkOrderOwner")
   allocations          Allocation[]
-  auditEvents          AuditEvent[]
+  auditEvents          AuditEvent[]          @relation("AuditActor")
+  auditEventsActingAs  AuditEvent[]          @relation("AuditImpersonator")
   notifications        Notification[]
   formSubmissions      FormSubmission[]      @relation("FormSubmitter")
   formAssignments      FormSubmission[]      @relation("FormAssignee")
@@ -411,6 +418,10 @@ model Session {
   id               String    @id @default(uuid())
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Set when a system administrator opened this session to work in the person's account: short,
+  /// never refreshed, and every action under it recorded with the administrator's name.
+  impersonatorId   String?
+  impersonator     User?     @relation("SessionImpersonator", fields: [impersonatorId], references: [id], onDelete: Cascade)
   refreshTokenHash String    @unique
   userAgent        String?
   ipAddress        String?
@@ -427,6 +438,26 @@ model Session {
   @@index([userId])
   @@index([familyId])
   @@map("sessions")
+}
+
+/// A permission given to one person or withheld from them, on top of what their roles give (owner's
+/// report, 2026-10-23): the administrator controls each user's access, not only each role's.
+model UserPermissionOverride {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("UserPermissionOverrides", fields: [userId], references: [id], onDelete: Cascade)
+  permission     String
+  /// `grant` adds it to what the roles give; `deny` takes it away.
+  effect         String
+  grantedById    String?
+  grantedBy      User?        @relation("UserPermissionOverridesGiven", fields: [grantedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, permission])
+  @@index([organizationId])
+  @@map("user_permission_overrides")
 }
 
 /**
@@ -1921,9 +1952,13 @@ model AuditEvent {
   entityType     String
   entityId       String?
   actorId        String?
-  actor          User?    @relation(fields: [actorId], references: [id])
+  actor          User?    @relation("AuditActor", fields: [actorId], references: [id])
   /// Set when the actor held the permission only through a delegation: "A, as B's delegate".
   onBehalfOfId   String?
+  /// The system administrator who did this in the actor's account (owner's report, 2026-10-23): the
+  /// actor is whose account it was, this is who was at the keyboard.
+  impersonatorId String?
+  impersonator   User?    @relation("AuditImpersonator", fields: [impersonatorId], references: [id])
   /// Roadmap #46: the API key the request came through — the actor is the key's creator.
   apiKeyId       String?
   before         Json?
@@ -1937,6 +1972,7 @@ model AuditEvent {
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
   @@index([actorId])
+  @@index([impersonatorId])
   @@map("audit_events")
 }
 

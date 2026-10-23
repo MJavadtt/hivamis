@@ -367,7 +367,7 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('OWN', ["routes/team-chat.ts#GET /chat/unread"]),
   // isMember: the live stream asks only about events of the reader's own organisation (routes/live.ts);
   // tellMembers: called after a message was written in a conversation found in the writer's organisation.
-  ...of('CALLER', ["chat/service.ts#isMember", "chat/service.ts#tellMembers"]),
+  ...of('CALLER', ["chat/service.ts#isMember", "chat/service.ts#tellMembersNow"]),
   // Audit F-6, the profile: one's own row; a helper called with oneself or a person found in one's
   // organisation; a photo addressed by its signed link.
   ...of('OWN', ["routes/profile.ts#GET /me/about", "routes/profile.ts#PATCH /me/about"]),
@@ -408,4 +408,9 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/units.ts#PATCH /teams/:id",
     "routes/units.ts#POST /teams/:id/archive",
   ]),
+  // The owner's report (2026-10-23): the person, or the administrator kept, found in the organisation first;
+  // helpers whose every caller passes such a person; and the token's own session and administrator.
+  ...of('EARLIER', ["auth/acting.ts#startActing", "routes/admin.ts#POST /users/:id/activate", "routes/admin.ts#POST /users/:id/password", "setup/reset.ts#resetOrganization"]),
+  ...of('CALLER', ["auth/overrides.ts#overridesOf", "auth/overrides.ts#setOverrides", "auth/remove-user.ts#removeUser"]),
+  ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
 };

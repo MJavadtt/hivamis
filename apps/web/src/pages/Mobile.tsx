@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActingBanner } from '../components/ActingBanner';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiBlob, apiGet, apiPost, apiUpload } from '../lib/api';
@@ -568,6 +569,7 @@ export default function Mobile() {
         </div>
       )}
 
+      <ActingBanner className="mx-3 mt-3" />
       <main className="flex-1 px-3 pb-24 pt-3">
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !items.length ? (
           <EmptyState title={loc(TABS.find((t) => t.key === active)!, 'empty')}
