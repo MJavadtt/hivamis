@@ -42,6 +42,8 @@ export function PlanCard({ action }: { action: ChatAction }) {
 
   const decided = data && data.status !== 'PROPOSED';
   const open = data?.status === 'PROPOSED' && !data.expired;
+  // Nothing in it can run as it stands: say so, rather than offer a button that does nothing.
+  const doable = steps.some((s) => !s.issue);
   const outcome = (i: number) => data?.outcome?.find((o) => o.index === i);
   const toggle = (i: number) => setChosen((c) => { const n = new Set(c); if (n.has(i)) n.delete(i); else n.add(i); return n; });
 
@@ -50,7 +52,8 @@ export function PlanCard({ action }: { action: ChatAction }) {
       <h3 className="text-xs font-semibold text-ink-800">{action.label}</h3>
       <p className="mt-0.5 text-[12.5px] leading-5 text-ink-500">
         {decided ? tr('دربارهٔ این پیشنهاد تصمیم گرفته شد.') : data?.expired ? tr('این پیشنهاد کهنه شده است؛ اگر هنوز لازم است دوباره بخواهید.')
-          : tr('هیچ‌کدام انجام نشده است. آنچه را می‌خواهید علامت بزنید و تأیید کنید؛ هر مورد با نام شما و مثل صفحهٔ خودش انجام می‌شود.')}
+          : !doable ? tr('هیچ موردی از این پیشنهاد به همین شکل انجام‌شدنی نیست؛ دلیلش زیر هر مورد آمده است. آنچه کم است را به دستیار بگویید.')
+          : tr('هیچ‌کدام انجام نشده است. آنچه را می‌خواهید علامت بزنید و «انجام موارد انتخاب‌شده» را بزنید — یا بنویسید «بله»؛ هر مورد با نام شما و مثل صفحهٔ خودش انجام می‌شود.')}
       </p>
       <ol className="mt-2 space-y-2">
         {steps.map((s, i) => {
@@ -62,7 +65,7 @@ export function PlanCard({ action }: { action: ChatAction }) {
                   disabled={!!s.issue || !open || decide.isPending} onChange={() => toggle(i)} />
                 <span className="min-w-0 flex-1" dir="auto">{s.summary}</span>
               </label>
-              {s.issue && <p className="ms-6 mt-1 text-[12.5px] leading-5 text-amber-800">{s.issue}</p>}
+              {s.issue && <p className="ms-6 mt-1 text-[12.5px] leading-5 text-amber-800" data-testid="plan-issue">{tr('انجام‌شدنی نیست: {0}', s.issue)}</p>}
               {o && (
                 <p className={cx('ms-6 mt-1 text-[12.5px] leading-5', OUTCOME[o.status].tone)} data-testid="plan-outcome">
                   {OUTCOME[o.status].label()}{o.status === 'FAILED' && o.message ? `: ${trx(o.message)}` : ''}
@@ -81,7 +84,7 @@ export function PlanCard({ action }: { action: ChatAction }) {
         })}
       </ol>
       {error && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{error}</p>}
-      {open && (
+      {open && doable && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button size="sm" variant="primary" disabled={!chosen.size} loading={decide.isPending && chosen.size > 0}
             onClick={() => { setError(null); decide.mutate([...chosen].sort((a, b) => a - b)); }}>

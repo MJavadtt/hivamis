@@ -87,12 +87,12 @@ describe('Proposed changes', () => {
   it('shows each step with what it will write, and runs only the ticked ones on confirmation', async () => {
     const sent = mount();
     const card = await ask('امروز پیش‌نویس لوگو را تمام کردم و سه ساعت رویش کار کردم');
-    expect(within(card).getByText('هیچ‌کدام انجام نشده است. آنچه را می‌خواهید علامت بزنید و تأیید کنید؛ هر مورد با نام شما و مثل صفحهٔ خودش انجام می‌شود.')).toBeDefined();
+    expect(within(card).getByText('هیچ‌کدام انجام نشده است. آنچه را می‌خواهید علامت بزنید و «انجام موارد انتخاب‌شده» را بزنید — یا بنویسید «بله»؛ هر مورد با نام شما و مثل صفحهٔ خودش انجام می‌شود.')).toBeDefined();
     const boxes = within(card).getAllByRole('checkbox') as HTMLInputElement[];
     await waitFor(() => expect(boxes[0]!.disabled).toBe(false));
     // The step that cannot be approved says why, and cannot be ticked.
     expect(boxes.map((b) => [b.checked, b.disabled])).toEqual([[true, false], [true, false], [false, true]]);
-    expect(within(card).getByText('Doc_H §6: هر وظیفه از سند مبدأش می‌آید.')).toBeDefined();
+    expect(within(card).getByText('انجام‌شدنی نیست: Doc_H §6: هر وظیفه از سند مبدأش می‌آید.')).toBeDefined();
     // The exact request, for whoever wants to see it.
     expect(card.textContent).toContain('POST /api/v1/tasks/t1/time');
     expect(card.textContent).toContain('"hours": 3');

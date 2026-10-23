@@ -3063,3 +3063,44 @@ cannot edit, approve or reject — I want full authority.")
 **Unchanged.** Private conversations stay under oversight with a recorded reason (F-5). A legal
 signature stays the signer's. Working in an account (ADR-099) remains the way to do what only
 that person's place allows.
+
+## ADR-102 — The assistant: read once, checked before it is shown, and "yes" is a yes
+
+**Decision.** (The owner's report, after the first round: "still very slow, and the functions do not
+work — it asked me something I could not answer, and I could not tick what it asked me to choose.")
+
+- **What happened.** The person asked for a new project, and no step makes one.
+  - qwen3:8b proposed a task named «ایجاد پروژه جدید» with a source type of "manual" and a deadline in
+    2023. The person approved it, and it failed.
+  - They typed «بساز». The model, asked again, proposed another task in a project that does not exist.
+    Its checkbox was disabled with a reason in small print.
+  - An earlier question had a blank answer.
+- **Read once.** The model server keeps a prompt it has read and re-reads it only from the first
+  changed token. It read 5,200 tokens in 28 s on the owner's Mac, and 0.3 s the second time. The rules
+  and the tools now lead every request word for word: the data tag's name is no longer in them, and
+  the user, the date and the page come with the question, in a `<context>` block. Measured on the Mac
+  with qwen3:8b: a follow-up in 6–9 s instead of about 20.
+- **Checked before it is shown.** A step is checked as its page would check it:
+  - a source type outside Doc_H §6's six (common names are mapped to them);
+  - a deadline in the past;
+  - hours for a day to come;
+  - a meeting gone by.
+
+  The problem goes back to the model, which is told to fix the step and propose again, or to ask the
+  person. The context carries today as YYYY-MM-DD.
+- **Projects, clients, leads.** A request to make one is recognised. A proposal in its place becomes the
+  form it is made through (B14_PROJECT_DEFINITION, A03_CUSTOMER_INFO, A01_LEAD), an answer without it
+  gets the form, and the turn ends there. A model that offers the form itself keeps its prefill.
+- **"Yes" is a yes.** A short agreement («بله»، «بساز»، yes, do it) runs the ready steps of the
+  conversation's waiting proposal at once, as the card's button would — the model is not asked
+  again. The card then shows what became of each step.
+- **What is true.** A turn whose proposal is fully ready ends with "nothing has been done yet: tick
+  and press, or say yes", not the model's own words (it had said «✅ ثبت شد»). A blank answer is asked
+  for once more, then admitted. A follow-up question carries what the tools found last turn, fenced
+  as data.
+- **The card.** A step that cannot run says «انجام‌شدنی نیست: …». A proposal with nothing runnable
+  says so and shows no button that would do nothing.
+
+**The model.** These measures hold whatever the model. On the owner's Mac, qwen3:8b is what fits:
+qwen3:14b took 90–120 s with 8b beside it. On the server's 24 GB GPU, qwen3:30b (ADR-097) is both
+stronger and faster.

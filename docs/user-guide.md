@@ -783,6 +783,8 @@ yourself, no more. It changes nothing by itself. When something should be done, 
 - a page, to open
 - changes for you to approve (see **Speaking, and approving what it proposes** below)
 
+Approve proposed changes by ticking them and pressing «انجام موارد انتخاب‌شده», or simply write «بله» (yes) or «بساز»: the proposal's ready items are done at once. An item that cannot be done as it stands says why beneath it; tell the assistant what is missing. To make a project, a client or a lead, the assistant opens that form, so the process and its approvals apply.
+
 Your conversations are yours alone. Open earlier ones under «گفت‌وگوهای پیشین», or delete them. The
 governance log records which tools were used on which records, never what was said.
 

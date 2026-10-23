@@ -143,6 +143,20 @@ async function byTitle(ctx: PlanContext, text: string, projectRef: string): Prom
       `در وظیفه‌های خودتان عنوانی مانند «${said.trim()}» نیست؛ کد وظیفه (TSK-…) یا پروژه‌اش (PRJ-…) را بگویید.`);
 }
 
+/** Doc_H §6's six source documents, as a model might name them. */
+const SOURCES: Record<string, string> = {
+  brief: 'BRIEF', 'بریف': 'BRIEF', order: 'ORDER_FORM', order_form: 'ORDER_FORM', 'سفارش': 'ORDER_FORM', 'فرم سفارش': 'ORDER_FORM',
+  minutes: 'MEETING_MINUTES', meeting: 'MEETING_MINUTES', meeting_minutes: 'MEETING_MINUTES', 'صورتجلسه': 'MEETING_MINUTES',
+  change: 'CHANGE_REQUEST', change_request: 'CHANGE_REQUEST', 'درخواست تغییر': 'CHANGE_REQUEST',
+  revision: 'REVISION_FORM', revision_form: 'REVISION_FORM', 'اصلاحیه': 'REVISION_FORM', task: 'TASK', 'وظیفه': 'TASK',
+};
+const sourceOf = (v: string): string | null => {
+  const k = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return ['BRIEF', 'ORDER_FORM', 'TASK', 'MEETING_MINUTES', 'CHANGE_REQUEST', 'REVISION_FORM'].includes(v.trim().toUpperCase()) ? v.trim().toUpperCase()
+    : SOURCES[k] ?? SOURCES[v.trim()] ?? null;
+};
+const today = () => new Date().toISOString().slice(0, 10);
+
 /** A day the model named: "today", "yesterday", or a date. */
 function dayOf(v: unknown): string | null {
   const s = str(v, 40).toLowerCase();
@@ -179,7 +193,8 @@ async function resolve(ctx: PlanContext, raw: Raw): Promise<PlanStep | null> {
       const hours = Number(raw.hours);
       const day = dayOf(raw.date);
       const bad = isWhy(t) ? t : !(hours > 0 && hours <= 24) ? why('hours must be between 0 and 24', 'ساعت‌ها باید بیش از صفر و تا ۲۴ باشد.')
-        : !day ? why('not a date', 'روز کار روشن نیست.') : null;
+        : !day ? why('not a date', 'روز کار روشن نیست.')
+        : day > today() ? why(`time cannot be logged for ${day}, which has not come yet`, 'برای روزی که نیامده زمان ثبت نمی‌شود.') : null;
       if (bad || isWhy(t) || !day) return { kind, summaryFa: 'ثبت زمان', summaryEn: 'Log time', request: NONE, ...flaw(bad) };
       const note = str(raw.note, 500);
       return {
@@ -191,14 +206,22 @@ async function resolve(ctx: PlanContext, raw: Raw): Promise<PlanStep | null> {
       const projectCode = str(raw.project);
       const project = /^PRJ-\d+$/i.test(projectCode) ? await byCode(ctx, 'project', projectCode) : null;
       const title = str(raw.title);
-      const sourceType = str(raw.sourceType, 40);
+      const said = str(raw.sourceType, 40);
+      const sourceType = said ? sourceOf(said) : null;
       const sourceRef = str(raw.sourceRef, 120);
+      const due = raw.dueDate ? dayOf(raw.dueDate) : null;
+      // Checked here as POST /tasks would check it, so a mistake comes back to the model to mend
+      // before the person approves anything (the owner's report, 2026-10-23: a step that failed only
+      // after it was approved — a source type of "manual", a deadline in 2023).
       const issue = !project ? projectMissing(projectCode)
         : title.length < 2 ? why('a task needs a title', 'وظیفه عنوان می‌خواهد.')
         // Doc_H §6: a task traces to its source document, or it is not a task.
-        : !sourceType || !sourceRef ? why('Doc_H §6: a task needs its source document (brief, order form, minutes, change request…)',
-          'Doc_H §6: هر وظیفه از سند مبدأش می‌آید (بریف، فرم سفارش، صورتجلسه، درخواست تغییر…)؛ آن را نام ببرید.') : null;
-      const due = raw.dueDate ? dayOf(raw.dueDate) : null;
+        : !said || !sourceRef ? why('Doc_H §6: a task needs its source document (brief, order form, minutes, change request…)',
+          'Doc_H §6: هر وظیفه از سند مبدأش می‌آید (بریف، فرم سفارش، صورتجلسه، درخواست تغییر…)؛ آن را نام ببرید.')
+        : !sourceType ? why(`sourceType “${said}” is not one of BRIEF, ORDER_FORM, MEETING_MINUTES, CHANGE_REQUEST, REVISION_FORM, TASK`,
+          `نوع سند مبدأ «${said}» شناخته نیست؛ یکی از بریف، فرم سفارش، صورتجلسه، درخواست تغییر، فرم اصلاحیه یا وظیفه.`)
+        : raw.dueDate && !due ? why(`dueDate “${str(raw.dueDate, 40)}” is not a date; write YYYY-MM-DD`, 'مهلت تاریخ درستی نیست.')
+        : due && due < today() ? why(`dueDate ${due} is in the past; today is ${today()}`, `مهلت ${dayFa(due)} گذشته است.`) : null;
       return {
         kind, ...flaw(issue),
         request: { method: 'POST', path: '/tasks', body: { projectId: project?.id, title, departmentCode: ctx.unit, sourceType, sourceRef, ...(due ? { dueDate: due } : {}) } },
@@ -214,6 +237,7 @@ async function resolve(ctx: PlanContext, raw: Raw): Promise<PlanStep | null> {
       const issue = projectCode && !project ? projectMissing(projectCode)
         : subject.length < 2 ? why('a meeting needs a subject', 'جلسه موضوع می‌خواهد.')
         : Number.isNaN(at.getTime()) ? why('a meeting needs a date and time', 'زمان جلسه روشن نیست.')
+        : at.getTime() < Date.now() - 86_400_000 ? why(`the meeting time ${at.toISOString()} is in the past; today is ${today()}`, 'زمان جلسه گذشته است.')
         : attendees.length < 2 ? why('say who attends', 'بگویید چه کسانی در جلسه‌اند.') : null;
       return {
         kind, ...flaw(issue),
@@ -256,6 +280,24 @@ export async function proposePlan(ctx: PlanContext, raw: unknown): Promise<{ id:
   });
   return { id: plan.id, steps };
 }
+
+/** A plan older than this is not run: what it read may have moved. */
+export const PLAN_TTL_MS = 30 * 60_000;
+
+/**
+ * "Yes" in a few words — what a person types to approve the proposal just shown them (the owner's
+ * report, 2026-10-23: they wrote «بساز» and the model, asked again, proposed something else).
+ */
+const AGREE = new Set(['بله', 'آره', 'اره', 'باشه', 'بساز', 'بسازش', 'بسازید', 'انجام', 'بده', 'انجامش', 'تأیید', 'تایید', 'می‌کنم', 'میکنم', 'شود', 'بشه',
+  'اوکی', 'حتما', 'حتماً', 'لطفا', 'لطفاً', 'ok', 'okay', 'yes', 'yep', 'sure', 'do', 'it', 'go', 'ahead', 'confirm', 'please', 'approve', 'approved']);
+export function agrees(message: string): boolean {
+  const w = message.toLowerCase().replace(/[.!؟?،,؛;:«»"'()]/g, ' ').split(/\s+/).filter(Boolean);
+  return w.length > 0 && w.length <= 4 && w.every((x) => AGREE.has(x)) && !w.every((x) => ['لطفا', 'لطفاً', 'please'].includes(x));
+}
+
+/** The steps of a plan that may run as they stand. */
+export const readySteps = (steps: unknown): number[] =>
+  (steps as PlanStep[]).map((s, i) => (!s.issue && s.request.path ? i : -1)).filter((i) => i >= 0);
 
 export interface StepOutcome { index: number; status: 'DONE' | 'FAILED' | 'DECLINED'; code?: string; message?: string }
 

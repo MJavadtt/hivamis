@@ -22,7 +22,7 @@ export type ChatEvent =
   | { event: 'tool'; data: { name: string; args: Record<string, unknown> } }
   | { event: 'delta'; data: { text: string } }
   | { event: 'action'; data: ChatAction }
-  | { event: 'done'; data: { messageId: string; actions: ChatAction[] } }
+  | { event: 'done'; data: { messageId: string; actions: ChatAction[]; /** A proposal approved in words, run by the server. */ planDecided?: string } }
   | { event: 'error'; data: { code: string; message: string } };
 
 export interface ChatRequest {

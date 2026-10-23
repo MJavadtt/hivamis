@@ -5,7 +5,7 @@ import { GUIDE, guideFor, searchGuide } from '@hiva/contracts';
 import { app, call, closeApp, expectOk, get, login } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
-import { runTool, systemPrompt, type AgentContext } from '../src/ai/agent.js';
+import { contextNote, runTool, type AgentContext } from '../src/ai/agent.js';
 
 /**
  * Hivamis task 8: the owl's guide — a section for every page, in both languages, pointing at
@@ -82,7 +82,7 @@ describe('The guide', () => {
 
   it('gives the assistant the guide: the page it was opened on, and a search', async () => {
     const ctx = { locale: 'fa', currency: 'IRR', person: { fullName: 'x', jobTitle: null, unit: null, roles: [] }, page: { path: '/forms' } } as unknown as AgentContext;
-    expect(systemPrompt(ctx)).toContain('«فرم‌ها»');
+    expect(contextNote(ctx)).toContain('«فرم‌ها»');
     const r = await runTool({ function: { name: 'search_guide', arguments: { query: 'چطور ساعت کارم را ثبت کنم' } } }, ctx);
     expect(r.content).toContain('ثبت زمان');
     const none = await runTool({ function: { name: 'search_guide', arguments: { query: 'زرافه' } } }, ctx);

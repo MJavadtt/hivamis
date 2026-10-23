@@ -7,7 +7,8 @@ import { app, closeApp, get, login, post } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { ollama } from '../src/ai/ollama.js';
-import { likeness, words } from '../src/ai/plans.js';
+import { agrees, likeness, words } from '../src/ai/plans.js';
+import { makesARecord } from '../src/ai/agent.js';
 
 /**
  * Audit F-4: speaking to the assistant, and its proposals. «امروز پیش‌نویس لوگوی PRJ-000016 را تمام کردم
@@ -216,6 +217,81 @@ describe('Voice and proposed actions (audit F-4)', () => {
     await prisma.aiPlan.update({ where: { id: plan.planId }, data: { createdAt: new Date(Date.now() - 31 * 60_000) } });
     expect((await post(`/ai/plans/${plan.planId}/execute`, designer, { steps: [0] })).body.error.code).toBe('PLAN_EXPIRED');
     expect((await get(`/ai/plans/${plan.planId}`, designer)).body).toMatchObject({ status: 'PROPOSED', expired: true });
+  });
+
+  // The owner's report (2026-10-23): a step that failed only after it was approved — a source type of
+  // "manual", a deadline in 2023 — and a «بساز» typed in reply that the model answered with another plan.
+  it('checks a step as the page would, so the model mends it before anyone is asked to approve', async () => {
+    const planOf = async (steps: unknown[]) => {
+      script = [callTool('propose_actions', { steps }), say('—')];
+      return (await chat(designer, 'یک وظیفه بساز')).find((e) => e.event === 'action' && e.data.type === 'plan')!.data as { steps: { issue?: string; request: { body: Record<string, unknown> } }[] };
+    };
+    const made = (extra: Record<string, unknown>) => ({ kind: 'create_task', project: PROJECT, title: 'طراحی بنر', sourceRef: 'BRF-000007', ...extra });
+    expect((await planOf([made({ sourceType: 'manual' })])).steps[0]!.issue).toMatch(/نوع سند مبدأ «manual» شناخته نیست/);
+    const brief = (await planOf([made({ sourceType: 'brief' })])).steps[0]!;
+    expect([brief.issue, brief.request.body.sourceType]).toEqual([undefined, 'BRIEF']);
+    expect((await planOf([made({ sourceType: 'BRIEF', dueDate: '2023-10-01' })])).steps[0]!.issue).toMatch(/گذشته است/);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    expect((await planOf([{ kind: 'log_time', task: taskCode, hours: 1, date: tomorrow }])).steps[0]!.issue).toMatch(/روزی که نیامده/);
+  });
+
+  it('runs the waiting proposal when the person agrees in words — the model is not asked again', async () => {
+    script = [callTool('propose_actions', { steps: [{ kind: 'log_time', task: taskCode, hours: 2, date: 'today' }] }), say('تأیید می‌کنید؟')];
+    const first = await chat(designer, 'دو ساعت روی لوگو کار کردم');
+    const conversationId = first.find((e) => e.event === 'meta')!.data.conversationId as string;
+    const planId = first.find((e) => e.event === 'action' && e.data.type === 'plan')!.data.planId as string;
+    const before = await prisma.timeEntry.count({ where: { taskId } });
+    script = [say('این را نباید کسی بشنود')];
+    const yes = await (await app()).inject({ method: 'POST', url: '/api/v1/ai/chat', payload: { message: 'بله، بساز', conversationId }, headers: { authorization: `Bearer ${designer}` } });
+    const events = yes.body.split('\n\n').filter(Boolean).map((block) => ({ event: /event: (\w+)/.exec(block)?.[1] ?? '', data: JSON.parse(/data: (.*)/.exec(block)?.[1] ?? 'null') }));
+    expect(events.find((e) => e.event === 'delta')!.data.text).toMatch(/^انجام شد:\n- ✓ ثبت ۲ ساعت/);
+    expect(events.find((e) => e.event === 'done')!.data.planDecided).toBe(planId);
+    expect(script.length).toBe(1); // the model was not called
+    expect(await prisma.timeEntry.count({ where: { taskId } })).toBe(before + 1);
+    expect(await prisma.aiPlan.findUniqueOrThrow({ where: { id: planId } })).toMatchObject({ status: 'EXECUTED' });
+    script = [];
+    // A new request is not a yes.
+    expect(agrees('بله')).toBe(true);
+    expect(agrees('انجام بده')).toBe(true);
+    expect(agrees('Yes, do it')).toBe(true);
+    expect(agrees('بساز یک پروژه')).toBe(false);
+    expect(agrees('نه')).toBe(false);
+    expect(agrees('لطفاً')).toBe(false);
+  });
+
+  it('opens the form for a project, a client or a lead asked for in words — there is no step for them', async () => {
+    expect(makesARecord('یک پروژه با عنوان جدید برای من ایجاد کن')?.code).toBe('B14_PROJECT_DEFINITION');
+    expect(makesARecord('مشتری تازه ثبت کن')?.code).toBe('A03_CUSTOMER_INFO');
+    expect(makesARecord('create a new lead')?.code).toBe('A01_LEAD');
+    expect(makesARecord('کدام پروژه‌ها در خطرند؟')).toBeNull();
+    expect(makesARecord('یک وظیفه برای پروژه بساز')).toBeNull();
+    const admin = await login('admin@hiva.local');
+    // What a small model did: a task named like the project, and «done».
+    script = [callTool('propose_actions', { steps: [{ kind: 'create_task', project: PROJECT, title: 'ایجاد پروژه جدید', sourceType: 'BRIEF', sourceRef: 'x' }] }), say('پروژه ساخته شد.')];
+    let events = await chat(admin, 'یک پروژه با عنوان جدید برای من ایجاد کن');
+    expect(events.filter((e) => e.event === 'action').map((e) => [e.data.type, e.data.code])).toEqual([['form', 'B14_PROJECT_DEFINITION']]);
+    // An answer with no form gets it.
+    script = [say('باشد.')];
+    events = await chat(admin, 'یک پروژه جدید بساز');
+    expect(events.find((e) => e.event === 'action')!.data).toMatchObject({ type: 'form', code: 'B14_PROJECT_DEFINITION' });
+    expect(events.filter((e) => e.event === 'delta').map((e) => e.data.text).join('')).toMatch(/فرم تعریف پروژه/);
+    script = [];
+  });
+
+  it('ends a ready proposal with what is true: nothing done yet, and how to approve', async () => {
+    script = [callTool('propose_actions', { steps: [{ kind: 'log_time', task: taskCode, hours: 1, date: 'today' }] }), say('✅ ثبت شد')];
+    const events = await chat(designer, 'یک ساعت ثبت کن');
+    const said = events.filter((e) => e.event === 'delta').map((e) => e.data.text).join('');
+    expect(said).toMatch(/هنوز کاری انجام نشده است/);
+    expect(said).not.toMatch(/ثبت شد/);
+    script = [];
+  });
+
+  it('never leaves the person with a blank reply: asks the model once more, then says so', async () => {
+    script = [say(''), say('پاسخ دوم.')];
+    expect((await chat(designer, 'سلام')).filter((e) => e.event === 'delta').map((e) => e.data.text).join('')).toBe('پاسخ دوم.');
+    script = [say(''), say('')];
+    expect((await chat(designer, 'سلام')).filter((e) => e.event === 'delta').map((e) => e.data.text).join('')).toMatch(/نتوانستم پاسخی بسازم/);
   });
 
   it('lets the page use the microphone, its own origin only (audit SEC-9)', () => {

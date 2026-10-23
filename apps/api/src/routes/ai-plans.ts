@@ -4,7 +4,7 @@ import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { transcribe, transcriptionConfigured } from '../meetings/transcribe.js';
-import { executePlan } from '../ai/plans.js';
+import { executePlan, PLAN_TTL_MS } from '../ai/plans.js';
 
 /**
  * Speaking to the assistant, and acting on what it proposes (audit F-4).
@@ -19,8 +19,6 @@ import { executePlan } from '../ai/plans.js';
 /** Long enough for a sentence or three; a meeting has its own route. */
 const MAX_VOICE_BYTES = 10 * 1024 * 1024;
 const AUDIO = /^audio\/(webm|ogg|mp4|mpeg|wav|x-wav|aac|m4a)(;.*)?$/;
-/** A plan older than this is not run: what it read may have moved. */
-const PLAN_TTL_MS = 30 * 60_000;
 
 const executeSchema = z.object({ steps: z.array(z.number().int().min(0).max(7)).max(8) });
 

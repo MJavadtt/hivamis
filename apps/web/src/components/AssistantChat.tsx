@@ -141,7 +141,11 @@ export function AssistantChat({ onClose, initialQuestion, initialDraft }: { onCl
           case 'delta': setQueue(null); update((l) => ({ ...l, content: l.content + e.data.text })); break;
           case 'action': update((l) => ({ ...l, actions: [...l.actions, e.data] })); break;
           case 'error': setError(e.data.message); break;
-          case 'done': void qc.invalidateQueries({ queryKey: ['/ai/conversations'] }); break;
+          case 'done':
+            void qc.invalidateQueries({ queryKey: ['/ai/conversations'] });
+            // Approved in words: the card above shows what became of each step, and the pages what it wrote.
+            if (e.data.planDecided) void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== '/ai/conversations' });
+            break;
         }
       }, abort.current.signal);
     } catch (e) {

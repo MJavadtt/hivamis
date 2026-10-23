@@ -3140,5 +3140,8 @@
   "فرمی ثبت نشده است": "No forms have been submitted",
   "کارهای {0}": "{0}'s work",
   "صف کار این نفر، همان‌طور که خودش می‌بیند — اقدام‌ها با دسترسی شما و به نام شما ثبت می‌شوند.": "This person's queue, as they see it — actions are taken with your access and recorded in your name.",
-  "صف کامل کارهای {0}": "{0}'s full work queue"
+  "صف کامل کارهای {0}": "{0}'s full work queue",
+  "هیچ موردی از این پیشنهاد به همین شکل انجام‌شدنی نیست؛ دلیلش زیر هر مورد آمده است. آنچه کم است را به دستیار بگویید.": "Nothing in this proposal can be done as it stands; the reason is under each item. Tell the assistant what is missing.",
+  "هیچ‌کدام انجام نشده است. آنچه را می‌خواهید علامت بزنید و «انجام موارد انتخاب‌شده» را بزنید — یا بنویسید «بله»؛ هر مورد با نام شما و مثل صفحهٔ خودش انجام می‌شود.": "None of it has been done. Tick what you want and press “Do the selected” — or write “yes”; each item is done in your name, as its own page would do it.",
+  "انجام‌شدنی نیست: {0}": "Cannot be done: {0}"
 }

@@ -8,6 +8,7 @@ import { requestLocale } from '../lib/i18n.js';
 import { modelStatus, ollama, turns, type ChatMessage } from '../ai/ollama.js';
 import { openEventStream } from '../lib/sse.js';
 import { runTurn, type ChatAction } from '../ai/agent.js';
+import { agrees, executePlan, PLAN_TTL_MS, readySteps } from '../ai/plans.js';
 
 /**
  * The chat assistant (Hivamis task 5): a local model, free and without a quota, for everyone the
@@ -73,8 +74,17 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     if (!conversation) throw notFound('گفت‌وگو');
     const earlier = await prisma.aiMessage.findMany({
       where: { conversationId: conversation.id, role: { in: ['user', 'assistant'] } }, orderBy: { createdAt: 'desc' }, take: HISTORY,
-      select: { role: true, content: true },
+      select: { role: true, content: true, createdAt: true },
     });
+    // What the tools answered last turn: a follow-up ("which is most urgent?") is read from it, not
+    // made up (the owner's report, 2026-10-23).
+    const asked = earlier.find((m) => m.role === 'user')?.createdAt;
+    const lastData = asked
+      ? (await prisma.aiMessage.findMany({
+          where: { conversationId: conversation.id, role: 'tool', createdAt: { gt: asked } }, orderBy: { createdAt: 'asc' }, take: 6,
+          select: { toolName: true, content: true },
+        })).map((t) => `${t.toolName}: ${t.content}`).join('\n').slice(0, 3000)
+      : '';
     await prisma.aiMessage.create({ data: { conversationId: conversation.id, role: 'user', content: input.message } });
 
     const out = openEventStream(reply);
@@ -84,6 +94,33 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
 
     const started = Date.now();
     send('meta', { conversationId: conversation.id, model: ollama.model });
+
+    // "Yes" to the proposal just shown: it runs, as the card's button would run it — the model is not
+    // asked again, so it cannot propose something else instead (the owner's report, 2026-10-23).
+    const waiting = agrees(input.message)
+      ? await prisma.aiPlan.findFirst({
+          where: { conversationId: conversation.id, userId: actor.id, status: 'PROPOSED', createdAt: { gt: new Date(Date.now() - PLAN_TTL_MS) } },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
+    const ready = waiting ? readySteps(waiting.steps) : [];
+    if (waiting && ready.length) {
+      const en = requestLocale(req.headers['accept-language']) === 'en';
+      const steps = waiting.steps as { summaryFa: string; summaryEn: string }[];
+      const r = await executePlan(app, waiting, ready, req.headers.authorization ?? '', en ? 'en' : 'fa');
+      const lines = r.outcome.filter((o) => o.status !== 'DECLINED').map((o) => {
+        const what = en ? steps[o.index]!.summaryEn : steps[o.index]!.summaryFa;
+        return o.status === 'DONE' ? `- ✓ ${what}` : `- ✗ ${what}${o.message ? ` — ${o.message}` : ''}`;
+      });
+      const answer = [r.status === 'EXECUTED' ? (en ? 'Done:' : 'انجام شد:') : (en ? 'Not all of it went through:' : 'همه‌اش انجام نشد:'), ...lines].join('\n');
+      send('delta', { text: answer });
+      const saved = await prisma.aiMessage.create({ data: { conversationId: conversation.id, role: 'assistant', content: answer } });
+      await prisma.aiConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
+      send('done', { messageId: saved.id, actions: [], planDecided: waiting.id });
+      if (!out.writableEnded) out.end();
+      return;
+    }
+
     let release: (() => void) | null = null;
     try {
       release = await turns.acquire((position) => send('queue', { position }), controller.signal);
@@ -91,7 +128,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
       const result = await runTurn(history, {
         app, userId: actor.id, authorization: req.headers.authorization ?? '', locale: requestLocale(req.headers['accept-language']), currency: me.organization.currency,
         person: { fullName: me.fullName, jobTitle: me.jobTitle, unit: actor.departmentCode, roles: actor.roles },
-        organizationId: actor.organizationId, conversationId: conversation.id, said: input.message,
+        organizationId: actor.organizationId, conversationId: conversation.id, said: input.message, lastData: lastData || undefined,
         page: input.context ?? null,
       }, {
         onDelta: (text) => send('delta', { text }),
