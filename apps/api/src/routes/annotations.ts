@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { isSystemAdmin } from '../auth/grants.js';
 import { annotationStatusSchema, createAnnotationSchema } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { withAvatar } from '../profile/avatars.js';
@@ -77,7 +78,7 @@ const annotationRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const a = await prisma.annotation.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!a) throw notFound('یادداشت');
-    if (a.authorId !== actor.id) throw forbidden('فقط نویسندهٔ یادداشت آن را پاک می‌کند.');
+    if (a.authorId !== actor.id && !isSystemAdmin(actor)) throw forbidden('فقط نویسندهٔ یادداشت آن را پاک می‌کند.');
     if (a.qcReviewId) throw conflict('ANNOTATION_CARRIED', 'این یادداشت در یک بررسی QC ثبت شده است و دیگر پاک نمی‌شود.');
     await prisma.annotation.delete({ where: { id } });
     await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'DELETE', entityType: 'annotation', entityId: id, before: a, ipAddress: actor.ipAddress, requestId: actor.requestId });

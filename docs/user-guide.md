@@ -503,6 +503,14 @@ People's pages show the team beside the unit.
   changes a system administrator's account — not even the managing director. The organisation always
   keeps at least one active system administrator.
 
+**The system administrator's full authority.** Every form waiting for a decision anywhere in the organisation is in the system administrator's «فرم‌ها ← در انتظار تأیید (همهٔ سازمان)» and in their «کارهای من». The system administrator:
+
+- approves, rejects or returns any form at any stage — even a stage Doc_H names for a particular role, and even their own form;
+- closes a stage with one approval, even where the stage needs several;
+- sees every form in the «همهٔ فرم‌ها» tab.
+
+The history records that the decision was the system administrator's, in place of that stage's roles. On each colleague's page, «صف کامل کارهای …» shows their whole queue — tasks, orders, reviews and forms — as they see it.
+
 **Working in someone else's account.** From a person's «حساب», with a reason written, the system
 administrator enters their account. They see what the person sees and work in their place: approving
 the forms left during a leave, handing over a stuck task.

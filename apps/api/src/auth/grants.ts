@@ -74,6 +74,13 @@ export async function grantSnapshot(tx: Tx = prisma): Promise<Record<string, Rec
 export const mayGrantOversight = (actor: { roles: readonly string[]; delegatedRoles?: Record<string, string> }) =>
   actor.roles.includes(OVERSIGHT_GRANTOR_ROLE) && !actor.delegatedRoles?.[OVERSIGHT_GRANTOR_ROLE];
 
+/**
+ * The system administrator in their own right — above every other role (owner's report, 2026-10-23):
+ * every approval is theirs to give, every person's queue theirs to see. Never through a delegation,
+ * and never while working in someone else's account (that token is the other person's).
+ */
+export const isSystemAdmin = mayGrantOversight;
+
 export const oversightRefused = () =>
   new AppError(403, 'OVERSIGHT_GRANTOR_ONLY', 'دسترسی بازبینی گفت‌وگوها را فقط مدیر سیستم می‌دهد.');
 

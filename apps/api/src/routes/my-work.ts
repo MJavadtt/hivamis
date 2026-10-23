@@ -1,4 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { forbidden, notFound } from '../lib/errors.js';
+import { isSystemAdmin } from '../auth/grants.js';
+import { userPermissions } from '../auth/overrides.js';
 import { prisma } from '../db.js';
 import { actorFrom } from '../lib/http.js';
 import { allowedFor } from '../workflow/engine.js';
@@ -48,22 +51,40 @@ const KIND_LABEL: Record<WorkKind, string> = {
   formApproval: 'تأیید فرم', revision: 'اصلاحیه', clarification: 'رفع ابهام',
 };
 
+interface QueueOwner { id: string; fullName?: string; departmentCode: string | null; roles: string[]; permissions: string[]; delegatedRoles?: Record<string, string> }
+
+/** The reader, or — for the system administrator only — the person whose queue they asked for. */
+async function whoseQueue(actor: ReturnType<typeof actorFrom>, forId: string | undefined): Promise<QueueOwner> {
+  if (!forId || forId === actor.id) return actor;
+  if (!isSystemAdmin(actor)) throw forbidden('صف کار دیگران را فقط مدیر سیستم می‌بیند.');
+  const u = await prisma.user.findFirst({
+    where: { id: forId, organizationId: actor.organizationId, deletedAt: null },
+    select: { id: true, fullName: true, department: { select: { code: true } }, roles: { select: { role: { select: { code: true } } } } },
+  });
+  if (!u) throw notFound('کاربر');
+  const roles = u.roles.map((r) => r.role.code);
+  return { id: u.id, fullName: u.fullName, departmentCode: u.department?.code ?? null, roles, permissions: await userPermissions({ id: u.id, organizationId: actor.organizationId, roles }) };
+}
+
 const myWorkRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me/work', { preHandler: [app.authenticate] }, async (req) => {
     const actor = actorFrom(req);
     const org = actor.organizationId;
-    const can = (p: string) => actor.permissions.includes(p as never);
+    // Whose queue: one's own — or, for the system administrator, anyone's (owner's report,
+    // 2026-10-23). What can be done from it stays the reader's own to decide (allowedFor below).
+    const person = await whoseQueue(actor, (req.query as { for?: string }).for);
+    const can = (p: string) => person.permissions.includes(p as never);
     const proj = { select: { code: true, name: true } } as const;
 
     // Each source capped, what has waited longest first (audit PERF-4); the answer says when one was cut.
     const sources = await Promise.all([
       prisma.task.findMany({
-        where: { organizationId: org, assigneeId: actor.id, state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] } },
+        where: { organizationId: org, assigneeId: person.id, state: { notIn: ['APPROVED', 'CLOSED', 'CANCELLED'] } },
         include: { project: proj }, orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }], take: over(QUEUE_CAP),
       }),
       // Orders sit with their owner until submitted for QC.
       prisma.workOrder.findMany({
-        where: { organizationId: org, ownerId: actor.id, state: { in: ['ISSUED', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'] } },
+        where: { organizationId: org, ownerId: person.id, state: { in: ['ISSUED', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'] } },
         include: { project: proj }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP),
       }),
       // A clarification request sits with whoever may issue orders — Account.
@@ -73,9 +94,10 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
           })
         : Promise.resolve([]),
       // Unit QC: deliverables of my own department, submitted and not yet reviewed since.
-      can('qc.unit') && actor.departmentCode
+      // Every unit's, for the system administrator.
+      can('qc.unit') && (person.departmentCode || isSystemAdmin(person))
         ? prisma.deliverable.findMany({
-            where: { organizationId: org, state: 'SUBMITTED', departmentCode: actor.departmentCode },
+            where: { organizationId: org, state: 'SUBMITTED', ...(isSystemAdmin(person) ? {} : { departmentCode: person.departmentCode ?? '' }) },
             include: { project: proj, qcReviews: { where: { level: 'UNIT' }, select: { reviewedAt: true }, orderBy: { reviewedAt: 'desc' }, take: 1 } },
             orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
           }).then((ds) => ds.filter((d) => !d.qcReviews[0] || (d.submittedAt && d.qcReviews[0].reviewedAt < d.submittedAt)))
@@ -88,15 +110,15 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
         : Promise.resolve([]),
       can('form.approve')
         ? prisma.formSubmission.findMany({
-            where: {
-              organizationId: org, state: 'PENDING_APPROVAL', submittedById: { not: actor.id },
-              ...pendingForRoles(actor.roles),
-            },
+            // Every pending form waits for the system administrator; anyone else, those for their roles.
+            where: isSystemAdmin(person)
+              ? { organizationId: org, state: 'PENDING_APPROVAL' }
+              : { organizationId: org, state: 'PENDING_APPROVAL', submittedById: { not: person.id }, ...pendingForRoles(person.roles) },
             include: { definition: { select: { nameFa: true } }, project: proj }, orderBy: { submittedAt: 'asc' }, take: over(QUEUE_CAP),
           })
         : Promise.resolve([]),
       prisma.revision.findMany({
-        where: { organizationId: org, assigneeId: actor.id, state: { notIn: ['APPROVED', 'REJECTED'] } },
+        where: { organizationId: org, assigneeId: person.id, state: { notIn: ['APPROVED', 'REJECTED'] } },
         include: { deliverable: { select: { name: true, project: proj } } }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP),
       }),
     ]);
@@ -160,6 +182,8 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
     ) as Record<WorkKind, number>;
     return {
       items, counts, kinds: KIND_LABEL, truncated,
+      // Whose queue this is, when it is not the reader's own.
+      person: person.id !== actor.id ? { id: person.id, fullName: person.fullName ?? '' } : null,
       breached: items.filter((i) => i.sla?.state === 'BREACHED').length,
       atRisk: items.filter((i) => i.sla?.state === 'AT_RISK').length,
     };

@@ -1,5 +1,6 @@
 import { DEPARTMENT_LABELS, ROLE_LABELS, evaluateRouting, buildStages, currentStage, type ApprovalStage, type DepartmentCode, type FieldDef, type ResolvedStage, type RoleCode, type RoutingRule, maySubmitForm, FORM_SENDER_BYPASS_ROLES } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { isSystemAdmin } from '../auth/grants.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors.js';
@@ -352,7 +353,12 @@ export async function decideForm(input: DecideFormInput) {
   // A declared stage names whose sign-off is the point of it, so the executive bypass that
   // works on an ordinary form does not let someone stand in for the unit manager (roadmap #18).
   const bypass = input.actor.roles.some((r) => BYPASS_ROLES.has(r)) && !stage?.declared;
-  const isApprover = bypass || input.actor.roles.some((r) => approverRoles.includes(r));
+  const byRole = input.actor.roles.some((r) => approverRoles.includes(r));
+  // The system administrator decides any form at any stage, a declared one included, and their
+  // approval closes the stage whatever its quorum (owner's report, 2026-10-23). The history says
+  // it was theirs, in place of the stage's roles.
+  const asSystemAdmin = isSystemAdmin(input.actor) && !byRole;
+  const isApprover = bypass || byRole || asSystemAdmin;
   // The role that qualifies the actor — if it is a borrowed one, the decision says whose.
   const qualifying = input.actor.roles.find((r) => approverRoles.includes(r));
   const onBehalfOfId = (!bypass && qualifying && input.actor.delegatedRoles?.[qualifying]) || null;
@@ -364,13 +370,13 @@ export async function decideForm(input: DecideFormInput) {
       ? `این فرم در «${stage.labelFa}» است و تصمیم آن با نقش‌های ${roleNames} است.`
       : `تأیید این فرم فقط توسط نقش‌های ${roleNames} مجاز است.`);
   }
-  if (submission.submittedById === input.actor.id && !bypass) {
+  if (submission.submittedById === input.actor.id && !bypass && !asSystemAdmin) {
     // Separation of duties: a submitter cannot approve their own form.
     throw forbidden('تأیید فرم توسط ثبت‌کننده همان فرم مجاز نیست.');
   }
   // A quorum counts people, not clicks: the same approver cannot fill a stage twice, and a
   // bypassing executive standing in for a stage still only counts once.
-  if (stage?.approvedBy.includes(input.actor.id)) {
+  if (stage?.approvedBy.includes(input.actor.id) && !asSystemAdmin) {
     throw badRequest('ALREADY_APPROVED', 'شما پیش‌تر در همین مرحله تأیید کرده‌اید.');
   }
 
@@ -382,8 +388,8 @@ export async function decideForm(input: DecideFormInput) {
   let stageAdvanced = false;
   if (input.decision === 'APPROVE' && stage) {
     const live = nextStages.find((s) => s.id === stage.id && s.state === 'PENDING')!;
-    live.approvedBy.push(input.actor.id);
-    if (live.approvedBy.length >= live.quorum) { live.state = 'APPROVED'; stageAdvanced = true; }
+    if (!live.approvedBy.includes(input.actor.id)) live.approvedBy.push(input.actor.id);
+    if (live.approvedBy.length >= live.quorum || asSystemAdmin) { live.state = 'APPROVED'; stageAdvanced = true; }
   }
   const remaining = currentStage(nextStages);
   const chainComplete = !stages.length || !remaining;
@@ -431,6 +437,7 @@ export async function decideForm(input: DecideFormInput) {
       after: {
         state: nextState,
         ...(stage ? { stage: stage.id, stageFa: stage.labelFa, quorum: stage.quorum, cleared: stageAdvanced } : {}),
+        ...(asSystemAdmin ? { asSystemAdministrator: true, inPlaceOf: approverRoles } : {}),
       },
       reason: input.comment ?? null,
       ipAddress: input.actor.ipAddress,

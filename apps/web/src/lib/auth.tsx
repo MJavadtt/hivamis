@@ -213,6 +213,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/**
+ * The system administrator in their own right — not through a delegation, not while working in
+ * someone else's account (owner's report, 2026-10-23): every form theirs to decide, every queue to see.
+ */
+export function useSystemAdmin(): boolean {
+  const { user } = useAuth();
+  return !!user && user.roles.includes('SUPER_ADMIN') && !user.delegatedRoles?.SUPER_ADMIN && !user.actingAs;
+}
+
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');

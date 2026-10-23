@@ -3036,3 +3036,30 @@ administrator is deleted; the owner's answer: the history stays.)
 - **The people** are removed as ADR-098 removes one, and the administrator kept signs in afresh.
 
 **Rejected.** A new installation: it would lose the history the owner asked to keep, and the settings.
+
+## ADR-101 — Every pending form waits for the system administrator, and every queue is theirs to read
+
+**Decision.** (The owner, after the first round: "I still do not see every part of every user, and
+cannot edit, approve or reject — I want full authority.")
+
+- **Why nothing waited for them.** The approval inbox, and the forms in "my work", were the forms
+  whose current stage named one of the reader's roles. No stage names the system administrator, so
+  their inbox was always empty. A stage Doc_H declares (roadmap #18) also refused the executives'
+  stand-in, the system administrator included.
+- **Every pending form waits for them.** For the system administrator — in their own right, never
+  through a delegation, never while working in someone else's account — the inbox and their queue
+  hold every form pending anywhere in the organisation. The forms page has an "all forms" tab for
+  them, with a decision offered on any pending form.
+- **Any decision is theirs.**
+  - They approve, reject or return any form, at any stage, a declared one included, and their own.
+  - Their approval closes the stage whatever its quorum.
+  - The audit row says `asSystemAdministrator`, with the roles the stage asked for (`inPlaceOf`).
+  - The same holds for a price they set themselves, and for a reviewer's note they delete.
+- **Anyone's queue.** `GET /me/work?for=<person>` gives the system administrator that person's queue,
+  as the person sees it: tasks, orders, reviews and forms. What can be done from it stays the
+  administrator's own to decide, and is recorded under their name. A person's page links to it.
+  Unit QC in the administrator's own queue covers every unit.
+
+**Unchanged.** Private conversations stay under oversight with a recorded reason (F-5). A legal
+signature stays the signer's. Working in an account (ADR-099) remains the way to do what only
+that person's place allows.

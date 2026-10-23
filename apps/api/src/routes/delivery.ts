@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { isSystemAdmin } from '../auth/grants.js';
 import {
   createBriefSchema, updateBriefSchema, createProposalSchema, updateProposalSchema,
   setPricingSchema, declareCostSchema, createProjectSchema, updateProjectSchema,
@@ -235,7 +236,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     if (proposal.salePrice == null) {
       throw badRequest('NO_PRICE', 'قیمتی برای تأیید ثبت نشده است.');
     }
-    if (proposal.pricedById === actor.id) {
+    // Separation of duties — but the system administrator is above it (owner's report, 2026-10-23).
+    if (proposal.pricedById === actor.id && !isSystemAdmin(actor)) {
       throw forbidden('تأیید قیمت توسط همان فردی که آن را تعیین کرده مجاز نیست.');
     }
     const updated = await prisma.proposal.update({

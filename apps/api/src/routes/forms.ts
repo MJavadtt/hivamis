@@ -9,6 +9,7 @@ import { actorFrom, page, parse } from '../lib/http.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { decideForm, pendingForRoles, submitForm } from '../forms/engine.js';
+import { isSystemAdmin } from '../auth/grants.js';
 import { schemaForSubmission } from '../forms/versions.js';
 import { nextCustomNumber, protectedKeys, saveDesign, validateDesign } from '../forms/designer.js';
 import { exportCsv, previewImport, rowsFromCsv, runImport, templateCsv, templateFor } from '../forms/bulk.js';
@@ -372,11 +373,14 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       ...(formCode ? { definition: { code: formCode } } : {}),
       ...(mine === 'true' ? { submittedById: actor.id } : {}),
     };
-    // Approval inbox: forms pending a decision from one of the caller's roles.
+    // Approval inbox: forms pending a decision from one of the caller's roles — for the system
+    // administrator, every form pending anywhere (owner's report, 2026-10-23).
     if (awaitingMe === 'true') {
       where.state = 'PENDING_APPROVAL';
-      Object.assign(where, pendingForRoles(actor.roles));
-      where.submittedById = { not: actor.id };
+      if (!isSystemAdmin(actor)) {
+        Object.assign(where, pendingForRoles(actor.roles));
+        where.submittedById = { not: actor.id };
+      }
     }
 
     const [items, total] = await Promise.all([

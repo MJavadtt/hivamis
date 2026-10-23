@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSystemAdmin } from '../lib/auth';
 import { offlineQuery } from '../lib/offline';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -64,7 +65,7 @@ interface Submission {
   project: { id: string; code: string; name: string } | null;
 }
 
-const FORM_TABS = ['catalogue', 'inbox', 'mine'] as const;
+const FORM_TABS = ['catalogue', 'inbox', 'mine', 'all'] as const;
 
 export default function Forms() {
   // A link may name the tab (the dashboard's tiles) or one submission (approval emails, the phone):
@@ -73,6 +74,8 @@ export default function Forms() {
   const linked = params.get('submission');
   const asked = params.get('tab');
   const [tab, setTab] = useState<string>(linked ? 'inbox' : FORM_TABS.includes(asked as never) ? asked! : 'catalogue');
+  // The system administrator sees every form and decides any of them (owner's report, 2026-10-23).
+  const systemAdmin = useSystemAdmin();
   return (
     <>
       <PageHeader
@@ -87,8 +90,9 @@ export default function Forms() {
           onChange={setTab}
           tabs={[
             { key: 'catalogue', label: tr('کاتالوگ فرم‌ها') },
-            { key: 'inbox', label: tr('در انتظار تأیید من') },
+            { key: 'inbox', label: systemAdmin ? tr('در انتظار تأیید (همهٔ سازمان)') : tr('در انتظار تأیید من') },
             { key: 'mine', label: tr('فرم‌های من') },
+            ...(systemAdmin ? [{ key: 'all', label: tr('همهٔ فرم‌ها') }] : []),
           ]}
         />
       </div>
@@ -98,6 +102,7 @@ export default function Forms() {
         {tab === 'catalogue' && <Catalogue />}
         {tab === 'inbox' && <Submissions awaitingMe openId={linked} />}
         {tab === 'mine' && <Submissions mine />}
+        {tab === 'all' && systemAdmin && <Submissions all />}
       </PageBody>
     </>
   );
@@ -607,11 +612,13 @@ export function EntitySelect({ entity, value, onChange }: { entity: string; valu
 
 /* ── Submissions ───────────────────────────────────────────────────────── */
 
-function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?: boolean; openId?: string | null }) {
+function Submissions({ awaitingMe, mine, all, openId }: { awaitingMe?: boolean; mine?: boolean; all?: boolean; openId?: string | null }) {
   const [decide, setDecide] = useState<Submission | null>(null);
+  // A decision is offered in the inbox, and — to the system administrator — on any pending form.
+  const decidable = (s: Submission) => awaitingMe || (all && s.state === 'PENDING_APPROVAL');
   const toast = useToast();
   const { data, isLoading, error, refetch } = useQuery<{ items: Submission[]; total: number }>({
-    queryKey: ['/forms/submissions', { awaitingMe, mine }],
+    queryKey: ['/forms/submissions', { awaitingMe, mine, all }],
     queryFn: () => apiGet('/forms/submissions', {
       awaitingMe: awaitingMe ? 'true' : undefined,
       mine: mine ? 'true' : undefined,
@@ -637,7 +644,7 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
       <Card>
         {!data?.items.length ? (
           <EmptyState
-            title={awaitingMe ? tr('فرمی در انتظار تأیید شما نیست') : tr('فرمی ثبت نکرده‌اید')}
+            title={awaitingMe ? tr('فرمی در انتظار تأیید شما نیست') : all ? tr('فرمی ثبت نشده است') : tr('فرمی ثبت نکرده‌اید')}
             description={awaitingMe ? tr('فرم‌های ارجاع‌شده به نقش شما اینجا نمایش داده می‌شوند.') : undefined}
           />
         ) : (
@@ -645,7 +652,7 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
             <thead className="bg-ink-50/60">
               <tr>
                 <Th>{tr('فرم')}</Th><Th>{tr('دسته')}</Th><Th>{tr('ثبت‌کننده')}</Th><Th>{tr('پروژه')}</Th>
-                <Th>{tr('زمان')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('خروجی')}</Th>{awaitingMe && <Th>{tr('اقدام')}</Th>}
+                <Th>{tr('زمان')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('خروجی')}</Th>{(awaitingMe || all) && <Th>{tr('اقدام')}</Th>}
               </tr>
             </thead>
             <tbody>
@@ -658,9 +665,9 @@ function Submissions({ awaitingMe, mine, openId }: { awaitingMe?: boolean; mine?
                   <Td className="text-xs">{formatDateTime(s.createdAt)}</Td>
                   <Td><StateBadge state={s.state} /></Td>
                   <Td><PdfButton kind="form-submission" id={s.id} label="PDF" variant="ghost" /></Td>
-                  {awaitingMe && (
+                  {(awaitingMe || all) && (
                     <Td>
-                      <Button size="sm" variant="primary" onClick={() => setDecide(s)}>{tr('بررسی')}</Button>
+                      {decidable(s) && <Button size="sm" variant="primary" onClick={() => setDecide(s)}>{tr('بررسی')}</Button>}
                     </Td>
                   )}
                 </Tr>

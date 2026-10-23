@@ -3135,5 +3135,10 @@
   "تعیین رمز عبور به دست مدیر": "Password set by administrator",
   "تعیین دسترسی‌های شخصی": "Person's own permissions set",
   "به دست مدیر سیستم، {0}": "by the system administrator, {0}",
-  "شروع دوباره سازمان (با نگه‌داشتن سابقه)": "Organisation started afresh (history kept)"
+  "شروع دوباره سازمان (با نگه‌داشتن سابقه)": "Organisation started afresh (history kept)",
+  "در انتظار تأیید (همهٔ سازمان)": "Awaiting approval (whole organisation)",
+  "فرمی ثبت نشده است": "No forms have been submitted",
+  "کارهای {0}": "{0}'s work",
+  "صف کار این نفر، همان‌طور که خودش می‌بیند — اقدام‌ها با دسترسی شما و به نام شما ثبت می‌شوند.": "This person's queue, as they see it — actions are taken with your access and recorded in your name.",
+  "صف کامل کارهای {0}": "{0}'s full work queue"
 }

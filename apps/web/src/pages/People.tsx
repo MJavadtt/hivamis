@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSystemAdmin } from '../lib/auth';
 import { formatDate, formatDateTime, localDigits } from '../lib/format';
 import { Badge, Card, EmptyState, ErrorBlock, Input, LoadingBlock, StateBadge } from '../components/ui';
 import { Code } from '../components/common';
@@ -77,13 +77,16 @@ export function PersonPage() {
   useRoles(); // names an organisation's own roles too (audit F-3)
   const { id = '' } = useParams();
   const { can } = useAuth();
+  const systemAdmin = useSystemAdmin();
   const { data: p, isLoading, error, refetch } = useQuery<Person>({ queryKey: ['/people', id], queryFn: () => apiGet(`/people/${id}`) });
   if (isLoading) return <LoadingBlock />;
   if (error || !p) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
   return (
     <>
       <PageHeader title={p.fullName} subtitle={trx(p.jobTitle) || undefined}
-        actions={p.self ? <Link to="/me" className="text-sm text-brand-700 underline">{tr('روش‌های ورود و دستگاه‌ها')}</Link> : undefined} />
+        actions={p.self ? <Link to="/me" className="text-sm text-brand-700 underline">{tr('روش‌های ورود و دستگاه‌ها')}</Link>
+          // The system administrator reads anyone's whole queue (owner's report, 2026-10-23).
+          : systemAdmin ? <Link to={`/my-work?for=${p.id}`} className="text-sm font-semibold text-brand-700 underline" data-testid="person-queue">{tr('صف کامل کارهای {0}', p.fullName)}</Link> : undefined} />
       <PageBody>
         <div className="grid gap-5 lg:grid-cols-[20rem_1fr]" data-testid="person">
           <Card>

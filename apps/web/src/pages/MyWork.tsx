@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Outbox } from '../components/Outbox';
 import { Freshness } from '../components/Freshness';
 import { offlineQuery } from '../lib/offline';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { apiGet } from '../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, WorkflowActions } from '../components/common';
@@ -25,6 +26,8 @@ interface Queue {
   items: WorkItem[]; counts: Record<string, number>; kinds: Record<string, string>; breached: number; atRisk: number;
   /** Audit PERF-4: a queue longer than one reading takes; what has waited longest is shown. */
   truncated?: boolean;
+  /** Whose queue, when the system administrator reads someone else's (owner's report, 2026-10-23). */
+  person?: { id: string; fullName: string } | null;
 }
 
 /** How a clock reads at a glance: what is left of it, or that it is gone. */
@@ -58,16 +61,23 @@ export default function MyWork() {
   const [kind, setKind] = useState<string | null>(null);
   const live = useLiveStatus();
   // Kept on the device: the work list is what a person opens in the field (audit F-7).
-  const { data, isLoading, error, refetch } = useQuery<Queue>({ ...offlineQuery<Queue>('/me/work'), refetchInterval: fallbackInterval(live) });
+  // `?for=` — someone else's queue, for the system administrator; read live, never kept on the device.
+  const [params] = useSearchParams();
+  const forId = params.get('for');
+  const { data, isLoading, error, refetch } = useQuery<Queue>(forId
+    ? { queryKey: ['/me/work', forId], queryFn: () => apiGet('/me/work', { for: forId }), refetchInterval: fallbackInterval(live) }
+    : { ...offlineQuery<Queue>('/me/work'), refetchInterval: fallbackInterval(live) });
 
   const items = (data?.items ?? []).filter((i) => !kind || i.kind === kind);
 
   return (
     <>
-      <PageHeader title={tr('کارهای من')} subtitle={tr('هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد')} />
+      <PageHeader
+        title={data?.person ? tr('کارهای {0}', data.person.fullName) : tr('کارهای من')}
+        subtitle={data?.person ? tr('صف کار این نفر، همان‌طور که خودش می‌بیند — اقدام‌ها با دسترسی شما و به نام شما ثبت می‌شوند.') : tr('هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد')} />
       <PageBody>
-        <Freshness path="/me/work" />
-        <div className="mb-4 empty:hidden"><Outbox /></div>
+        {!forId && <Freshness path="/me/work" />}
+        {!forId && <div className="mb-4 empty:hidden"><Outbox /></div>}
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !data ? null : (
           <>
             <div data-tour="tiles" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

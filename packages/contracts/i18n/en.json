@@ -2752,5 +2752,6 @@
   "حذف حساب خودتان مجاز نیست.": "You cannot remove your own account.",
   "--slug لازم است: این نصب بیش از یک سازمان دارد.": "--slug is needed: this installation has more than one organisation.",
   "{0} مدیر سیستم این سازمان نیست. مدیران سیستم: {1}": "{0} is not a system administrator of this organisation. Its system administrators: {1}",
-  "رمز عبور دست‌کم ۱۲ نویسه باشد.": "The password must be at least 12 characters."
+  "رمز عبور دست‌کم ۱۲ نویسه باشد.": "The password must be at least 12 characters.",
+  "صف کار دیگران را فقط مدیر سیستم می‌بیند.": "Only the system administrator sees other people's queues."
 }
