@@ -3,6 +3,7 @@ import { call, closeApp, get, refreshCookieOf, refreshWith, signIn } from './hel
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { createTicket } from '../src/auth/google.js';
+import { cookieSecure } from '../src/auth/cookie.js';
 import { hashToken } from '../src/auth/tokens.js';
 
 /**
@@ -33,12 +34,17 @@ describe('The refresh token’s cookie (audit SEC-4)', () => {
     expect(await prisma.session.count({ where: { refreshTokenHash: hashToken(refreshCookieOf(res)!) } })).toBe(1);
   });
 
-  it('is Secure in production', async () => {
+  it('is Secure over https, and kept over plain http even in production', async () => {
+    expect(cookieSecure({ protocol: 'https' })).toBe(true);
+    expect(cookieSecure({ protocol: 'http' })).toBe(false);
+    // A server reached at http://its-address: a Secure cookie there is dropped, and every reload —
+    // the language switch's among them — signed its people out (owner's report, 2026-10-23).
     const was = env.NODE_ENV;
     (env as { NODE_ENV: string }).NODE_ENV = 'production';
     try {
       const res = await call('POST', '/auth/login', { payload: { email: 'sales@hiva.local', password: 'Hiva@Dev2026!' } });
-      expect(cookieLine(res)).toMatch(/; Secure/);
+      expect(cookieLine(res)).toMatch(/HttpOnly/);
+      expect(cookieLine(res)).not.toMatch(/Secure/);
     } finally { (env as { NODE_ENV: string }).NODE_ENV = was; }
   });
 

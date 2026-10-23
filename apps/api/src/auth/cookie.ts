@@ -8,27 +8,35 @@ import { ttlToMs } from './tokens.js';
  * Audit SEC-4: the refresh token lives in a cookie the page's script cannot read.
  *
  * It sat in localStorage, where any script on the page could read a credential good for seven days.
- * Now it is `HttpOnly`, `SameSite=Strict`, sent only to `/api/v1/auth`, and `Secure` in production
- * (a browser drops a Secure cookie over plain http, which development is). Response bodies no longer
- * carry it. The access token stays in memory, as before.
+ * Now it is `HttpOnly`, `SameSite=Strict`, sent only to `/api/v1/auth`, and `Secure` whenever the
+ * page came over https. Response bodies no longer carry it. The access token stays in memory, as
+ * before.
+ *
+ * `Secure` follows the request, not NODE_ENV: a browser drops a Secure cookie that arrives over plain
+ * http, so a server reached at http://its-address signed everyone out at every reload — the language
+ * switch reloads (owner's report, 2026-10-23). Behind nginx the scheme is X-Forwarded-Proto, which
+ * nginx sets itself and TRUST_PROXY lets the API read.
  */
 
 export const REFRESH_COOKIE = 'hiva_refresh';
 const PATH = '/api/v1/auth';
 
-const options = () => ({
+/** Whether the browser reached us over https, the only place a Secure cookie survives. */
+export const cookieSecure = (req: Pick<FastifyRequest, 'protocol'>): boolean => req.protocol === 'https';
+
+const options = (req: FastifyRequest) => ({
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
+  secure: cookieSecure(req),
   sameSite: 'strict' as const,
   path: PATH,
 });
 
 export function setRefreshCookie(reply: FastifyReply, token: string): void {
-  reply.setCookie(REFRESH_COOKIE, token, { ...options(), maxAge: Math.floor(ttlToMs(env.REFRESH_TOKEN_TTL) / 1000) });
+  reply.setCookie(REFRESH_COOKIE, token, { ...options(reply.request), maxAge: Math.floor(ttlToMs(env.REFRESH_TOKEN_TTL) / 1000) });
 }
 
 export function clearRefreshCookie(reply: FastifyReply): void {
-  reply.clearCookie(REFRESH_COOKIE, options());
+  reply.clearCookie(REFRESH_COOKIE, options(reply.request));
 }
 
 export const refreshCookie = (req: FastifyRequest): string | undefined => req.cookies?.[REFRESH_COOKIE] || undefined;
@@ -68,10 +76,10 @@ export const OAUTH_COOKIE = 'hiva_oauth';
 const OAUTH_PATH = '/api/v1/auth/google';
 
 export function setOAuthCookie(reply: FastifyReply, binding: string): void {
-  reply.setCookie(OAUTH_COOKIE, binding, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', path: OAUTH_PATH, maxAge: 600 });
+  reply.setCookie(OAUTH_COOKIE, binding, { httpOnly: true, secure: cookieSecure(reply.request), sameSite: 'lax', path: OAUTH_PATH, maxAge: 600 });
 }
 export function clearOAuthCookie(reply: FastifyReply): void {
-  reply.clearCookie(OAUTH_COOKIE, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', path: OAUTH_PATH });
+  reply.clearCookie(OAUTH_COOKIE, { httpOnly: true, secure: cookieSecure(reply.request), sameSite: 'lax', path: OAUTH_PATH });
 }
 export const oauthCookie = (req: FastifyRequest): string | undefined => req.cookies?.[OAUTH_COOKIE] || undefined;
 
