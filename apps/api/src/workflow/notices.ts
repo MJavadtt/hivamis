@@ -15,6 +15,7 @@ const at = new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', weekday: 
 export async function noticesAfter(out: TransitionOutcome, actor: { id: string; organizationId: string }): Promise<void> {
   const r = out.record;
   if (out.entity === 'booking') return bookingNotices(out, actor);
+  if (out.entity === 'siteProject') return siteProjectNotices(out, actor);
 
   if (out.entity === 'workOrder' && (out.action === 'issue' || out.action === 'clarify') && r.ownerId && r.ownerId !== actor.id) {
     // The deadline as the clock has it — the organisation may have changed the four hours (#48).
@@ -108,5 +109,30 @@ export async function bookingNotices(out: TransitionOutcome, actor: { id: string
     for (const userId of told) {
       await notify({ ...base, userId, kind: 'BOOKING_CANCELLED', title: `جلسه لغو شد: ${r.title}`, body: `${r.code} — ${at}. ${r.cancelReason ?? ''}`.trim() });
     }
+  }
+}
+
+/**
+ * Who hears about a deployment project's move (ADR-103): those who decide the next step — the contract's
+ * approvers when one is sent, whoever may close it when closure is asked for — and the project's
+ * responsible colleague when someone else decided something of theirs.
+ */
+export async function siteProjectNotices(out: TransitionOutcome, actor: { id: string; organizationId: string }): Promise<void> {
+  const r = out.record;
+  const { holdersOf } = await import('../sites/people.js');
+  const base = { entityType: 'siteProject', entityId: out.id, severity: 'INFO' as const };
+  const tell = async (userIds: string[], kind: string, title: string, body: string) => {
+    for (const userId of new Set(userIds)) if (userId !== actor.id) await notify({ ...base, userId, kind, title, body });
+  };
+  if (out.action === 'submit_contract') {
+    await tell(await holdersOf(actor.organizationId, 'site.contract.approve', { inOwnRight: true }), 'SITE_CONTRACT_PENDING',
+      `قرارداد مکان در انتظار تأیید: ${r.name}`, `${r.code} — قرارداد را بخوانید و تأیید یا رد کنید.`);
+  }
+  if (out.action === 'request_closure') {
+    await tell(await holdersOf(actor.organizationId, 'site.close', { inOwnRight: true }), 'SITE_CLOSURE_PENDING',
+      `درخواست بستن پروژهٔ استقرار: ${r.name}`, `${r.code} — حساب‌ها تسویه شده؛ پروژه را ببندید یا به تسویه برگردانید.`);
+  }
+  if (['approve_contract', 'reject_contract', 'close', 'return_to_settlement'].includes(out.action) && r.responsibleId) {
+    await tell([r.responsibleId], 'SITE_PROJECT_DECIDED', `${r.name}: ${out.action === 'approve_contract' ? 'قرارداد تأیید شد' : out.action === 'reject_contract' ? 'قرارداد رد شد' : out.action === 'close' ? 'پروژه بسته شد' : 'به تسویه برگشت'}`, r.code);
   }
 }

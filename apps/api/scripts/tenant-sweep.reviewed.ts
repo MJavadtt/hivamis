@@ -413,4 +413,37 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('EARLIER', ["auth/acting.ts#startActing", "routes/admin.ts#POST /users/:id/activate", "routes/admin.ts#POST /users/:id/password", "setup/reset.ts#resetOrganization"]),
   ...of('CALLER', ["auth/overrides.ts#overridesOf", "auth/overrides.ts#setOverrides", "auth/remove-user.ts#removeUser"]),
   ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
+  // ADR-103: venues, deployment projects and rentals. Lists build their where-object (with the caller's
+  // organisation) above the query; every change finds its record in the organisation first, then works
+  // by its id or its project's; the ledger's helpers lock the project in the organisation before they
+  // read its rows; the workflow's rules read the project the engine loaded; the jobs work across every
+  // organisation, each row carrying its own.
+  ...of('LIST', [
+    "routes/rentals.ts#GET /rentals/dashboard", "routes/rentals.ts#GET /site-obligations", "routes/rentals.ts#GET /site-reminders",
+    "routes/rentals.ts#fetchObligations", "routes/rentals.ts#fetchPayments", "routes/rentals.ts#fetchProjects", "routes/rentals.ts#fetchVenues",
+    "routes/site-projects.ts#GET /site-projects", "routes/venues.ts#GET /venue-messages", "routes/venues.ts#GET /venues",
+    "sites/reports.ts#projectReport", "sites/reports.ts#rentalReport", "sites/reports.ts#venueReport",
+  ]),
+  ...of('EARLIER', [
+    "routes/rentals.ts#GET /site-projects/:id/closure", "routes/rentals.ts#GET /site-projects/:id/ledger",
+    "routes/rentals.ts#PATCH /site-obligations/:id", "routes/rentals.ts#POST /site-obligations/:id/close",
+    "routes/site-projects.ts#DELETE /site-assignments/:id", "routes/site-projects.ts#DELETE /site-counters/:id",
+    "routes/site-projects.ts#PATCH /site-assignments/:id", "routes/site-projects.ts#PATCH /site-counters/:id",
+    "routes/site-projects.ts#PATCH /site-negotiations/:id", "routes/site-projects.ts#PATCH /site-projects/:id",
+    "routes/site-projects.ts#POST /site-contracts/:id/decision", "routes/site-projects.ts#POST /site-contracts/:id/submit",
+    "routes/site-projects.ts#POST /site-projects/:id/contracts",
+    "routes/venues.ts#DELETE /venue-channels/:id", "routes/venues.ts#PATCH /site-options/:id", "routes/venues.ts#PATCH /venue-contacts/:id",
+    "routes/venues.ts#PATCH /venues/:id", "routes/venues.ts#POST /venue-contacts/:id/archive", "routes/venues.ts#POST /venues/:id/archive",
+    "routes/venues.ts#POST /venues/:id/channels", "routes/venues.ts#POST /venues/:id/duplicates/decision", "routes/venues.ts#POST /venues/:id/restore",
+    "sites/excel.ts#runImport", "sites/excel.ts#work",
+    "sites/ledger.ts#decideDeduction", "sites/ledger.ts#lockProject", "sites/ledger.ts#proposeDeduction", "sites/ledger.ts#recordPayment", "sites/ledger.ts#reversePayment",
+    "sites/reminders.ts#dueReminders", "sites/schedule.ts#applySchedule",
+  ]),
+  ...of('CALLER', ["sites/ledger.ts#balancesOf", "sites/ledger.ts#depositOf", "sites/ledger.ts#settle"]),
+  ...of('ENGINE', [
+    "sites/workflow.ts#'siteProject.activationEvidence'", "sites/workflow.ts#'siteProject.agreedNegotiation'", "sites/workflow.ts#'siteProject.cancel'",
+    "sites/workflow.ts#'siteProject.contractApproved'", "sites/workflow.ts#'siteProject.installationPlanned'", "sites/workflow.ts#'siteProject.venueActive'",
+    "sites/workflow.ts#currentContract", "sites/workflow.ts#evidence", "sites/workflow.ts#openMoney",
+  ]),
+  ...of('SYSTEM', ["sites/messages.ts#followUpMessages", "sites/reminders.ts#runReminders", "sites/reminders.ts#staffPhones"]),
 };

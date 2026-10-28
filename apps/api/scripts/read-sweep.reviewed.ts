@@ -293,4 +293,18 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('IDS', ["auth/overrides.ts#overridesOf#userPermissionOverride#1"]),
   ...of('PEOPLE', ["setup/reset.ts#adminOf#user#1", "setup/reset.ts#resetOrganization#user#1"]),
   ...of('RESET', ["setup/reset.ts#resetOrganization#document#1"]),
+  // ADR-103: one deployment project's own ledger and closure, ids from a page or a bounded request,
+  // the organisation's own lists, and the organisations the daily reminder run goes through.
+  ...of('CHILDREN', [
+    "routes/rentals.ts#GET /site-projects/:id/closure#siteDepositEntry#1", "routes/rentals.ts#GET /site-projects/:id/closure#waiver#1",
+    "routes/rentals.ts#GET /site-projects/:id/ledger#siteDepositEntry#1", "routes/rentals.ts#GET /site-projects/:id/ledger#siteObligation#1",
+    "routes/rentals.ts#GET /site-projects/:id/ledger#sitePayment#1", "routes/venues.ts#GET /venues/:id#venue#1",
+    "sites/ledger.ts#balancesOf#siteCounter#1", "sites/ledger.ts#balancesOf#siteObligation#1", "sites/ledger.ts#balancesOf#sitePayment#1",
+    "sites/ledger.ts#recordPayment#siteObligation#1", "sites/schedule.ts#applySchedule#siteObligation#1",
+  ]),
+  ...of('IDS', [
+    "routes/rentals.ts#GET /site-reminders#siteProject#1", "routes/rentals.ts#GET /site-reminders#user#1",
+    "sites/messages.ts#recipientsFor#venue#1", "sites/messages.ts#recipientsFor#venueContact#1", "sites/reminders.ts#staffPhones#user#1",
+  ]),
+  ...of('REFERENCE', ["sites/options.ts#optionsOf#siteOption#1", "sites/reminders.ts#runReminders#organization#1"]),
 };

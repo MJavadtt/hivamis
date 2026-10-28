@@ -19,7 +19,7 @@ import {
   Badge, Button, Spinner, cx,
   IconAlert, IconBell, IconBriefcase, IconChart, IconCheckCircle, IconClipboard,
   IconClose, IconDashboard, IconFile, IconFold, IconLogout, IconMoney, IconSearch,
-  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers, IconChat, IconClock,
+  IconSettings, IconShield, IconSpark, IconTraffic, IconUsers, IconLayers, IconChat, IconClock, IconPin,
 } from './ui';
 import { loc, tr, trx } from '../i18n';
 import { Avatar } from './Avatar';
@@ -86,6 +86,16 @@ const NAV: NavGroup[] = [
       { to: '/changes', label: tr('درخواست‌های تغییر'), icon: IconAlert, permission: 'change.read' },
       { to: '/traffic', label: tr('ترافیک و ظرفیت'), icon: IconTraffic, permission: 'traffic.read' },
       { to: '/suppliers', label: tr('تأمین‌کنندگان'), icon: IconUsers, permission: 'supplier.read' },
+    ],
+  },
+  {
+    // ADR-103: the venue database, the projects placed in venues, and what is paid for the space.
+    label: tr('مکان‌ها و اجاره‌داری'),
+    items: [
+      { to: '/sites', label: tr('داشبورد مکان‌ها'), icon: IconDashboard, anyOf: ['venue.read', 'site.read', 'rental.read'] },
+      { to: '/sites/venues', label: tr('بانک مکان‌ها'), icon: IconPin, permission: 'venue.read' },
+      { to: '/sites/projects', label: tr('پروژه‌های استقرار'), icon: IconLayers, permission: 'site.read' },
+      { to: '/sites/rentals', label: tr('اجاره‌داری'), icon: IconMoney, permission: 'rental.read' },
     ],
   },
   {

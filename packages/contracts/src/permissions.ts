@@ -131,6 +131,21 @@ export const PERMISSIONS = {
   'resource.manage': 'مدیریت اتاق‌ها، تجهیزات، پارکینگ و پذیرایی',
   'reception.checkin': 'پذیرش مهمانان جلسه',
 
+  // Venues, deployment projects and rentals (ADR-103): the database of places a counter or a stand can
+  // go, the projects placed in them, and what is paid for the space — rent, service charge, deposit.
+  'venue.read': 'مشاهدهٔ بانک مکان‌ها',
+  'venue.write': 'ثبت و ویرایش مکان‌ها و مخاطبانشان',
+  'venue.manage': 'بایگانی، ادغام و ورود گروهی مکان‌ها',
+  'venue.sms': 'ارسال پیامک به مکان‌ها',
+  'site.read': 'مشاهدهٔ پروژه‌های استقرار',
+  'site.write': 'ثبت پروژهٔ استقرار، مذاکره، نصب و نیروها',
+  'site.contract.approve': 'تأیید قرارداد مکان',
+  'site.close': 'بستن پروژهٔ استقرار',
+  'site.configure': 'تنظیمات مکان‌ها و اجاره‌داری',
+  'rental.read': 'مشاهدهٔ اجاره‌داری و مالی مکان‌ها',
+  'rental.manage': 'ثبت تعهد، پرداخت و ودیعهٔ مکان‌ها',
+  'rental.approve': 'تأیید کسر از ودیعه',
+
   // Documents, forms, reporting
   'document.read': 'مشاهده اسناد',
   'document.write': 'بارگذاری اسناد',
@@ -189,6 +204,7 @@ const READ_ONLY: Permission[] = [
   'workorder.read', 'task.read', 'deliverable.read', 'qc.read', 'revision.read',
   'change.read', 'contract.read', 'traffic.read', 'resource.read', 'supplier.read',
   'governance.read', 'meeting.read', 'document.read', 'form.read', 'report.read',
+  'venue.read', 'site.read',
 ];
 
 const SALES_CORE: Permission[] = [
@@ -203,6 +219,8 @@ const SALES_CORE: Permission[] = [
   'contract.read', 'contract.request',
   'project.read', 'task.read', 'document.read', 'document.write',
   'form.read', 'form.submit', 'meeting.read', 'meeting.write', 'report.read', 'ai.use',
+  // Which places a client's campaign could go is part of the pitch.
+  'venue.read',
 ];
 
 const ACCOUNT_CORE: Permission[] = [
@@ -228,6 +246,8 @@ const ACCOUNT_CORE: Permission[] = [
   'portal.manage',
   // The client's brand is kept by Account and by the units that design to it.
   'brand.manage',
+  // A client's campaign placed in venues is run by Account with Operations (ADR-103).
+  'venue.read', 'site.read', 'site.write',
 ];
 
 const UNIT_CORE: Permission[] = [
@@ -245,6 +265,7 @@ const UNIT_CORE: Permission[] = [
   'traffic.read', 'resource.read',
   'meeting.read', 'meeting.write',
   'document.read', 'document.write', 'form.read', 'form.submit', 'report.read', 'ai.use',
+  'venue.read',
 ];
 
 const FINANCE_CORE: Permission[] = [
@@ -252,6 +273,8 @@ const FINANCE_CORE: Permission[] = [
   'finance.read', 'finance.proforma', 'finance.invoice', 'finance.payment',
   'finance.budget', 'finance.rates', 'pricing.read', 'pricing.set_price',
   'document.write', 'form.submit', 'ai.use',
+  // What is owed and paid for the space (ADR-103).
+  'rental.read', 'rental.manage',
 ];
 
 const LEGAL_CORE: Permission[] = [
@@ -266,6 +289,8 @@ const PMO_CORE: Permission[] = [
   'project.plan', 'task.write', 'task.assign',
   'governance.write', 'meeting.write',
   'document.write', 'form.submit', 'customer_success.write', 'ai.use',
+  // Operations finds the places, negotiates, installs and staffs them (ADR-103); it reads the rent, Finance pays it.
+  'venue.write', 'site.write', 'rental.read',
 ];
 
 /**
@@ -277,6 +302,8 @@ export const NON_KEY_PERMISSIONS: Permission[] = [
   'admin.users', 'admin.roles', 'admin.keys', 'governance.waive', 'portal.manage', 'rules.manage',
   // Conversations are people's own (audit F-5): no key reads or writes them.
   'chat.use', 'chat.channel.create', 'chat.oversight',
+  // A key does not text the venues, nor change the rules the rentals run by (ADR-103).
+  'venue.sms', 'site.configure',
 ];
 
 /**
@@ -306,13 +333,13 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
   UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', ...EVERYONE],
   PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', 'rental.approve', ...EVERYONE],
   FINANCE_SPECIALIST: [...FINANCE_CORE, ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
+  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', 'site.contract.approve', ...EVERYONE],
   LEGAL_SPECIALIST: [...LEGAL_CORE, ...EVERYONE],
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };
@@ -367,6 +394,9 @@ export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }
   { key: 'governance', fa: 'حاکمیت، ریسک و استثنا', en: 'Governance, risk and waivers' },
   { key: 'meeting', fa: 'جلسه', en: 'Meetings' },
   { key: 'reception', fa: 'پذیرش', en: 'Reception' },
+  { key: 'venue', fa: 'بانک مکان‌ها', en: 'Venues' },
+  { key: 'site', fa: 'پروژه‌های استقرار', en: 'Deployment projects' },
+  { key: 'rental', fa: 'اجاره‌داری', en: 'Rentals' },
   { key: 'document', fa: 'اسناد', en: 'Documents' },
   { key: 'form', fa: 'فرم‌ها', en: 'Forms' },
   { key: 'report', fa: 'گزارش‌ها', en: 'Reports' },

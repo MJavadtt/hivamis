@@ -98,6 +98,8 @@ const OVERRIDES: Record<string, (ids: (model: string) => Promise<string>) => Pro
   Booking: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000), approverId: null }),
   ResourceHold: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000) }),
   PersonHold: async () => ({ startsAt: new Date(Date.now() + 86_400_000), endsAt: new Date(Date.now() + 90_000_000) }),
+  // An allocation comes from a payment or a deposit deduction, exactly one (ADR-103).
+  SiteAllocation: async (ids) => ({ paymentId: await ids('SitePayment'), depositEntryId: null }),
 };
 
 let counter = 0;

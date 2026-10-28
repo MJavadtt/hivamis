@@ -62,3 +62,65 @@ export async function sendCode(phone: string, code: string, purpose: CodePurpose
     throw new AppError(502, 'SMS_FAILED', 'ارسال پیامک ممکن نشد؛ کمی بعد دوباره تلاش کنید.');
   }
 }
+
+export interface TextOutcome {
+  /** SENT: the provider accepted it — not that it arrived. SANDBOX: kept here, sent nowhere. */
+  status: 'SENT' | 'SANDBOX' | 'FAILED';
+  provider: string;
+  providerRef: string | null;
+  error: string | null;
+}
+
+/**
+ * A free-text message — to a venue, or a colleague's reminder (ADR-103). Never throws: what happened is
+ * the answer, to be written where the message is logged. Off answers FAILED; the sandbox keeps it and
+ * says so; a provider's acceptance is SENT, and whether it arrived is the provider's to report later
+ * (`textStatus`).
+ */
+export async function sendText(phone: string, text: string): Promise<TextOutcome> {
+  const out = (status: TextOutcome['status'], providerRef: string | null = null, error: string | null = null): TextOutcome =>
+    ({ status, provider: smsMode, providerRef, error: error?.slice(0, 500) ?? null });
+  if (smsMode === 'off') return out('FAILED', null, 'ارسال پیامک در این نصب خاموش است.');
+  if (smsMode === 'sandbox') return out('SANDBOX');
+  try {
+    if (smsMode === 'kavenegar') {
+      const url = new URL(`https://api.kavenegar.com/v1/${encodeURIComponent(env.SMS_API_KEY)}/sms/send.json`);
+      url.searchParams.set('receptor', phone);
+      url.searchParams.set('message', text);
+      if (env.SMS_SENDER) url.searchParams.set('sender', env.SMS_SENDER);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const body = await res.json().catch(() => null) as { return?: { status?: number; message?: string }; entries?: { messageid?: number }[] } | null;
+      if (!res.ok || body?.return?.status !== 200) return out('FAILED', null, body?.return?.message ?? `HTTP ${res.status}`);
+      return out('SENT', body.entries?.[0]?.messageid != null ? String(body.entries[0].messageid) : null);
+    }
+    const res = await fetch(env.SMS_URL, {
+      method: 'POST', signal: AbortSignal.timeout(8000),
+      headers: { 'content-type': 'application/json', ...(env.SMS_API_KEY ? { authorization: `Bearer ${env.SMS_API_KEY}` } : {}) },
+      body: JSON.stringify({ to: phone, text, ...(env.SMS_SENDER ? { from: env.SMS_SENDER } : {}) }),
+    });
+    if (!res.ok) return out('FAILED', null, `HTTP ${res.status}`);
+    const body = await res.json().catch(() => null) as { id?: string | number } | null;
+    return out('SENT', body?.id != null ? String(body.id) : null);
+  } catch (e) {
+    return out('FAILED', null, (e as Error).message);
+  }
+}
+
+/**
+ * What the provider says became of a message it accepted: DELIVERED or UNDELIVERED when it knows,
+ * null while it is still on its way or the provider does not say (the http adapter).
+ */
+export async function textStatus(providerRef: string): Promise<'DELIVERED' | 'UNDELIVERED' | null> {
+  if (smsMode !== 'kavenegar') return null;
+  try {
+    const url = new URL(`https://api.kavenegar.com/v1/${encodeURIComponent(env.SMS_API_KEY)}/sms/status.json`);
+    url.searchParams.set('messageid', providerRef);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const body = await res.json().catch(() => null) as { entries?: { status?: number }[] } | null;
+    // Kavenegar: 10 delivered to the handset; 11 and 14 undelivered; 6 failed at the operator.
+    const status = body?.entries?.[0]?.status;
+    return status === 10 ? 'DELIVERED' : status === 11 || status === 14 || status === 6 ? 'UNDELIVERED' : null;
+  } catch {
+    return null;
+  }
+}

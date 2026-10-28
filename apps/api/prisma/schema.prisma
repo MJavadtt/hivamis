@@ -40,19 +40,19 @@ model Organization {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  departments       Department[]
-  users             User[]
+  departments             Department[]
+  users                   User[]
   /// Audit F-3: the organisation's own roles and its catalogue of positions.
-  customRoles       Role[]
-  positions         Position[]
-  companies         Company[]
-  holidays          Holiday[]
-  signupRequests    SignupRequest[]
-  aiPlans           AiPlan[]
+  customRoles             Role[]
+  positions               Position[]
+  companies               Company[]
+  holidays                Holiday[]
+  signupRequests          SignupRequest[]
+  aiPlans                 AiPlan[]
   /// Audit F-5: team chat.
-  chatConversations ChatConversation[]
-  chatMessages      ChatMessage[]
-  idempotencyKeys   IdempotencyKey[]
+  chatConversations       ChatConversation[]
+  chatMessages            ChatMessage[]
+  idempotencyKeys         IdempotencyKey[]
   userPermissionOverrides UserPermissionOverride[]
 
   @@map("organizations")
@@ -329,69 +329,89 @@ model User {
   updatedAt           DateTime     @updatedAt
   deletedAt           DateTime?
 
-  roles                UserRole[]
-  sessions             Session[]
+  roles                    UserRole[]
+  sessions                 Session[]
   /// Sessions a system administrator opened to work in this person's account (owner's report, 2026-10-23).
-  actingSessions       Session[]             @relation("SessionImpersonator")
+  actingSessions           Session[]                    @relation("SessionImpersonator")
   /// Permissions given to or withheld from this person, on top of their roles.
-  permissionOverrides  UserPermissionOverride[] @relation("UserPermissionOverrides")
-  permissionOverridesGiven UserPermissionOverride[] @relation("UserPermissionOverridesGiven")
-  ownedLeads           Lead[]                @relation("LeadOwner")
-  sourcedLeads         Lead[]                @relation("LeadSourceUser")
-  ownedOpportunities   Opportunity[]         @relation("OpportunityOwner")
-  accountCompanies     Company[]             @relation("CompanyAccountOwner")
-  salesCompanies       Company[]             @relation("CompanySalesOwner")
-  accountProjects      Project[]             @relation("ProjectAccountOwner")
-  assignedTasks        Task[]                @relation("TaskAssignee")
-  workOrderOwnerships  WorkOrder[]           @relation("WorkOrderOwner")
-  allocations          Allocation[]
-  auditEvents          AuditEvent[]          @relation("AuditActor")
-  auditEventsActingAs  AuditEvent[]          @relation("AuditImpersonator")
-  notifications        Notification[]
-  formSubmissions      FormSubmission[]      @relation("FormSubmitter")
-  formAssignments      FormSubmission[]      @relation("FormAssignee")
-  formApprovals        FormApproval[]
-  qcReviews            QcReview[]
-  revisionsAssigned    Revision[]            @relation("RevisionAssignee")
-  ownedRisks           Risk[]
-  ownedIssues          Issue[]
-  decisions            Decision[]
-  stateTransitions     StateTransition[]
-  aiInteractions       AiInteraction[]
-  raciAssignments      RaciAssignment[]
-  documents            Document[]
-  comments             Comment[]
-  annotations          Annotation[]          @relation("AnnotationAuthor")
-  messengerLink        MessengerLink?
-  messengerActions     MessengerAction[]
-  pushSubscriptions    PushSubscription[]
-  signatureEnvelopes   SignatureEnvelope[]
-  portalInvites        PortalUser[]
-  portalReplies        PortalMessage[]
-  clientApprovals      ClientApproval[]
-  apiKeys              ApiKey[]
-  webhookSubscriptions WebhookSubscription[]
-  identities           UserIdentity[]
-  otpCodes             OtpCode[]
-  oauthStates          OAuthState[]
-  identityLinkOffers   IdentityLinkOffer[]
-  smsMessages          SmsMessage[]
-  loginTickets         LoginTicket[]
-  signupDecisions      SignupRequest[]       @relation("SignupDecider")
-  signupAccounts       SignupRequest[]       @relation("SignupAccount")
-  aiConversations      AiConversation[]
-  aiPlans              AiPlan[]
-  chatStarted          ChatConversation[]    @relation("ChatConversationCreator")
-  chatMemberships      ChatMember[]
-  chatMessages         ChatMessage[]         @relation("ChatMessageAuthor")
-  idempotencyKeys      IdempotencyKey[]
-  guideVideos          GuideVideo[]          @relation("GuideVideoUploader")
+  permissionOverrides      UserPermissionOverride[]     @relation("UserPermissionOverrides")
+  permissionOverridesGiven UserPermissionOverride[]     @relation("UserPermissionOverridesGiven")
+  ownedLeads               Lead[]                       @relation("LeadOwner")
+  sourcedLeads             Lead[]                       @relation("LeadSourceUser")
+  ownedOpportunities       Opportunity[]                @relation("OpportunityOwner")
+  accountCompanies         Company[]                    @relation("CompanyAccountOwner")
+  salesCompanies           Company[]                    @relation("CompanySalesOwner")
+  accountProjects          Project[]                    @relation("ProjectAccountOwner")
+  assignedTasks            Task[]                       @relation("TaskAssignee")
+  workOrderOwnerships      WorkOrder[]                  @relation("WorkOrderOwner")
+  allocations              Allocation[]
+  auditEvents              AuditEvent[]                 @relation("AuditActor")
+  auditEventsActingAs      AuditEvent[]                 @relation("AuditImpersonator")
+  notifications            Notification[]
+  formSubmissions          FormSubmission[]             @relation("FormSubmitter")
+  formAssignments          FormSubmission[]             @relation("FormAssignee")
+  formApprovals            FormApproval[]
+  qcReviews                QcReview[]
+  revisionsAssigned        Revision[]                   @relation("RevisionAssignee")
+  ownedRisks               Risk[]
+  ownedIssues              Issue[]
+  decisions                Decision[]
+  stateTransitions         StateTransition[]
+  aiInteractions           AiInteraction[]
+  raciAssignments          RaciAssignment[]
+  documents                Document[]
+  comments                 Comment[]
+  annotations              Annotation[]                 @relation("AnnotationAuthor")
+  messengerLink            MessengerLink?
+  messengerActions         MessengerAction[]
+  pushSubscriptions        PushSubscription[]
+  signatureEnvelopes       SignatureEnvelope[]
+  portalInvites            PortalUser[]
+  portalReplies            PortalMessage[]
+  clientApprovals          ClientApproval[]
+  apiKeys                  ApiKey[]
+  webhookSubscriptions     WebhookSubscription[]
+  identities               UserIdentity[]
+  otpCodes                 OtpCode[]
+  oauthStates              OAuthState[]
+  identityLinkOffers       IdentityLinkOffer[]
+  smsMessages              SmsMessage[]
+  loginTickets             LoginTicket[]
+  signupDecisions          SignupRequest[]              @relation("SignupDecider")
+  signupAccounts           SignupRequest[]              @relation("SignupAccount")
+  aiConversations          AiConversation[]
+  aiPlans                  AiPlan[]
+  chatStarted              ChatConversation[]           @relation("ChatConversationCreator")
+  chatMemberships          ChatMember[]
+  chatMessages             ChatMessage[]                @relation("ChatMessageAuthor")
+  idempotencyKeys          IdempotencyKey[]
+  guideVideos              GuideVideo[]                 @relation("GuideVideoUploader")
   /// Audit F-9: meeting bookings.
-  bookingsOrganized    Booking[]             @relation("BookingOrganizer")
-  bookingsToApprove    Booking[]             @relation("BookingApprover")
-  bookingSeats         BookingParticipant[]
-  personHolds          PersonHold[]
-  guestsCheckedIn      BookingGuest[]        @relation("GuestCheckedInBy")
+  bookingsOrganized        Booking[]                    @relation("BookingOrganizer")
+  bookingsToApprove        Booking[]                    @relation("BookingApprover")
+  bookingSeats             BookingParticipant[]
+  personHolds              PersonHold[]
+  guestsCheckedIn          BookingGuest[]               @relation("GuestCheckedInBy")
+  /// ADR-103: venues, deployment projects and rentals — each a column that is history.
+  venuesCreated            Venue[]                      @relation("VenueCreatedBy")
+  siteProjectsResponsible  SiteProject[]                @relation("SiteProjectResponsible")
+  siteProjectsCreated      SiteProject[]                @relation("SiteProjectCreatedBy")
+  siteNegotiationsOwned    SiteNegotiation[]            @relation("SiteNegotiationAssignee")
+  siteNegotiationsWritten  SiteNegotiation[]            @relation("SiteNegotiationCreatedBy")
+  siteNegotiationSeats     SiteNegotiationParticipant[]
+  siteContractsWritten     SiteContract[]               @relation("SiteContractCreatedBy")
+  siteContractsDecided     SiteContract[]               @relation("SiteContractDecidedBy")
+  siteApprovalsDecided     SiteApproval[]               @relation("SiteApprovalDecidedBy")
+  siteApprovalsRecorded    SiteApproval[]               @relation("SiteApprovalRecordedBy")
+  siteAssignments          SiteAssignment[]
+  siteObligationsWritten   SiteObligation[]             @relation("SiteObligationCreatedBy")
+  sitePaymentsRecorded     SitePayment[]                @relation("SitePaymentRecordedBy")
+  sitePaymentsReversed     SitePayment[]                @relation("SitePaymentReversedBy")
+  siteDepositsRecorded     SiteDepositEntry[]           @relation("SiteDepositRecordedBy")
+  siteDepositsDecided      SiteDepositEntry[]           @relation("SiteDepositDecidedBy")
+  venueMessagesSent        VenueMessage[]
+  siteImports              SiteImport[]
+  siteSavedViews           SiteSavedView[]
 
   /// List 3, item 6: the team within the person's unit, if any.
   teamId   String?
@@ -503,7 +523,9 @@ model Company {
 
   // What a contact's composite key points at: a contact's organisation is its company's (ADR-067).
   /// Audit F-9: meetings booked with the client.
-  bookings Booking[]
+  bookings     Booking[]
+  /// ADR-103: placements made for the client, who approves them as the employer.
+  siteProjects SiteProject[]
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -865,7 +887,9 @@ model Project {
   comments          Comment[]
 
   /// Audit F-9: meetings booked for the project.
-  bookings Booking[]
+  bookings     Booking[]
+  /// ADR-103: the campaign's placements in venues.
+  siteProjects SiteProject[]
 
   @@unique([organizationId, legacyRef])
   @@index([organizationId, state])
@@ -1381,6 +1405,8 @@ model Supplier {
   outsourceRequests OutsourceRequest[]
   payments          Payment[]
   mediaOrders       MediaOrder[]
+  /// ADR-103: the counters it built.
+  siteCounters      SiteCounter[]
 
   @@index([organizationId, kind])
   @@map("suppliers")
@@ -1887,6 +1913,19 @@ model Document {
   chatMessage        ChatMessage?      @relation("ChatAttachments", fields: [chatMessageId], references: [id], onDelete: SetNull)
   /// Audit F-6: the person whose photo this is — not a file of the organisation's records.
   avatarOf           User?             @relation("UserAvatar")
+  /// ADR-103: a venue's photo, or a deployment project's file — read only with venue.read or site.read.
+  /// `siteRecordType`/`siteRecordId` name what in the project it is evidence of: a contract version, an
+  /// approval, an installation, a payment, a deposit deduction. `category` is a photo's kind (entrance,
+  /// inside…) or the evidence's; `caption` and `takenAt` are what the uploader said of it.
+  venueId            String?
+  venue              Venue?            @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  siteProjectId      String?
+  siteProject        SiteProject?      @relation(fields: [siteProjectId], references: [id], onDelete: Cascade)
+  siteRecordType     String?
+  siteRecordId       String?
+  category           String?
+  caption            String?
+  takenAt            DateTime?
   /// Roadmap #34: shown to the client in the portal. Off unless someone in Account turns it on.
   clientVisible      Boolean           @default(false)
   /// Roadmap #42: the family of versions this file belongs to — the first version's id — and, once
@@ -1919,6 +1958,8 @@ model Document {
   @@index([lineageId])
   @@index([qcReviewId])
   @@index([chatConversationId])
+  @@index([venueId])
+  @@index([siteProjectId, siteRecordType, siteRecordId])
   @@map("documents")
 }
 
@@ -3571,4 +3612,581 @@ model Team {
   @@unique([organizationId, departmentId, nameFa])
   @@index([departmentId])
   @@map("teams")
+}
+
+/**
+ * ── ADR-103: venues, deployment projects and rentals ─────────────────────────
+ */
+
+/// The organisation's own lists: venue types, grades, audiences, cooperation models, payment methods,
+/// contact roles, channels, charge and photo categories. A record keeps the code it was given; an option
+/// is retired (isActive false), never deleted, so what was written under it keeps its meaning.
+model SiteOption {
+  id             String   @id @default(uuid())
+  organizationId String
+  list           String
+  code           String
+  labelFa        String
+  labelEn        String?
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  /// What the option means to the rules: a cooperation model's `requiresContract`, a method's `isCheque`.
+  meta           Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, list, code])
+  @@map("site_options")
+}
+
+/// How the rentals run, one row per organisation (siteSettingsSchema): reminders, proration, overpayment,
+/// what activation and closure ask for, which venue fields are required, the SMS templates.
+model SiteSettings {
+  organizationId String   @id
+  settings       Json     @default("{}")
+  updatedById    String?
+  updatedAt      DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+/// A place a counter, a stand or an activation can go: a mall, a metro station, an amusement park.
+model Venue {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique
+  name           String
+  /// The name and the phone reduced to what identifies them (nameKey, phoneKey) — for finding duplicates.
+  nameKey        String
+  province       String
+  city           String
+  address        String?
+  typeCode       String
+  gradeCode      String?
+  audienceCodes  String[]  @default([])
+  phone          String?
+  phoneKey       String?
+  email          String?
+  website        String?
+  notes          String?
+  isActive       Boolean   @default(true)
+  /// MANUAL or IMPORT; an imported venue keeps the row it came from, as the file had it.
+  source         String    @default("MANUAL")
+  importId       String?
+  importedValues Json?
+  /// Venues an authorised person said are other places, though they look alike.
+  distinctFrom   String[]  @default([])
+  /// A duplicate merged into another venue: kept, archived, pointing at the one that stays.
+  mergedIntoId   String?
+  version        Int       @default(1)
+  createdById    String
+  createdBy      User      @relation("VenueCreatedBy", fields: [createdById], references: [id])
+  updatedById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  contacts     VenueContact[]
+  channels     VenueChannel[]
+  siteProjects SiteProject[]
+  documents    Document[]
+  messages     VenueMessage[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, province, city])
+  @@index([organizationId, typeCode])
+  @@index([organizationId, nameKey])
+  @@index([organizationId, phoneKey])
+  @@map("venues")
+}
+
+/// Someone at a venue: its managing director, marketing, technical, anyone the organisation names a role for.
+model VenueContact {
+  id             String    @id @default(uuid())
+  organizationId String
+  venueId        String
+  venue          Venue     @relation(fields: [venueId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  fullName       String
+  roleCode       String
+  jobTitle       String?
+  phone          String?
+  phoneKey       String?
+  email          String?
+  notes          String?
+  isPrimary      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  channels     VenueChannel[]
+  negotiations SiteNegotiationParticipant[]
+  messages     VenueMessage[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, venueId])
+  @@index([organizationId, phoneKey])
+  @@map("venue_contacts")
+}
+
+/// A way to reach a venue or one of its people: email, WhatsApp, Telegram, a website.
+model VenueChannel {
+  id             String        @id @default(uuid())
+  organizationId String
+  venueId        String
+  venue          Venue         @relation(fields: [venueId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  contactId      String?
+  contact        VenueContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  typeCode       String
+  value          String
+  note           String?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, venueId])
+  @@map("venue_channels")
+}
+
+/// One placement in one venue — the document's «پروژه» — from the first look at the place to the deposit
+/// back. Its state moves only through the workflow engine (SITE_PROJECT_WORKFLOW). A campaign in several
+/// venues is several of these under one client project.
+model SiteProject {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  code                String    @unique
+  name                String
+  venueId             String
+  venue               Venue     @relation(fields: [venueId, organizationId], references: [id, organizationId])
+  /// Where in the venue: the floor, the hall, beside which entrance.
+  placement           String?
+  projectId           String?
+  project             Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  companyId           String?
+  company             Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  responsibleId       String?
+  responsible         User?     @relation("SiteProjectResponsible", fields: [responsibleId], references: [id])
+  cooperationCode     String?
+  state               String    @default("DRAFT")
+  currency            String    @default("IRR")
+  contractStart       DateTime?
+  contractEnd         DateTime?
+  depositAmount       Decimal?  @db.Decimal(20, 2)
+  rentAmount          Decimal?  @db.Decimal(20, 2)
+  rentPeriod          String    @default("MONTHLY")
+  rentDueDay          Int?
+  rentMethodCode      String?
+  chargeAmount        Decimal?  @db.Decimal(20, 2)
+  chargeDueDay        Int?
+  chargeMethodCode    String?
+  installPlannedAt    DateTime?
+  installedAt         DateTime?
+  installDays         Int?
+  installStatus       String    @default("NOT_STARTED")
+  installCost         Decimal?  @db.Decimal(20, 2)
+  transportCost       Decimal?  @db.Decimal(20, 2)
+  installNotes        String?
+  notes               String?
+  scheduleGeneratedAt DateTime?
+  /// What was owed, paid, deducted and returned the day it closed — the closure's statement, kept.
+  closureStatement    Json?
+  closedAt            DateTime?
+  cancelReason        String?
+  /// Bumped by every edit: a change made on an older reading is refused, not merged over a newer one.
+  version             Int       @default(1)
+  createdById         String
+  createdBy           User      @relation("SiteProjectCreatedBy", fields: [createdById], references: [id])
+  updatedById         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  archivedAt          DateTime?
+
+  negotiations   SiteNegotiation[]
+  contracts      SiteContract[]
+  approvals      SiteApproval[]
+  counters       SiteCounter[]
+  assignments    SiteAssignment[]
+  obligations    SiteObligation[]
+  payments       SitePayment[]
+  depositEntries SiteDepositEntry[]
+  documents      Document[]
+  messages       VenueMessage[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, state])
+  @@index([organizationId, venueId])
+  @@index([organizationId, contractEnd])
+  @@index([projectId])
+  @@map("site_projects")
+}
+
+/// A conversation with the venue about terms — before the contract, and periodically after it.
+model SiteNegotiation {
+  id                 String      @id @default(uuid())
+  organizationId     String
+  siteProjectId      String
+  siteProject        SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  heldAt             DateTime
+  channel            String      @default("MEETING")
+  summary            String
+  proposedRent       Decimal?    @db.Decimal(20, 2)
+  proposedRentPeriod String?
+  proposedDeposit    Decimal?    @db.Decimal(20, 2)
+  proposedCharge     Decimal?    @db.Decimal(20, 2)
+  otherTerms         String?
+  outcome            String      @default("OPEN")
+  nextAction         String?
+  followUpAt         DateTime?
+  followUpDoneAt     DateTime?
+  assigneeId         String?
+  assignee           User?       @relation("SiteNegotiationAssignee", fields: [assigneeId], references: [id])
+  createdById        String
+  createdBy          User        @relation("SiteNegotiationCreatedBy", fields: [createdById], references: [id])
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  participants SiteNegotiationParticipant[]
+
+  @@index([organizationId, siteProjectId, heldAt])
+  @@index([organizationId, followUpAt])
+  @@map("site_negotiations")
+}
+
+/// Who was at a negotiation: someone from the venue, a colleague, or someone named who is neither.
+model SiteNegotiationParticipant {
+  id            String          @id @default(uuid())
+  negotiationId String
+  negotiation   SiteNegotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       VenueContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?           @relation(fields: [userId], references: [id])
+  name          String?
+
+  @@index([negotiationId])
+  @@map("site_negotiation_participants")
+}
+
+/// A version of the agreement with the venue — a formal contract, an informal one, or the invoice terms —
+/// with its decision. A new version supersedes the last; none is ever rewritten after its decision.
+model SiteContract {
+  id              String      @id @default(uuid())
+  organizationId  String
+  siteProjectId   String
+  siteProject     SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  version         Int
+  reference       String?
+  cooperationCode String?
+  startDate       DateTime?
+  endDate         DateTime?
+  /// The project's terms when it was written: rent, period, charge, deposit, currency.
+  terms           Json
+  status          String      @default("DRAFT")
+  notes           String?
+  submittedAt     DateTime?
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedBy       User?       @relation("SiteContractDecidedBy", fields: [decidedById], references: [id])
+  decisionComment String?
+  createdById     String
+  createdBy       User        @relation("SiteContractCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([siteProjectId, version])
+  @@index([organizationId, status])
+  @@map("site_contracts")
+}
+
+/// A decision on the project recorded with who made it: the contract's, the client's (employer's) —
+/// taken at the client and recorded here with its evidence — a deposit deduction's.
+model SiteApproval {
+  id             String      @id @default(uuid())
+  organizationId String
+  siteProjectId  String
+  siteProject    SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  /// CONTRACT | EMPLOYER | DEDUCTION
+  kind           String
+  /// What it decided: the contract version, the deduction; for the employer, CONTRACT | INSTALLATION | GENERAL.
+  subject        String?
+  subjectId      String?
+  decision       String
+  comment        String?
+  /// A colleague who decided, or the client's person, named as they signed.
+  decidedById    String?
+  decidedBy      User?       @relation("SiteApprovalDecidedBy", fields: [decidedById], references: [id])
+  approverName   String?
+  approverTitle  String?
+  decidedAt      DateTime
+  recordedById   String
+  recordedBy     User        @relation("SiteApprovalRecordedBy", fields: [recordedById], references: [id])
+  createdAt      DateTime    @default(now())
+
+  @@index([organizationId, siteProjectId, kind])
+  @@map("site_approvals")
+}
+
+/// A counter (or any structure) built for the project: how many, its size, what one cost to make.
+model SiteCounter {
+  id             String      @id @default(uuid())
+  organizationId String
+  siteProjectId  String
+  siteProject    SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  label          String
+  quantity       Int         @default(1)
+  widthCm        Int?
+  depthCm        Int?
+  heightCm       Int?
+  specs          String?
+  unitCost       Decimal?    @db.Decimal(20, 2)
+  supplierId     String?
+  supplier       Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([organizationId, siteProjectId])
+  @@map("site_counters")
+}
+
+/// Someone at the venue for the project: a promoter in the counter, an installer, a supervisor — a
+/// colleague, or a person from outside named here.
+model SiteAssignment {
+  id             String      @id @default(uuid())
+  organizationId String
+  siteProjectId  String
+  siteProject    SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  role           String      @default("PROMOTER")
+  userId         String?
+  user           User?       @relation(fields: [userId], references: [id])
+  personName     String?
+  phone          String?
+  startsOn       DateTime?
+  endsOn         DateTime?
+  shift          String?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([organizationId, siteProjectId])
+  @@map("site_assignments")
+}
+
+/// Something owed for the placement: a month's rent, a month's service charge, the deposit, a penalty,
+/// installation, transport. `settledAmount` is what its allocations add to, kept in the same transaction
+/// as they are written; the allocations are the record.
+model SiteObligation {
+  id             String      @id @default(uuid())
+  organizationId String
+  siteProjectId  String
+  siteProject    SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  kind           String
+  categoryCode   String?
+  description    String?
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  dueDate        DateTime
+  amount         Decimal     @db.Decimal(20, 2)
+  currency       String
+  settledAmount  Decimal     @default(0) @db.Decimal(20, 2)
+  status         String      @default("OPEN")
+  /// A scheduled one's place in the schedule (RENT:2026-10-23): made once, however often the schedule is.
+  scheduleKey    String?
+  source         String      @default("MANUAL")
+  closeReason    String?
+  closedAt       DateTime?
+  createdById    String
+  createdBy      User        @relation("SiteObligationCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  allocations    SiteAllocation[]
+  depositEntries SiteDepositEntry[]
+
+  @@unique([id, organizationId])
+  @@unique([siteProjectId, scheduleKey])
+  @@index([organizationId, status, dueDate])
+  @@index([organizationId, siteProjectId])
+  @@map("site_obligations")
+}
+
+/// Money paid to the venue (OUT) or back from it (IN). Never edited: a mistake is reversed, with its
+/// reason, and paid again. `clientKey` makes a payment sent twice a payment recorded once.
+model SitePayment {
+  id             String      @id @default(uuid())
+  organizationId String
+  siteProjectId  String
+  siteProject    SiteProject @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  direction      String      @default("OUT")
+  /// OUT: OBLIGATIONS — what is owed. IN: DEPOSIT_REFUND — the deposit back; CREDIT_REFUND — an overpayment back.
+  purpose        String      @default("OBLIGATIONS")
+  amount         Decimal     @db.Decimal(20, 2)
+  currency       String
+  paidAt         DateTime
+  methodCode     String
+  reference      String?
+  chequeNumber   String?
+  chequeBank     String?
+  chequeDate     DateTime?
+  note           String?
+  clientKey      String
+  recordedById   String
+  recordedBy     User        @relation("SitePaymentRecordedBy", fields: [recordedById], references: [id])
+  reversedAt     DateTime?
+  reversedById   String?
+  reversedBy     User?       @relation("SitePaymentReversedBy", fields: [reversedById], references: [id])
+  reversalReason String?
+  createdAt      DateTime    @default(now())
+
+  allocations    SiteAllocation[]
+  depositEntries SiteDepositEntry[]
+
+  @@unique([organizationId, clientKey])
+  @@index([organizationId, siteProjectId])
+  @@index([organizationId, paidAt])
+  @@map("site_payments")
+}
+
+/// What settled what: part of a payment put against an obligation, or a deposit deduction the venue took
+/// for it. Exactly one source; reversed with its source, never deleted.
+model SiteAllocation {
+  id             String            @id @default(uuid())
+  organizationId String
+  obligationId   String
+  obligation     SiteObligation    @relation(fields: [obligationId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  paymentId      String?
+  payment        SitePayment?      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  depositEntryId String?
+  depositEntry   SiteDepositEntry? @relation(fields: [depositEntryId], references: [id], onDelete: Cascade)
+  amount         Decimal           @db.Decimal(20, 2)
+  reversedAt     DateTime?
+  createdAt      DateTime          @default(now())
+
+  @@index([obligationId])
+  @@index([paymentId])
+  @@map("site_allocations")
+}
+
+/// The deposit's own ledger, beside the payments that put it with the venue: what the venue keeps
+/// (DEDUCTION, with its reason, approved) and what it gives back (REFUND, from an IN payment). The deposit
+/// itself is never rewritten to show either.
+model SiteDepositEntry {
+  id              String          @id @default(uuid())
+  organizationId  String
+  siteProjectId   String
+  siteProject     SiteProject     @relation(fields: [siteProjectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  kind            String
+  amount          Decimal         @db.Decimal(20, 2)
+  currency        String
+  reason          String?
+  obligationId    String?
+  obligation      SiteObligation? @relation(fields: [obligationId], references: [id], onDelete: SetNull)
+  paymentId       String?
+  payment         SitePayment?    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  /// PROPOSED → APPROVED | REJECTED; VOID when its payment is reversed.
+  status          String
+  decidedById     String?
+  decidedBy       User?           @relation("SiteDepositDecidedBy", fields: [decidedById], references: [id])
+  decidedAt       DateTime?
+  decisionComment String?
+  recordedById    String
+  recordedBy      User            @relation("SiteDepositRecordedBy", fields: [recordedById], references: [id])
+  createdAt       DateTime        @default(now())
+
+  allocations SiteAllocation[]
+
+  @@index([organizationId, siteProjectId])
+  @@map("site_deposit_entries")
+}
+
+/// One reminder sent: of what, how long before (or, negative, after) it was due, by which channel, to
+/// whom. The unique key is what makes the daily run safe to repeat — a reminder goes out once.
+model SiteReminder {
+  id             String    @id @default(uuid())
+  organizationId String
+  siteProjectId  String?
+  event          String
+  subjectType    String
+  subjectId      String
+  dueDate        DateTime
+  offsetDays     Int
+  channel        String
+  /// A user id, or for SMS the number it went to.
+  recipient      String
+  /// SENT (in the app; for SMS, accepted by the provider) | SANDBOX | FAILED — retried while attempts last.
+  status         String
+  attempts       Int       @default(1)
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, subjectType, subjectId, event, offsetDays, channel, recipient])
+  @@index([organizationId, createdAt])
+  @@index([status, attempts])
+  @@map("site_reminders")
+}
+
+/// An SMS to a venue or one of its people, and what became of it. SENT is the provider's acceptance;
+/// DELIVERED and UNDELIVERED only what the provider later reports — nothing is called delivered on hope.
+model VenueMessage {
+  id             String        @id @default(uuid())
+  organizationId String
+  venueId        String?
+  venue          Venue?        @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  contactId      String?
+  contact        VenueContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  siteProjectId  String?
+  siteProject    SiteProject?  @relation(fields: [siteProjectId], references: [id], onDelete: SetNull)
+  phone          String
+  text           String
+  templateKey    String?
+  provider       String
+  status         String
+  providerRef    String?
+  error          String?
+  attempts       Int           @default(1)
+  sentById       String?
+  sentBy         User?         @relation(fields: [sentById], references: [id])
+  createdAt      DateTime      @default(now())
+  sentAt         DateTime?
+  checkedAt      DateTime?
+
+  @@index([organizationId, createdAt])
+  @@index([status, attempts])
+  @@map("venue_messages")
+}
+
+/// An Excel file brought in: what kind, how matches were treated, and row by row what became of it.
+model SiteImport {
+  id             String   @id @default(uuid())
+  organizationId String
+  kind           String
+  mode           String
+  fileName       String
+  fileSha256     String
+  totalRows      Int
+  created        Int
+  updated        Int
+  failed         Int
+  /// Each row's outcome, its errors in words (capped at the first 2000 rows).
+  report         Json
+  createdById    String
+  createdBy      User     @relation(fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("site_imports")
+}
+
+/// A list's filters kept under a name — the person's own, or shared with the organisation.
+model SiteSavedView {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page           String
+  name           String
+  filters        Json
+  shared         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, page])
+  @@map("site_saved_views")
 }

@@ -5,6 +5,7 @@ import { stageZero } from '../quality/stage-zero.js';
 import { cascadeState } from './engine.js';
 import { registerEffect } from './registry.js';
 import { BOOKING_EFFECTS } from '../bookings/workflow.js';
+import { SITE_EFFECTS } from '../sites/workflow.js';
 
 export interface EffectContext {
   tx: Tx;
@@ -203,6 +204,8 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
 
   // Audit F-9: booking a meeting.
   ...BOOKING_EFFECTS,
+  // ADR-103: deployment projects.
+  ...SITE_EFFECTS,
 };
 
 // The core's effects enter the registry the way an extension's do (roadmap #47): first on their

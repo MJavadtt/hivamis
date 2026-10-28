@@ -18,6 +18,8 @@ import { retryQueued as retryPush } from '../push/service.js';
 import { backfillMetadata } from '../documents/backfill.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
+import { runReminders } from '../sites/reminders.js';
+import { followUpMessages } from '../sites/messages.js';
 
 /**
  * Background jobs run on pg-boss — a Postgres-backed queue. Chosen over Redis+BullMQ because the
@@ -39,7 +41,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata', 'documents:purge', 'ai:prune']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata', 'documents:purge', 'ai:prune', 'sites:remind', 'sites:messages']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -170,6 +172,19 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.read) logger.info({ ...result }, 'documents metadata');
   });
 
+  await boss.work('sites:remind', async () => {
+    // Rent, service charge, deposits, contracts ending and decisions waiting (ADR-103): each reminder
+    // once, by its own row's unique key, so a run repeated or overlapping sends nothing twice.
+    const result = await runReminders();
+    if (result.sent || result.sms || result.smsFailed) logger.info({ ...result }, 'site reminders');
+  });
+
+  await boss.work('sites:messages', async () => {
+    // Texts to the venues that failed, tried again; and what the provider says became of the sent ones.
+    const result = await followUpMessages();
+    if (result.retried || result.delivered || result.undelivered) logger.info({ ...result }, 'venue messages');
+  });
+
   await boss.schedule('sla:tick', '*/5 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('digest:overdue', '0 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('report:client-weekly', '0 9 * * 6', {}, { tz: 'Asia/Tehran' });
@@ -184,7 +199,9 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('documents:metadata', '37 * * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('documents:purge', '30 3 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('ai:prune', '45 3 * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly)');
+  await boss.schedule('sites:remind', '30 8 * * *', {}, { tz: 'Asia/Tehran' });
+  await boss.schedule('sites:messages', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly, sites:remind daily 08:30, sites:messages every 10m)');
   return boss;
 }
 

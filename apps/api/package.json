@@ -32,6 +32,7 @@
     "@hiva/contracts": "workspace:*",
     "@node-rs/argon2": "^2.0.2",
     "@prisma/client": "^6.3.1",
+    "exceljs": "^4.4.0",
     "fastify": "^5.12.5",
     "fastify-plugin": "^5.0.1",
     "jose": "^5.9.6",

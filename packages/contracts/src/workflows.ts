@@ -325,6 +325,40 @@ export const BOOKING_WORKFLOW: WorkflowDef = {
   ],
 };
 
+/**
+ * ADR-103 — a deployment project: a counter, a stand or an activation placed in a venue, from the first
+ * look at the place to the deposit back. Its money lives in the rental ledger; the lifecycle says what
+ * must be true before each step — terms agreed before a contract, an approved contract before the
+ * installation, an installed counter before it goes live, everything settled before it closes. Nothing
+ * here is skipped by a plain UPDATE, and a governed waiver is the only way past a rule.
+ */
+const SITE_OPEN = ['DRAFT', 'EVALUATION', 'NEGOTIATION', 'TERMS_AGREED', 'CONTRACT_PENDING', 'CONTRACT_APPROVED', 'INSTALL_PLANNED', 'INSTALLING'] as const;
+export const SITE_PROJECT_WORKFLOW: WorkflowDef = {
+  entity: 'siteProject',
+  labelFa: 'پروژهٔ استقرار',
+  initial: 'DRAFT',
+  states: [...SITE_OPEN, 'ACTIVE', 'SETTLING', 'CLOSURE_PENDING', 'CLOSED', 'CANCELLED'],
+  terminal: ['CLOSED', 'CANCELLED'],
+  transitions: [
+    { from: ['DRAFT'], to: 'EVALUATION', action: 'evaluate', labelFa: 'شروع بررسی مکان', labelEn: 'Evaluate the venue', permission: 'site.write', guards: ['siteProject.venueActive'] },
+    { from: ['EVALUATION'], to: 'NEGOTIATION', action: 'negotiate', labelFa: 'شروع مذاکره', labelEn: 'Start negotiating', permission: 'site.write', guards: ['siteProject.venueActive'] },
+    { from: ['NEGOTIATION'], to: 'TERMS_AGREED', action: 'agree_terms', labelFa: 'توافق بر شرایط', labelEn: 'Terms agreed', permission: 'site.write', guards: ['siteProject.termsComplete', 'siteProject.agreedNegotiation'] },
+    { from: ['TERMS_AGREED', 'CONTRACT_PENDING'], to: 'NEGOTIATION', action: 'reopen_negotiation', labelFa: 'بازگشت به مذاکره', labelEn: 'Back to negotiation', permission: 'site.write', requiresReason: true },
+    { from: ['TERMS_AGREED'], to: 'CONTRACT_PENDING', action: 'submit_contract', labelFa: 'فرستادن قرارداد برای تأیید', labelEn: 'Send the contract for approval', permission: 'site.write', guards: ['siteProject.termsComplete', 'siteProject.contractSubmitted'] },
+    { from: ['CONTRACT_PENDING'], to: 'CONTRACT_APPROVED', action: 'approve_contract', labelFa: 'تأیید قرارداد', labelEn: 'Approve the contract', permission: 'site.contract.approve', guards: ['siteProject.contractApproved'] },
+    { from: ['CONTRACT_PENDING'], to: 'TERMS_AGREED', action: 'reject_contract', labelFa: 'رد قرارداد', labelEn: 'Reject the contract', permission: 'site.contract.approve', guards: ['siteProject.contractRejected'], requiresReason: true },
+    { from: ['CONTRACT_APPROVED'], to: 'INSTALL_PLANNED', action: 'plan_installation', labelFa: 'برنامه‌ریزی نصب', labelEn: 'Plan the installation', permission: 'site.write', guards: ['siteProject.installationPlanned'] },
+    { from: ['INSTALL_PLANNED'], to: 'INSTALLING', action: 'start_installation', labelFa: 'شروع نصب', labelEn: 'Start installing', permission: 'site.write' },
+    { from: ['INSTALLING'], to: 'ACTIVE', action: 'activate', labelFa: 'آغاز بهره‌برداری', labelEn: 'Go live', permission: 'site.write', guards: ['siteProject.contractApproved', 'siteProject.installed', 'siteProject.activationEvidence', 'siteProject.scheduleReady'] },
+    { from: ['ACTIVE'], to: 'SETTLING', action: 'start_settlement', labelFa: 'شروع تسویه و جمع‌آوری', labelEn: 'Start settling', permission: 'site.write' },
+    { from: ['SETTLING'], to: 'ACTIVE', action: 'resume', labelFa: 'ادامهٔ بهره‌برداری', labelEn: 'Back to operation', permission: 'site.write', requiresReason: true },
+    { from: ['SETTLING'], to: 'CLOSURE_PENDING', action: 'request_closure', labelFa: 'درخواست بستن پروژه', labelEn: 'Ask to close', permission: 'site.write', guards: ['siteProject.settled'] },
+    { from: ['CLOSURE_PENDING'], to: 'SETTLING', action: 'return_to_settlement', labelFa: 'بازگشت به تسویه', labelEn: 'Back to settling', permission: 'site.close', requiresReason: true },
+    { from: ['CLOSURE_PENDING'], to: 'CLOSED', action: 'close', labelFa: 'بستن پروژه', labelEn: 'Close the project', permission: 'site.close', guards: ['siteProject.settled'] },
+    { from: SITE_OPEN, to: 'CANCELLED', action: 'cancel', labelFa: 'لغو پروژه', labelEn: 'Cancel the project', permission: 'site.write', guards: ['siteProject.noMoneyOpen'], requiresReason: true },
+  ],
+};
+
 export const WORKFLOWS: Record<string, WorkflowDef> = {
   lead: LEAD_WORKFLOW,
   opportunity: OPPORTUNITY_WORKFLOW,
@@ -341,6 +375,7 @@ export const WORKFLOWS: Record<string, WorkflowDef> = {
   outsourceRequest: OUTSOURCE_WORKFLOW,
   mediaOrder: MEDIA_ORDER_WORKFLOW,
   booking: BOOKING_WORKFLOW,
+  siteProject: SITE_PROJECT_WORKFLOW,
 };
 
 export function findTransition(entity: string, from: string, action: string): TransitionDef | undefined {
@@ -375,6 +410,7 @@ export const WORKFLOW_READ_PERMISSION: Record<string, Permission> = {
   mediaOrder: 'pricing.read',
   // A booking is read by those it concerns, or with meeting.view_all; the routes check which.
   booking: 'meeting.book',
+  siteProject: 'site.read',
 };
 
 /** True when `entity` names a declared state machine. Guards dynamic lookups. */

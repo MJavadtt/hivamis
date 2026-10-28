@@ -174,6 +174,11 @@ const envSchema = z.object({
   SMS_TEMPLATE: z.string().default(''),
   SMS_URL: z.string().default(''),
   /**
+   * The line free-text messages go out from — texts to the venues (ADR-103). Kavenegar sends from
+   * the account's default line when it is empty; the http adapter is given it as `from`.
+   */
+  SMS_SENDER: z.string().default(''),
+  /**
    * Google sign-in (OpenID Connect). Off until a client id and secret are set; the redirect URI to
    * register is PUBLIC_APP_URL + /api/v1/auth/google/callback. GOOGLE_ALLOWED_DOMAINS (comma list)
    * limits who may ask to join with Google to those email domains.

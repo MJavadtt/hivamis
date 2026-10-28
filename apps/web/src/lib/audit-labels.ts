@@ -34,4 +34,20 @@ export const ACTION_LABELS: Record<string, string> = {
   CHAT_OVERSIGHT_LIST: tr('فهرست گفت‌وگوها برای بازبینی'), CHAT_OVERSIGHT_VIEW: tr('بازبینی گفت‌وگو'),
   AI_PLAN_PROPOSED: tr('پیشنهاد تغییر از دستیار'), AI_PLAN_EXECUTED: tr('اجرای پیشنهاد تأییدشدهٔ دستیار'), AI_PLAN_DECLINED: tr('رد پیشنهاد دستیار'),
   BOOKING_RESPONDED: tr('پاسخ به دعوت جلسه'), GUEST_CHECKED_IN: tr('ورود مهمان'), GUEST_CHECKED_OUT: tr('خروج مهمان'),
+  // ADR-103: venues, deployment projects and rentals.
+  ARCHIVE: tr('بایگانی'), RESTORE: tr('بازگرداندن از بایگانی'), CONFIG_CHANGED: tr('تغییر تنظیمات'), IMPORT: tr('ورود از اکسل'), IMPORT_COMMITTED: tr('ثبت ورود اکسل'),
+  VENUE_MERGED: tr('ادغام مکان تکراری'), DUPLICATE_DISMISSED: tr('جدا نگه‌داشتن دو مکان'), SMS_SENT: tr('ارسال پیامک به مکان'),
+  NEGOTIATION_RECORDED: tr('ثبت مذاکره'), NEGOTIATION_UPDATED: tr('ویرایش مذاکره'),
+  CONTRACT_DRAFTED: tr('ثبت نسخهٔ قرارداد'), CONTRACT_AMENDMENT_DRAFTED: tr('ثبت الحاقیه'), CONTRACT_SUBMITTED: tr('فرستادن قرارداد برای تأیید'),
+  CONTRACT_APPROVED: tr('تأیید قرارداد مکان'), CONTRACT_REJECTED: tr('رد قرارداد مکان'), TERMS_AMENDED: tr('تغییر شرایط با الحاقیه'),
+  EMPLOYER_APPROVAL_RECORDED: tr('ثبت تأییدیهٔ کارفرما'),
+  COUNTER_ADDED: tr('افزودن کانتر'), COUNTER_UPDATED: tr('ویرایش کانتر'), COUNTER_REMOVED: tr('حذف کانتر'),
+  STAFF_ASSIGNED: tr('استقرار نیرو'), STAFF_UPDATED: tr('ویرایش نیروی مستقر'), STAFF_REMOVED: tr('برداشتن نیرو'),
+  SCHEDULE_GENERATED: tr('ساخت جدول اجاره'), OBLIGATION_ADDED: tr('ثبت قلم بدهی'), OBLIGATION_ADJUSTED: tr('اصلاح قلم بدهی'),
+  OBLIGATION_WAIVED: tr('بخشودن قلم بدهی'), OBLIGATION_VOIDED: tr('باطل کردن قلم بدهی'),
+  PAYMENT_RECORDED: tr('ثبت پرداخت'), PAYMENT_REVERSED: tr('برگشت پرداخت'),
+  DEPOSIT_DEDUCTION_PROPOSED: tr('پیشنهاد کسر از ودیعه'), DEPOSIT_DEDUCTION_APPROVED: tr('تأیید کسر از ودیعه'), DEPOSIT_DEDUCTION_REJECTED: tr('رد کسر از ودیعه'),
+  REMINDERS_RUN: tr('اجرای یادآوری‌ها'),
+  // Words that sit beside an action in the same source, read by the same test: a decision, a row's outcome.
+  APPROVED: tr('تأییدشده'), WAIVE: tr('بخشودن'), ERROR: tr('خطا'),
 };

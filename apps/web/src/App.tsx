@@ -41,6 +41,15 @@ const BookingPage = lazy(() => import('./pages/Bookings').then((m) => ({ default
 const TelegramApp = lazy(() => import('./pages/TelegramApp'));
 const BookingAdmin = lazy(() => import('./pages/BookingAdmin'));
 const Reception = lazy(() => import('./pages/Reception'));
+// ADR-103: venues, deployment projects and rentals.
+const SitesHome = lazy(() => import('./pages/sites/Home'));
+const SiteVenues = lazy(() => import('./pages/sites/Venues'));
+const SiteProjects = lazy(() => import('./pages/sites/Projects'));
+const SiteRentals = lazy(() => import('./pages/sites/Rentals'));
+const SiteReminders = lazy(() => import('./pages/sites/Messages'));
+const SiteReports = lazy(() => import('./pages/sites/Reports'));
+const SiteExcel = lazy(() => import('./pages/sites/Excel'));
+const SiteSettings = lazy(() => import('./pages/sites/Settings'));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -141,6 +150,16 @@ export default function App() {
         <Route path="/bookings/admin" element={<Guarded anyOf={['resource.manage', 'meeting.view_all']} element={<BookingAdmin />} />} />
         <Route path="/bookings/:id" element={<Guarded permission="meeting.book" element={<BookingPage />} />} />
         <Route path="/reception" element={<Guarded permission="reception.checkin" element={<Reception />} />} />
+        <Route path="/sites" element={<Guarded anyOf={['venue.read', 'site.read', 'rental.read']} element={<SitesHome />} />} />
+        <Route path="/sites/venues" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />
+        <Route path="/sites/venues/:id" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />
+        <Route path="/sites/projects" element={<Guarded permission="site.read" element={<SiteProjects />} />} />
+        <Route path="/sites/projects/:id" element={<Guarded permission="site.read" element={<SiteProjects />} />} />
+        <Route path="/sites/rentals" element={<Guarded permission="rental.read" element={<SiteRentals />} />} />
+        <Route path="/sites/reminders" element={<Guarded anyOf={['rental.read', 'site.configure', 'venue.sms']} element={<SiteReminders />} />} />
+        <Route path="/sites/reports" element={<Guarded anyOf={['venue.read', 'site.read', 'rental.read']} element={<SiteReports />} />} />
+        <Route path="/sites/excel" element={<Guarded anyOf={['venue.read', 'site.read', 'rental.read']} element={<SiteExcel />} />} />
+        <Route path="/sites/settings" element={<Guarded permission="site.configure" element={<SiteSettings />} />} />
         <Route path="/chat/oversight" element={<Guarded permission="chat.oversight" element={<ChatOversight />} />} />
         <Route path="/chat/:id" element={<Guarded permission="chat.use" element={<Chat />} />} />
         <Route path="/rules" element={<Rules />} />

@@ -114,7 +114,7 @@ revision · changeRequest · contract · invoice · outsourceRequest`
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /workflow/definitions` | All 15 state machines |
+| `GET /workflow/definitions` | All 16 state machines |
 | `GET /workflow/:entity/definition` | One state machine |
 | `GET /workflow/:entity/:id/available` | Transitions this caller may perform now |
 | `GET /workflow/:entity/:id/preflight` | Every transition out of the current state with every guard's verdict — `checks[]` of `{ guard, labelFa, ok, messageFa?, rule? }`, plus `permitted` and `ready`. Read-only; needs the entity's read permission |
@@ -991,6 +991,37 @@ Hivamis task 8. One recorded video per guide section and language, added by the 
 
 `sectionId` is an id from `GUIDE` in `@hiva/contracts`. The assistant's `search_guide` tool searches
 the same guide (see the chat assistant above).
+
+## Venues, deployment projects and rentals
+
+ADR-103. Lists are paginated (`page`, `pageSize`, `q`, `sort`, `order`); every write is audited.
+
+| Route | Permission | |
+|---|---|---|
+| `GET/POST /site-options`, `PATCH /site-options/:id` | any of the module's / `site.configure` | The organisation's lists, retired not deleted |
+| `GET/PUT /site-settings` | any of the module's / `site.configure` | Reminders, proration, overpayment, activation, required fields, SMS templates |
+| `GET /venues`, `GET /venues/facets`, `GET /venues/:id` | `venue.read` | Filters: province, city, typeCode, gradeCode, audience, status, incomplete, withoutActiveProject |
+| `POST /venues/duplicates` | `venue.read` | Likely duplicates of a draft |
+| `POST /venues`, `PATCH /venues/:id` | `venue.write` | 409 `POSSIBLE_DUPLICATE` unless `confirmNotDuplicate`; `version` for concurrent edits |
+| `POST /venues/:id/archive`, `/restore`, `/duplicates/decision` | `venue.manage` | Merge or keep apart |
+| `POST /venues/:id/contacts`, `PATCH /venue-contacts/:id`, `POST /venue-contacts/:id/archive`, `POST /venues/:id/channels`, `DELETE /venue-channels/:id` | `venue.write` | |
+| `POST /venue-messages`, `GET /venue-messages` | `venue.sms` | SMS to venues and its log |
+| `GET /site-projects`, `GET /site-projects/:id` | `site.read` | With `availableTransitions`; balances with `rental.read` |
+| `POST /site-projects`, `PATCH /site-projects/:id` | `site.write` | Terms locked once the contract is sent (409 `TERMS_LOCKED`) |
+| `POST /site-projects/:id/negotiations`, `PATCH /site-negotiations/:id` | `site.write` | |
+| `POST /site-projects/:id/contracts`, `POST /site-contracts/:id/submit` | `site.write` | A version, or an amendment |
+| `POST /site-contracts/:id/decision` | `site.contract.approve` | Not by its writer; moves the project in the same transaction |
+| `POST /site-projects/:id/approvals`, counters, assignments | `site.write` | The client's approval; counters; staff on site |
+| `POST /workflow/siteProject/:id/transitions` | per transition | The lifecycle |
+| `GET /rentals/dashboard`, `GET /site-obligations`, `GET /site-obligations/calendar`, `GET /site-projects/:id/ledger`, `GET /site-projects/:id/closure` | `rental.read` | |
+| `POST /site-projects/:id/obligations`, `PATCH /site-obligations/:id`, `POST /site-obligations/:id/close`, `POST /site-projects/:id/schedule` | `rental.manage` | Waiving needs `rental.approve` |
+| `POST /site-projects/:id/payments` | `rental.manage` | `clientKey` makes it idempotent (200 + `Idempotent-Replay: true` on a repeat) |
+| `POST /site-payments/:id/reverse`, `POST /site-projects/:id/deductions` | `rental.manage` | |
+| `POST /site-deposit-entries/:id/decision` | `rental.approve` | Not by its recorder |
+| `GET /site-reminders`, `POST /site-reminders/run` | `rental.read` or `site.configure` / `site.configure` | |
+| `GET /site-reports/venues`, `/projects`, `/rentals` | `venue.read` / `site.read` / `rental.read` | |
+| `GET /site-data/templates/:kind`, `GET /site-data/columns/:kind`, `POST /site-data/import/:kind` | per kind | `dryRun` (default true), `mode`, `skipInvalid` |
+| `GET /site-data/imports`, `GET /site-data/export/:kind` | per kind | Exports stream xlsx |
 
 ## Administration
 

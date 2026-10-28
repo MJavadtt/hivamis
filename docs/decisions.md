@@ -3104,3 +3104,61 @@ work — it asked me something I could not answer, and I could not tick what it 
 **The model.** These measures hold whatever the model. On the owner's Mac, qwen3:8b is what fits:
 qwen3:14b took 90–120 s with 8b beside it. On the server's 24 GB GPU, qwen3:30b (ADR-097) is both
 stronger and faster.
+
+
+## ADR-103 — Venues, deployment projects and rentals
+
+**Context.** The owner's document «دیتابیس» asks for three things in one module: a database of the
+places a counter or a stand can go (malls, metro stations, amusement parks…), the projects placed in
+them — negotiation, contract approval, installation, promoters — and the rentals: rent, service charge,
+deposit, penalties, reminders, settlement and the deposit back, with SMS to the venues, Excel in and
+out, reports, and lists the organisation edits itself.
+
+**Decision.**
+
+- **A deployment project is its own record (`site_projects`), not the client project.** A Hivamis
+  project is a client engagement under Doc_H — brief, proposal, authorisation. A placement is one venue
+  deal with its own lifecycle and money. A campaign in five malls is five deployment projects, each
+  pointing at the client project and the client (the employer whose approval is recorded). Reusing
+  `projects` would have put rent and deposits under Doc_H's guards, and Doc_H's guards under a mall's
+  lease.
+- **The lifecycle is a workflow like every other (`siteProject`, 13 states, 16 transitions).** States
+  move only through the engine: audited, in `state_transitions`, extensible by the organisation's own
+  rules, and passable only by a governed waiver. Its guards say what each step needs — agreed terms
+  before a contract, a contract with its file (where the cooperation model is written) approved by
+  someone other than its writer, an installation date, photo and rental schedule before going live,
+  nothing open before closing. The contract's decision and the project's move happen in one
+  transaction.
+- **Money is a ledger.** Obligations (what is owed: a month's rent, a month's service charge, the
+  deposit, a penalty…), payments (never edited — reversed with a reason), allocations (which payment
+  or deposit deduction settled what), and the deposit's own entries (deductions, approved by someone
+  other than their recorder; refunds, from a payment back). An obligation's `settledAmount` is kept in
+  the same transaction as its allocations and the database refuses one settled beyond its amount.
+  Every write locks the project's row; a payment carries the client's key and is recorded once
+  however often it is sent. All arithmetic is decimal; currencies are reported side by side, never
+  added together.
+- **The schedule is built, previewed, and rebuilt safely.** Periods are Persian months from the
+  contract's start. A part-month is prorated by days or charged whole, as the organisation chooses.
+  Each item has a key, so a rebuild adds what is missing, corrects unpaid items and voids unpaid ones
+  the contract no longer covers — and leaves anything paid alone, saying so.
+- **Reminders are rows.** The daily run (`sites:remind`, 08:30) finds what is due before, after, or
+  waiting, at the organisation's intervals; a missed day is caught up once, at the nearest interval.
+  Each reminder is a row with a unique key, written before it is sent, so no run sends one twice.
+- **SMS goes through the installation's provider** (`SMS_MODE`), extended with free text
+  (`SMS_SENDER`). SENT means the provider took a message; DELIVERED only what Kavenegar later reports.
+  The sandbox says it sent nothing. Failures are retried by `sites:messages`.
+- **The organisation's lists are rows (`site_options`)**, retired rather than deleted, with what a rule
+  needs in their `meta`; its rules are one validated settings row (`site_settings`).
+- **Excel** uses `exceljs` (the repository had no spreadsheet library): templates with a guide sheet,
+  imports checked row by row before anything is written and committed in one transaction, exports
+  streamed with formula-looking text written as text.
+- **Permissions.** Twelve new ones (`venue.*`, `site.*`, `rental.*`). Operations finds, negotiates and
+  installs; Finance records and pays; Legal approves contracts; Finance's manager approves deductions;
+  Operations' manager closes projects and configures the module. Full-access roles hold them all but
+  are not reminded of every rent unless given it in their own right. A venue's photos and a project's
+  files are read with the module's permission, and receipts with `rental.read`.
+
+**Consequences.** 20 tables, 23 checks of their own besides the state check. An organisation whose
+administrator already edited a role's permissions keeps that role as edited: the new permissions are
+granted there by hand. Rental payments are the module's ledger; they do not flow into the accounting
+export or the project's revenue figures yet.

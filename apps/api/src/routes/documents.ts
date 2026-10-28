@@ -11,6 +11,7 @@ import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
 import { assertStorageFor, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
+import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS, mayReadSiteFile } from '../sites/access.js';
 
 /** Only these types are accepted; anything executable or unknown is refused. */
 const ALLOWED_MIME = new Set([
@@ -43,8 +44,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const { projectId, companyId, contractId, deliverableId, proposalId, versions } = req.query as Record<string, string | undefined>;
-    return prisma.document.findMany({
+    const { projectId, companyId, contractId, deliverableId, proposalId, versions, venueId, siteProjectId } = req.query as Record<string, string | undefined>;
+    const rows = await prisma.document.findMany({
       where: {
         // A file shared in a conversation is its members' (audit F-5), served by the chat alone.
         organizationId: actor.organizationId, deletedAt: null, chatConversationId: null,
@@ -55,10 +56,13 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),
         ...(contractId ? { contractId } : {}), ...(deliverableId ? { deliverableId } : {}),
         ...(proposalId ? { proposalId } : {}),
+        ...(venueId ? { venueId } : {}), ...(siteProjectId ? { siteProjectId } : {}),
       },
       include: { uploadedBy: { select: { id: true, fullName: true } } },
       orderBy: { createdAt: 'desc' }, take: 200,
     });
+    // A venue's photo or a deployment project's file is read with that module's permission (ADR-103).
+    return rows.filter((d) => mayReadSiteFile(actor.permissions, d));
   });
 
   app.post('/documents', {
@@ -141,10 +145,11 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     if (replaced?.qcReviewId) return fail('QC_EVIDENCE_FIXED', 'عکس شاهد بررسی کیفیت نسخهٔ تازه نمی‌گیرد؛ آنچه آن روز دیده شد همان می‌ماند.', 409);
 
     const links = replaced
-      ? { projectId: replaced.projectId, companyId: replaced.companyId, contractId: replaced.contractId, deliverableId: replaced.deliverableId, submissionId: replaced.submissionId, proposalId: replaced.proposalId }
+      ? { projectId: replaced.projectId, companyId: replaced.companyId, contractId: replaced.contractId, deliverableId: replaced.deliverableId, submissionId: replaced.submissionId, proposalId: replaced.proposalId, venueId: replaced.venueId, siteProjectId: replaced.siteProjectId }
       : {
           projectId: val('projectId'), companyId: val('companyId'), contractId: val('contractId'),
           deliverableId: val('deliverableId'), submissionId: val('submissionId'), proposalId: val('proposalId'),
+          venueId: val('venueId'), siteProjectId: val('siteProjectId'),
         };
 
     // A brand-library file: on a client, by someone who keeps brands.
@@ -180,9 +185,52 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!member) return fail('UNKNOWN_REFERENCE', 'ارجاع «chatConversationId» نامعتبر است.', 422);
       if (Object.values(links).some(Boolean) || brandRole || qcReviewId) return fail('CHAT_FILE_ALONE', 'فایل گفت‌وگو فقط به همان گفت‌وگو وصل می‌شود.');
     }
+    /**
+     * A venue's photo, or a deployment project's file (ADR-103): filed by someone who may write there, on
+     * nothing else, and — for a project — as evidence of a record of that project: a contract version, an
+     * approval, a negotiation, a payment, a deposit deduction. A receipt or a deduction's evidence is the
+     * ledger's, filed by whoever keeps it.
+     */
+    const site = replaced
+      ? { siteRecordType: replaced.siteRecordType, siteRecordId: replaced.siteRecordId, category: replaced.category, caption: val('caption') ?? replaced.caption, takenAt: replaced.takenAt }
+      : { siteRecordType: val('siteRecordType'), siteRecordId: val('siteRecordId'), category: val('category')?.slice(0, 40) ?? null, caption: val('caption')?.slice(0, 300) ?? null, takenAt: val('takenAt') ? new Date(val('takenAt')!) : null };
+    if (site.takenAt && Number.isNaN(site.takenAt.getTime())) return fail('VALIDATION_ERROR', 'تاریخ عکس نامعتبر است.');
+    if (replaced?.siteRecordType === 'contract' && replaced.siteRecordId && !(await prisma.siteContract.count({ where: { id: replaced.siteRecordId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } }))) {
+      return fail('SITE_EVIDENCE_FIXED', 'فایل قراردادی که درباره‌اش تصمیم گرفته شده نسخهٔ تازه نمی‌گیرد؛ نسخهٔ تازهٔ قرارداد ثبت کنید.', 409);
+    }
+    if (links.venueId || links.siteProjectId) {
+      const others = Object.entries(links).filter(([k, v]) => v && k !== 'venueId' && k !== 'siteProjectId');
+      if (others.length || (links.venueId && links.siteProjectId) || brandRole || qcReviewId || chatConversationId) return fail('SITE_FILE_ALONE', 'فایل مکان یا پروژهٔ استقرار فقط به همان وصل می‌شود.');
+    }
+    if (links.venueId && !replaced) {
+      if (!actor.permissions.includes('venue.write')) return fail('FORBIDDEN', 'برای افزودن عکس و فایل مکان به دسترسی «venue.write» نیاز دارید.', 403);
+    }
+    if (links.siteProjectId && !replaced) {
+      const kind = site.siteRecordType ?? 'general';
+      if (!(SITE_FILE_KINDS as readonly string[]).includes(kind)) return fail('VALIDATION_ERROR', 'نوع پیوست پروژهٔ استقرار نامعتبر است.');
+      site.siteRecordType = kind;
+      const needs = FINANCIAL_FILE_KINDS.has(kind) ? 'rental.manage' : 'site.write';
+      if (!actor.permissions.includes(needs)) return fail('FORBIDDEN', `برای افزودن این پیوست به دسترسی «${needs}» نیاز دارید.`, 403);
+      const recordOf: Record<string, ((id: string) => Promise<number>) | null> = {
+        contract: (rid) => prisma.siteContract.count({ where: { id: rid, organizationId: actor.organizationId, siteProjectId: links.siteProjectId!, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } }),
+        approval: (rid) => prisma.siteApproval.count({ where: { id: rid, organizationId: actor.organizationId, siteProjectId: links.siteProjectId! } }),
+        negotiation: (rid) => prisma.siteNegotiation.count({ where: { id: rid, organizationId: actor.organizationId, siteProjectId: links.siteProjectId! } }),
+        payment: (rid) => prisma.sitePayment.count({ where: { id: rid, organizationId: actor.organizationId, siteProjectId: links.siteProjectId! } }),
+        deduction: (rid) => prisma.siteDepositEntry.count({ where: { id: rid, organizationId: actor.organizationId, siteProjectId: links.siteProjectId!, kind: 'DEDUCTION' } }),
+        installation: null, general: null,
+      };
+      const check = recordOf[kind];
+      if (check && (!site.siteRecordId || !(await check(site.siteRecordId)))) {
+        return fail('UNKNOWN_REFERENCE', kind === 'contract' ? 'فایل قرارداد به نسخه‌ای پیوست می‌شود که هنوز تصمیمی درباره‌اش گرفته نشده.' : 'رکوردی از این پروژه که پیوست برای آن است پیدا نشد.', 422);
+      }
+      if (!check) site.siteRecordId = null;
+    } else if (!links.siteProjectId && !replaced) {
+      site.siteRecordType = null; site.siteRecordId = null;
+    }
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
       deliverableId: prisma.deliverable, submissionId: prisma.formSubmission, proposalId: prisma.proposal,
+      venueId: prisma.venue, siteProjectId: prisma.siteProject,
     };
     for (const [field, id] of replaced ? [] : Object.entries(links)) {
       if (!id) continue;
@@ -209,6 +257,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
           projectId: links.projectId, companyId: links.companyId,
           contractId: links.contractId, deliverableId: links.deliverableId,
           submissionId: links.submissionId, proposalId: links.proposalId, qcReviewId, chatConversationId,
+          venueId: links.venueId, siteProjectId: links.siteProjectId, ...site,
           tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? replaced?.tags ?? [],
           uploadedById: actor.id,
           lineageId: replaced ? replaced.lineageId ?? replaced.id : id,
@@ -249,7 +298,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
 
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_DOWNLOAD',
@@ -282,7 +331,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
     if (!PREVIEWABLE(doc.mimeType)) throw new AppError(422, 'PREVIEW_UNSUPPORTED', 'این نوع فایل پیش‌نمایش ندارد؛ آن را دریافت کنید.');
     const seen = await prisma.auditEvent.findFirst({
       where: { actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, createdAt: { gte: new Date(Date.now() - 3_600_000) } },
@@ -303,8 +352,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null }, select: { id: true, lineageId: true } });
-    if (!doc) throw notFound('سند');
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null }, select: { id: true, lineageId: true, venueId: true, siteProjectId: true, siteRecordType: true } });
+    if (!doc || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
     const lineage = doc.lineageId ?? doc.id;
     const rows = await prisma.document.findMany({
       where: { organizationId: actor.organizationId, deletedAt: null, OR: [{ lineageId: lineage }, { id: lineage }] },
@@ -349,7 +398,16 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.organizationId !== actor.organizationId || doc.chatConversationId) throw notFound('سند');
+    if (!doc || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
+    // A deployment project's evidence stays once what it evidences is decided (ADR-103): a contract
+    // sent or approved, an approval, a payment, a decided deduction.
+    if (doc.siteProjectId && doc.siteRecordId) {
+      const decided =
+        doc.siteRecordType === 'contract' ? await prisma.siteContract.count({ where: { id: doc.siteRecordId, status: { not: 'DRAFT' } } })
+        : doc.siteRecordType === 'deduction' ? await prisma.siteDepositEntry.count({ where: { id: doc.siteRecordId, status: { not: 'PROPOSED' } } })
+        : doc.siteRecordType === 'approval' || doc.siteRecordType === 'payment' ? 1 : 0;
+      if (decided) throw new AppError(409, 'SITE_EVIDENCE_FIXED', 'این پیوست شاهد تصمیمی ثبت‌شده است و برداشته نمی‌شود؛ نسخهٔ تازه بارگذاری کنید.');
+    }
     // A QC review's evidence (roadmap #49) is taken back only by its reviewer, the same day — a
     // wrong photo corrected, not a record of what was seen edited afterwards.
     if (doc.qcReviewId && (doc.uploadedById !== actor.id || Date.now() - doc.createdAt.getTime() > 24 * 3_600_000)) {

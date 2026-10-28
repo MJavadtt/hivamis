@@ -33,6 +33,8 @@ export const KEEP = new Set([
   'Organization', 'Holiday', 'RuleSetVersion', 'Department', 'Role', 'Position', 'Permission', 'RolePermission', 'RoleGrant',
   'FormDefinition', 'FormDefinitionVersion', 'SlaPolicy', 'CustomRule', 'ExchangeRate', 'TaxProfile', 'AccountingSettings',
   'BookingLocation', 'BookableResource', 'CateringOption', 'Team', 'GuideVideo', 'ServerKey', 'SystemUpgrade', 'MessengerPollState',
+  // ADR-103: the venues module's lists and how its rentals run.
+  'SiteOption', 'SiteSettings',
   // The history.
   'AuditEvent', 'StateTransition', 'SecurityAlert', 'Counter',
   // People: removed one by one below, never wholesale; the kept administrator's roles and sign-ins stay.

@@ -2,6 +2,7 @@ import type { Tx } from '../db.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { guardLabel, guardOf, registerGuard } from './registry.js';
 import { BOOKING_GUARDS, BOOKING_GUARD_LABELS } from '../bookings/workflow.js';
+import { SITE_GUARDS, SITE_GUARD_LABELS } from '../sites/workflow.js';
 
 export interface GuardContext {
   tx: Tx;
@@ -511,6 +512,8 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
 
   // Audit F-9: booking a meeting.
   ...BOOKING_GUARDS,
+  // ADR-103: deployment projects.
+  ...SITE_GUARDS,
 };
 
 /** Units whose people may book media with a vendor (#31). */
@@ -551,6 +554,7 @@ export const GUARD_LABELS: Record<string, string> = {
   'invoice.taxCancellationFiled': 'اگر فاکتور در سامانهٔ مؤدیان پذیرفته شده، ابطالی آن در سامانه پذیرفته شده باشد',
   'contract.signatureNotInFlight': 'قرارداد در میانهٔ امضای الکترونیکی نباشد — یا امضا از همان مسیر ثبت شود',
   ...BOOKING_GUARD_LABELS,
+  ...SITE_GUARD_LABELS,
 };
 
 /** One guard's verdict, for a checklist: which rule, what it requires, and whether it holds. */

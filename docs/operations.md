@@ -140,6 +140,7 @@ come from `tenant:create`, as the installer does.
 | `MESSENGER_MODE` | no | `sandbox` outside production, `off` in production | Messenger (roadmap #40): `sandbox` — an in-app chat; `bale` / `telegram` — a bot on the Bot API; `off` |
 | `SMS_MODE` | no | `sandbox` in development with one organisation; `off` in production or with `TENANT_MODE=multi` | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages in the outbox (Admin → Users), and is refused at start in production or with several organisations (audit SEC-6) — its outbox shows a code only when it opens no account (asking to join) or to the person it signs in; `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
 | `SMS_API_KEY`, `SMS_TEMPLATE`, `SMS_URL` | with `kavenegar` / `http` | — | The provider's key; Kavenegar's verify template (one token, the code); the `http` endpoint |
+| `SMS_SENDER` | no | — | The line free-text messages (texts to venues, ADR-103) are sent from; Kavenegar's default line when empty, `from` for the `http` adapter |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for Google sign-in | — | An OAuth client of type "Web application"; register `PUBLIC_APP_URL` (or the first `CORS_ORIGIN`) + `/api/v1/auth/google/callback` as its redirect URI. Unset: no Google button |
 | `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains a Google account must be on — to ask to join, to sign in, and to be linked (audit SEC-5). Empty: any domain |
 | `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
@@ -670,6 +671,25 @@ catering options.
   in the API's log (`23P01`) is a lost race reported to the person, not a fault.
 - `reception.checkin` and `meeting.view_all` are nobody's but the full-access roles' until the
   administrator grants them to a role, for example a reception role made for it.
+
+
+## Venues and rentals
+
+The module of ADR-103 needs no service of its own. Two jobs run with the others:
+
+- `sites:remind`, daily at 08:30 (Asia/Tehran): rent, service charge and other payments due or
+  overdue, contracts ending, follow-ups, approvals and closures waiting. Safe to run twice; an
+  administrator with `site.configure` can also run it from **یادآوری و پیامک**.
+- `sites:messages`, every 10 minutes: texts to venues that failed, tried again (three attempts), and
+  — with Kavenegar — whether the sent ones were delivered.
+
+Texts to venues use the same provider as sign-in codes (`SMS_MODE`), with free-text sending. Set
+`SMS_SENDER` to the line they should come from (Kavenegar uses the account's default line without
+it). In the sandbox, nothing is sent and the screen says so.
+
+Excel imports are limited to 5,000 rows and to `MAX_UPLOAD_MB`. An organisation whose administrator
+already edited role permissions must grant the new `venue.*`, `site.*` and `rental.*` permissions to
+those roles by hand (Admin → Roles); the full-access roles hold them already.
 
 ## Signing in with a mobile or Google, and asking to join
 

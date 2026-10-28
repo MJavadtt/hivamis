@@ -36,6 +36,7 @@ export function delegate(tx: Tx, entity: string): any {
     outsourceRequest: tx.outsourceRequest,
     mediaOrder: tx.mediaOrder,
     booking: tx.booking,
+    siteProject: tx.siteProject,
   };
   const d = map[entity];
   if (!d) throw badRequest('UNKNOWN_ENTITY', `موجودیت «${entity}» فاقد ماشین حالت است.`);

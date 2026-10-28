@@ -752,6 +752,49 @@ parking and catering**.
 
 ---
 
+## Venues and rentals — «مکان‌ها و اجاره‌داری»
+
+**مکان‌ها و اجاره‌داری** in the sidebar keeps the places a counter or a stand can go, the projects
+placed in them, and what is paid for the space. Its dashboard says what needs someone today: what is
+overdue, what falls due this week, the contracts waiting for approval, the installations running late.
+
+1. **بانک مکان‌ها**: each mall, metro station or amusement park with its province, city, type, grade,
+   audiences, photos and people — the managing director, marketing, technical and anyone else, each
+   with their numbers and channels. A venue that looks like one already recorded (the same name in the
+   same city, a shared phone number) is shown before it is saved; the venue keepers merge true
+   duplicates or keep two places apart.
+2. **پروژه‌های استقرار**: one placement in one venue. Its buttons are the next steps, from
+   **شروع بررسی مکان** to **بستن پروژه**; a red number beside one counts what is still missing.
+   Negotiations are recorded with their proposals and follow-ups, and compared side by side.
+3. **قرارداد و تأییدها**: the contract is recorded as a version with its file and sent for approval;
+   a colleague other than its writer approves or rejects it. Once approved, the terms are fixed — a
+   change is an amendment, approved the same way. The client's approval is recorded with its photo.
+4. **نصب و نیروها**: the counters with their size and cost, the promoters and installers on site,
+   the planned and actual installation dates and the installation photos. A project goes live only
+   with its approved contract, its installation date, its photo and its rental schedule.
+5. **اجاره و پرداخت‌ها**: **ساخت جدول اجاره** turns the terms into what falls due — the deposit, then
+   rent and service charge month by month. A payment is recorded against the oldest items, or the
+   ones you choose; a part-payment leaves the rest outstanding, and a mistake is reversed with its
+   reason, never edited.
+6. **تسویه و بستن**: the closure's checklist — rent, service charge, penalties, the deposit's
+   deductions and return — ticks itself from the books. A deduction from the deposit is approved by a
+   colleague other than the one who recorded it. The project closes only when nothing is left open.
+
+**Rentals.** **اجاره‌داری** lists everything owed across every venue: an overview, the rental schedule
+to filter and export, and a calendar of the Persian month. **یادآوری و پیامک** shows the reminders
+sent each morning — before a payment is due, after it fell due unpaid, before a contract ends — and
+the texts sent to venues, with what the SMS provider answered.
+
+**Excel.** **اکسل** gives a template for venues, contacts, projects and obligations. **بررسی** reads a
+file and says row by row what would happen; nothing is saved until you choose to, and rows with errors
+are left out only when you say so. Every list can be downloaded as a sheet.
+
+Whoever holds **Venues and rentals settings** edits the organisation's lists (venue types, grades,
+audiences, cooperation models, payment methods) and the rules: the reminder days, how a part-month is
+charged, what an overpayment does, what going live asks for, and the SMS templates.
+
+---
+
 ## The AI assistant
 
 Choose an analysis and its subject. You always get **rule-based findings** computed directly from

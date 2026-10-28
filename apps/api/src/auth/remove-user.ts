@@ -21,7 +21,7 @@ const OWN_STATE = new Set([
   'Notification.userId', 'MessengerLink.userId', 'MessengerAction.userId', 'PushSubscription.userId', 'UserIdentity.userId',
   'OtpCode.userId', 'SmsMessage.userId', 'OAuthState.userId', 'IdentityLinkOffer.userId', 'LoginTicket.userId',
   'SignupRequest.decidedById', 'SignupRequest.userId', 'IdempotencyKey.userId', 'AiPlan.userId', 'AiConversation.userId',
-  'ChatMember.userId', 'Team.leadId', 'PersonHold.userId',
+  'ChatMember.userId', 'Team.leadId', 'PersonHold.userId', 'SiteSavedView.userId',
 ]);
 
 /** Every column that points at a person and is history, read from Prisma's own description of the schema. */
