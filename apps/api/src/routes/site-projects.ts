@@ -95,8 +95,12 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
       const venue = await tx.venue.findFirst({ where: { id: input.venueId, organizationId: actor.organizationId, archivedAt: null, mergedIntoId: null } });
       if (!venue) throw new AppError(422, 'UNKNOWN_REFERENCE', 'مکان این پروژه پیدا نشد یا بایگانی شده است.');
       const org = await tx.organization.findUniqueOrThrow({ where: { id: actor.organizationId }, select: { currency: true } });
+      // Made for a client project, it takes that project's client as the employer unless one is named.
+      const client = input.projectId && !input.companyId
+        ? (await tx.project.findFirst({ where: { id: input.projectId, organizationId: actor.organizationId }, select: { companyId: true } }))?.companyId ?? null
+        : input.companyId ?? null;
       const row = await tx.siteProject.create({
-        data: { ...input, currency: input.currency ?? org.currency, organizationId: actor.organizationId, code: await nextCode(tx, 'siteProject'), createdById: actor.id, responsibleId: input.responsibleId ?? actor.id },
+        data: { ...input, companyId: client, currency: input.currency ?? org.currency, organizationId: actor.organizationId, code: await nextCode(tx, 'siteProject'), createdById: actor.id, responsibleId: input.responsibleId ?? actor.id },
       });
       await audit({ ...auditCtx(actor), action: 'CREATE', entityType: 'siteProject', entityId: row.id, after: row }, tx);
       return row;

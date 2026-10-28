@@ -511,6 +511,16 @@ describe('Venues, deployment projects and rentals (ADR-103)', () => {
       expect((await post(`/site-projects/${p.id}/counters`, T.account, { label: 'دیر' })).status).toBe(409);
     });
 
+    it('ties a placement to its client project, whose client becomes the employer', async () => {
+      const { organizationId } = await prisma.user.findFirstOrThrow({ where: { email: 'account@hiva.local' }, select: { organizationId: true } });
+      const client = await prisma.project.findFirstOrThrow({ where: { organizationId }, select: { id: true, companyId: true } });
+      const venue = await prisma.venue.findFirstOrThrow({ where: { name: 'مجتمع تجاری کوروش آزمون' }, select: { id: true } });
+      const p = expectOk(await post('/site-projects', T.account, { name: 'استقرار برای پروژهٔ مشتری', venueId: venue.id, projectId: client.id }), 'tied');
+      expect(p).toMatchObject({ projectId: client.id, companyId: client.companyId });
+      const listed = expectOk(await get('/site-projects', T.account, { projectId: client.id }), 'by project');
+      expect(listed.items.map((x: { id: string }) => x.id)).toContain(p.id);
+    });
+
     it('keeps another organisation’s venue and project out of reach', async () => {
       const org = await prisma.organization.create({ data: { name: 'سازمان دیگر آزمون مکان' } });
       const someone = await prisma.user.findFirstOrThrow({ select: { id: true } });

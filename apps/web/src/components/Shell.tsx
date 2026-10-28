@@ -81,6 +81,10 @@ const NAV: NavGroup[] = [
     label: tr('اجرا و کنترل'),
     items: [
       { to: '/projects', label: tr('پروژه‌ها'), icon: IconLayers, permission: 'project.read' },
+      // ADR-103: the placements in venues are execution too — here as well as in their own group.
+      { to: '/sites/projects', label: tr('پروژه‌های استقرار'), icon: IconLayers, permission: 'site.read' },
+      { to: '/sites/venues', label: tr('بانک مکان‌ها'), icon: IconPin, permission: 'venue.read' },
+      { to: '/sites/rentals', label: tr('اجاره‌داری'), icon: IconMoney, permission: 'rental.read' },
       { to: '/work-orders', label: tr('سفارش‌های کار'), icon: IconClipboard, permission: 'workorder.read' },
       { to: '/qc', label: tr('کنترل کیفیت'), icon: IconShield, permission: 'qc.read' },
       { to: '/changes', label: tr('درخواست‌های تغییر'), icon: IconAlert, permission: 'change.read' },

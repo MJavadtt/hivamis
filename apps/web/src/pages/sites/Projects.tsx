@@ -75,7 +75,7 @@ function ProjectList() {
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(patch)) (v ? next.set(k, v) : next.delete(k));
     if (!('page' in patch)) next.delete('page');
-    next.delete('new'); next.delete('venueId');
+    next.delete('new'); next.delete('venueId'); next.delete('projectId'); next.delete('companyId');
     setParams(next, { replace: true });
   };
   const [q, setQ] = useState(f.q);
@@ -125,7 +125,7 @@ function ProjectList() {
           )}
         </Card>
       </PageBody>
-      {creating && <ProjectForm venueId={params.get('venueId')} onClose={() => setCreating(false)} onSaved={(pid) => navigate(`/sites/projects/${pid}`)} />}
+      {creating && <ProjectForm venueId={params.get('venueId')} projectId={params.get('projectId')} companyId={params.get('companyId')} onClose={() => setCreating(false)} onSaved={(pid) => navigate(`/sites/projects/${pid}`)} />}
     </>
   );
 }
@@ -134,13 +134,13 @@ function ProjectList() {
 
 const num = (v: string | null | undefined) => v ?? '';
 
-export function ProjectForm({ project, venueId, onClose, onSaved }: { project?: Project; venueId?: string | null; onClose: () => void; onSaved?: (id: string) => void }) {
+export function ProjectForm({ project, venueId, projectId, companyId, onClose, onSaved }: { project?: Project; venueId?: string | null; projectId?: string | null; companyId?: string | null; onClose: () => void; onSaved?: (id: string) => void }) {
   const opts = useSiteOptions();
   const toast = useToast();
   const qc = useQueryClient();
   const locked = !!project?.termsLocked;
   const [p, setP] = useState({
-    name: project?.name ?? '', venueId: project?.venueId ?? venueId ?? null, placement: project?.placement ?? '', projectId: project?.projectId ?? null, companyId: project?.companyId ?? null,
+    name: project?.name ?? '', venueId: project?.venueId ?? venueId ?? null, placement: project?.placement ?? '', projectId: project?.projectId ?? projectId ?? null, companyId: project?.companyId ?? companyId ?? null,
     responsibleId: project?.responsibleId ?? null, cooperationCode: project?.cooperationCode ?? '', currency: project?.currency ?? 'IRR',
     contractStart: project?.contractStart ?? '', contractEnd: project?.contractEnd ?? '',
     depositAmount: num(project?.depositAmount), rentAmount: num(project?.rentAmount), rentPeriod: project?.rentPeriod ?? 'MONTHLY', rentDueDay: project?.rentDueDay ?? 0, rentMethodCode: project?.rentMethodCode ?? '',
