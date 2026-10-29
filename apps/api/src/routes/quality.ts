@@ -15,6 +15,7 @@ import { stageZero } from '../quality/stage-zero.js';
 import { composeCorrection } from '../annotations/service.js';
 import { over, QUEUE_CAP } from '../lib/limits.js';
 import { assertOwnReferences } from '../lib/scope.js';
+import { isSystemAdmin } from '../auth/grants.js';
 
 /** Doc_H §9 — each QC level maps to the permission that only its owning role holds. */
 const LEVEL_PERMISSION = { UNIT: 'qc.unit', ACCOUNT: 'qc.account', FINAL: 'qc.final' } as const;
@@ -256,7 +257,7 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     const input = parse(commercialImpactSchema, req.body);
     const cr = await prisma.changeRequest.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!cr) throw notFound('درخواست تغییر');
-    if (cr.scopeVerdict !== 'OUT_OF_SCOPE') {
+    if (cr.scopeVerdict !== 'OUT_OF_SCOPE' && !isSystemAdmin(actor)) {
       throw new GovernanceError(
         'Doc_H §8 — کنترل تغییرات',
         'بررسی اثر تجاری فقط برای تغییرات خارج از Scope انجام می‌شود. ابتدا بررسی Scope را ثبت کنید.',

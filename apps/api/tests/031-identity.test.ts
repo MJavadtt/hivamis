@@ -185,6 +185,40 @@ describe('Asking to join', () => {
     expectOk(await patch('/settings/signup', admin, { enabled: true }), 'open');
   });
 
+  // The owner's server report (2026-10-28): with neither SMS nor Google, there was no way to ask at all.
+  it('takes a request with an email and a password of one’s own, marked unproved; approved, that password signs in', async () => {
+    const email = 'by.password@example.com';
+    const ask = (payload: Record<string, unknown>) => call('POST', '/auth/signup/password', { payload });
+    expect(expectOk(await call('GET', '/auth/methods'), 'methods').signup).toMatchObject({ open: true, password: true });
+    expect((await ask({ fullName: 'رمز کوتاه', email, password: 'short' })).status).toBe(400);
+    expect((await ask({ fullName: 'شمارهٔ بد', email, password: 'Ramz-e-Khodam-2026', phone: '12345' })).status).toBe(400);
+    expect((await ask({ fullName: 'نسرین کاظمی', email, phone: '09130000505', password: 'Ramz-e-Khodam-2026', departmentCode: 'CR', note: 'طراح تازه' })).status).toBe(201);
+    expect((await ask({ fullName: 'نسرین کاظمی', email, password: 'Ramz-e-Khodam-2026' })).body.error.code).toBe('ALREADY_PENDING');
+
+    const row = await prisma.signupRequest.findFirstOrThrow({ where: { email, status: 'PENDING' } });
+    expect(row.method).toBe('PASSWORD');
+    expect(row.passwordHash).toMatch(/^\$argon2/);
+    const queue = expectOk(await get('/signup-requests?status=PENDING', admin), 'queue') as Record<string, unknown>[];
+    const listed = queue.find((r) => r.email === email)!;
+    expect(listed).toMatchObject({ method: 'PASSWORD', phone: '09130000505', departmentCode: 'CR' });
+    expect(listed).not.toHaveProperty('passwordHash');
+
+    expectOk(await post(`/signup-requests/${row.id}/approve`, admin, { departmentCode: 'CR', roles: ['UNIT_MEMBER'] }), 'approve');
+    const user = await prisma.user.findFirstOrThrow({ where: { email } });
+    // The number was only typed, never proved: it is kept, and opens nothing.
+    expect(user).toMatchObject({ phone: '09130000505', phoneVerifiedAt: null });
+    expect((await prisma.signupRequest.findUniqueOrThrow({ where: { id: row.id } })).passwordHash).toBeNull();
+    expect(expectOk(await call('POST', '/auth/login', { payload: { email, password: 'Ramz-e-Khodam-2026' } }), 'sign in').user.roles).toEqual(['UNIT_MEMBER']);
+
+    // Closed by the administrator, it is closed this way too; the database keeps the password to a pending request.
+    expectOk(await patch('/settings/signup', admin, { enabled: false }), 'close');
+    expect((await ask({ fullName: 'دیرآمده', email: 'late@example.com', password: 'Ramz-e-Khodam-2026' })).body.error.code).toBe('SIGNUP_CLOSED');
+    expectOk(await patch('/settings/signup', admin, { enabled: true }), 'open');
+    const organizationId = (await prisma.organization.findFirstOrThrow()).id;
+    await expect(prisma.signupRequest.create({ data: { organizationId, method: 'PASSWORD', fullName: 'بی‌رمز', email: 'no.password@example.com' } })).rejects.toThrow();
+    await expect(prisma.signupRequest.create({ data: { organizationId, method: 'PHONE', fullName: 'رمز نابجا', email: 'stray@example.com', phone: '09130000606', passwordHash: 'x' } })).rejects.toThrow();
+  });
+
   it('refuses a request whose code is wrong, and the database refuses a request without its proof', async () => {
     await expect(prisma.signupRequest.create({ data: { organizationId: (await prisma.organization.findFirstOrThrow()).id, method: 'PHONE', fullName: 'بی‌شماره', email: 'x@example.com' } })).rejects.toThrow();
   });

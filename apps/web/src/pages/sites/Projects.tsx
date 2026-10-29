@@ -21,6 +21,7 @@ import { AmountInput, Money, SitesNav, blank, money, pairLabel, useSiteOptions }
 import { FilterSelect, SavedViews } from './Venues';
 import { PeopleSelect, RecordSelect, SiteUpload, VenueSelect } from './pickers';
 import { ClosurePanel, ProjectLedger } from './Ledger';
+import { ImportButton } from './Excel';
 
 /**
  * Deployment projects (ADR-103, module B): one placement in one venue, from the first look at the
@@ -87,6 +88,7 @@ function ProjectList() {
       <PageHeader title={tr('پروژه‌های استقرار')} subtitle={tr('هر پروژه: یک استقرار در یک مکان — از بررسی و مذاکره تا قرارداد، نصب، بهره‌برداری و تسویه')}
         actions={<div className="flex gap-2">
           <Button size="sm" onClick={() => void downloadFile(`/site-data/export/projects?${new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([k, v]) => v && ['state', 'province', 'city'].includes(k))))}`, 'projects.xlsx')}>{tr('خروجی اکسل')}</Button>
+          <ImportButton kind="SITE_PROJECTS" />
           {can('site.write') && <Button size="sm" variant="primary" onClick={() => setCreating(true)}><IconPlus className="size-4" />{tr('پروژهٔ تازه')}</Button>}
         </div>} />
       <PageBody>
@@ -220,6 +222,7 @@ export function ProjectForm({ project, venueId, projectId, companyId, onClose, o
 
 function ProjectDetail({ id }: { id: string }) {
   const { can } = useAuth();
+  const systemAdminView = useSystemAdmin();
   const opts = useSiteOptions();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'summary';
@@ -251,7 +254,7 @@ function ProjectDetail({ id }: { id: string }) {
       <PageBody>
         <SitesNav />
         <Lifecycle state={p.state} />
-        {moves.length > 0 && <div className="mb-4"><WorkflowActions entity="siteProject" id={p.id} transitions={moves} onDone={() => void refetch()} /></div>}
+        {(moves.length > 0 || systemAdminView) && <div className="mb-4"><WorkflowActions entity="siteProject" id={p.id} transitions={moves} onDone={() => void refetch()} /></div>}
         {pendingContract && can('site.contract.approve') && tab !== 'contract' && (
           <div className="mb-4 rounded-lg bg-amber-50 p-3 text-sm ring-1 ring-amber-200">{tr('نسخهٔ {0} قرارداد منتظر تصمیم شماست.', localDigits(pendingContract.version))} <button type="button" className="font-semibold text-brand-700 underline" onClick={() => setTab('contract')}>{tr('بررسی قرارداد')}</button></div>
         )}

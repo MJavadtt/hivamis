@@ -3,6 +3,7 @@ import type { Permission } from '@hiva/contracts';
 import { currentUser } from '../auth/plugin.js';
 import { audit } from '../lib/audit.js';
 import { forbidden } from '../lib/errors.js';
+import { isSystemAdmin } from '../auth/grants.js';
 
 /**
  * A route open to whoever holds any one of these permissions (ADR-103): the venue lists are read by
@@ -18,6 +19,14 @@ export const anyOf = (...perms: Permission[]) => async (req: FastifyRequest) => 
   }).catch(() => undefined);
   throw forbidden(`برای این کار یکی از این دسترسی‌ها لازم است: ${perms.join('، ')}`);
 };
+
+/**
+ * The system administrator in their own right, who acts past the module's process rules — terms locked by
+ * a contract, a project closed, steps not yet taken (the owner's instruction, 2026-10-28). The ledger's
+ * arithmetic still holds for them: nothing is settled beyond its amount, no more deposit returned than held.
+ */
+export const overridesRules = (a: { roles?: readonly string[]; delegatedRoles?: Record<string, string> }) =>
+  isSystemAdmin({ roles: a.roles ?? [], delegatedRoles: a.delegatedRoles });
 
 /** Who may file a document as a venue's or a deployment project's, and who may read one so filed. */
 export const SITE_FILE_KINDS = ['contract', 'approval', 'installation', 'negotiation', 'payment', 'deduction', 'general'] as const;

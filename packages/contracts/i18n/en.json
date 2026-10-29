@@ -3136,5 +3136,11 @@
   "قرارداد تأیید شد": "Contract approved",
   "قرارداد رد شد": "Contract rejected",
   "پروژه بسته شد": "Project closed",
-  "به تسویه برگشت": "Back to settling"
+  "به تسویه برگشت": "Back to settling",
+  "تغییر مستقیم وضعیت فقط با مدیر سیستم است.": "Changing a status directly is for the system administrator alone.",
+  "«{0}» از وضعیت‌های «{1}» نیست.": "“{0}” isn't one of the “{1}” statuses.",
+  "رکورد هم‌اکنون در وضعیت «{0}» است.": "The record is already in status “{0}”.",
+  "درخواست عضویت در این سازمان بسته است.": "Joining this organisation is closed.",
+  "{0}{1} (تأییدنشده)": "{0}{1} (unverified)",
+  "با همین ایمیل و رمزی که برگزیدید": "with this email and the password you chose"
 }

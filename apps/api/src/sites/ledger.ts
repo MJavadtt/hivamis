@@ -5,6 +5,7 @@ import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { money, rounded, sumOf, ZERO, type Money } from '../lib/money.js';
 import type { SiteActor } from './venues.js';
+import { overridesRules } from './access.js';
 
 /**
  * The rental ledger (ADR-103, module C).
@@ -31,9 +32,9 @@ export async function lockProject(tx: Tx, organizationId: string, id: string) {
   return tx.siteProject.findUniqueOrThrow({ where: { id } });
 }
 
-/** A project whose books are closed: nothing is paid, reversed or deducted on it any more. */
-export function assertBooksOpen(p: { state: string; code: string }) {
-  if (p.state === 'CLOSED') throw conflict('PROJECT_CLOSED', `پروژهٔ ${p.code} بسته شده است؛ حساب آن تغییر نمی‌کند.`);
+/** A project whose books are closed: nothing is paid, reversed or deducted on it any more — but by the system administrator. */
+export function assertBooksOpen(p: { state: string; code: string }, actor?: SiteActor) {
+  if (p.state === 'CLOSED' && !(actor && overridesRules(actor))) throw conflict('PROJECT_CLOSED', `پروژهٔ ${p.code} بسته شده است؛ حساب آن تغییر نمی‌کند.`);
 }
 
 const statusFor = (amount: Money, settled: Money) => (settled.gte(amount) ? 'SETTLED' : settled.gt(0) ? 'PARTIAL' : 'OPEN');
@@ -167,8 +168,8 @@ export async function recordPayment(tx: Tx, actor: SiteActor, siteProjectId: str
     if (!same) throw conflict('IDEMPOTENCY_MISMATCH', 'این شناسهٔ پرداخت پیش‌تر برای پرداخت دیگری به کار رفته است.');
     return { payment: before, replayed: true };
   }
-  assertBooksOpen(p);
-  if (['DRAFT', 'CANCELLED'].includes(p.state)) throw conflict('PROJECT_NOT_CONTRACTED', 'برای پروژه‌ای که هنوز پیش‌نویس است یا لغو شده پرداختی ثبت نمی‌شود.');
+  assertBooksOpen(p, actor);
+  if (['DRAFT', 'CANCELLED'].includes(p.state) && !overridesRules(actor)) throw conflict('PROJECT_NOT_CONTRACTED', 'برای پروژه‌ای که هنوز پیش‌نویس است یا لغو شده پرداختی ثبت نمی‌شود.');
   if (!input.chequeNumber?.trim() && await isCheque(tx, actor.organizationId, input.methodCode)) {
     throw badRequest('VALIDATION_ERROR', 'برای پرداخت با چک، شمارهٔ چک را بنویسید.', { issues: [{ path: 'chequeNumber', message: 'شمارهٔ چک الزامی است' }] });
   }
@@ -249,7 +250,7 @@ export async function reversePayment(tx: Tx, actor: SiteActor, paymentId: string
   const found = await tx.sitePayment.findFirst({ where: { id: paymentId, organizationId: actor.organizationId } });
   if (!found) throw notFound('پرداخت');
   const p = await lockProject(tx, actor.organizationId, found.siteProjectId);
-  assertBooksOpen(p);
+  assertBooksOpen(p, actor);
   const payment = await tx.sitePayment.findUniqueOrThrow({ where: { id: paymentId }, include: { allocations: { where: { reversedAt: null } } } });
   if (payment.reversedAt) throw conflict('ALREADY_REVERSED', 'این پرداخت پیش‌تر برگشت خورده است.');
   if (payment.purpose === 'OBLIGATIONS') {
@@ -274,7 +275,7 @@ export async function reversePayment(tx: Tx, actor: SiteActor, paymentId: string
 
 export async function proposeDeduction(tx: Tx, actor: SiteActor, siteProjectId: string, input: { amount: string; reason: string; obligationId?: string | null }, settings: SiteSettings) {
   const p = await lockProject(tx, actor.organizationId, siteProjectId);
-  assertBooksOpen(p);
+  assertBooksOpen(p, actor);
   const amount = money(input.amount);
   const d = await depositOf(tx, siteProjectId);
   const free = money(d.remaining).sub(money(d.deductionsPending));
@@ -306,7 +307,7 @@ export async function decideDeduction(tx: Tx, actor: SiteActor, entryId: string,
   const found = await tx.siteDepositEntry.findFirst({ where: { id: entryId, organizationId: actor.organizationId, kind: 'DEDUCTION' } });
   if (!found) throw notFound('کسر از ودیعه');
   const p = await lockProject(tx, actor.organizationId, found.siteProjectId);
-  assertBooksOpen(p);
+  assertBooksOpen(p, actor);
   const entry = await tx.siteDepositEntry.findUniqueOrThrow({ where: { id: entryId } });
   if (entry.status !== 'PROPOSED') throw conflict('ALREADY_DECIDED', 'دربارهٔ این کسر پیش‌تر تصمیم گرفته شده است.');
   if (!opts.self && !opts.systemAdmin && entry.recordedById === actor.id) {

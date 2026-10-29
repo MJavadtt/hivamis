@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
-  approveSignupSchema, permissionsForRoles, phoneStartSchema, phoneVerifySchema, rejectSignupSchema, signupSchema,
+  approveSignupSchema, permissionsForRoles, phoneStartSchema, phoneVerifySchema, rejectSignupSchema, signupPasswordSchema, signupSchema,
   signupSettingsSchema, telegramWebAppSchema, type RoleCode,
 } from '@hiva/contracts';
 import { Prisma } from '@prisma/client';
@@ -20,7 +20,7 @@ import { checkCode, issueCode } from '../auth/otp.js';
 import { maskCode, sendCode, smsAvailable } from '../auth/sms.js';
 import { createTicket, finishGoogle, google, googleConfigured, liveOffer, offerLink, redeemTicket, startGoogle } from '../auth/google.js';
 import { clearOAuthCookie, oauthCookie, setOAuthCookie } from '../auth/cookie.js';
-import { verifyPassword } from '../auth/password.js';
+import { hashPassword, verifyPassword } from '../auth/password.js';
 import { assertMayTry, clearFailures } from '../auth/throttle.js';
 import { findRoles } from '../auth/roles.js';
 import { INIT_DATA_TTL_S, initDataSeal, verifyInitData } from '../auth/telegram-webapp.js';
@@ -44,7 +44,11 @@ const hereOnly = hostScope;
 export const NO_PASSWORD_PREFIX = '!no-password:';
 export const hasPassword = (hash: string) => !hash.startsWith('!');
 
-/** Joining is open unless the administrator closed it; there must also be a way to prove oneself. */
+/**
+ * Joining is open unless the administrator closed it. A mobile proved by its code and a Google account
+ * are the ways that prove something; an email and a password of one's own is always there besides, so an
+ * installation with neither SMS nor Google still has a way in — the administrator's approval is its check.
+ */
 async function signupState(req: FastifyRequest, organizationId?: string | null) {
   // The organisation of the address the person came to (roadmap #50); after Google, the one the
   // sign-in began in — Google returns to the installation's one address.
@@ -54,7 +58,7 @@ async function signupState(req: FastifyRequest, organizationId?: string | null) 
   if (!org) throw notFound('سازمان');
   const settings = (org.settings ?? {}) as { signup?: { enabled?: boolean } };
   const open = settings.signup?.enabled !== false;
-  return { org, open, phone: open && smsAvailable(), google: open && googleConfigured() };
+  return { org, open, phone: open && smsAvailable(), google: open && googleConfigured(), password: open };
 }
 
 async function notifyAdmins(organizationId: string, title: string, body: string, entityId: string) {
@@ -79,7 +83,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const s = await signupState(req);
     return {
       organization: s.org.name, password: true, phone: smsAvailable(), google: googleConfigured(),
-      signup: { open: s.open && (s.phone || s.google), phone: s.phone, google: s.google },
+      signup: { open: s.open, phone: s.phone, google: s.google, password: s.password },
     };
   });
 
@@ -332,7 +336,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const units = s.open
       ? await prisma.department.findMany({ where: { organizationId: s.org.id }, orderBy: { sortOrder: 'asc' }, select: { code: true, nameFa: true, nameEn: true } })
       : [];
-    return { organization: s.org.name, open: s.open && (s.phone || s.google), phone: s.phone, google: s.google, units };
+    return { organization: s.org.name, open: s.open, phone: s.phone, google: s.google, password: s.password, units };
   });
 
   app.post('/auth/signup/phone/start', { config: RATE }, async (req, reply) => {
@@ -361,6 +365,24 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     });
     await audit({ organizationId: s.org.id, actorId: null, action: 'CREATE', entityType: 'signupRequest', entityId: request.id, after: { method: 'PHONE', email: input.email }, ipAddress: req.ip });
     await notifyAdmins(s.org.id, `درخواست عضویت: ${request.fullName}`, `${request.email} — ${request.phone}`, request.id);
+    return reply.code(201).send({ status: 'PENDING' });
+  });
+
+  /** With an email and a password of one's own: nothing proved, so the queue says so; approved, it is the account's password. */
+  app.post('/auth/signup/password', { config: RATE }, async (req, reply) => {
+    const input = parse(signupPasswordSchema, req.body);
+    const s = await signupState(req);
+    if (!s.password) throw new AppError(403, 'SIGNUP_CLOSED', 'درخواست عضویت در این سازمان بسته است.');
+    if (await prisma.user.findFirst({ where: { organizationId: s.org.id, email: input.email }, select: { id: true } })) throw conflict('EMAIL_TAKEN', 'با این ایمیل پیش‌تر حسابی ساخته شده است؛ وارد شوید.');
+    if (await prisma.signupRequest.findFirst({ where: { organizationId: s.org.id, email: input.email, status: 'PENDING' } })) throw conflict('ALREADY_PENDING', 'درخواست شما پیش‌تر ثبت شده و در انتظار تأیید مدیر سیستم است.');
+    const request = await prisma.signupRequest.create({
+      data: {
+        organizationId: s.org.id, method: 'PASSWORD', fullName: input.fullName, email: input.email, phone: input.phone ?? null,
+        passwordHash: await hashPassword(input.password), departmentCode: input.departmentCode ?? null, note: input.note ?? null, ipAddress: req.ip,
+      },
+    });
+    await audit({ organizationId: s.org.id, actorId: null, action: 'CREATE', entityType: 'signupRequest', entityId: request.id, after: { method: 'PASSWORD', email: input.email }, ipAddress: req.ip });
+    await notifyAdmins(s.org.id, `درخواست عضویت: ${request.fullName}`, `${request.email}${request.phone ? ` — ${request.phone}` : ''} (تأییدنشده)`, request.id);
     return reply.code(201).send({ status: 'PENDING' });
   });
 
@@ -393,21 +415,23 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const roles = await findRoles(prisma, actor.organizationId, input.roles);
 
     const user = await prisma.$transaction(async (tx) => {
-      if (request.phone && await tx.user.findFirst({ where: { phone: request.phone, phoneVerifiedAt: { not: null }, deletedAt: null } })) {
+      // A number proved by its code signs in; one only typed into the request is kept, unproved.
+      const proved = request.method === 'PHONE';
+      if (proved && request.phone && await tx.user.findFirst({ where: { phone: request.phone, phoneVerifiedAt: { not: null }, deletedAt: null } })) {
         throw conflict('PHONE_TAKEN', 'این شمارهٔ همراه در این فاصله به حساب دیگری وصل شده است.');
       }
       const made = await tx.user.create({
         data: {
           organizationId: actor.organizationId, departmentId: department.id, email: request.email, fullName: request.fullName,
-          jobTitle: input.jobTitle ?? null, passwordHash: `${NO_PASSWORD_PREFIX}${randomBytes(16).toString('hex')}`,
-          ...(request.phone ? { phone: request.phone, phoneVerifiedAt: new Date() } : {}),
+          jobTitle: input.jobTitle ?? null, passwordHash: request.passwordHash ?? `${NO_PASSWORD_PREFIX}${randomBytes(16).toString('hex')}`,
+          ...(request.phone ? { phone: request.phone, ...(proved ? { phoneVerifiedAt: new Date() } : {}) } : {}),
           roles: { create: roles.map((r) => ({ roleId: r.id })) },
         },
       });
       if (request.googleSubject) await tx.userIdentity.create({ data: { userId: made.id, provider: 'google', subject: request.googleSubject, email: request.email } });
       // Decided once: a second approval racing this one finds it no longer pending, and its account rolls back.
       const taken = await tx.signupRequest.updateMany({
-        where: { id, status: 'PENDING' }, data: { status: 'APPROVED', decidedAt: new Date(), decidedById: actor.id, userId: made.id },
+        where: { id, status: 'PENDING' }, data: { status: 'APPROVED', decidedAt: new Date(), decidedById: actor.id, userId: made.id, passwordHash: null },
       });
       if (taken.count !== 1) throw conflict('ALREADY_DECIDED', 'این درخواست پیش‌تر بررسی شده است.');
       return made;
@@ -417,7 +441,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
       after: { userId: user.id, departmentCode: input.departmentCode, roles: input.roles }, ipAddress: actor.ipAddress,
     });
     if (mailEnabled) {
-      const how = request.method === 'PHONE' ? 'با همین شمارهٔ همراه' : 'با همان حساب گوگل';
+      const how = request.method === 'PHONE' ? 'با همین شمارهٔ همراه' : request.method === 'PASSWORD' ? 'با همین ایمیل و رمزی که برگزیدید' : 'با همان حساب گوگل';
       await enqueueMail({
         to: user.email, subject: 'حساب شما در هیوامیس آماده است',
         text: `${user.fullName} عزیز،\n\nدرخواست عضویت شما تأیید شد. ${how} وارد شوید:\n${appUrl('/')}`,
@@ -433,7 +457,7 @@ const identityRoutes: FastifyPluginAsync = async (app) => {
     const { note } = parse(rejectSignupSchema, req.body);
     const taken = await prisma.signupRequest.updateMany({
       where: { id, organizationId: actor.organizationId, status: 'PENDING' },
-      data: { status: 'REJECTED', decidedAt: new Date(), decidedById: actor.id, decisionNote: note },
+      data: { status: 'REJECTED', decidedAt: new Date(), decidedById: actor.id, decisionNote: note, passwordHash: null },
     });
     if (taken.count !== 1) {
       if (!(await prisma.signupRequest.findFirst({ where: { id, organizationId: actor.organizationId } }))) throw notFound('درخواست عضویت');

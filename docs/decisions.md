@@ -3162,3 +3162,83 @@ out, reports, and lists the organisation edits itself.
 administrator already edited a role's permissions keeps that role as edited: the new permissions are
 granted there by hand. Rental payments are the module's ledger; they do not flow into the accounting
 export or the project's revenue figures yet.
+
+
+## ADR-104 — The system administrator above the process
+
+**Context.** The owner (2026-10-28): "As system administrator I must be able to step into everything, without
+any rule — make a project without the steps before it, and do every task on its own, past any process."
+ADR-101 had made every approval theirs; the process's rules still held them like everyone else.
+
+**Decision.** The system administrator in their own right (SUPER_ADMIN, never through a delegation, never
+while acting in someone else's account — `isSystemAdmin`) goes past the process:
+
+- **The workflow engine** runs every guard as before; when one says no to them, the move goes on, and the
+  audit row of the move lists every rule it passed (`overriddenBySystemAdministrator`). A mandatory reason
+  is optional for them; waivers are not spent on their moves.
+- **Any state directly** — `POST /workflow/:entity/:id/force` (`forceState`): any state of the entity's
+  workflow, no transition looked for, no guard asked, no effect run. Written as every move is: a state
+  transition (`admin_force`) and an audit row (`STATE_FORCED`); a clock left running on a record put into a
+  final state is stopped.
+- **Any record directly, from anywhere** (the owner, the same day: "in every section I must be able to add,
+  from every section") — «افزودن مستقیم» in the «+» menu of the top bar lists every kind the API creates on
+  its own (lead to status report, nineteen of them, with venues and deployment projects beside them), and
+  every list carries «… تازه» for its own kind. One form (`QuickCreate`) built from each kind's create
+  schema in the contracts — the fields, which are required, the choices, the records a field points at —
+  so a field added to a schema appears there by itself. It posts to the ordinary create route: a project
+  without a brief, a proposal or the B14 form; a task against any project.
+- **The rules routes check themselves** — the sale price before the costs (Doc_H §12), an authorisation
+  basis without a signed contract or invoice (§13, §G), the commercial impact before the scope verdict (§8),
+  and the venues module's process rules (terms locked by a contract, a closed or cancelled project, a
+  contract before negotiation, the contract file, a venue with live projects, the schedule's states).
+
+**What still holds.** Data integrity, not process: the ledger's arithmetic (nothing settled beyond its
+amount, no more deposit returned than held — the database refuses it too), validation, the organisation's
+boundary, and the record itself: nothing they do is unlogged.
+
+## ADR-105 — The server kept its old version, and features stayed hidden
+
+**Context.** The owner (2026-10-28): "Parts of Docker had problems; many sections, like the membership
+button, still did not show on the server." Built as the server builds it (`hivamis install` on a clean
+checkout), four causes appeared, none of them visible on a developer's machine:
+
+0. **The API never became ready.** The build stage (`node:22-bookworm-slim`) has no OpenSSL, so
+   `prisma generate` chose the query engine for OpenSSL 1.1; the runtime stage installs OpenSSL 3, and
+   the API could not load that engine — every query failed, `/health/ready` answered 503, and nginx in
+   front of it had nothing to pass a request to.
+1. **The API's image did not build.** `pnpm-lock.yaml` recorded `exceljs` as `4.4.0` while
+   `apps/api/package.json` asked for `^4.4.0`; `pnpm install --frozen-lockfile` refuses that, so every
+   `hivamis upgrade` since ADR-103 stopped at the build — and, the build failing, restarted nothing.
+   The server kept serving the version before, the venues module and everything after it missing.
+2. **Thirty-one settings never reached the API.** `docker-compose.yml` lists the API's environment one
+   setting at a time; the bot (`MESSENGER_*`), e-signature (`ESIGN_*`), Moadian, `SMS_SENDER`, searching
+   by meaning (`EMBEDDING_*`), push delivery and the retention periods were not in the list, so a value
+   in `.env` was dropped on the way in and the feature stayed off.
+3. **Joining needed SMS or Google.** `/signup` counted as open only while one of the two was set up; the
+   stack starts with both off, so the «درخواست عضویت» link never showed on a server.
+
+**Decision.**
+
+- The build stage installs OpenSSL before generating the client, as the runtime does, and the build
+  fails unless an engine for OpenSSL 3 is in the image — a broken API is refused at build, not shipped.
+- The lockfile agrees with every `package.json` again, and `077-docker-stack.test.ts` compares their
+  specifiers, so the mismatch fails a test before it fails a server's build.
+- Every setting of the API's schema is in the compose file, at the code's own default (an optional
+  choice at one of its values, never an empty string the API would refuse) — the test lists the
+  exceptions: what the image sets itself, and the test stand-ins for Google's addresses.
+- `hivamis upgrade` adds to `.env` the settings of `.env.docker.example` it lacks, off or at their
+  defaults, and names them; a failed build stops the upgrade with what it means — nothing restarted,
+  the version before still serving.
+- The builds retry dropped downloads, and take an npm mirror (`NPM_REGISTRY`) and a Debian mirror
+  (`DEBIAN_MIRROR`) for a server where the public ones are refused; Docker Hub's mirror stays the
+  engine's own setting (docs/operations.md).
+- **Joining by email and password.** A request may carry an email and a password of the person's own,
+  hashed at once (`signup_requests.passwordHash`). Nothing is proved by it, so the queue marks it
+  «تأییدنشده»; on approval the hash becomes the account's password, a typed number is kept unverified,
+  and the request forgets the hash either way — a check constraint holds a hash to a pending password
+  request. The administrator's switch still closes every way of joining at once.
+
+**Consequences.** What a server runs can be told from what it was meant to run (`status` against
+`git log -1`), and a setting written in `.env` does what it says. An organisation with neither SMS nor
+Google has a way to ask in, at the price of the administrator's checking who asked.
+

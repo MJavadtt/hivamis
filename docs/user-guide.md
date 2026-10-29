@@ -45,8 +45,11 @@ of the selected role's permissions: split «خلاقه» out of a unit role, say
 number** — a six-digit code is texted to it — and **Google** («ورود با حساب گوگل»). The mobile must
 first be verified on your own page; a Google account whose address is your work email is linked the
 first time you use it. Someone who has no account yet can **ask to join** («درخواست عضویت») with a
-mobile or a Google account; the system administrator approves the request under Admin → Users,
-choosing the unit and roles, and nothing is granted before that.
+mobile or a Google account — or, where neither SMS nor Google is set up, with an email and a password
+of their own; the system administrator approves the request under Admin → Users, choosing the unit
+and roles, and nothing is granted before that. A request by email and password is marked
+«تأییدنشده» (unverified) in the queue, as it proves nothing; once approved, that password is the
+account's.
 
 **Your page («صفحهٔ من»)** — click your name at the bottom of the menu. It lists your ways in: a
 password (set a first one if you joined with a mobile or Google, or change it), a verified mobile, a
@@ -510,6 +513,8 @@ People's pages show the team beside the unit.
 - sees every form in the «همهٔ فرم‌ها» tab.
 
 The history records that the decision was the system administrator's, in place of that stage's roles. On each colleague's page, «صف کامل کارهای …» shows their whole queue — tasks, orders, reviews and forms — as they see it.
+
+**Above the process.** In their own account, the system administrator is not held by the process's rules. A workflow button works even when its prerequisites are missing; the checklist still shows what was missing, and the move records which rules were passed. A reason is optional. **تغییر مستقیم وضعیت**, beside the buttons, puts a record straight into any status — none of the steps between, and nothing those steps would have done. Anything can be added from any section: **افزودن مستقیم** in the **+** menu of the top bar lists every kind — from a lead and a client to a project, a task, a contract and a risk, and a venue and a deployment project — and every list has its own **… تازه** button; a project is made without a brief, a proposal or the project form. The same holds for the rules a page checks itself: a sale price before the costs, an authorisation without a contract, a deployment project's terms after its contract. Every one of these stays in the history under the administrator's name, and none of it applies while working in someone else's account.
 
 **Working in someone else's account.** From a person's «حساب», with a reason written, the system
 administrator enters their account. They see what the person sees and work in their place: approving

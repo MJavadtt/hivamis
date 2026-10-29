@@ -102,6 +102,31 @@ describe('Asking to join', () => {
     expect(sent.find((x) => x.path === '/auth/signup')!.body).toMatchObject({ fullName: 'نیلوفر احمدی', email: 'n@example.com', phone: '09121234567', code: '654321', departmentCode: 'S' });
   });
 
+  // The owner's server report (2026-10-28): with neither SMS nor Google the button never showed.
+  it('asks with an email and a password of one’s own where there is no SMS, and the sign-in page offers it', async () => {
+    const sent = mount(<Signup />, (p) => {
+      if (p === '/auth/signup/options') return json({ organization: 'هیوا', open: true, phone: false, google: false, password: true, units: [{ code: 'CR', nameFa: 'خلاقیت', nameEn: 'Creative' }] });
+      if (p === '/auth/signup/password') return json({ status: 'PENDING' }, 201);
+      return undefined;
+    });
+    expect(await screen.findByTestId('signup-password')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'فرستادن کد' })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/نام و نام خانوادگی/), { target: { value: 'نسرین کاظمی' } });
+    fireEvent.change(screen.getByLabelText(/ایمیل کاری/), { target: { value: 'n.k@example.com' } });
+    fireEvent.change(screen.getByLabelText(/^رمز عبور/), { target: { value: 'Ramz-e-Khodam-2026' } });
+    fireEvent.change(screen.getByLabelText(/تکرار رمز عبور/), { target: { value: 'Ramz-e-Digar-2026' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ثبت درخواست' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('دو رمز یکی نیستند');
+    expect(sent.some((x) => x.path === '/auth/signup/password')).toBe(false);
+    fireEvent.change(screen.getByLabelText(/تکرار رمز عبور/), { target: { value: 'Ramz-e-Khodam-2026' } });
+    fireEvent.change(screen.getByLabelText('واحد'), { target: { value: 'CR' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ثبت درخواست' }));
+    expect((await screen.findByTestId('signup-done')).textContent).toContain('با همین ایمیل و رمز');
+    expect(sent.find((x) => x.path === '/auth/signup/password')!.body).toEqual({
+      fullName: 'نسرین کاظمی', email: 'n.k@example.com', phone: null, password: 'Ramz-e-Khodam-2026', departmentCode: 'CR', note: null,
+    });
+  });
+
   it('says so when joining is closed', async () => {
     mount(<Signup />, (p) => (p === '/auth/signup/options' ? json({ organization: 'هیوا', open: false, phone: false, google: false, units: [] }) : undefined));
     expect(await screen.findByText(/درخواست عضویت در این سازمان بسته است/)).toBeDefined();

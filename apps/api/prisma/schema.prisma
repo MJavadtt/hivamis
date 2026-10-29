@@ -3137,6 +3137,8 @@ model SignupRequest {
   email          String
   phone          String?
   googleSubject  String?
+  /// A request by email and password: the chosen password, hashed at once; cleared when decided.
+  passwordHash   String?
   departmentCode String?
   note           String?
   status         String       @default("PENDING")

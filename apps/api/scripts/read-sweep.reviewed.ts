@@ -307,4 +307,6 @@ export const REVIEWED: Record<string, Verdict> = {
     "sites/messages.ts#recipientsFor#venue#1", "sites/messages.ts#recipientsFor#venueContact#1", "sites/reminders.ts#staffPhones#user#1",
   ]),
   ...of('REFERENCE', ["sites/options.ts#optionsOf#siteOption#1", "sites/reminders.ts#runReminders#organization#1"]),
+  // ADR-104: one record's own running clocks.
+  ...of('CHILDREN', ["workflow/engine.ts#forceState#slaClock#1"]),
 };

@@ -481,6 +481,27 @@ cmd_restore() {
   say "✓ restored from $dump"
 }
 
+# Settings a newer version reads that this installation's file predates — added with the example's
+# values, each off or at its default, so the settings file names every setting there is to turn on
+# (owner's server report, 2026-10-28: features stayed hidden because their settings were nowhere to see).
+add_new_settings() {
+  local line key added=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in [A-Z]*=*) ;; *) continue ;; esac
+    key="${line%%=*}"
+    grep -qE "^$key=" "$ENV_FILE" 2>/dev/null && continue
+    # A secret is generated at install, never copied from the example's placeholder.
+    case "$line" in *=CHANGE_ME) continue ;; esac
+    if [ -z "$added" ]; then
+      if [ "$DRY" = 1 ]; then printf '+ echo "# Added by hivamis upgrade" >> %s\n' "$ENV_FILE"
+      else printf '\n# Added by hivamis upgrade, %s — off or at their defaults until set\n' "$(date -u +%Y-%m-%dT%H:%MZ)" >> "$ENV_FILE"; fi
+    fi
+    if [ "$DRY" = 1 ]; then printf '+ echo %s >> %s\n' "$line" "$ENV_FILE"; else printf '%s\n' "$line" >> "$ENV_FILE"; fi
+    added="$added $key"
+  done < "$ROOT/.env.docker.example"
+  [ -z "$added" ] || say "→ new settings in $ENV_FILE:$added"
+}
+
 cmd_upgrade() {
   local pull=0 backup=1
   while [ $# -gt 0 ]; do
@@ -498,10 +519,16 @@ cmd_upgrade() {
     say "→ fetching the new version"
     run git -C "$ROOT" pull --ff-only
   fi
+  add_new_settings
   local version
   version="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
   say "→ rebuilding${version:+ ($version)}"
-  APP_VERSION="$version" compose build
+  # A failed build changes nothing that runs: the version before keeps serving, and that is said, not
+  # left to be guessed from the build's own output (owner's server report, 2026-10-28).
+  APP_VERSION="$version" compose build \
+    || die "the new version did not build, so nothing was restarted: the version before is still running. The error is above; a network error (Debian, npm or Docker Hub unreachable) is worth one more try, or a mirror — see docs/operations.md"
+  [ "$DRY" = 1 ] || say "✓ built"
+
   say "→ restarting — the API migrates the database and brings the reference data up to the code"
   APP_VERSION="$version" compose up -d
   wait_healthy

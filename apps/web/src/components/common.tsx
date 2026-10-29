@@ -4,15 +4,16 @@ import { Freshness } from './Freshness';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
-import { stateLabelFa } from '@hiva/contracts';
+import { WORKFLOWS, stateLabelFa } from '@hiva/contracts';
 import { useList, type Transition } from '../hooks/queries';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSystemAdmin } from '../lib/auth';
 import {
   Button, Card, EmptyState, ErrorBlock, Input, LoadingBlock, Modal, Pagination, Select,
   StateBadge, Table, Td, Textarea, Th, Tr, useToast, cx, Field, IconSearch, IconRefresh,
 } from './ui';
 import { formatRelative, localDigits } from '../lib/format';
 import { AssigneePicker } from './AssigneePicker';
+import { QuickCreateButton } from './QuickCreate';
 import { flow, loc, tr, trx } from '../i18n';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
@@ -43,6 +44,11 @@ export function WorkflowActions({
   const qc = useQueryClient();
   const toast = useToast();
   const { can } = useAuth();
+  // The system administrator acts past the process's rules (the owner's instruction, 2026-10-28): a
+  // missing prerequisite is said, not obeyed; a reason is welcome, not required; any state is a click away.
+  const systemAdmin = useSystemAdmin();
+  const [forcing, setForcing] = useState(false);
+  const [toState, setToState] = useState('');
 
   // "Why can't I?" before the click. Every guard's verdict for every action offered, so a
   // blocked move shows what is missing instead of a 422 after the attempt.
@@ -55,7 +61,7 @@ export function WorkflowActions({
     preflight?.transitions.find((t) => t.action === action)?.checks ?? [];
   const blocked = (transitions ?? []).filter((t) => checksFor(t.action).some((c) => !c.ok));
 
-  if (!transitions?.length) return null;
+  if (!transitions?.length && !systemAdmin) return null;
 
   const prompt = PAYLOAD_PROMPTS[`${entity}.${pending?.action ?? ''}`];
   const run = async (t: Transition, why?: string) => {
@@ -98,7 +104,7 @@ export function WorkflowActions({
   return (
     <>
       <div data-tour="workflow" className="flex flex-wrap gap-1.5">
-        {transitions.map((t) => {
+        {(transitions ?? []).map((t) => {
           const failing = checksFor(t.action).filter((c) => !c.ok);
           return (
             <Button
@@ -122,10 +128,14 @@ export function WorkflowActions({
             </Button>
           );
         })}
+        {systemAdmin && WORKFLOWS[entity] && (
+          <Button size={size} variant="ghost" onClick={() => { setToState(''); setReason(''); setForcing(true); }}>{tr('تغییر مستقیم وضعیت')}</Button>
+        )}
       </div>
 
       {blocked.length > 0 && (
         <div className="mt-2 space-y-2" data-testid="preflight">
+          {systemAdmin && <p className="text-xs font-medium text-amber-800">{tr('شما مدیر سیستم هستید: این کارها بدون این پیش‌نیازها هم انجام می‌شود و با نام شما در سابقه می‌ماند.')}</p>}
           {blocked.map((t) => (
             <div key={t.action} className="rounded-lg bg-ink-50/60 px-3 py-2 text-xs">
               <p className="mb-1 font-medium text-ink-700">{tr('پیش‌نیازهای «{0}»', t.labelFa)}</p>
@@ -160,14 +170,14 @@ export function WorkflowActions({
             <Button
               variant={destructive(pending?.action ?? '') ? 'danger' : 'primary'}
               loading={busy}
-              disabled={(!!pending?.requiresReason && reason.trim().length < 3) || (!!prompt?.required && extra.trim() === '')}
-              onClick={() => pending && void run(pending, pending.requiresReason ? reason.trim() : undefined)}
+              disabled={(!!pending?.requiresReason && !systemAdmin && reason.trim().length < 3) || (!!prompt?.required && extra.trim() === '')}
+              onClick={() => pending && void run(pending, pending.requiresReason ? reason.trim() || undefined : undefined)}
             >{tr('ثبت و ادامه')}</Button>
           </>
         }
       >
         {pending?.requiresReason && (
-          <Field label={tr('دلیل')} required hint={tr('ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.')}>
+          <Field label={tr('دلیل')} required={!systemAdmin} hint={systemAdmin ? tr('برای مدیر سیستم اختیاری است؛ اگر بنویسید در سابقه می‌ماند.') : tr('ثبت دلیل برای این اقدام طبق قوانین حاکم بر فرآیند الزامی است.')}>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus />
           </Field>
         )}
@@ -178,6 +188,40 @@ export function WorkflowActions({
               : <Input type="number" inputMode="decimal" min={0} step={0.5} value={extra} onChange={(e) => setExtra(e.target.value)} aria-label={loc(prompt, 'label')} autoFocus={!pending?.requiresReason} />}
           </Field>
         )}
+      </Modal>
+
+      {/* Any state, straight — the system administrator's alone; written to the history as every move is. */}
+      <Modal
+        open={forcing}
+        onClose={() => setForcing(false)}
+        title={tr('تغییر مستقیم وضعیت')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setForcing(false)}>{tr('انصراف')}</Button>
+            <Button variant="danger" loading={busy} disabled={!toState}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await apiPost(`/workflow/${entity}/${id}/force`, { toState, reason: reason.trim() || undefined });
+                  toast(tr('وضعیت مستقیم تغییر کرد — وضعیت: {0}', stateLabelFa(toState)));
+                  setForcing(false); setReason('');
+                  await qc.invalidateQueries();
+                  onDone?.();
+                } catch (e: any) {
+                  toast(e?.message ?? tr('عملیات ناموفق بود.'), 'danger');
+                } finally { setBusy(false); }
+              }}>{tr('تغییر وضعیت')}</Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-xs text-ink-600">{tr('رکورد بی‌گذر از مراحل میانی و بی‌بررسی قوانین به وضعیت انتخاب‌شده می‌رود؛ کارهایی که مراحل میانی خودکار انجام می‌دادند انجام نمی‌شود. این تغییر با نام شما در سابقه ثبت می‌شود.')}</p>
+        <Field label={tr('وضعیت تازه')} required>
+          <Select value={toState} onChange={(e) => setToState(e.target.value)} aria-label={tr('وضعیت تازه')}>
+            <option value="">{tr('— برگزینید —')}</option>
+            {(WORKFLOWS[entity]?.states ?? []).map((st) => <option key={st} value={st}>{trx(stateLabelFa(st))}</option>)}
+          </Select>
+        </Field>
+        <div className="mt-3"><Field label={tr('دلیل (اختیاری)')}><Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} /></Field></div>
       </Modal>
 
       {/* A governed exception: one guard, this record, once, on the executive's authority. */}
@@ -317,6 +361,8 @@ export function EntityList<T extends { id: string }>({
           <IconRefresh className={cx('size-4', isFetching && 'animate-spin')} />
         </Button>
         {actions && <div data-tour="list-actions" className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {/* The system administrator adds a record of this list's kind directly (the owner's instruction, 2026-10-28). */}
+        <QuickCreateButton path={path} />
       </div>
 
       {isLoading ? (

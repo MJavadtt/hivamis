@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSystemAdmin } from '../lib/auth';
+import { QuickCreateForm, RECORD_KINDS, type RecordKind } from './QuickCreate';
 import { OpenForm, useSuggestions, type Suggestion } from './SuggestedForms';
 import { loc, tr } from '../i18n';
 
@@ -10,6 +11,8 @@ import { loc, tr } from '../i18n';
  */
 export function QuickForms() {
   const { can } = useAuth();
+  const systemAdmin = useSystemAdmin();
+  const [creating, setCreating] = useState<RecordKind | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Suggestion | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -24,7 +27,8 @@ export function QuickForms() {
     return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
   }, [open]);
 
-  if (!can('form.read')) return null;
+  if (!can('form.read') && !systemAdmin) return null;
+  const sections = [...new Set(RECORD_KINDS.map((k) => k.section))];
   return (
     <div ref={box} data-tour="quick-forms" className="relative">
       <button
@@ -34,7 +38,25 @@ export function QuickForms() {
         <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" strokeLinecap="round" /></svg>
       </button>
       {open && (
-        <div role="menu" aria-label={tr('فرم تازه')} className="bg-panel absolute end-0 top-10 z-40 w-72 rounded-xl py-2 shadow-glass ring-1 ring-edge" data-testid="quick-forms">
+        <div role="menu" aria-label={tr('فرم تازه')} className="bg-panel absolute end-0 top-10 z-40 max-h-[80vh] w-72 overflow-y-auto rounded-xl py-2 shadow-glass ring-1 ring-edge" data-testid="quick-forms">
+          {/* Anything, from anywhere — the system administrator's, without the steps before it (2026-10-28). */}
+          {systemAdmin && (
+            <div className="mb-1 border-b border-ink-100 pb-1" data-testid="quick-create">
+              <p className="px-3 pb-1 text-[12.5px] font-medium text-ink-500">{tr('افزودن مستقیم')}</p>
+              {sections.map((sec) => (
+                <div key={sec}>
+                  <p className="px-3 pt-1 text-xs text-ink-400">{sec}</p>
+                  {RECORD_KINDS.filter((k) => k.section === sec).map((k) => (
+                    <button key={k.key} type="button" role="menuitem" onClick={() => { setOpen(false); setCreating(k); }}
+                      className="block w-full px-3 py-1.5 text-start text-sm text-ink-800 hover:bg-ink-50">{k.label}</button>
+                  ))}
+                </div>
+              ))}
+              <p className="px-3 pt-1 text-xs text-ink-400">{tr('مکان‌ها و اجاره‌داری')}</p>
+              <Link to="/sites/venues?new=1" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-1.5 text-sm text-ink-800 hover:bg-ink-50">{tr('مکان')}</Link>
+              <Link to="/sites/projects?new=1" role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-1.5 text-sm text-ink-800 hover:bg-ink-50">{tr('پروژهٔ استقرار')}</Link>
+            </div>
+          )}
           <p className="px-3 pb-1 text-[12.5px] font-medium text-ink-500">{tr('فرم‌هایی که بیشتر می‌فرستید')}</p>
           {(data?.forms ?? []).map((f) => (
             <button key={f.code} type="button" role="menuitem" onClick={() => { setOpen(false); setForm(f); }}
@@ -48,6 +70,7 @@ export function QuickForms() {
         </div>
       )}
       <OpenForm suggestion={form} onClose={() => setForm(null)} />
+      {creating && <QuickCreateForm kind={creating} onClose={() => setCreating(null)} />}
     </div>
   );
 }

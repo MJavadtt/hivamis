@@ -16,10 +16,12 @@ import { roleName, useRoleCodes } from '../lib/roles';
  */
 
 interface Request {
-  id: string; method: 'PHONE' | 'GOOGLE'; fullName: string; email: string; phone: string | null; departmentCode: string | null;
+  id: string; method: 'PHONE' | 'GOOGLE' | 'PASSWORD'; fullName: string; email: string; phone: string | null; departmentCode: string | null;
   note: string | null; status: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string; decidedAt: string | null; decisionNote: string | null;
   decidedBy: { fullName: string } | null;
 }
+
+const METHOD: Record<Request['method'], string> = { PHONE: tr('شمارهٔ همراه'), GOOGLE: tr('حساب گوگل'), PASSWORD: tr('ایمیل و رمز') };
 
 export function SignupRequests() {
   const { can } = useAuth();
@@ -37,7 +39,7 @@ export function SignupRequests() {
           {pending.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-ink-900">{r.fullName}{' '}<Badge tone="neutral">{r.method === 'PHONE' ? tr('شمارهٔ همراه') : tr('حساب گوگل')}</Badge></p>
+                <p className="text-sm font-medium text-ink-900">{r.fullName}{' '}<Badge tone="neutral">{METHOD[r.method]}</Badge>{r.method === 'PASSWORD' && <>{' '}<Badge tone="warning">{tr('تأییدنشده')}</Badge></>}</p>
                 <p className="text-xs text-ink-500"><span className="ltr">{r.email}</span>{r.phone && <>{' · '}<span className="ltr">{r.phone}</span></>}{' · '}{formatDateTime(r.createdAt)}</p>
                 {(r.departmentCode || r.note) && <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-600">{r.departmentCode && <UnitTag code={r.departmentCode} />}{r.note}</p>}
               </div>
@@ -107,7 +109,9 @@ function Approve({ request, onClose }: { request: Request; onClose: () => void }
       <div className="space-y-3">
         <p className="text-xs leading-6 text-ink-600">{request.method === 'PHONE'
           ? tr('با همین شمارهٔ همراه وارد می‌شود؛ رمز عبور را بعداً خودش در صفحهٔ خودش می‌گذارد.')
-          : tr('با همان حساب گوگل وارد می‌شود؛ رمز عبور را بعداً خودش در صفحهٔ خودش می‌گذارد.')}</p>
+          : request.method === 'PASSWORD'
+            ? tr('با همین ایمیل و رمزی که خودش برگزیده وارد می‌شود. نه ایمیل و نه شماره آزموده نشده است: پیش از تأیید، از درستی درخواست مطمئن شوید.')
+            : tr('با همان حساب گوگل وارد می‌شود؛ رمز عبور را بعداً خودش در صفحهٔ خودش می‌گذارد.')}</p>
         <Field label={tr('واحد')} required>
           <Select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={tr('واحد')}>
             <option value="">{tr('— انتخاب کنید —')}</option>

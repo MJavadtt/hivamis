@@ -218,7 +218,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  * someone else's account (owner's report, 2026-10-23): every form theirs to decide, every queue to see.
  */
 export function useSystemAdmin(): boolean {
-  const { user } = useAuth();
+  // Outside a signed-in tree nobody is the system administrator — a list rendered on its own included.
+  const user = useMaybeAuth()?.user;
   return !!user && user.roles.includes('SUPER_ADMIN') && !user.delegatedRoles?.SUPER_ADMIN && !user.actingAs;
 }
 

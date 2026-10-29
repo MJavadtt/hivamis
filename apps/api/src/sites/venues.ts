@@ -18,6 +18,8 @@ export interface SiteActor {
   id: string;
   organizationId: string;
   permissions: readonly string[];
+  roles?: readonly string[];
+  delegatedRoles?: Record<string, string>;
   ipAddress?: string | null;
   requestId?: string | null;
 }

@@ -8,6 +8,23 @@
 
 # ── build ─────────────────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS build
+# Where packages come from (owner's server report, 2026-10-28): the public registry unless NPM_REGISTRY
+# names a mirror, and a dropped connection retried rather than ending the build.
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY \
+    npm_config_registry=$NPM_REGISTRY \
+    npm_config_fetch_retries=6 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000
+# Debian's packages: from DEBIAN_MIRROR when it names one (a mirror inside the country, where
+# deb.debian.org is slow or refused), each download retried before the build gives up.
+ARG DEBIAN_MIRROR=
+RUN printf 'Acquire::Retries "8";\nAcquire::http::Timeout "60";\n' > /etc/apt/apt.conf.d/80-retries \
+    && if [ -n "$DEBIAN_MIRROR" ]; then sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR%/}|g" /etc/apt/sources.list.d/debian.sources; fi
+# OpenSSL here as in the runtime: Prisma chooses its query engine by the OpenSSL it finds when it
+# generates the client. The slim image has none, so it chose 1.1's, and the runtime, which has 3,
+# could not load it — the API never became ready (owner's server report, 2026-10-28).
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /repo
 
@@ -27,10 +44,16 @@ RUN pnpm --filter @hiva/contracts build && pnpm --filter @hiva/api db:generate &
 RUN pnpm --filter @hiva/api --prod deploy --legacy /out && \
     cp -r apps/api/dist /out/dist && \
     cp -r apps/api/prisma /out/prisma && \
-    cd /out && ./node_modules/.bin/prisma generate
+    cd /out && ./node_modules/.bin/prisma generate && \
+    { find /out/node_modules -name 'libquery_engine-*openssl-3.0.x*' | grep -q . \
+      || { echo 'Prisma generated no engine for OpenSSL 3, which the runtime has' >&2; exit 1; }; }
 
 # ── runtime ───────────────────────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runtime
+
+ARG DEBIAN_MIRROR=
+RUN printf 'Acquire::Retries "8";\nAcquire::http::Timeout "60";\n' > /etc/apt/apt.conf.d/80-retries \
+    && if [ -n "$DEBIAN_MIRROR" ]; then sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR%/}|g" /etc/apt/sources.list.d/debian.sources; fi
 
 # chromium: the PDF engine. openssl: required by Prisma's query engine.
 # No Persian font package is needed — apps/api/src/pdf/renderer.ts embeds Vazirmatn as

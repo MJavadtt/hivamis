@@ -14,6 +14,7 @@ import {
 import { tr, trx } from '../../i18n';
 import { Completeness, Money, SitesNav, blank, fieldLabel, useSiteOptions } from './shared';
 import { SendSms } from './Messages';
+import { ImportButton } from './Excel';
 
 /**
  * The venue database (ADR-103, module A): every place a counter can go, found by any of its details,
@@ -61,7 +62,7 @@ function VenueList() {
     setParams(next, { replace: true });
   };
   const [q, setQ] = useState(f.q);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(params.get('new') === '1');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [texting, setTexting] = useState(false);
   const query = { ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)), pageSize: '25' };
@@ -78,6 +79,7 @@ function VenueList() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void downloadFile(`/site-data/export/venues?${new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([k, v]) => v && !['page', 'sort', 'order'].includes(k))))}`, 'venues.xlsx')}>{tr('خروجی اکسل')}</Button>
+            <ImportButton kind="VENUES" />
             {can('venue.write') && <Button size="sm" variant="primary" onClick={() => setCreating(true)}><IconPlus className="size-4" />{tr('مکان تازه')}</Button>}
           </div>
         } />
@@ -140,7 +142,7 @@ function VenueList() {
           )}
         </Card>
       </PageBody>
-      {creating && <VenueForm onClose={() => setCreating(false)} onSaved={(vid) => navigate(`/sites/venues/${vid}`)} />}
+      {creating && <VenueForm onClose={() => { setCreating(false); if (params.get('new')) { const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true }); } }} onSaved={(vid) => navigate(`/sites/venues/${vid}`)} />}
       {texting && <SendSms venueIds={[...selected]} onClose={() => { setTexting(false); setSelected(new Set()); }} />}
     </>
   );

@@ -8,6 +8,7 @@ import { rulesInForce } from './rules.js';
 import './effects.js';
 import { PROTECTED_FIELDS, effectsFor, guardsFor } from './registry.js';
 import { applyNotifyRules, customGuards, customRulesFor } from './custom.js';
+import { isSystemAdmin } from '../auth/grants.js';
 
 /** A move as people read it — «تحویل خروجی», not `submit` — for the refusals below. */
 const moveLabel = (entity: string, action: string) =>
@@ -49,6 +50,9 @@ export interface TransitionActor {
   permissions: string[];
   /** permission → delegator, for what the actor holds only through a delegation. */
   delegated?: Record<string, string>;
+  /** The actor's own roles — the system administrator in their own right is above the process's rules. */
+  roles?: readonly string[];
+  delegatedRoles?: Record<string, string>;
   ipAddress?: string | null;
   userAgent?: string | null;
   requestId?: string | null;
@@ -144,7 +148,10 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
     const onBehalfOfId = (def.permission && actor.delegated?.[def.permission]) || null;
 
     const reason = input.reason?.trim();
-    if (def.requiresReason && !reason) {
+    // The owner's instruction (2026-10-28): the system administrator acts on anything, past any rule of
+    // the process. Never through a delegation, never in someone else's account — and always on the record.
+    const overrider = isSystemAdmin({ roles: actor.roles ?? [], delegatedRoles: actor.delegatedRoles });
+    if (def.requiresReason && !reason && !overrider) {
       throw badRequest(
         'REASON_REQUIRED',
         `ثبت دلیل برای «${def.labelFa}» الزامی است.`,
@@ -157,10 +164,13 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
     const own = customGuards(custom);
     const guardKeys = [...guardsFor(entity, action, def.guards), ...own.keys];
     const waivers = guardKeys.length ? await activeWaivers(tx, entity, id, action) : [];
-    const guardResult = await runGuards(guardKeys, {
-      tx, entity, id, record, payload, actorId: actor.id, resolve: own.resolve, labelOf: own.labelOf,
-    }, waivers);
-    if (!guardResult.ok) {
+    const guardCtx = { tx, entity, id, record, payload, actorId: actor.id, resolve: own.resolve, labelOf: own.labelOf };
+    const guardResult = await runGuards(guardKeys, guardCtx, waivers);
+    // What the system administrator went past: every rule that said no, by name, kept on the move's audit row.
+    const overridden = !guardResult.ok && overrider
+      ? (await runAllGuards(guardKeys, guardCtx, waivers)).filter((c) => !c.ok).map((c) => ({ guard: c.guard, rule: c.rule ?? null, messageFa: c.messageFa ?? null }))
+      : [];
+    if (!guardResult.ok && !overrider) {
       throw new GovernanceError(
         guardResult.rule ?? 'unknown',
         guardResult.messageFa ?? 'این عملیات با قوانین حاکم بر فرآیند مغایرت دارد.',
@@ -169,10 +179,10 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
     }
     // A waiver is spent by the transition it let through, in the same transaction, so it can
     // never let a second one through.
-    for (const w of guardResult.usedWaivers) {
+    for (const w of overrider ? [] : guardResult.usedWaivers) {
       await tx.waiver.update({ where: { id: w.id }, data: { usedAt: new Date(), usedById: actor.id, usedAction: action } });
     }
-    const waived = guardResult.usedWaivers.map((w) => ({ id: w.id, guard: w.guard, grantedById: w.grantedById, reason: w.reason }));
+    const waived = (overrider ? [] : guardResult.usedWaivers).map((w) => ({ id: w.id, guard: w.guard, grantedById: w.grantedById, reason: w.reason }));
     // Which rules said yes: the versions in force now, kept on the row for the auditor of later.
     const rules = await rulesInForce(tx);
 
@@ -222,6 +232,7 @@ export async function transitionWithin(tx: Tx, input: TransitionInput): Promise<
       after: {
         state: def.to, rules: { workflows: rules.workflows, permissions: rules.permissions },
         ...(waived.length ? { waived } : {}),
+        ...(overridden.length ? { overriddenBySystemAdministrator: overridden } : {}),
         // The organisation's rules this move met, by version (#47).
         ...(ownRules.length || notified.length ? { customRules: { guards: ownRules, notified } } : {}),
       },
@@ -457,4 +468,53 @@ export function allowedFor(entity: string, state: string, permissions: string[])
 
 export function workflowFor(entity: string) {
   return WORKFLOWS[entity];
+}
+
+/**
+ * Puts a record straight into any state of its workflow — the system administrator's alone (the owner's
+ * instruction, 2026-10-28: "without the steps before it"). No transition is looked for and no rule is
+ * asked; nothing the transitions would have done on the way (their effects) is done. The move is
+ * written as every move is — a state transition and an audit row naming who did it and from where —
+ * and a clock still running on a record put into a final state is stopped.
+ */
+export async function forceState(input: { entity: string; id: string; toState: string; reason?: string; actor: TransitionActor }): Promise<TransitionOutcome> {
+  const { entity, id, toState, actor } = input;
+  if (!isSystemAdmin({ roles: actor.roles ?? [], delegatedRoles: actor.delegatedRoles })) {
+    throw forbidden('تغییر مستقیم وضعیت فقط با مدیر سیستم است.');
+  }
+  const wf = WORKFLOWS[entity];
+  if (!wf) throw badRequest('UNKNOWN_ENTITY', `موجودیت «${entity}» فاقد ماشین حالت است.`);
+  if (!wf.states.includes(toState)) throw badRequest('UNKNOWN_STATE', `«${toState}» از وضعیت‌های «${wf.labelFa}» نیست.`, { states: wf.states });
+  const reason = input.reason?.trim() || null;
+  return prisma.$transaction(async (tx) => {
+    const model = delegate(tx, entity);
+    const record = await model.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!record) throw notFound('رکورد');
+    const fromState: string = record.state;
+    if (fromState === toState) throw new AppError(409, 'SAME_STATE', `رکورد هم‌اکنون در وضعیت «${stateLabelFa(toState)}» است.`);
+    const updated = await model.update({ where: { id }, data: { state: toState } });
+    const rules = await rulesInForce(tx);
+    await tx.stateTransition.create({
+      data: {
+        organizationId: actor.organizationId, entityType: entity, entityId: id, fromState, toState, action: 'admin_force',
+        reason, actorId: actor.id, rulesVersionId: rules.workflows, permissionsVersionId: rules.permissions,
+      },
+    });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'STATE_FORCED', entityType: entity, entityId: id,
+      before: { state: fromState }, after: { state: toState, asSystemAdministrator: true }, reason,
+      ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+    }, tx);
+    if (wf.terminal.includes(toState)) {
+      const running = await tx.slaClock.findMany({
+        where: { entityType: entity, entityId: id, state: { in: ['RUNNING', 'AT_RISK', 'PAUSED'] } },
+        select: { policy: { select: { code: true } } },
+      });
+      if (running.length) await stopSla(tx, [...new Set(running.map((c) => c.policy.code))], entity, id);
+    }
+    return {
+      entity, id, fromState, toState, action: 'admin_force', record: updated,
+      next: availableTransitions(entity, toState).map((t) => ({ action: t.action, labelFa: t.labelFa, labelEn: t.labelEn })),
+    };
+  }, { timeout: 20_000 });
 }

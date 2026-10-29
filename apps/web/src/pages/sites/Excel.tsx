@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IMPORT_KIND_LABELS, IMPORT_KINDS, type ImportKind } from '@hiva/contracts';
 import { apiGet, apiUpload, downloadFile } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatDateTime, localDigits } from '../../lib/format';
 import { PageBody, PageHeader } from '../../components/Shell';
-import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Select, Table, Td, Th, Tr, cx, useToast } from '../../components/ui';
+import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Table, Td, Th, Tr, cx, useToast } from '../../components/ui';
 import { tr, trx } from '../../i18n';
 import { SitesNav, pairLabel } from './shared';
 
@@ -27,12 +28,15 @@ const EXPORTS: { kind: string; label: () => string; perm: string }[] = [
   { kind: 'payments', label: () => tr('پرداخت‌ها'), perm: 'rental.read' }, { kind: 'deposits', label: () => tr('ودیعه‌ها'), perm: 'rental.read' },
 ];
 
-export default function ExcelPage() {
-  const { can } = useAuth();
+
+/**
+ * The import itself: kind, how matching codes are treated, the template, the check and the commit. On
+ * the Excel page with every kind the person may import; beside a list's export, locked to that list's kind.
+ */
+function ImportPanel({ kinds, initial, locked = false }: { kinds: ImportKind[]; initial: ImportKind; locked?: boolean }) {
   const toast = useToast();
   const qc = useQueryClient();
-  const kinds = IMPORT_KINDS.filter((k) => can(NEEDS[k]));
-  const [kind, setKind] = useState<ImportKind>(kinds[0] ?? 'VENUES');
+  const [kind, setKind] = useState<ImportKind>(kinds.includes(initial) ? initial : kinds[0]!);
   const [mode, setMode] = useState<'CREATE' | 'UPSERT'>('CREATE');
   const [file, setFile] = useState<File | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -40,9 +44,6 @@ export default function ExcelPage() {
   const [skip, setSkip] = useState(false);
   const [busy, setBusy] = useState(false);
   const { data: columns } = useQuery<Column[]>({ queryKey: ['/site-data/columns', kind], queryFn: () => apiGet(`/site-data/columns/${kind}`), enabled: kinds.includes(kind) });
-  const { data: history } = useQuery<{ id: string; kind: ImportKind; mode: string; fileName: string; totalRows: number; created: number; updated: number; failed: number; createdAt: string; createdBy: { fullName: string } }[]>({
-    queryKey: ['/site-data/imports'], queryFn: () => apiGet('/site-data/imports'), enabled: kinds.length > 0,
-  });
   const send = async (dryRun: boolean) => {
     if (!file) return;
     setBusy(true);
@@ -59,20 +60,14 @@ export default function ExcelPage() {
     } finally { setBusy(false); }
   };
   return (
-    <>
-      <PageHeader title={tr('ورود و خروج اکسل')} subtitle={tr('ورود مکان‌ها، مخاطبان، پروژه‌ها و تعهدات با بررسی ردیف‌به‌ردیف؛ خروجی هر فهرست')} />
-      <PageBody>
-        <SitesNav />
-        <div className="grid gap-5 lg:grid-cols-3">
-          {kinds.length > 0 && (
-            <Card className="lg:col-span-2" title={tr('ورود از اکسل')} subtitle={tr('نخست بررسی، سپس ثبت؛ چیزی بی‌اجازه بازنویسی نمی‌شود')}>
               <div className="space-y-3 p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label={tr('نوع')}><Select value={kind} onChange={(e) => { setKind(e.target.value as ImportKind); setOutcome(null); setMapping({}); }}>{kinds.map((k) => <option key={k} value={k}>{pairLabel(IMPORT_KIND_LABELS, k)}</option>)}</Select></Field>
+                  <Field label={tr('نوع')}><Select value={kind} disabled={locked} onChange={(e) => { setKind(e.target.value as ImportKind); setOutcome(null); setMapping({}); }}>{kinds.map((k) => <option key={k} value={k}>{pairLabel(IMPORT_KIND_LABELS, k)}</option>)}</Select></Field>
                   <Field label={tr('ردیف‌های هم‌کد')} hint={mode === 'UPSERT' ? tr('ردیفی که کد رکورد موجود را دارد، آن را به‌روز می‌کند.') : tr('فقط رکورد تازه؛ کد موجود خطاست.')}>
                     <Select value={mode} onChange={(e) => setMode(e.target.value as 'CREATE' | 'UPSERT')}><option value="CREATE">{tr('فقط ثبت تازه')}</option><option value="UPSERT">{tr('ثبت تازه و به‌روزرسانی')}</option></Select>
                   </Field>
-                  <Field label={tr('الگو')}><Button onClick={() => void downloadFile(`/site-data/templates/${kind}`, `${kind.toLowerCase()}-template.xlsx`)}>{tr('دریافت الگوی خالی')}</Button></Field>
+                  {/* Not in a <label>: a button there takes the label's words for its own name. */}
+                  <div><span className="mb-1 block text-xs font-bold text-ink-700">{tr('الگو')}</span><Button onClick={() => void downloadFile(`/site-data/templates/${kind}`, `${kind.toLowerCase()}-template.xlsx`)}>{tr('دریافت الگوی خالی')}</Button></div>
                 </div>
                 <Field label={tr('فایل xlsx')}><Input type="file" accept=".xlsx" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setOutcome(null); }} /></Field>
                 <div className="flex flex-wrap items-center gap-2">
@@ -118,6 +113,41 @@ export default function ExcelPage() {
                   </details>
                 )}
               </div>
+  );
+}
+
+/** «ورود از اکسل» beside a list's export: the same import, for that list's kind, without leaving the page. */
+export function ImportButton({ kind }: { kind: ImportKind }) {
+  const { can } = useAuth();
+  const [open, setOpen] = useState(false);
+  if (!can(NEEDS[kind])) return null;
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>{tr('ورود از اکسل')}</Button>
+      <Modal open={open} onClose={() => setOpen(false)} wide title={tr('ورود {0} از اکسل', pairLabel(IMPORT_KIND_LABELS, kind))} footer={<Button onClick={() => setOpen(false)}>{tr('بستن')}</Button>}>
+        <ImportPanel kinds={[kind]} initial={kind} locked />
+      </Modal>
+    </>
+  );
+}
+
+export default function ExcelPage() {
+  const { can } = useAuth();
+  const [params] = useSearchParams();
+  const kinds = IMPORT_KINDS.filter((k) => can(NEEDS[k]));
+  const asked = params.get('kind') as ImportKind | null;
+  const { data: history } = useQuery<{ id: string; kind: ImportKind; mode: string; fileName: string; totalRows: number; created: number; updated: number; failed: number; createdAt: string; createdBy: { fullName: string } }[]>({
+    queryKey: ['/site-data/imports'], queryFn: () => apiGet('/site-data/imports'), enabled: kinds.length > 0,
+  });
+  return (
+    <>
+      <PageHeader title={tr('ورود و خروج اکسل')} subtitle={tr('ورود مکان‌ها، مخاطبان، پروژه‌ها و تعهدات با بررسی ردیف‌به‌ردیف؛ خروجی هر فهرست')} />
+      <PageBody>
+        <SitesNav />
+        <div className="grid gap-5 lg:grid-cols-3">
+          {kinds.length > 0 && (
+            <Card className="lg:col-span-2" title={tr('ورود از اکسل')} subtitle={tr('نخست بررسی، سپس ثبت؛ چیزی بی‌اجازه بازنویسی نمی‌شود')}>
+              <ImportPanel kinds={kinds} initial={asked && kinds.includes(asked) ? asked : kinds[0]!} />
             </Card>
           )}
           <Card title={tr('خروجی اکسل')} subtitle={tr('فهرست کامل؛ از هر صفحه هم با فیلترهای همان صفحه')}>

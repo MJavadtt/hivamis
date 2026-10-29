@@ -7,12 +7,13 @@ import { loc, tr } from '../i18n';
 import { HivaLogo } from '../components/Brand';
 
 /**
- * Asking to join (Hivamis task 4) — with a mobile proved by a code, or with a Google account. It
+ * Asking to join (Hivamis task 4) — with a mobile proved by a code, or with a Google account; where
+ * there is no SMS, with an email and a password of one's own (owner's server report, 2026-10-28). It
  * records a request; the system administrator approves it and chooses the unit and roles, so nothing
  * is granted here. No session, no shell.
  */
 
-interface Options { organization: string; open: boolean; phone: boolean; google: boolean; units: { code: string; nameFa: string; nameEn: string }[] }
+interface Options { organization: string; open: boolean; phone: boolean; google: boolean; password?: boolean; units: { code: string; nameFa: string; nameEn: string }[] }
 
 const OUTCOME: Record<string, string> = {
   sent: tr('درخواست شما ثبت شد. پس از تأیید مدیر سیستم، با همان روش وارد شوید.'),
@@ -29,7 +30,7 @@ export default function Signup() {
   const [options, setOptions] = useState<Options | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', code: '', departmentCode: '', note: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', code: '', password: '', again: '', departmentCode: '', note: '' });
   const [codeSent, setCodeSent] = useState(false);
   const [wait, setWait] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -57,11 +58,24 @@ export default function Signup() {
     const r = await apiPost<{ resendAfterSeconds: number }>('/auth/signup/phone/start', { phone: form.phone });
     setCodeSent(true); setWait(r.resendAfterSeconds);
   });
+  // Without SMS the request carries a password of one's own instead of a proved number.
+  const byPassword = !!options && !options.phone && !!options.password;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (byPassword) {
+      if (form.password !== form.again) return void setError(tr('دو رمز یکی نیستند.'));
+      return void run(async () => {
+        await apiPost('/auth/signup/password', {
+          fullName: form.fullName, email: form.email, phone: form.phone || null, password: form.password,
+          departmentCode: form.departmentCode || null, note: form.note || null,
+        });
+        setDone(tr('درخواست شما ثبت شد. پس از تأیید مدیر سیستم، با همین ایمیل و رمز وارد شوید.'));
+      });
+    }
     if (!codeSent) return void sendCode();
     return void run(async () => {
-      await apiPost('/auth/signup', { ...form, departmentCode: form.departmentCode || null, note: form.note || null });
+      const { password: _p, again: _a, ...sent } = form;
+      await apiPost('/auth/signup', { ...sent, departmentCode: form.departmentCode || null, note: form.note || null });
       setDone(OUTCOME.sent!);
     });
   };
@@ -84,8 +98,31 @@ export default function Signup() {
             <>
               <p className="text-xs leading-6 text-ink-500">{tr('درخواست شما به مدیر سیستم می‌رسد؛ او واحد و نقش شما را تعیین و تأیید می‌کند. تا آن زمان دسترسی‌ای داده نمی‌شود.')}</p>
               {options.google && <GoogleButton mode="signup" label={tr('درخواست با حساب گوگل')} onError={setError} />}
-              {options.google && options.phone && (
-                <div className="flex items-center gap-2 text-[12.5px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{tr('یا با شمارهٔ همراه')}<span className="h-px flex-1 bg-ink-200" /></div>
+              {options.google && (options.phone || byPassword) && (
+                <div className="flex items-center gap-2 text-[12.5px] text-ink-400"><span className="h-px flex-1 bg-ink-200" />{options.phone ? tr('یا با شمارهٔ همراه') : tr('یا با ایمیل و رمز')}<span className="h-px flex-1 bg-ink-200" /></div>
+              )}
+              {byPassword && (
+                <form onSubmit={submit} className="space-y-3" data-testid="signup-password">
+                  <Field label={tr('نام و نام خانوادگی')} required><Input value={form.fullName} onChange={(e) => set({ fullName: e.target.value })} required autoComplete="name" /></Field>
+                  <Field label={tr('ایمیل کاری')} required><Input type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} required autoComplete="email" className="ltr" /></Field>
+                  <Field label={tr('شمارهٔ همراه (اختیاری)')}>
+                    <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} autoComplete="tel" className="ltr" placeholder="0912 123 4567" />
+                  </Field>
+                  <Field label={tr('رمز عبور')} required hint={tr('دست‌کم ۱۲ نویسه، با حرف بزرگ و کوچک لاتین و عدد.')}>
+                    <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} required minLength={12} autoComplete="new-password" className="ltr" />
+                  </Field>
+                  <Field label={tr('تکرار رمز عبور')} required>
+                    <Input type="password" value={form.again} onChange={(e) => set({ again: e.target.value })} required autoComplete="new-password" className="ltr" />
+                  </Field>
+                  <Field label={tr('واحد (اختیاری)')}>
+                    <Select value={form.departmentCode} onChange={(e) => set({ departmentCode: e.target.value })} aria-label={tr('واحد')}>
+                      <option value="">{tr('— نمی‌دانم —')}</option>
+                      {options.units.map((u) => <option key={u.code} value={u.code}>{loc(u, 'name')}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label={tr('توضیح برای مدیر سیستم (اختیاری)')}><Textarea rows={2} value={form.note} onChange={(e) => set({ note: e.target.value })} maxLength={500} /></Field>
+                  <Button type="submit" variant="primary" loading={busy} className="w-full">{tr('ثبت درخواست')}</Button>
+                </form>
               )}
               {options.phone && (
                 <form onSubmit={submit} className="space-y-3">

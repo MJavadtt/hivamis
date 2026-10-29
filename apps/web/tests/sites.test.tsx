@@ -185,3 +185,27 @@ describe('The rentals register', () => {
     expect(onChange).toHaveBeenCalledWith('12500000.5');
   });
 });
+
+describe('Excel in beside Excel out', () => {
+  it('offers the import beside the export, locked to the list’s kind, for whoever may import it', async () => {
+    const sent = mount('/sites/venues', [{ path: '/sites/venues', element: <VenuesPage /> }], ['venue.read', 'venue.write', 'venue.manage'], (p) => {
+      if (p === '/venues') return json({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 });
+      if (p === '/venues/facets') return json({ places: [] });
+      if (p === '/site-data/columns/VENUES') return json([{ key: 'name', fa: 'نام مکان', required: true }]);
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'ورود از اکسل' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect((dialog.getByLabelText('نوع') as HTMLSelectElement).disabled).toBe(true);
+    expect(dialog.getByRole('button', { name: 'دریافت الگوی خالی' })).toBeTruthy();
+    await waitFor(() => expect(sent.some((s) => s.path === '/site-data/columns/VENUES')).toBe(true));
+  });
+
+  it('shows no import to someone who may only read the list', async () => {
+    mount('/sites/venues', [{ path: '/sites/venues', element: <VenuesPage /> }], ['venue.read'], (p) => {
+      if (p === '/venues') return json({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 });
+      if (p === '/venues/facets') return json({ places: [] });
+    });
+    expect(await screen.findByRole('button', { name: 'خروجی اکسل' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'ورود از اکسل' })).toBeNull();
+  });
+});

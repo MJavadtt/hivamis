@@ -48,6 +48,8 @@ export const ACTION_LABELS: Record<string, string> = {
   PAYMENT_RECORDED: tr('ثبت پرداخت'), PAYMENT_REVERSED: tr('برگشت پرداخت'),
   DEPOSIT_DEDUCTION_PROPOSED: tr('پیشنهاد کسر از ودیعه'), DEPOSIT_DEDUCTION_APPROVED: tr('تأیید کسر از ودیعه'), DEPOSIT_DEDUCTION_REJECTED: tr('رد کسر از ودیعه'),
   REMINDERS_RUN: tr('اجرای یادآوری‌ها'),
+  // The owner's instruction (2026-10-28): the system administrator puts a record into any state.
+  STATE_FORCED: tr('تغییر مستقیم وضعیت به دست مدیر سیستم'),
   // Words that sit beside an action in the same source, read by the same test: a decision, a row's outcome.
   APPROVED: tr('تأییدشده'), WAIVE: tr('بخشودن'), ERROR: tr('خطا'),
 };

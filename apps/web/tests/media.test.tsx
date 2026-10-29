@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('../src/lib/auth', () => ({ useAuth: () => ({ can: () => true, user: { department: { code: 'ME' } } }) }));
+vi.mock('../src/lib/auth', () => ({ useAuth: () => ({ can: () => true, user: { department: { code: 'ME' } } }), useSystemAdmin: () => false }));
 import { ProjectMedia } from '../src/components/Media';
 
 const order = (id: string, state: string, extra: Record<string, unknown> = {}) => ({

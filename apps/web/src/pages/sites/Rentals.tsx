@@ -15,6 +15,7 @@ import { Money, MoneyList, ObligationStatus, SitesNav, kindLabel } from './share
 import { FilterSelect, SavedViews } from './Venues';
 import { PeopleSelect } from './pickers';
 import { period } from './Ledger';
+import { ImportButton } from './Excel';
 
 /**
  * Rentals (ADR-103, module C) — «اجاره‌داری، جدول اجاره‌داری»: what is owed across every venue — the
@@ -133,6 +134,7 @@ function Register() {
         <div className="w-36"><JalaliDateInput value={f.from} onChange={(v) => set({ from: v })} label={tr('سررسید از')} /></div>
         <div className="w-36"><JalaliDateInput value={f.to} onChange={(v) => set({ to: v })} label={tr('سررسید تا')} /></div>
         <Button size="sm" onClick={() => void downloadFile(`/site-data/export/obligations?${exportQuery}`, 'rentals.xlsx')}>{tr('خروجی اکسل')}</Button>
+        <ImportButton kind="OBLIGATIONS" />
       </div>
       {data?.totals.length ? (
         <p className="flex flex-wrap gap-4 text-sm">{data.totals.map((t) => (

@@ -1,4 +1,12 @@
 FROM node:22-alpine AS build
+# Where packages come from (owner's server report, 2026-10-28): the public registry unless NPM_REGISTRY
+# names a mirror, and a dropped connection retried rather than ending the build.
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY \
+    npm_config_registry=$NPM_REGISTRY \
+    npm_config_fetch_retries=6 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000
 RUN corepack enable
 WORKDIR /repo
 

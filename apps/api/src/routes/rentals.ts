@@ -20,7 +20,7 @@ import { runReminders } from '../sites/reminders.js';
 import { projectReport, rentalReport, venueReport } from '../sites/reports.js';
 import { IMPORT_COLUMNS, runImport, streamWorkbook, templateFor, type ExportColumn } from '../sites/excel.js';
 import { completenessOf } from '../sites/venues.js';
-import { anyOf } from '../sites/access.js';
+import { anyOf, overridesRules } from '../sites/access.js';
 import { SITE_GUARDS } from '../sites/workflow.js';
 
 /**
@@ -128,8 +128,8 @@ const rentalRoutes: FastifyPluginAsync = async (app) => {
     if (input.periodStart && input.periodEnd && input.periodEnd <= input.periodStart) throw badRequest('VALIDATION_ERROR', 'پایان دوره باید پس از آغاز آن باشد.');
     const made = await prisma.$transaction(async (tx) => {
       const p = await lockProject(tx, actor.organizationId, id);
-      assertBooksOpen(p);
-      if (p.state === 'CANCELLED') throw conflict('PROJECT_CLOSED', 'پروژه لغو شده است.');
+      assertBooksOpen(p, actor);
+      if (p.state === 'CANCELLED' && !overridesRules(actor)) throw conflict('PROJECT_CLOSED', 'پروژه لغو شده است.');
       const row = await tx.siteObligation.create({ data: { ...input, organizationId: actor.organizationId, siteProjectId: id, currency: p.currency, source: 'MANUAL', createdById: actor.id } });
       await audit({ ...auditCtx(actor), action: 'OBLIGATION_ADDED', entityType: 'siteProject', entityId: id, after: row }, tx);
       return row;
@@ -146,7 +146,7 @@ const rentalRoutes: FastifyPluginAsync = async (app) => {
       const found = await tx.siteObligation.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!found) throw notFound('قلم');
       const p = await lockProject(tx, actor.organizationId, found.siteProjectId);
-      assertBooksOpen(p);
+      assertBooksOpen(p, actor);
       const before = await tx.siteObligation.findUniqueOrThrow({ where: { id } });
       if (!OPEN.includes(before.status as never)) throw conflict('OBLIGATION_CLOSED', 'این قلم بسته است و تغییر نمی‌کند.');
       if (input.amount && money(input.amount).lt(money(before.settledAmount))) throw conflict('BELOW_SETTLED', `مبلغ از آنچه پرداخت شده (${money(before.settledAmount).toFixed(0)}) کمتر نمی‌شود.`);
@@ -172,7 +172,7 @@ const rentalRoutes: FastifyPluginAsync = async (app) => {
       const found = await tx.siteObligation.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!found) throw notFound('قلم');
       const p = await lockProject(tx, actor.organizationId, found.siteProjectId);
-      assertBooksOpen(p);
+      assertBooksOpen(p, actor);
       const before = await tx.siteObligation.findUniqueOrThrow({ where: { id } });
       if (!OPEN.includes(before.status as never)) throw conflict('OBLIGATION_CLOSED', 'این قلم بسته است.');
       if (input.action === 'VOID' && money(before.settledAmount).gt(0)) throw conflict('OBLIGATION_PAID', 'قلمی که پرداخت دارد باطل نمی‌شود؛ پرداخت را برگردانید یا مانده را ببخشید.');

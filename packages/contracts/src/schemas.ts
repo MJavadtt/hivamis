@@ -1180,6 +1180,20 @@ export const signupSchema = z.object({
   note: z.string().trim().max(500).nullish(),
 });
 
+/**
+ * Asking to join with an email and a password of one's own — the way that needs neither SMS nor Google,
+ * so an installation with neither still has one (owner's server report, 2026-10-28). Nothing is proved:
+ * the system administrator's approval is the check, and the queue says so.
+ */
+export const signupPasswordSchema = z.object({
+  fullName: signupSchema.shape.fullName,
+  email: signupSchema.shape.email,
+  phone: iranMobileSchema.nullish(),
+  password: changePasswordSchema.shape.newPassword,
+  departmentCode: signupSchema.shape.departmentCode,
+  note: signupSchema.shape.note,
+});
+
 /** Approving a request: the administrator gives the unit and the roles (Hivamis task 6) — never system administration. */
 export const approveSignupSchema = z.object({
   departmentCode: z.enum(DEPARTMENT_CODES),

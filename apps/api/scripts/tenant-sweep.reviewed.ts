@@ -446,4 +446,6 @@ export const REVIEWED: Record<string, Verdict> = {
     "sites/workflow.ts#currentContract", "sites/workflow.ts#evidence", "sites/workflow.ts#openMoney",
   ]),
   ...of('SYSTEM', ["sites/messages.ts#followUpMessages", "sites/reminders.ts#runReminders", "sites/reminders.ts#staffPhones"]),
+  // ADR-104: a record put directly into a state is found in the caller's organisation first; its clocks by its id.
+  ...of('EARLIER', ["workflow/engine.ts#forceState"]),
 };

@@ -7,6 +7,7 @@ import { jalaliOf, jalaliStart, jalaliMonthLength } from '../lib/jalali.js';
 import { money, rounded, type Money } from '../lib/money.js';
 import { lockProject } from './ledger.js';
 import type { SiteActor } from './venues.js';
+import { overridesRules } from './access.js';
 
 /**
  * The rental schedule (ADR-103): from the contract's terms, what falls due and when — the deposit at
@@ -103,7 +104,7 @@ export const SCHEDULE_STATES = ['CONTRACT_APPROVED', 'INSTALL_PLANNED', 'INSTALL
 
 export async function applySchedule(tx: Tx, actor: SiteActor, siteProjectId: string, settings: SiteSettings, dryRun: boolean): Promise<ScheduleOutcome> {
   const p = await lockProject(tx, actor.organizationId, siteProjectId);
-  if (!dryRun && !SCHEDULE_STATES.includes(p.state)) {
+  if (!dryRun && !SCHEDULE_STATES.includes(p.state) && !overridesRules(actor)) {
     throw conflict('SCHEDULE_NOT_READY', 'جدول اجاره پس از تأیید قرارداد ساخته می‌شود، و برای پروژهٔ بسته یا لغوشده نه.');
   }
   const planned = buildSchedule(p, settings);

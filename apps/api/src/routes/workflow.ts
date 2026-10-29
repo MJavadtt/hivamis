@@ -2,11 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import {
   WORKFLOWS, WORKFLOW_READ_PERMISSION, isWorkflowEntity, transitionSchema,
 } from '@hiva/contracts';
+import { z } from 'zod';
 import { prisma } from '../db.js';
 import { actorFrom, parse } from '../lib/http.js';
 import { assertVisible } from '../bookings/access.js';
 import { badRequest, notFound } from '../lib/errors.js';
-import { allowedFor, delegate, transition, workflowFor, preflight } from '../workflow/engine.js';
+import { allowedFor, delegate, forceState, transition, workflowFor, preflight } from '../workflow/engine.js';
 
 /**
  * A booking is read by those it concerns (audit F-9, finding 3): to anyone else, its moves, history
@@ -22,6 +23,8 @@ async function assertRecordVisible(entity: string, id: string, req: Parameters<t
  * The universal state-change endpoint. Every lifecycle move in the platform funnels through
  * here so permissions, mandatory reasons, Doc_H guards, audit and SLA all apply uniformly.
  */
+const forceStateSchema = z.object({ toState: z.string().trim().min(1).max(40), reason: z.string().trim().max(2000).optional() });
+
 const workflowRoutes: FastifyPluginAsync = async (app) => {
   /** Rejects an unknown `:entity` before it can reach the database client. */
   const requireEntity = (entity: string): void => {
@@ -60,8 +63,23 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
       entity, id, action: body.action, reason: body.reason, payload: body.payload,
       actor: {
         id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions,
-        delegated: actor.delegated,
+        delegated: actor.delegated, roles: actor.roles, delegatedRoles: actor.delegatedRoles,
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
+      },
+    });
+  });
+
+  /** Any state, straight — the system administrator's alone (engine.ts, forceState). */
+  app.post('/workflow/:entity/:id/force', { preHandler: [app.authenticate] }, async (req) => {
+    const { entity, id } = req.params as { entity: string; id: string };
+    requireEntity(entity);
+    const body = parse(forceStateSchema, req.body);
+    const actor = actorFrom(req);
+    return forceState({
+      entity, id, toState: body.toState, reason: body.reason,
+      actor: {
+        id: actor.id, organizationId: actor.organizationId, permissions: actor.permissions, delegated: actor.delegated,
+        roles: actor.roles, delegatedRoles: actor.delegatedRoles, ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });
   });

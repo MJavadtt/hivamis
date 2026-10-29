@@ -10,7 +10,7 @@ import { actorFrom, orderBy, page, parse } from '../lib/http.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
 import { money } from '../lib/money.js';
-import { anyOf } from '../sites/access.js';
+import { anyOf, overridesRules } from '../sites/access.js';
 import { optionsOf, settingsOf } from '../sites/options.js';
 import {
   addContact, assertNotDuplicate, assertRequired, assertVenueOptions, completenessOf, createVenue, findDuplicates,
@@ -228,7 +228,7 @@ const venueRoutes: FastifyPluginAsync = async (app) => {
       const before = await tx.venue.findFirst({ where: { id, organizationId: actor.organizationId, archivedAt: null } });
       if (!before) throw notFound('مکان');
       const live = await tx.siteProject.count({ where: { venueId: id, state: { notIn: ['DRAFT', 'CLOSED', 'CANCELLED'] } } });
-      if (live) throw conflict('VENUE_IN_USE', `${live} پروژهٔ جاری در این مکان است؛ پیش از بایگانی آن‌ها را ببندید یا لغو کنید.`);
+      if (live && !overridesRules(actor)) throw conflict('VENUE_IN_USE', `${live} پروژهٔ جاری در این مکان است؛ پیش از بایگانی آن‌ها را ببندید یا لغو کنید.`);
       const after = await tx.venue.update({ where: { id }, data: { archivedAt: new Date(), isActive: false, updatedById: actor.id, version: { increment: 1 } } });
       await audit({ organizationId: actor.organizationId, actorId: actor.id, action: 'ARCHIVE', entityType: 'venue', entityId: id, before, after, reason, ipAddress: actor.ipAddress, requestId: actor.requestId }, tx);
       return after;

@@ -141,6 +141,8 @@ come from `tenant:create`, as the installer does.
 | `SMS_MODE` | no | `sandbox` in development with one organisation; `off` in production or with `TENANT_MODE=multi` | One-time codes by SMS (Hivamis task 4): `sandbox` keeps messages in the outbox (Admin → Users), and is refused at start in production or with several organisations (audit SEC-6) — its outbox shows a code only when it opens no account (asking to join) or to the person it signs in; `kavenegar` uses Kavenegar's verify/lookup; `http` POSTs `{ to, text }` to `SMS_URL`; `off` hides signing in and joining by mobile |
 | `SMS_API_KEY`, `SMS_TEMPLATE`, `SMS_URL` | with `kavenegar` / `http` | — | The provider's key; Kavenegar's verify template (one token, the code); the `http` endpoint |
 | `SMS_SENDER` | no | — | The line free-text messages (texts to venues, ADR-103) are sent from; Kavenegar's default line when empty, `from` for the `http` adapter |
+| `NPM_REGISTRY` | no (build) | `https://registry.npmjs.org/` | The compose stack's images only: where pnpm and the Node packages are fetched from at build — a mirror where npm is slow or refused |
+| `DEBIAN_MIRROR` | no (build) | — | The API image only: a Debian mirror's scheme and host, in place of `http://deb.debian.org`, where Chromium and the system packages come from |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | for Google sign-in | — | An OAuth client of type "Web application"; register `PUBLIC_APP_URL` (or the first `CORS_ORIGIN`) + `/api/v1/auth/google/callback` as its redirect URI. Unset: no Google button |
 | `GOOGLE_ALLOWED_DOMAINS` | no | — | Comma list of email domains a Google account must be on — to ask to join, to sign in, and to be linked (audit SEC-5). Empty: any domain |
 | `MESSENGER_BOT_TOKEN` | for `bale`/`telegram` | — | The bot's token. It appears in every Bot API URL; errors never repeat the URL |
@@ -228,12 +230,38 @@ The upgrade:
 1. takes a backup first (`--no-backup` skips it);
 2. updates the checkout (`--pull` runs `git pull --ff-only`; without it, the files already in place
    are used);
-3. rebuilds the images, stamped with `git describe` as `APP_VERSION`;
-4. restarts the stack. On start the API applies new migrations, then brings every organisation's
+3. adds to `.env` every setting of `.env.docker.example` it does not have yet, off or at its default,
+   and names them — a setting a newer version reads is then in the file to be turned on;
+4. rebuilds the images, stamped with `git describe` as `APP_VERSION`. A build that fails restarts
+   nothing: the version before keeps serving, and the upgrade says so and stops;
+5. restarts the stack. On start the API applies new migrations, then brings every organisation's
    reference data up to the code: a form the new version changed reaches the organisations whose
    form it still is, and an SLA policy it added is created. The operator does nothing else;
-5. waits until the API is ready, and prints `status`: the version, the migrations applied, the last
+6. waits until the API is ready, and prints `status`: the version, the migrations applied, the last
    reference sync, and the organisations.
+
+**When the server keeps the old version** (the owner's report, 2026-10-28). Check the version
+`status` prints against `git log -1`. Until 2026-10-28 three things kept a server behind or down
+without saying so: the API's image shipped Prisma's engine for OpenSSL 1.1 beside OpenSSL 3, so the API
+never became ready (`docker compose logs api` showed "could not locate the Query Engine"); the API's
+image did not build from a lockfile that disagreed with `apps/api/package.json`; and
+thirty-one settings — the bot (`MESSENGER_*`), e-signature (`ESIGN_*`), Moadian, the venues' SMS line
+(`SMS_SENDER`), searching by meaning (`EMBEDDING_*`) — never reached the API's container whatever
+`.env` said. Both are fixed, and `apps/api/tests/077-docker-stack.test.ts` holds them.
+
+**Building where the public servers are slow or refused.** The build fetches Node packages from npm,
+the API's image fetches Debian's packages (Chromium among them), and the base images come from
+Docker Hub. Each download is retried before a build gives up. Where one of them is refused outright:
+
+- **npm** — `NPM_REGISTRY` in `.env`: a registry mirror's address, used for pnpm itself too.
+- **Debian** — `DEBIAN_MIRROR` in `.env`: a mirror's scheme and host (`http://mirror.example.ir`);
+  it replaces `http://deb.debian.org` in the image's sources.
+- **Docker Hub** — the Docker engine's own setting, not this file's: `"registry-mirrors"` in
+  `/etc/docker/daemon.json`, then `systemctl restart docker`. It serves every image of the stack
+  (PostgreSQL, Node, nginx, Ollama).
+
+A mirror is somebody else's server: use one the organisation trusts, as it does any package source.
+Then `infrastructure/hivamis upgrade` again.
 
 Before #50 the upgrade stopped at the migrations. The reference data stayed as the previous seed
 left it, so a form changed in the catalogue kept its old fields until someone re-ran the seed by
@@ -708,10 +736,15 @@ only prove who someone is; their roles still decide what they may do.
   application), add the redirect URI above, and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. A
   verified Google address equal to someone's work email signs that person in and links the account;
   anyone else can only ask to join.
-- **Asking to join** (`/signup`) is open while at least one of the two is available; the administrator
-  can close it (Admin → Users → «پذیرش درخواست عضویت»). A request grants nothing: the administrator
-  of users approves it and chooses the unit and roles (never system administration), or rejects it
-  with a reason. The account has no password until its owner sets one on their own page.
+- **Asking to join** (`/signup`) is open until the administrator closes it (Admin → Users →
+  «پذیرش درخواست عضویت»). With SMS, the person proves their mobile; with Google, their account; with
+  neither — the compose stack's start — they give an email and a password of their own (owner's server
+  report, 2026-10-28: the button never showed on a server with neither). That way proves nothing, so
+  the queue marks it «تأییدنشده» and the administrator makes sure of the person before approving; the
+  password is stored hashed on the request and becomes the account's on approval, and a number typed
+  into it is kept unverified. A request grants nothing: the administrator of users approves it and
+  chooses the unit and roles (never system administration), or rejects it with a reason. An account
+  that joined by mobile or Google has no password until its owner sets one on their own page.
 
 ## Notices on the phone
 

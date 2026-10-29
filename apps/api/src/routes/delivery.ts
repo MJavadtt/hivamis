@@ -188,7 +188,8 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
 
     const proposal = await prisma.proposal.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!proposal) throw notFound('پروپوزال');
-    if (proposal.totalCost == null) {
+    // The system administrator acts past the process's rules (the owner's instruction, 2026-10-28); the audit row names them.
+    if (proposal.totalCost == null && !isSystemAdmin(actor)) {
       throw new GovernanceError(
         'Doc_H §12 — اعلام قیمت تمام‌شده',
         'قیمت فروش پیش از اعلام قیمت تمام‌شده توسط واحدها قابل تعیین نیست.',
@@ -284,7 +285,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const project = await prisma.project.findFirst({ where: { id, organizationId: actor.organizationId } });
     if (!project) throw notFound('پروژه');
 
-    if (input.basis === 'CONTRACT') {
+    if (input.basis === 'CONTRACT' && !isSystemAdmin(actor)) {
       if (!input.contractId) {
         throw new GovernanceError('Doc_H §13', 'مبنای «قرارداد» بدون انتخاب قرارداد معتبر نیست.');
       }
@@ -293,7 +294,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
         throw new GovernanceError('Doc_H §13', 'قرارداد انتخاب‌شده هنوز امضا/ثبت نشده است.');
       }
     }
-    if (input.basis === 'INVOICED_EXECUTION_ORDER' && !input.invoiceId) {
+    if (input.basis === 'INVOICED_EXECUTION_ORDER' && !input.invoiceId && !isSystemAdmin(actor)) {
       throw new GovernanceError(
         'Doc_H §G — پروژه فاکتوری',
         'دستور اجرای فاکتوری باید به پیش‌فاکتور یا فاکتور متصل باشد.',

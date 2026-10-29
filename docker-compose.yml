@@ -68,6 +68,10 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.api
+      # Mirrors for a server where the public ones are slow or refused (docs/operations.md).
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-}
     restart: unless-stopped
     depends_on:
       db:
@@ -145,6 +149,39 @@ services:
       # Webhooks (roadmap #46): internal receivers only on an on-premise network; deliveries in flight at once.
       WEBHOOK_ALLOW_PRIVATE: ${WEBHOOK_ALLOW_PRIVATE:-false}
       WEBHOOK_CONCURRENCY: ${WEBHOOK_CONCURRENCY:-8}
+      # Everything below the API reads too, and until 2026-10-28 never reached it here: set in .env, it
+      # was dropped on the way in, so these features stayed off whatever the settings file said (owner's
+      # server report). Each default is the code's own.
+      # Texts to the venues (ADR-103): the line they go out from.
+      SMS_SENDER: ${SMS_SENDER:-}
+      # The bot (roadmap #40, audit F-9): `bale` or `telegram` with its token; `polling` works behind NAT.
+      MESSENGER_MODE: ${MESSENGER_MODE:-off}
+      MESSENGER_BOT_TOKEN: ${MESSENGER_BOT_TOKEN:-}
+      MESSENGER_BOT_USERNAME: ${MESSENGER_BOT_USERNAME:-}
+      MESSENGER_WEBHOOK_SECRET: ${MESSENGER_WEBHOOK_SECRET:-}
+      MESSENGER_TRANSPORT: ${MESSENGER_TRANSPORT:-polling}
+      MESSENGER_API_URL: ${MESSENGER_API_URL:-}
+      # Electronic signature (roadmap #41): `http`, a provider behind the documented REST contract.
+      ESIGN_MODE: ${ESIGN_MODE:-off}
+      ESIGN_URL: ${ESIGN_URL:-}
+      ESIGN_API_KEY: ${ESIGN_API_KEY:-}
+      ESIGN_WEBHOOK_SECRET: ${ESIGN_WEBHOOK_SECRET:-}
+      # The tax authority's invoice system (Moadian). `live` needs the key and certificate inside the
+      # container — under /app/storage, which is the `storage` volume.
+      MOADIAN_MODE: ${MOADIAN_MODE:-off}
+      MOADIAN_URL: ${MOADIAN_URL:-https://tp.tax.gov.ir/requestsmanager/api/v2/}
+      MOADIAN_PRIVATE_KEY_PATH: ${MOADIAN_PRIVATE_KEY_PATH:-}
+      MOADIAN_CERTIFICATE_PATH: ${MOADIAN_CERTIFICATE_PATH:-}
+      # Searching by meaning: an embeddings endpoint (Ollama's own works); empty embeds locally.
+      EMBEDDING_URL: ${EMBEDDING_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      # Web Push: the browsers' push services a subscription may point at; `off` sends nothing.
+      PUSH_DELIVERY: ${PUSH_DELIVERY:-on}
+      PUSH_SERVICE_HOSTS: ${PUSH_SERVICE_HOSTS:-fcm.googleapis.com,android.googleapis.com,push.services.mozilla.com,web.push.apple.com,notify.windows.com}
+      FX_MAX_RATE_AGE_DAYS: ${FX_MAX_RATE_AGE_DAYS:-7}
+      FILE_RETENTION_DAYS: ${FILE_RETENTION_DAYS:-90}
+      AI_HISTORY_RETENTION_DAYS: ${AI_HISTORY_RETENTION_DAYS:-180}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
@@ -157,6 +194,8 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.web
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
     restart: unless-stopped
     depends_on:
       - api

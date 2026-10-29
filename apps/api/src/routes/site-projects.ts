@@ -15,6 +15,7 @@ import { assertOwnReferences } from '../lib/scope.js';
 import { isSystemAdmin } from '../auth/grants.js';
 import { transitionWithin } from '../workflow/engine.js';
 import { assertOptions } from '../sites/options.js';
+import { overridesRules } from '../sites/access.js';
 import { balancesOf } from '../sites/ledger.js';
 
 /**
@@ -35,7 +36,7 @@ const auditCtx = (a: Actor) => ({ organizationId: a.organizationId, actorId: a.i
 async function projectFor(tx: Tx | typeof prisma, actor: Actor, id: string, opts: { open?: boolean } = {}) {
   const p = await tx.siteProject.findFirst({ where: { id, organizationId: actor.organizationId } });
   if (!p) throw notFound('پروژهٔ استقرار');
-  if (opts.open && TERMINAL.includes(p.state)) throw conflict('PROJECT_CLOSED', `پروژهٔ ${p.code} ${p.state === 'CLOSED' ? 'بسته' : 'لغو'} شده است؛ چیزی به آن افزوده نمی‌شود.`);
+  if (opts.open && TERMINAL.includes(p.state) && !overridesRules(actor)) throw conflict('PROJECT_CLOSED', `پروژهٔ ${p.code} ${p.state === 'CLOSED' ? 'بسته' : 'لغو'} شده است؛ چیزی به آن افزوده نمی‌شود.`);
   return p;
 }
 
@@ -160,7 +161,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
       if (version !== before.version) throw versionConflict();
       const changed = Object.keys(fields).filter((k) => JSON.stringify((fields as Record<string, unknown>)[k] ?? null) !== JSON.stringify((before as Record<string, unknown>)[k] ?? null));
       const terms = changed.filter((k) => (SITE_TERM_FIELDS as readonly string[]).includes(k) || k === 'venueId');
-      if (terms.length && !TERMS_OPEN.includes(before.state)) {
+      if (terms.length && !TERMS_OPEN.includes(before.state) && !overridesRules(actor)) {
         throw conflict('TERMS_LOCKED', 'شرایط این پروژه را قرارداد تعیین کرده است؛ برای تغییرش نسخهٔ تازهٔ قرارداد (الحاقیه) ثبت و تأیید کنید.', { fields: terms });
       }
       if (fields.venueId && fields.venueId !== before.venueId && !(await tx.venue.count({ where: { id: fields.venueId, organizationId: actor.organizationId, archivedAt: null, mergedIntoId: null } }))) {
@@ -243,9 +244,9 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
     const input = parse(siteContractSchema, req.body);
     const made = await prisma.$transaction(async (tx) => {
       const p = await projectFor(tx, actor, id, { open: true });
-      if (['DRAFT', 'EVALUATION'].includes(p.state)) throw conflict('TOO_EARLY', 'قرارداد پس از آغاز مذاکره ثبت می‌شود.');
+      if (['DRAFT', 'EVALUATION'].includes(p.state) && !overridesRules(actor)) throw conflict('TOO_EARLY', 'قرارداد پس از آغاز مذاکره ثبت می‌شود.');
       const approvedBefore = (await tx.siteContract.count({ where: { siteProjectId: id, status: 'APPROVED' } })) > 0;
-      if (input.amendment && !approvedBefore) throw badRequest('VALIDATION_ERROR', 'پیش از نخستین تأیید، شرایط را در خود پروژه ویرایش کنید؛ الحاقیه برای قرارداد تأییدشده است.');
+      if (input.amendment && !approvedBefore && !overridesRules(actor)) throw badRequest('VALIDATION_ERROR', 'پیش از نخستین تأیید، شرایط را در خود پروژه ویرایش کنید؛ الحاقیه برای قرارداد تأییدشده است.');
       if (input.amendment) {
         await projectOptions(actor.organizationId, input.amendment, p);
         const merged = { ...p, ...input.amendment };
@@ -276,7 +277,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
       if (!c) throw notFound('قرارداد');
       const p = await projectFor(tx, actor, c.siteProjectId, { open: true });
       if (c.status !== 'DRAFT') throw conflict('ILLEGAL_TRANSITION', 'فقط نسخهٔ پیش‌نویس برای تأیید فرستاده می‌شود.');
-      if (p.state === 'NEGOTIATION') throw conflict('TERMS_NOT_AGREED', 'نخست توافق بر شرایط را ثبت کنید، سپس قرارداد را بفرستید.');
+      if (p.state === 'NEGOTIATION' && !overridesRules(actor)) throw conflict('TERMS_NOT_AGREED', 'نخست توافق بر شرایط را ثبت کنید، سپس قرارداد را بفرستید.');
       await tx.siteContract.update({ where: { id }, data: { status: 'PENDING_APPROVAL', submittedAt: new Date() } });
       if (p.state === 'TERMS_AGREED') {
         await transitionWithin(tx, { entity: 'siteProject', id: p.id, action: 'submit_contract', actor });
@@ -284,7 +285,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
         // An amendment, or a new version while one waits: the same file rule, without moving the project.
         const option = c.cooperationCode ? await tx.siteOption.findUnique({ where: { organizationId_list_code: { organizationId: actor.organizationId, list: 'COOPERATION', code: c.cooperationCode } } }) : null;
         const needsFile = (option?.meta as { requiresContract?: boolean } | null)?.requiresContract !== false;
-        if (needsFile && !(await tx.document.count({ where: { siteProjectId: p.id, siteRecordType: 'contract', siteRecordId: id, deletedAt: null } }))) {
+        if (needsFile && !overridesRules(actor) && !(await tx.document.count({ where: { siteProjectId: p.id, siteRecordType: 'contract', siteRecordId: id, deletedAt: null } }))) {
           throw conflict('CONTRACT_FILE_MISSING', 'در همکاری قراردادی، فایل قرارداد باید پیوست این نسخه باشد.');
         }
       }
@@ -388,7 +389,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
       const before = await tx.siteCounter.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!before) throw notFound('کانتر');
       const p = await projectFor(tx, actor, before.siteProjectId, { open: true });
-      if (!['DRAFT', 'EVALUATION', 'NEGOTIATION', 'TERMS_AGREED', 'CONTRACT_PENDING', 'CONTRACT_APPROVED', 'INSTALL_PLANNED'].includes(p.state)) {
+      if (!['DRAFT', 'EVALUATION', 'NEGOTIATION', 'TERMS_AGREED', 'CONTRACT_PENDING', 'CONTRACT_APPROVED', 'INSTALL_PLANNED'].includes(p.state) && !overridesRules(actor)) {
         throw conflict('COUNTER_INSTALLED', 'کانتر نصب‌شده حذف نمی‌شود؛ اگر برداشته شد، در یادداشت پروژه ثبت کنید.');
       }
       await tx.siteCounter.delete({ where: { id } });
