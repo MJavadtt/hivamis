@@ -590,6 +590,41 @@ Roadmap #48, **راه‌اندازی سازمان** (under `admin.settings`). Th
 Every import can be run again with the same (or a corrected) file: what is already there is skipped.
 Keep each organisation's source files; the audit trail records every `BULK_IMPORT` with its counts.
 
+## Moving in from Mizito
+
+The owner's request (2026-10-28, ADR-106): everything in the organisation's Mizito workspace and its client
+sheet ("Hiva-Project Mangement"), in one move.
+
+**What comes, and as what.** Mizito's members become people (their unit and roles read from the job
+title — never the system administrator's), its removed members names on the history that cannot sign in,
+its client files clients with their contacts, its projects projects, every task open or done a task, and
+the reports posted on tasks their comments, under their own authors and dates. The sheet gives each client
+its code (H1001, `clientCode`, searchable) and industry, and adds its own projects (H1001-01, `legacyRef`)
+with their status and account manager; a sheet row that is a Mizito project fills that project in.
+Archived Mizito projects arrive closed; running ones arrive running, with no start authorization on record
+— the report counts them, and each needs its contract or order (Doc_H rule 13). Files attached to tasks do
+not come, and Mizito shows the comments of an archived project's group to nobody: those stay in Mizito.
+
+**The two files** are saved from the owner's browser, signed in to Mizito and Google: `hivamis-mizito.json`
+(what Mizito's own screens read) and `hivamis-sheet.json`. They hold people's details — keep them off the
+repository and delete them once the move is done.
+
+**On the server**, after `infrastructure/hivamis upgrade --pull`:
+
+```bash
+infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --as info@hivaagency.org
+infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --as info@hivaagency.org --commit
+```
+
+The first writes nothing and prints the report: how many of each it would make, the unit and roles of
+each person, who has no email in Mizito (they get a stand-in ending in `@import.invalid`), the projects
+running without authorization, and every choice the reading made — a client given its code by the sheet,
+a second file folded into the first, a project whose client name was a typo, a unit's workspace that is
+the agency's own project. Read it, then run it with `--commit`: a backup first, then each record in its
+own transaction with an `import_links` row naming its Mizito or sheet id, an audit row under `--as`, and
+an opening transition («ورود از میزیتو») for every state. A run that stops is run again: nothing is made
+twice. Afterwards, in Admin → Users, set the real email of each stand-in and issue each person's link.
+
 ## Extensions
 
 Roadmap #47. An organisation adds its own code rules without forking: `.js`/`.mjs` modules in

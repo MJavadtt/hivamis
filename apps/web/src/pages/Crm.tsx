@@ -315,11 +315,11 @@ export function CompaniesList() {
       <PageBody>
         <EntityList<any>
           path="/companies"
-          searchPlaceholder={tr('جستجو در نام یا صنعت…')}
+          searchPlaceholder={tr('جستجو در نام، کد یا صنعت…')}
           rowHref={(r) => `/companies/${r.id}`}
           emptyTitle={tr('مشتری‌ای ثبت نشده')}
           columns={[
-            { key: 'name', header: tr('مشتری'), render: (r) => (<><p className="font-medium text-ink-800">{r.legalName}</p>{r.brandName && <p className="text-[12.5px] text-ink-400">{r.brandName}</p>}</>) },
+            { key: 'name', header: tr('مشتری'), render: (r) => (<><p className="font-medium text-ink-800">{r.legalName}{r.clientCode && <span className="ltr mx-1.5 text-[12.5px] font-normal text-ink-400">{r.clientCode}</span>}</p>{r.brandName && <p className="text-[12.5px] text-ink-400">{r.brandName}</p>}</>) },
             { key: 'industry', header: tr('صنعت'), render: (r) => <span className="text-xs">{r.industry ?? '—'}</span> },
             { key: 'account', header: tr('مالک اکانت'), render: (r) => <span className="text-xs">{r.accountOwner?.fullName ?? '—'}</span> },
             { key: 'sales', header: tr('مالک فروش'), render: (r) => <span className="text-xs">{r.salesOwner?.fullName ?? '—'}</span> },
@@ -400,13 +400,17 @@ export function CompanyDetail() {
             <div className="grid gap-5 lg:grid-cols-2">
               <Card title={tr('اطلاعات مشتری')}>
                 <dl className="px-4 py-1">
+                  {c.clientCode && <DescRow label={tr('کد مشتری')}><span className="ltr">{c.clientCode}</span></DescRow>}
                   <DescRow label={tr('شناسه ملی')}><span className="ltr">{c.nationalId ?? '—'}</span></DescRow>
                   <DescRow label={tr('کد اقتصادی')}><span className="ltr">{c.economicCode ?? '—'}</span></DescRow>
                   <DescRow label={tr('تلفن')}><span className="ltr">{c.phone ?? '—'}</span></DescRow>
+                  {c.email && <DescRow label={tr('ایمیل')}><span className="ltr">{c.email}</span></DescRow>}
                   <DescRow label={tr('وب‌سایت')}><span className="ltr">{c.website ?? '—'}</span></DescRow>
+                  {c.address && <DescRow label={tr('آدرس')}>{c.address}</DescRow>}
                   <DescRow label={tr('مالک اکانت')}>{c.accountOwner?.fullName ?? '—'}</DescRow>
                   <DescRow label={tr('مالک فروش')}>{c.salesOwner?.fullName ?? '—'}</DescRow>
                 </dl>
+                {c.notes && <p className="whitespace-pre-line border-t border-ink-100 px-4 py-3 text-sm leading-7 text-ink-700" data-testid="company-notes">{c.notes}</p>}
               </Card>
 
               <Card title={tr('مخاطبین')}>

@@ -13,6 +13,9 @@
 #   infrastructure/hivamis restore --db FILE.dump [--storage FILE.tar.gz] --yes
 #   infrastructure/hivamis upgrade [--pull] [--no-backup]
 #   infrastructure/hivamis tenant list | create … | update …     (the API's own commands)
+#   infrastructure/hivamis import-mizito --mizito FILE [--sheet FILE] --as EMAIL [--commit]
+#                                  a move from Mizito and the client sheet: without --commit, what it would make;
+#                                  with it, a backup first, then made — run again, it makes nothing twice
 #
 # HIVAMIS_ENV_FILE    the settings file (default: .env beside docker-compose.yml)
 # HIVAMIS_BACKUP_DIR  where backups go (default: ./backups); RETENTION_DAYS (default 30)
@@ -536,6 +539,38 @@ cmd_upgrade() {
   cli status
 }
 
+# A move from Mizito (docs/operations.md). The files hold people's details: they enter the API's
+# container for the run and leave it after, whatever the outcome.
+cmd_import_mizito() {
+  local mizito="" sheet="" as="" commit=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --mizito) mizito="$2"; shift 2 ;;
+      --sheet) sheet="$2"; shift 2 ;;
+      --as) as="$2"; shift 2 ;;
+      --commit) commit=1; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -n "$mizito" ] && [ -n "$as" ] || die "import-mizito needs --mizito FILE and --as EMAIL (this organisation's system administrator)"
+  [ "$DRY" = 1 ] || [ -f "$mizito" ] || die "no such file: $mizito"
+  [ -z "$sheet" ] || [ "$DRY" = 1 ] || [ -f "$sheet" ] || die "no such file: $sheet"
+  [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  local args=(import:mizito --mizito /tmp/hivamis-mizito.json --as "$as")
+  compose cp "$mizito" api:/tmp/hivamis-mizito.json
+  if [ -n "$sheet" ]; then compose cp "$sheet" api:/tmp/hivamis-sheet.json; args+=(--sheet /tmp/hivamis-sheet.json); fi
+  if [ "$commit" = 1 ]; then say "→ a backup first"; cmd_backup; args+=(--commit); fi
+  local status=0
+  cli "${args[@]}" || status=$?
+  compose exec -T -u root api rm -f /tmp/hivamis-mizito.json /tmp/hivamis-sheet.json || true
+  [ "$status" = 0 ] || die "the move stopped — see the error above; what was made stays, and running it again goes on from there"
+  if [ "$commit" = 1 ]; then
+    say "✓ moved in. Each person signs in after you issue their link (Admin → Users); first set the real email of anyone whose address ends in @import.invalid"
+  else
+    say "→ nothing was written: read the report above, then run the same command with --commit"
+  fi
+}
+
 cmd_tenant() {
   local sub="${1:-list}"; shift || true
   case "$sub" in
@@ -554,5 +589,6 @@ case "${1:-help}" in
   restore) shift; cmd_restore "$@" ;;
   upgrade) shift; cmd_upgrade "$@" ;;
   tenant) shift; cmd_tenant "$@" ;;
-  *) sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  import-mizito) shift; cmd_import_mizito "$@" ;;
+  *) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 esac

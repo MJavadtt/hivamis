@@ -14,6 +14,7 @@ export const WHY = {
   PERIOD: "One accounting period's documents not yet exported.",
   BOUNDED: "Small by rule: five codes an hour per number, fifteen demo accounts, twelve periods a year.",
   ALL: "Revenue recognition needs every row to be right; cut, it would be wrong. Measured instead (audit PERF-3: 2,000 projects in 0.7 s).",
+  MOVE: "A move from another system, run once from the command line: what it has already made, as many rows as the source had.",
   RESET: "A clean start reads, once and from the command line, every row it is about to delete (owner's report, 2026-10-23).",
 } as const;
 
@@ -308,5 +309,10 @@ export const REVIEWED: Record<string, Verdict> = {
   ]),
   ...of('REFERENCE', ["sites/options.ts#optionsOf#siteOption#1", "sites/reminders.ts#runReminders#organization#1"]),
   // ADR-104: one record's own running clocks.
-  ...of('CHILDREN', ["workflow/engine.ts#forceState#slaClock#1"]),
+  ...of('CHILDREN', ["workflow/engine.ts#forceState#slaClock#1"]),  // ADR-106: a move from Mizito, run from the command line — the units, roles, people and clients it matches
+  // against, and what it already made.
+  ...of('REFERENCE', ["onboarding/migration.ts#runMigration#department#1", "onboarding/migration.ts#runMigration#role#1"]),
+  ...of('PEOPLE', ["onboarding/migration.ts#runMigration#user#1"]),
+  ...of('NAMES', ["onboarding/migration.ts#runMigration#company#1"]),
+  ...of('MOVE', ["onboarding/migration.ts#linksOf#importLink#1"]),
 };

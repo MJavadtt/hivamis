@@ -3242,3 +3242,50 @@ checkout), four causes appeared, none of them visible on a developer's machine:
 `git log -1`), and a setting written in `.env` does what it says. An organisation with neither SMS nor
 Google has a way to ask in, at the price of the administrator's checking who asked.
 
+## ADR-106 — Moving in from Mizito
+
+**Context.** The owner (2026-10-28): "Get access to my browser and bring all the information from Mizito
+into this project. Analyse it first, then import it with care. I'll give you the company's sheet too."
+Their answers: a file and a server command, tested here first; Mizito's members as accounts that sign in
+only once activated; all of the history, archived projects and done tasks included.
+
+**What the sources hold.** Mizito (read through the screens' own calls, in the owner's signed-in
+browser, never with a token of its own): 42 members and 29 removed, 184 client files, 208 projects (149
+archived), 698 tasks (479 done), 709 task reports and 11 group messages — the reports of archived projects'
+groups are shown to nobody, so they stay behind. The sheet: 170 clients by code, 219 projects. The two
+disagree in places: Mizito files a client under its code with the name in `short_name`, files ten codes
+twice (a second file of another client under the wrong code), and spells a client differently from the
+sheet («وزرات ارشاد»).
+
+**Decision.**
+
+- **Two parts.** `onboarding/mizito.ts` reads the export and the sheet into one neutral shape — people,
+  clients with contacts, projects, tasks, comments — and says every choice it makes in `notes`;
+  `onboarding/migration.ts` writes that shape, whatever its source. `import:mizito` (CLI) and
+  `hivamis import-mizito` run it; without `--commit` it writes nothing and reports.
+- **The sheet decides codes.** A code goes to the file whose name the sheet gives it; a second file of a
+  client is folded into the first, and one under another's code comes in without a code. Names are
+  compared with Arabic presentation forms unfolded and diacritics dropped, and forgive a typo: one letter
+  apart, two for a long name — never more (`ملی گلد` is not `میگل`).
+- **Projects find their clients** from "client | project"; a unit's workspace with no client name is the
+  agency's own project (H1001); a client named only by its projects is created once. A sheet row that is
+  a Mizito project (same client, the same or contained name) fills it in; any other row is a project of
+  its own, known by its code or, without one, by its line.
+- **People** get their unit and roles from the job title (a table in `mizito.ts`, then the onboarding's
+  own suggestions), never `SUPER_ADMIN`; no password crosses — each signs in from a link the administrator
+  issues. Mizito knows the email of 3 of 42: the others get a stand-in at `import.invalid` (RFC 2606), to
+  be set before the link is sent. The administrator running the move is linked to their Mizito member by
+  email or name, never doubled.
+- **Everything on the record.** `import_links` (organisation, source, source id → entity) makes a second
+  run make nothing; every person, client, contact, project and task is an audit row under the system
+  administrator named by `--as` (the command refuses anyone else); every state is an opening transition
+  («ورود از میزیتو»). A comment whose author is unknown is carried by that administrator, signed with the
+  name it had. Companies gain `clientCode` (unique in the organisation), `email` and `notes`.
+- **Running projects arrive running** with no execution authorization: none is invented. The report
+  counts them; each needs its contract or order before the process's next step (rule 13).
+
+**Consequences.** Run on the real export in a clean database: 71 people (29 removed), 189 clients (170
+coded), 25 contacts, 409 projects (77 running, 154 closed, 177 draft, 1 on hold), 698 tasks, 720 comments
+— 12 seconds, nothing failed, and a second run made nothing. Attachments, and the archived groups'
+reports, remain in Mizito.
+

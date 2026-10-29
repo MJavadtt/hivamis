@@ -3786,5 +3786,7 @@
   "درخواست شما ثبت شد. پس از تأیید مدیر سیستم، با همین ایمیل و رمز وارد شوید.": "Your request has been recorded. Once the system administrator approves it, sign in with this email and password.",
   "یا با ایمیل و رمز": "or with an email and password",
   "شمارهٔ همراه (اختیاری)": "Mobile number (optional)",
-  "دست‌کم ۱۲ نویسه، با حرف بزرگ و کوچک لاتین و عدد.": "At least 12 characters, with upper- and lower-case Latin letters and a digit."
+  "دست‌کم ۱۲ نویسه، با حرف بزرگ و کوچک لاتین و عدد.": "At least 12 characters, with upper- and lower-case Latin letters and a digit.",
+  "کد مشتری": "Client code",
+  "جستجو در نام، کد یا صنعت…": "Search by name, code or industry…"
 }

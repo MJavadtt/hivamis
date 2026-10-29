@@ -14,7 +14,12 @@
  *                          a clean start: every person and record but that system administrator, the
  *                          history kept (src/setup/reset.ts). Without --yes, says what it would delete.
  *                          The new password, if any, comes on standard input — never on the command line.
+ *   import:mizito          --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit]
+ *                          a move from Mizito and the client sheet (src/onboarding/mizito.ts), as that system
+ *                          administrator: without --commit, what it would make; with it, made. Run again, it
+ *                          makes nothing twice.
  */
+import { readFile } from 'node:fs/promises';
 import { prisma } from './db.js';
 import { AppError } from './lib/errors.js';
 import { deactivateDemoAccounts } from './lib/demo-accounts.js';
@@ -22,6 +27,9 @@ import { syncReference } from './setup/reference.js';
 import { listOrganizations, provisionOrganization, systemStatus, updateOrganization } from './setup/tenant.js';
 import { APP_VERSION } from './version.js';
 import { planReset, resetOrganization } from './setup/reset.js';
+import { runMigration } from './onboarding/migration.js';
+import { fromMizito } from './onboarding/mizito.js';
+import { isSystemAdmin } from './auth/grants.js';
 
 /** Standard input, whole, without its last line break: how a password reaches this, unseen by `ps`. */
 async function readStdin(): Promise<string> {
@@ -103,9 +111,25 @@ export async function run(argv: string[]): Promise<unknown> {
       const password = flags['password-stdin'] ? await readStdin() : undefined;
       return resetOrganization(organizationId, email, password || undefined);
     }
+    case 'import:mizito': {
+      const organizationId = await organizationFor(one(flags, 'slug'));
+      const as = need(flags, 'as').trim().toLowerCase();
+      const admin = await prisma.user.findFirst({
+        where: { organizationId, email: as, isActive: true, deletedAt: null },
+        select: { id: true, roles: { select: { role: { select: { code: true } } } } },
+      });
+      // The move writes past the process's rules (an opening state, a closed project): the system administrator's, and on the record as theirs.
+      if (!admin || !isSystemAdmin({ roles: admin.roles.map((r) => r.role.code) })) {
+        throw new AppError(403, 'NOT_SYSTEM_ADMIN', `--as باید ایمیل مدیر سیستمِ این سازمان باشد؛ «${as}» نیست.`);
+      }
+      const mizito = JSON.parse(await readFile(need(flags, 'mizito'), 'utf8'));
+      const sheetPath = one(flags, 'sheet');
+      const sheet = sheetPath ? JSON.parse(await readFile(sheetPath, 'utf8')) : null;
+      return runMigration({ id: admin.id, organizationId }, fromMizito(mizito, sheet), { commit: !!flags.commit });
+    }
     default:
       return {
-        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes]',
+        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes] | import:mizito --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit]',
       };
   }
 }

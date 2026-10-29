@@ -448,4 +448,6 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('SYSTEM', ["sites/messages.ts#followUpMessages", "sites/reminders.ts#runReminders", "sites/reminders.ts#staffPhones"]),
   // ADR-104: a record put directly into a state is found in the caller's organisation first; its clocks by its id.
   ...of('EARLIER', ["workflow/engine.ts#forceState"]),
+  // ADR-106: a project or a task the move has just made in the organisation, then updated by its id.
+  ...of('EARLIER', ["onboarding/migration.ts#runMigration"]),
 };

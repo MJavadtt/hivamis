@@ -20,8 +20,8 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
     path: 'companies', model: 'company',
     permissions: { read: 'crm.company.read', write: 'crm.company.write' },
     createSchema: createCompanySchema, updateSchema: updateCompanySchema,
-    sortable: ['legalName', 'createdAt', 'healthScore'],
-    searchable: ['legalName', 'brandName', 'industry'],
+    sortable: ['legalName', 'clientCode', 'createdAt', 'healthScore'],
+    searchable: ['legalName', 'brandName', 'industry', 'clientCode'],
     listInclude: {
       accountOwner: { select: { id: true, fullName: true } },
       salesOwner: { select: { id: true, fullName: true } },

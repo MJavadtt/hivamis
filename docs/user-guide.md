@@ -951,6 +951,14 @@ is already there:
 
 Running a file twice creates nothing twice.
 
+**Coming from Mizito.** All of Mizito — colleagues, client files, projects, open and finished tasks and
+the reports on them — comes with the clients-and-projects sheet, in one command on the server (the
+operations guide, "Moving in from Mizito"). Each client keeps its code (H1001) and is found by it.
+Archived projects arrive closed and running ones running — without a start authorization; record each
+one's contract or order. Every colleague has an account that does not open until you send their link:
+in Admin → Users, set the real email of anyone whose address ends in `@import.invalid`, then send each
+person their link.
+
 ## The organisation's rules
 
 **قوانین سازمان** (in the sidebar, for everyone) lists every rule the workflows follow: the

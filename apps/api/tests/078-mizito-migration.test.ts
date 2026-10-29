@@ -1,0 +1,176 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import path from 'node:path';
+import { closeApp, login } from './helpers.js';
+import { prisma } from '../src/db.js';
+import { fromMizito, rolesFor, unitFor, type MizitoExport, type SheetExport } from '../src/onboarding/mizito.js';
+import { runMigration, standInEmail } from '../src/onboarding/migration.js';
+import { run } from '../src/cli.js';
+
+/**
+ * The owner's request (2026-10-28): "bring everything from Mizito into this project — analyse it first,
+ * then import it with care", with the company's client sheet beside it. A small made-up export stands
+ * in for theirs: the same shapes, none of their data.
+ */
+const mizito: MizitoExport = {
+  format: 'mizito-raw/1',
+  users: [
+    { _id: 'u1', first_name: 'سارا', last_name: 'نمونه', workspace_role_name: 'کارشناس ارشد گرافیک', role: 0 },
+    { _id: 'u2', first_name: 'رضا', last_name: 'آزمون', workspace_role_name: 'مدیر امور مشتریان', role: 0, email: 'reza@example.com' },
+    { _id: 'u3', first_name: 'مدیر', last_name: 'سیستم', workspace_role_name: 'مدیر عامل', role: 1, email: 'admin@hiva.local' },
+  ],
+  removedUsers: [{ _id: 'u9', first_name: 'رفته', last_name: 'پیشین', workspace_role_name: 'کارشناس رسانه' }],
+  customers: [
+    { _id: 'c1', title: 'H9001', name: 'H9001', short_name: 'بانک نمونه', phone: [{ phone_number: '02100000001' }, { phone_number: '02100000002' }], customer_admins: ['u2'], representatives: [{ name: 'خانم رابط', title: 'مدیر بازاریابی', mobile: [{ phone_number: '09120000001' }] }] },
+    // Filed under another client's code: the sheet says H9002 is «بیمه آزمون», so this one is a second file of «بانک نمونه».
+    { _id: 'c2', title: 'H9002', name: 'H9002', short_name: 'بانک نمونه', notes: 'پروندهٔ قدیمی' },
+    { _id: 'c3', title: 'H9002', name: 'H9002', short_name: 'بیمه آزمون' },
+  ],
+  projects: [
+    { _id: 'p1', title: 'بانک نمونه | ریبرندینگ', owner: 'u2' },
+    { _id: 'p2', title: 'واحد خلاقیت' },
+    { _id: 'p3', title: 'بیمه ازمون | کمپین (آرشیو شده)', owner: 'u2' },
+    { _id: 'p4', title: 'برند تازه | هویت بصری', owner: 'u1' },
+  ],
+  tasks: [
+    { _id: 't1', title: 'طرح لوگو', project: 'p1', owner: 'u2', assignee: ['u1'], progress: 40, created_at: '2026-08-01T08:00:00.000Z', deadline: '2026-09-01T08:00:00.000Z', has_deadline: true, checklist: [{ title: 'سه پیشنهاد', checked: true }, { title: 'نهایی', checked: false }] },
+    { _id: 't2', title: 'گزارش کمپین', project: 'p3', owner: 'u9', assignee: ['u9'], completed: true, completed_at: '2026-06-10T10:00:00.000Z', created_at: '2026-05-01T08:00:00.000Z' },
+    { _id: 't3', title: 'بی‌پروژه', project: 'gone' },
+  ],
+  comments: [
+    { id: 'm1', task: 't1', project: 'p1', from: 'u1', date: '2026-08-02T09:00:00.000Z', text: 'نسخهٔ اول آماده است' },
+    { id: 'm2', task: 't2', project: 'p3', from: 'zz', date: '2026-06-01T09:00:00.000Z', text: 'از کسی که دیگر نیست' },
+  ],
+  messages: [{ id: 'g1', project: 'p1', from: 'u2', date: '2026-08-03T09:00:00.000Z', text: 'جلسه با مشتری فردا' }],
+};
+const sheet: SheetExport = {
+  format: 'sheet-raw/1',
+  clients: [
+    ['H9000', 'آژانس هیوا', 'آژانس', '', '', '', '', '', '', ''],
+    ['H9001', 'بانک نمونه', 'بانک', 'مشتری فعال', 'در حال همکاری', '', '', 'bank.example', '', ''],
+    ['H9002', 'بیمه آزمون', 'بیمه', '', '', '', '', '', '', ''],
+    ['H9003', 'پوشاک آزمون', 'پوشاک', 'فرصت فروش', '', '', '', '', '', ''],
+  ],
+  projects: [
+    ['FALSE', 'H9001', 'بانک نمونه', 'H9001-01', 'ریبرندینگ', '', '', 'رضا آزمون', 'در حال انجام', '1405/06/01', ''],
+    ['FALSE', 'H9003', 'پوشاک آزمون', '', 'مانیتور', '', '', '', 'شروع نشده', '', ''],
+    ['FALSE', 'H9003', 'پوشاک آزمون', '', 'مانیتور', '', '', '', 'متوقف شده', '', ''],
+  ],
+};
+
+describe('Reading Mizito and the client sheet (owner’s request, 2026-10-28)', () => {
+  const m = fromMizito(mizito, sheet);
+
+  it('gives each person a unit and roles from the job title — never the system administrator’s', () => {
+    expect([unitFor('کارشناس ارشد گرافیک'), unitFor('معاون مالی - اداری'), unitFor('سرپرست OOH'), unitFor('کارشناس ترافیک'), unitFor(null)]).toEqual(['CR', 'FI', 'ME', 'OP', 'OP']);
+    expect([rolesFor('مدیر عامل'), rolesFor('قائم‌مقام مدیر عامل'), rolesFor('مدیر امور مشتریان'), rolesFor('نماینده فروش'), rolesFor('مدیر خلاقیت'), rolesFor('کارشناس تدوین')])
+      .toEqual([['CEO'], ['DEPUTY'], ['ACCOUNT_MANAGER'], ['SALES_REP'], ['UNIT_MANAGER'], ['UNIT_MEMBER']]);
+    expect(m.people.flatMap((p) => p.roles)).not.toContain('SUPER_ADMIN');
+    expect(m.people.find((p) => p.ref === 'user:u9')).toMatchObject({ removed: true, unit: 'ME' });
+  });
+
+  it('joins a client by its code, gives a code to the client the sheet names, and folds a second file into the first', () => {
+    const bank = m.clients.find((c) => c.code === 'H9001')!;
+    expect(bank).toMatchObject({ legalName: 'بانک نمونه', industry: 'بانک', website: 'bank.example', phone: '02100000001', accountOwnerRef: 'user:u2' });
+    expect(bank.notes).toContain('02100000002');
+    expect(bank.notes).toContain('پروندهٔ قدیمی');
+    expect(bank.contacts).toEqual([{ fullName: 'خانم رابط', jobTitle: 'مدیر بازاریابی', phone: '09120000001', email: null }]);
+    expect(m.clients.find((c) => c.code === 'H9002')!.legalName).toBe('بیمه آزمون');
+    expect(m.clients.find((c) => c.code === 'H9003')!.notes).toContain('فرصت فروش');
+    expect(m.clients.filter((c) => c.legalName === 'بانک نمونه')).toHaveLength(1);
+  });
+
+  it('places each project with its client — a typo forgiven, a unit the agency’s own, a new name a new client — in the state it was left in', () => {
+    const by = (ref: string) => m.projects.find((p) => p.ref === ref)!;
+    expect(by('project:p1')).toMatchObject({ clientRef: 'client:H9001', legacyRef: 'H9001-01', state: 'ACTIVE', accountOwnerRef: 'user:u2' });
+    expect(by('project:p1').plannedStart?.toISOString().slice(0, 10)).toBe('2026-08-23');
+    expect(by('project:p3')).toMatchObject({ clientRef: 'client:H9002', state: 'CLOSED', name: 'کمپین' });
+    expect(by('project:p3').closedAt?.toISOString()).toBe('2026-06-10T10:00:00.000Z');
+    // A Mizito unit's workspace has no client in its name: it is the agency's own project.
+    expect(by('project:p2').clientRef).toBe('client:H9000');
+    expect(by('project:p4').clientRef).toBe(m.clients.find((c) => c.code === null && c.legalName === 'برند تازه')!.ref);
+    // Two rows of the same name without codes are two projects, each known by its line.
+    expect(m.projects.filter((p) => p.clientRef === 'client:H9003').map((p) => [p.ref, p.state])).toEqual([['project:sheet:row:3', 'DRAFT'], ['project:sheet:row:4', 'ON_HOLD']]);
+    expect(m.notes.join('\n')).toContain('برند تازه');
+  });
+
+  it('keeps every task with its checklist, and every comment on its task', () => {
+    expect(m.tasks.map((t) => t.ref)).toEqual(['task:t1', 'task:t2']);
+    expect(m.tasks[0]!.description).toBe('☑ سه پیشنهاد\n☐ نهایی');
+    expect(m.tasks[1]).toMatchObject({ done: true, assigneeRef: 'user:u9' });
+    expect(m.comments.map((c) => [c.ref, c.taskRef])).toEqual([['comment:m1', 'task:t1'], ['comment:m2', 'task:t2'], ['message:g1', null]]);
+  });
+});
+
+describe('Writing the move (owner’s request, 2026-10-28)', () => {
+  let admin: { id: string; organizationId: string };
+  beforeAll(async () => {
+    await login('admin@hiva.local');
+    admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' }, select: { id: true, organizationId: true } });
+  });
+  afterAll(closeApp);
+
+  it('says what it would make, and makes nothing, without --commit', async () => {
+    const before = await prisma.importLink.count();
+    const report = await runMigration(admin, fromMizito(mizito, sheet), { commit: false });
+    expect(report.dryRun).toBe(true);
+    expect(report.counts.people).toMatchObject({ create: 3, link: 1 });
+    expect(report.standInEmails).toContain(`سارا نمونه → ${standInEmail('user:u1')}`);
+    expect(await prisma.importLink.count()).toBe(before);
+  });
+
+  it('makes everything once, on the record, in the state it was left in — and nothing twice', async () => {
+    const report = await runMigration(admin, fromMizito(mizito, sheet), { commit: true });
+    expect(report.failures).toEqual([]);
+    expect(report.counts).toMatchObject({ people: { create: 3, link: 1 }, clients: { create: 5 }, contacts: { create: 1 }, projects: { create: 6 }, tasks: { create: 2 }, comments: { create: 3 } });
+
+    // The administrator who runs the move is the Mizito member of the same address: linked, not doubled.
+    expect(await prisma.importLink.findFirst({ where: { externalId: 'user:u3' }, select: { entityId: true } })).toEqual({ entityId: admin.id });
+    const sara = await prisma.user.findFirstOrThrow({ where: { email: standInEmail('user:u1') }, include: { department: true, roles: { include: { role: true } } } });
+    expect(sara.passwordHash.startsWith('!')).toBe(true);
+    expect(sara.department?.code).toBe('CR');
+    expect(await prisma.user.findFirstOrThrow({ where: { email: standInEmail('user:u9') }, select: { isActive: true } })).toEqual({ isActive: false });
+
+    const bank = await prisma.company.findFirstOrThrow({ where: { organizationId: admin.organizationId, clientCode: 'H9001' }, include: { contacts: true } });
+    expect(bank.contacts).toHaveLength(1);
+    const rebrand = await prisma.project.findFirstOrThrow({ where: { organizationId: admin.organizationId, legacyRef: 'H9001-01' } });
+    expect(rebrand).toMatchObject({ state: 'ACTIVE', companyId: bank.id });
+    expect(await prisma.stateTransition.findFirst({ where: { entityId: rebrand.id }, select: { action: true, opening: true, reason: true } })).toEqual({ action: 'opening', opening: true, reason: 'ورود از میزیتو' });
+    expect(report.withoutAuthorization).toBeGreaterThanOrEqual(1);
+
+    const logo = await prisma.task.findFirstOrThrow({ where: { projectId: rebrand.id }, include: { comments: true } });
+    expect(logo).toMatchObject({ title: 'طرح لوگو', state: 'IN_PROGRESS', assigneeId: sara.id, departmentCode: 'CR', sourceType: 'TASK' });
+    expect(logo.comments.map((c) => [c.body, c.authorId, c.createdAt.toISOString()])).toEqual([['نسخهٔ اول آماده است', sara.id, '2026-08-02T09:00:00.000Z']]);
+    const report2 = await prisma.task.findFirstOrThrow({ where: { title: 'گزارش کمپین', organizationId: admin.organizationId }, include: { comments: true } });
+    expect(report2.state).toBe('CLOSED');
+    expect(report2.closedAt?.toISOString()).toBe('2026-06-10T10:00:00.000Z');
+    // Nobody here wrote it: carried by the administrator, signed with the name it had (none known — «نامشخص»).
+    expect(report2.comments[0]).toMatchObject({ authorId: admin.id, body: '«نامشخص»: از کسی که دیگر نیست' });
+    expect(await prisma.auditEvent.count({ where: { organizationId: admin.organizationId, action: 'CREATE', reason: 'ورود از میزیتو' } })).toBeGreaterThanOrEqual(3 + 4 + 6 + 2);
+
+    const again = await runMigration(admin, fromMizito(mizito, sheet), { commit: true });
+    expect(Object.values(again.counts).every((c) => c.create === 0 && c.failed === 0)).toBe(true);
+    expect(again.counts.tasks.skip).toBe(2);
+  });
+
+  it('runs from the command line only as the organisation’s system administrator', async () => {
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' }, select: { email: true } });
+    await expect(run(['import:mizito', '--mizito', '/nonexistent.json', '--as', pmo.email])).rejects.toMatchObject({ code: 'NOT_SYSTEM_ADMIN' });
+  });
+});
+
+describe('The move on a server (infrastructure/hivamis import-mizito)', () => {
+  it('copies the files in, takes a backup before it commits, and takes the files out again', async () => {
+    const env = { ...process.env, HIVAMIS_DRY_RUN: '1', HIVAMIS_ENV_FILE: '/dev/null', HIVAMIS_BACKUP_DIR: '/tmp/hivamis-test-backups' };
+    const script = path.resolve(__dirname, '../../../infrastructure/hivamis');
+    const { stdout } = await promisify(execFile)('bash', [script, 'import-mizito', '--mizito', 'm.json', '--sheet', 's.json', '--as', 'admin@x.ir', '--commit'], { env });
+    expect(stdout).toMatch(/cp m\.json api:\/tmp\/hivamis-mizito\.json/);
+    expect(stdout.indexOf('pg_dump')).toBeLessThan(stdout.indexOf('import:mizito'));
+    expect(stdout).toContain('import:mizito --mizito /tmp/hivamis-mizito.json --as admin@x.ir --sheet /tmp/hivamis-sheet.json --commit');
+    expect(stdout.indexOf('import:mizito')).toBeLessThan(stdout.indexOf('rm -f /tmp/hivamis-mizito.json /tmp/hivamis-sheet.json'));
+    const dry = (await promisify(execFile)('bash', [script, 'import-mizito', '--mizito', 'm.json', '--as', 'admin@x.ir'], { env })).stdout;
+    expect(dry).not.toContain('pg_dump');
+    expect(dry).not.toContain('--commit');
+  });
+});

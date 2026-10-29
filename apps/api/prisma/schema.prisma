@@ -54,6 +54,7 @@ model Organization {
   chatMessages            ChatMessage[]
   idempotencyKeys         IdempotencyKey[]
   userPermissionOverrides UserPermissionOverride[]
+  importLinks             ImportLink[]
 
   @@map("organizations")
 }
@@ -498,6 +499,10 @@ model Company {
   website        String?
   phone          String?
   address        String?
+  /// The client's code in the organisation's own books (H1001 — the owner's sheet and Mizito, 2026-10-28).
+  clientCode     String?
+  email          String?
+  notes          String?
   accountOwnerId String?
   accountOwner   User?        @relation("CompanyAccountOwner", fields: [accountOwnerId], references: [id])
   salesOwnerId   String?
@@ -528,6 +533,7 @@ model Company {
   siteProjects SiteProject[]
 
   @@unique([id, organizationId])
+  @@unique([organizationId, clientCode])
   @@index([organizationId])
   @@map("companies")
 }
@@ -4191,4 +4197,23 @@ model SiteSavedView {
 
   @@index([organizationId, page])
   @@map("site_saved_views")
+}
+
+/// What a move from another system made of each of its records (the owner's Mizito, 2026-10-28): run
+/// twice, it makes nothing twice, and every record can say where it came from.
+model ImportLink {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// The system it came from: `mizito`, `sheet`.
+  source         String
+  /// The source's own id, with its kind: `user:…`, `task:…`.
+  externalId     String
+  entityType     String
+  entityId       String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, source, externalId])
+  @@index([entityType, entityId])
+  @@map("import_links")
 }

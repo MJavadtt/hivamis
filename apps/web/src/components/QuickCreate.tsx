@@ -121,7 +121,7 @@ const LABELS: Record<string, string> = {
   source: tr('منبع'), sourceChannel: tr('کانال'), sourcePartnerName: tr('نام معرف'), sourceUserId: tr('همکار معرف'), estimatedValue: tr('ارزش تخمینی'),
   need: tr('نیاز'), ownerId: tr('مسئول'), confirmDuplicate: tr('با وجود تکراری ثبت شود'), companyId: tr('مشتری'), leadId: tr('سرنخ'),
   expectedCloseDate: tr('تاریخ پیش‌بینی بستن'), servicesNeeded: tr('خدمات مورد نیاز'), description: tr('شرح'), legalName: tr('نام حقوقی'),
-  brandName: tr('نام تجاری'), industry: tr('صنعت'), nationalId: tr('شناسهٔ ملی'), economicCode: tr('کد اقتصادی'), postalCode: tr('کد پستی'),
+  brandName: tr('نام تجاری'), clientCode: tr('کد مشتری'), industry: tr('صنعت'), nationalId: tr('شناسهٔ ملی'), economicCode: tr('کد اقتصادی'), postalCode: tr('کد پستی'),
   website: tr('وب‌سایت'), address: tr('آدرس'), accountOwnerId: tr('مالک اکانت'), salesOwnerId: tr('مسئول فروش'), fullName: tr('نام و نام خانوادگی'),
   jobTitle: tr('عنوان شغلی'), isPrimary: tr('رابط اصلی'), notes: tr('یادداشت'), opportunityId: tr('فرصت فروش'), businessObjective: tr('هدف کسب‌وکار'),
   targetAudience: tr('مخاطب هدف'), scope: tr('محدودهٔ کار (Scope)'), expectedDeliverables: tr('خروجی‌های مورد انتظار'), budgetRange: tr('بودجه'),

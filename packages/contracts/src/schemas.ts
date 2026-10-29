@@ -151,6 +151,10 @@ export const createCompanySchema = z.object({
   website: z.string().trim().max(200).optional(),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(500).optional(),
+  /** The client's code in the organisation's own books, e.g. H1001 (2026-10-28). */
+  clientCode: z.string().trim().max(40).optional(),
+  email: z.string().trim().email().max(200).optional(),
+  notes: z.string().trim().max(4000).optional(),
   accountOwnerId: idSchema.optional(),
   salesOwnerId: idSchema.optional(),
 });

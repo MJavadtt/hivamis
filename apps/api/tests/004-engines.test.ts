@@ -2784,7 +2784,8 @@ describe('SLA pauses', () => {
    * Account; timing its acceptance deadline through that wait blamed the wrong party.
    */
   it('pauses the acceptance clock while a work order awaits clarification, and resumes it after', async () => {
-    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE' } });
+    // A work order needs the project's proposal: any active project would do only while the first one the database returns has one.
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'ACTIVE', proposalId: { not: null } }, orderBy: { code: 'asc' } });
     const creative = await prisma.user.findFirstOrThrow({ where: { email: 'creative@hiva.local' } });
     const wo = expectOk(await post('/work-orders', T.accountManager, {
       projectId: project.id, proposalId: project.proposalId,
