@@ -32,6 +32,9 @@ const mizito: MizitoExport = {
     { _id: 'p2', title: 'واحد خلاقیت' },
     { _id: 'p3', title: 'بیمه ازمون | کمپین (آرشیو شده)', owner: 'u2' },
     { _id: 'p4', title: 'برند تازه | هویت بصری', owner: 'u1' },
+    { _id: 'p5', title: 'سئو سایت برند تازه (آرشیو شده)' },
+    { _id: 'p6', title: 'کافه نمونه' },
+    { _id: 'p7', title: 'جلسات هیوا' },
   ],
   tasks: [
     { _id: 't1', title: 'طرح لوگو', project: 'p1', owner: 'u2', assignee: ['u1'], progress: 40, created_at: '2026-08-01T08:00:00.000Z', deadline: '2026-09-01T08:00:00.000Z', has_deadline: true, checklist: [{ title: 'سه پیشنهاد', checked: true }, { title: 'نهایی', checked: false }] },
@@ -89,7 +92,11 @@ describe('Reading Mizito and the client sheet (owner’s request, 2026-10-28)', 
     expect(by('project:p3').closedAt?.toISOString()).toBe('2026-06-10T10:00:00.000Z');
     // A Mizito unit's workspace has no client in its name: it is the agency's own project.
     expect(by('project:p2').clientRef).toBe('client:H9000');
+    expect(by('project:p7').clientRef).toBe('client:H9000');
     expect(by('project:p4').clientRef).toBe(m.clients.find((c) => c.code === null && c.legalName === 'برند تازه')!.ref);
+    // Without "client |", a title that is not the agency's own is its client's work: the work's words set aside.
+    expect(by('project:p5')).toMatchObject({ clientRef: by('project:p4').clientRef, state: 'CLOSED' });
+    expect(by('project:p6').clientRef).toBe(m.clients.find((c) => c.code === null && c.legalName === 'کافه نمونه')!.ref);
     // Two rows of the same name without codes are two projects, each known by its line.
     expect(m.projects.filter((p) => p.clientRef === 'client:H9003').map((p) => [p.ref, p.state])).toEqual([['project:sheet:row:3', 'DRAFT'], ['project:sheet:row:4', 'ON_HOLD']]);
     expect(m.notes.join('\n')).toContain('برند تازه');
@@ -123,7 +130,7 @@ describe('Writing the move (owner’s request, 2026-10-28)', () => {
   it('makes everything once, on the record, in the state it was left in — and nothing twice', async () => {
     const report = await runMigration(admin, fromMizito(mizito, sheet), { commit: true });
     expect(report.failures).toEqual([]);
-    expect(report.counts).toMatchObject({ people: { create: 3, link: 1 }, clients: { create: 5 }, contacts: { create: 1 }, projects: { create: 6 }, tasks: { create: 2 }, comments: { create: 3 } });
+    expect(report.counts).toMatchObject({ people: { create: 3, link: 1 }, clients: { create: 6 }, contacts: { create: 1 }, projects: { create: 9 }, tasks: { create: 2 }, comments: { create: 3 } });
 
     // The administrator who runs the move is the Mizito member of the same address: linked, not doubled.
     expect(await prisma.importLink.findFirst({ where: { externalId: 'user:u3' }, select: { entityId: true } })).toEqual({ entityId: admin.id });

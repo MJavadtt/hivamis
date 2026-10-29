@@ -3267,8 +3267,11 @@ sheet («وزرات ارشاد»).
   client is folded into the first, and one under another's code comes in without a code. Names are
   compared with Arabic presentation forms unfolded and diacritics dropped, and forgive a typo: one letter
   apart, two for a long name — never more (`ملی گلد` is not `میگل`).
-- **Projects find their clients** from "client | project"; a unit's workspace with no client name is the
-  agency's own project (H1001); a client named only by its projects is created once. A sheet row that is
+- **Projects find their clients** from "client | project". A title without one is its client's work
+  («دیجی کالا», «سئو سایت هامرز» — the work's leading words set aside) unless it is the agency's own: a
+  unit, meetings, the office, its channels and proposals, or anything naming هیوا — those are the agency's
+  projects (H1001). A project's client cannot change afterwards, so this is decided before writing. A
+  client named only by its projects is created once, its other projects folded in. A sheet row that is
   a Mizito project (same client, the same or contained name) fills it in; any other row is a project of
   its own, known by its code or, without one, by its line.
 - **People** get their unit and roles from the job title (a table in `mizito.ts`, then the onboarding's

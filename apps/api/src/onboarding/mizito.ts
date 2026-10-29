@@ -46,6 +46,10 @@ const clean = (s: string | null | undefined) => {
   return v && v !== 'undefined' && v !== '`' ? v : null;
 };
 const ARCHIVED = /\((آرشیو شده|آرشیو)\)/g;
+/** A title with no "client |" that is the agency's own: its units, meetings, office, channels and proposals. */
+const INTERNAL = /هیوا|^(واحد|پارتنر ?شیپ|گروه داخلی|جلسات|مدیریت|مدیران|امور|خرید|پروژه عمومی|پارتنرشیپ|سایر وظایف|ارتباط با مشتریان|پیام ?رسان|شرکت های در حال مذاکره|کد ?گذاری|درخواست نمونه کار|طراحی پروپوزال|آماده سازی پروپوزال|اعلام لیست خدمات|تحلیل بازار)/;
+/** The work a title names before its client: «سئو سایت هامرز» is Hammers' site, «تبلیغات باشگاه استقلال» the club's. */
+const WORK = /^(اجرای تبلیغات|تبلیغات|تصویر ?برداری|عکاسی|سئو سایت|گوگل ادز|لوگو|برندینگ|برند|پروژه|پروره|بیلبورد(های|ها)?|ایونت|برگزاری|شرکت) +/;
 /** A typo, not another name: one letter apart, two for a long name. */
 const typo = (a: string, b: string) => near(a, b) <= (Math.max(a.length, b.length) >= 8 ? 2 : 1);
 /** How many letters apart two names are (Levenshtein). */
@@ -222,19 +226,22 @@ export function fromMizito(mz: MizitoExport, sheet: SheetExport | null): Migrati
     const [head, ...rest] = title.split('|');
     const named = rest.length ? clean(head) : null;
     const name = (rest.length ? clean(rest.join('|')) : title) ?? title;
-    let clientRef = named ? findClient(named) : findClient(name);
-    if (!clientRef && named) {
+    // Without "client |", the title is the client's work («دیجی کالا», «سئو سایت هامرز») unless it is the agency's own.
+    const own = INTERNAL.test((named ?? title).replace(/\u200c/g, ' '));
+    const clientName = own ? null : named ?? clean(title.replace(WORK, ''));
+    let clientRef = named ? findClient(named) : findClient(name) ?? (clientName ? findClient(clientName) : null);
+    if (!clientRef && clientName) {
       // A client the lists do not have, named by its projects: made once, from that name.
-      const k = key(named);
+      const k = key(clientName);
       const madeAlready = [...madeClients.keys()].find((x) => x === k || typo(x, k) || (Math.min(x.length, k.length) >= 3 && (x.includes(k) || k.includes(x))));
       clientRef = madeAlready ? madeClients.get(madeAlready)! : `client:name:${k}`;
       if (!clients.has(clientRef)) {
-        clients.set(clientRef, { ref: clientRef, code: null, legalName: named, brandName: null, industry: null, nationalId: null, economicCode: null, postalCode: null, phone: null, email: null, website: null, address: null, notes: 'از عنوان پروژه‌های میزیتو ساخته شد', accountOwnerRef: null, contacts: [] });
-        madeClients.set(key(named), clientRef);
-        note(`مشتری «${named}» در فهرست‌ها نبود؛ از عنوان پروژهٔ «${title}» ساخته شد`);
+        clients.set(clientRef, { ref: clientRef, code: null, legalName: clientName, brandName: null, industry: null, nationalId: null, economicCode: null, postalCode: null, phone: null, email: null, website: null, address: null, notes: 'از عنوان پروژه‌های میزیتو ساخته شد', accountOwnerRef: null, contacts: [] });
+        madeClients.set(k, clientRef);
+        note(`مشتری «${clientName}» در فهرست‌ها نبود؛ از عنوان پروژهٔ «${title}» ساخته شد`);
       }
     }
-    if (!clientRef) { clientRef = agency?.ref ?? null; if (clientRef) note(`پروژهٔ «${title}» نام مشتری نداشت؛ پروژهٔ داخلی خود آژانس شد`); }
+    if (!clientRef) { clientRef = agency?.ref ?? null; if (clientRef) note(`پروژهٔ «${title}» کار خود آژانس است و پروژهٔ داخلی آن شد`); }
     if (!clientRef) { note(`پروژهٔ «${title}» مشتری پیدا نکرد و وارد نمی‌شود`); continue; }
     projects.set(`project:${p._id}`, {
       ref: `project:${p._id}`, legacyRef: null, name, clientRef, clientName: clients.get(clientRef)!.legalName,

@@ -3163,7 +3163,7 @@
   "پروندهٔ دوم «{0}» در میزیتو با «{1}»{2} یکی شد": "Mizito's second file «{0}» was folded into «{1}»{2}",
   "از عنوان پروژه‌های میزیتو ساخته شد": "Created from the titles of Mizito projects",
   "مشتری «{0}» در فهرست‌ها نبود؛ از عنوان پروژهٔ «{1}» ساخته شد": "Client «{0}» was in neither list; created from the project title «{1}»",
-  "پروژهٔ «{0}» نام مشتری نداشت؛ پروژهٔ داخلی خود آژانس شد": "Project «{0}» named no client; it became one of the agency's own",
+  "پروژهٔ «{0}» کار خود آژانس است و پروژهٔ داخلی آن شد": "Project «{0}» is the agency's own work; it became one of its internal projects",
   "پروژهٔ «{0}» مشتری پیدا نکرد و وارد نمی‌شود": "Project «{0}» found no client and is not imported",
   "ردیف پروژهٔ «{0}» در فایل مشتری‌اش ({1}) را پیدا نکرد": "The sheet's project row «{0}» did not find its client ({1})",
   "وضعیت «{0}» برای «{1}» شناخته نشد؛ از میزیتو یا پیش‌نویس": "Status «{0}» for «{1}» was not recognised; taken from Mizito, or draft",

@@ -619,8 +619,8 @@ infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivami
 The first writes nothing and prints the report: how many of each it would make, the unit and roles of
 each person, who has no email in Mizito (they get a stand-in ending in `@import.invalid`), the projects
 running without authorization, and every choice the reading made — a client given its code by the sheet,
-a second file folded into the first, a project whose client name was a typo, a unit's workspace that is
-the agency's own project. Read it, then run it with `--commit`: a backup first, then each record in its
+a second file folded into the first, a project whose client name was a typo, a client made from a project's title, a unit's
+workspace that is the agency's own project. A project's client cannot be changed later, so read these first. Read it, then run it with `--commit`: a backup first, then each record in its
 own transaction with an `import_links` row naming its Mizito or sheet id, an audit row under `--as`, and
 an opening transition («ورود از میزیتو») for every state. A run that stops is run again: nothing is made
 twice. Afterwards, in Admin → Users, set the real email of each stand-in and issue each person's link.
