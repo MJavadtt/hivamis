@@ -14,7 +14,7 @@
  *                          a clean start: every person and record but that system administrator, the
  *                          history kept (src/setup/reset.ts). Without --yes, says what it would delete.
  *                          The new password, if any, comes on standard input — never on the command line.
- *   import:mizito          --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit]
+ *   import:mizito          --mizito FILE [--sheet FILE] [--extra FILE] --as EMAIL [--slug s] [--commit]
  *                          a move from Mizito and the client sheet (src/onboarding/mizito.ts), as that system
  *                          administrator: without --commit, what it would make; with it, made. Run again, it
  *                          makes nothing twice.
@@ -139,7 +139,10 @@ export async function run(argv: string[]): Promise<unknown> {
       const mizito = JSON.parse(await readFile(need(flags, 'mizito'), 'utf8'));
       const sheetPath = one(flags, 'sheet');
       const sheet = sheetPath ? JSON.parse(await readFile(sheetPath, 'utf8')) : null;
-      return runMigration(admin, fromMizito(mizito, sheet), { commit: !!flags.commit });
+      // The labels, phases and sales deals the first export left out (mizito-extra/1).
+      const extraPath = one(flags, 'extra');
+      const extra = extraPath ? JSON.parse(await readFile(extraPath, 'utf8')) : null;
+      return runMigration(admin, fromMizito(mizito, sheet, extra), { commit: !!flags.commit });
     }
     case 'users:passwords': {
       const organizationId = await organizationFor(one(flags, 'slug'));
@@ -165,7 +168,7 @@ export async function run(argv: string[]): Promise<unknown> {
     }
     default:
       return {
-        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes] | import:mizito --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit] | users:passwords --as EMAIL [--slug s] [--commit --out FILE]',
+        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes] | import:mizito --mizito FILE [--sheet FILE] [--extra FILE] --as EMAIL [--slug s] [--commit] | users:passwords --as EMAIL [--slug s] [--commit --out FILE]',
       };
   }
 }

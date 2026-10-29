@@ -953,9 +953,12 @@ Running a file twice creates nothing twice.
 
 **Coming from Mizito.** All of Mizito — colleagues, client files, projects, open and finished tasks and
 the reports on them — comes with the clients-and-projects sheet, in one command on the server (the
-operations guide, "Moving in from Mizito"). Each client keeps its code (H1001) and is found by it.
-Archived projects arrive closed and running ones running — without a start authorization; record each
-one's contract or order. Every colleague has an account that does not open until you send their link:
+operations guide, "Moving in from Mizito"). Each client keeps its code (H1001) and is found by it, and its
+account manager is its file's label in Mizito. Mizito's sales deals become opportunities with their stage,
+value (in rials) and reason lost. Each project's state comes from its label: «در حال مذاکره» an
+opportunity in negotiation with a draft project linked to it, «بلاتکلیف» on hold, «رد شده» cancelled; the
+other archived ones closed and the rest running — without a start authorization; record each one's
+contract or order. A project the projects sheet gives no status arrives on hold until you settle it. Every colleague has an account that does not open until you send their link:
 in Admin → Users, set the real email of anyone whose address ends in `@import.invalid`, then send each
 person their link. Or, instead of links, `hivamis passwords` gives each a temporary password they change
 at the first sign-in; the list comes in a file only you can read — hand each on in person and delete it.

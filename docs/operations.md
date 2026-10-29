@@ -600,20 +600,36 @@ title — never the system administrator's), its removed members names on the hi
 its client files clients with their contacts, its projects projects, every task open or done a task, and
 the reports posted on tasks their comments, under their own authors and dates. The sheet gives each client
 its code (H1001, `clientCode`, searchable) and industry, and adds its own projects (H1001-01, `legacyRef`)
-with their status and account manager; a sheet row that is a Mizito project fills that project in.
-Archived Mizito projects arrive closed; running ones arrive running, with no start authorization on record
-— the report counts them, and each needs its contract or order (Doc_H rule 13). Files attached to tasks do
-not come, and Mizito shows the comments of an archived project's group to nobody: those stay in Mizito.
+with their status and account manager; a sheet row that is a Mizito project — the same name, or mostly the
+same words — fills that project in. A sheet row with no status arrives on hold, its reason saying so.
 
-**The two files** are saved from the owner's browser, signed in to Mizito and Google: `hivamis-mizito.json`
-(what Mizito's own screens read) and `hivamis-sheet.json`. They hold people's details — keep them off the
-repository and delete them once the move is done.
+**Mizito's labels and deals** (the third file, ADR-108). A client file's label is its account manager
+(«بدون اکانت»: none). A project's label is its state — «در حال مذاکره» a sale: an opportunity in
+negotiation (the client's deal of that name, when there is one) and a draft project linked to it;
+«بلاتکلیف» on hold; «رد شده» cancelled, its opportunity lost — whether it is the agency's own, and its
+account manager. Each sales deal becomes an opportunity of its client in its stage (10 % new, 20 %
+qualified, 40 % brief requested, 60 % proposal, 75–90 % negotiation, won, lost with its reason), its value
+turned from toman into rials; a won deal is linked to the one project of its client that carries its
+name. A task's phase («اکانت», «رسانه», «خلاقیت و آتلیه») gives its unit, and the other people Mizito
+assigned it to are named on it. A removed account of someone still here is that person, not another. An
+archived workspace named only for its client, with no work and nothing said in it, is left out — the
+client comes all the same. Without the third file none of this is read and the projects keep the first
+reading: archived closed, the rest running.
+
+Running projects arrive with no start authorization on record — the report counts them, and each needs its
+contract or order (Doc_H rule 13). Files attached to tasks and deals do not come, and Mizito shows the
+comments of an archived project's group to nobody: those stay in Mizito.
+
+**The three files** are saved from the owner's browser, signed in to Mizito and Google:
+`hivamis-mizito.json` (what Mizito's own screens read), `hivamis-sheet.json` and `hivamis-mizito-extra.json`
+(the labels, phases and deals). They hold people's details — keep them off the repository and delete them
+once the move is done.
 
 **On the server**, after `infrastructure/hivamis upgrade --pull`:
 
 ```bash
-infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --as info@hivaagency.org
-infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --as info@hivaagency.org --commit
+infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --extra hivamis-mizito-extra.json --as info@hivaagency.org
+infrastructure/hivamis import-mizito --mizito hivamis-mizito.json --sheet hivamis-sheet.json --extra hivamis-mizito-extra.json --as info@hivaagency.org --commit
 ```
 
 The first writes nothing and prints the report: how many of each it would make, the unit and roles of

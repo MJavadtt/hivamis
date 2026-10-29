@@ -3,8 +3,8 @@
  * this project — analyse it first, then import it with care").
  *
  * A source's adapter (mizito.ts) turns its export into the shape below; this file writes that shape,
- * whatever the source. People, clients and their contacts, projects, tasks and their comments, in that
- * order, each record in its own transaction with an `import_links` row naming where it came from — so a
+ * whatever the source. People, clients and their contacts, sales opportunities, projects, tasks and their
+ * comments, in that order, each record in its own transaction with an `import_links` row naming where it came from — so a
  * run that stops half-way is run again, and nothing is made twice. Without `commit` it writes nothing
  * and says what it would do.
  *
@@ -13,7 +13,7 @@
  * opening transition with its reason ("from Mizito"), never a silent column.
  */
 import { randomBytes } from 'node:crypto';
-import type { DepartmentCode, RoleCode } from '@hiva/contracts';
+import type { DepartmentCode, OpportunityState, RoleCode } from '@hiva/contracts';
 import { prisma, type Tx } from '../db.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
@@ -35,30 +35,41 @@ export interface MigClient {
   ref: string; code: string | null; legalName: string; brandName: string | null; industry: string | null;
   nationalId: string | null; economicCode: string | null; postalCode: string | null; phone: string | null;
   email: string | null; website: string | null; address: string | null; notes: string | null;
-  accountOwnerRef: string | null; contacts: MigContact[];
+  accountOwnerRef: string | null; contacts: MigContact[]; createdAt: Date | null;
 }
-export type MigProjectState = 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED';
+/** A sale the source tracked — won, lost or still open — with its value in the organisation's currency. */
+export interface MigOpportunity {
+  ref: string; title: string; clientRef: string; value: number; state: OpportunityState; ownerRef: string | null;
+  description: string | null; lostReason: string | null; wonAt: Date | null; expectedCloseDate: Date | null; createdAt: Date | null;
+}
+export type MigProjectState = 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED' | 'CANCELLED';
 export interface MigProject {
   ref: string; legacyRef: string | null; name: string; clientRef: string; accountOwnerRef: string | null;
   state: MigProjectState; plannedStart: Date | null; plannedEnd: Date | null; createdAt: Date | null; closedAt: Date | null;
+  /** The sale it came from or still waits on. */
+  opportunityRef: string | null;
+  /** Why it is on hold or cancelled, as the source said. */
+  stateReason: string | null;
 }
 export interface MigTask {
   ref: string; projectRef: string; title: string; description: string | null; assigneeRef: string | null;
   createdByRef: string | null; createdAt: Date | null; dueDate: Date | null; done: boolean; doneAt: Date | null; progress: number;
+  /** The unit the source filed it under, when it said; else its doer's. */
+  unit: DepartmentCode | null;
 }
 export interface MigComment {
   ref: string; projectRef: string; taskRef: string | null; authorRef: string | null; body: string; createdAt: Date | null;
 }
 export interface Migration {
   source: MigrationSource;
-  people: MigPerson[]; clients: MigClient[]; projects: MigProject[]; tasks: MigTask[]; comments: MigComment[];
+  people: MigPerson[]; clients: MigClient[]; opportunities: MigOpportunity[]; projects: MigProject[]; tasks: MigTask[]; comments: MigComment[];
   /** What the adapter noticed and decided, in Persian, for the person running the move. */
   notes: string[];
 }
 
 export interface MigrationReport {
   dryRun: boolean;
-  counts: Record<'people' | 'clients' | 'contacts' | 'projects' | 'tasks' | 'comments', { create: number; link: number; skip: number; failed: number }>;
+  counts: Record<'people' | 'clients' | 'contacts' | 'opportunities' | 'projects' | 'tasks' | 'comments', { create: number; link: number; skip: number; failed: number }>;
   /** People made without an address of their own: their email is a stand-in until set. */
   standInEmails: string[];
   /** Running projects with no start authorization on record (Doc_H rule 13): each needs its contract or order. */
@@ -70,7 +81,7 @@ export interface MigrationReport {
 
 export interface MigrationActor { id: string; organizationId: string }
 
-const KINDS = ['people', 'clients', 'contacts', 'projects', 'tasks', 'comments'] as const;
+const KINDS = ['people', 'clients', 'contacts', 'opportunities', 'projects', 'tasks', 'comments'] as const;
 /** An address that can receive nothing (RFC 2606): a person the source knew without one gets this until it is set. */
 export const standInEmail = (ref: string) => `${ref.replace(/[^a-zA-Z0-9]/g, '').slice(-12).toLowerCase()}@import.invalid`;
 const OPEN_TASK = { CREATED: 'CREATED', ASSIGNED: 'ASSIGNED', IN_PROGRESS: 'IN_PROGRESS', CLOSED: 'CLOSED' } as const;
@@ -177,6 +188,7 @@ export async function runMigration(actor: MigrationActor, m: Migration, opts: { 
           organizationId, legalName: c.legalName, brandName: c.brandName, industry: c.industry, nationalId: c.nationalId,
           economicCode: c.economicCode, postalCode: c.postalCode, phone: c.phone, email: c.email, website: c.website,
           address: c.address, notes: c.notes, clientCode: c.code, accountOwnerId: real(idOf(c.accountOwnerRef)) ?? actor.id,
+          createdAt: at(c.createdAt),
         },
         select: { id: true },
       });
@@ -195,6 +207,26 @@ export async function runMigration(actor: MigrationActor, m: Migration, opts: { 
     });
   }
 
+  /* ── sales opportunities: won, lost or open, in the stage the source left them ── */
+  for (const o of m.opportunities) {
+    if (ids.has(o.ref)) { made('opportunities').skip++; continue; }
+    const companyId = idOf(o.clientRef);
+    if (!companyId) { made('opportunities').failed++; report.failures.push({ kind: 'opportunities', ref: o.ref, messageFa: `مشتری فرصت «${o.title}» ساخته نشد` }); continue; }
+    await write('opportunities', o.ref, 'opportunity', async (t) => {
+      const row = await t.opportunity.create({
+        data: {
+          organizationId, code: await nextCode(t, 'opportunity'), title: o.title.slice(0, 200), companyId, estimatedValue: o.value,
+          description: o.description?.slice(0, 4000) ?? null, ownerId: real(idOf(o.ownerRef)) ?? actor.id, lostReason: o.lostReason,
+          wonAt: o.wonAt, expectedCloseDate: o.expectedCloseDate, createdAt: at(o.createdAt),
+        },
+        select: { id: true, code: true },
+      });
+      await audit({ organizationId, actorId: actor.id, action: 'CREATE', entityType: 'opportunity', entityId: row.id, after: { code: row.code, title: o.title, value: o.value, source }, reason: REASON[source] }, t);
+      if (o.state !== 'NEW') await recordOpeningState(t, { entity: 'opportunity', id: row.id, toState: o.state, reason: REASON[source], actor });
+      return row.id;
+    });
+  }
+
   /* ── projects ── */
   const lastDoneOf = new Map<string, Date>();
   for (const t of m.tasks) if (t.doneAt && t.doneAt > (lastDoneOf.get(t.projectRef) ?? new Date(0))) lastDoneOf.set(t.projectRef, t.doneAt);
@@ -202,20 +234,21 @@ export async function runMigration(actor: MigrationActor, m: Migration, opts: { 
     if (ids.has(p.ref)) { made('projects').skip++; continue; }
     const companyId = idOf(p.clientRef);
     if (!companyId) { made('projects').failed++; report.failures.push({ kind: 'projects', ref: p.ref, messageFa: `مشتری پروژهٔ «${p.name}» ساخته نشد` }); continue; }
-    if (p.state === 'ACTIVE' || p.state === 'ON_HOLD') report.withoutAuthorization++;
+    if (p.state === 'ACTIVE') report.withoutAuthorization++;
     await write('projects', p.ref, 'project', async (t) => {
       const project = await t.project.create({
         data: {
           organizationId, code: await nextCode(t, 'project'), name: p.name.slice(0, 200), companyId, legacyRef: p.legacyRef,
           accountOwnerId: real(idOf(p.accountOwnerRef)) ?? actor.id, plannedStart: p.plannedStart, plannedEnd: p.plannedEnd,
-          createdAt: at(p.createdAt),
+          opportunityId: real(idOf(p.opportunityRef)), createdAt: at(p.createdAt),
+          ...(p.state === 'ON_HOLD' ? { holdReason: p.stateReason } : p.state === 'CANCELLED' ? { cancelReason: p.stateReason } : {}),
         },
         select: { id: true, code: true },
       });
       await audit({ organizationId, actorId: actor.id, action: 'CREATE', entityType: 'project', entityId: project.id, after: { code: project.code, name: p.name, legacyRef: p.legacyRef, source }, reason: REASON[source] }, t);
       if (p.state !== 'DRAFT') {
         await recordOpeningState(t, { entity: 'project', id: project.id, toState: p.state, reason: REASON[source], actor });
-        if (p.state === 'CLOSED') await t.project.update({ where: { id: project.id }, data: { closedAt: p.closedAt ?? lastDoneOf.get(p.ref) ?? p.createdAt ?? new Date() } });
+        if (p.state === 'CLOSED' || p.state === 'CANCELLED') await t.project.update({ where: { id: project.id }, data: { closedAt: p.closedAt ?? lastDoneOf.get(p.ref) ?? p.createdAt ?? new Date() } });
       }
       return project.id;
     });
@@ -229,8 +262,8 @@ export async function runMigration(actor: MigrationActor, m: Migration, opts: { 
     await write('tasks', task.ref, 'task', async (t) => {
       const assigneeId = real(idOf(task.assigneeRef));
       const creatorId = real(idOf(task.createdByRef)) ?? actor.id;
-      // The unit whose task it is: its doer's, else its creator's, else operations.
-      const unit = (assigneeId && unitOfUser.get(assigneeId)) || (task.assigneeRef && unitOfRef.get(task.assigneeRef))
+      // The unit whose task it is: the one the source filed it under, else its doer's, else its creator's, else operations.
+      const unit = task.unit || (assigneeId && unitOfUser.get(assigneeId)) || (task.assigneeRef && unitOfRef.get(task.assigneeRef))
         || unitOfUser.get(creatorId) || 'OP';
       const row = await t.task.create({
         data: {

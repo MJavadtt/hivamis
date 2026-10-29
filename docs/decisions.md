@@ -3319,3 +3319,36 @@ there for anyone who prefers them).
 file is handed on in person and deleted. Sign-in is by email, so the 39 people with a stand-in address
 sign in with it until the administrator sets their real one.
 
+---
+
+## ADR-108 — What the first Mizito reading left out: labels, phases and deals
+
+**Context.** After the first move (ADR-106) the owner (2026-10-30): "the projects and clients are
+incomplete — not analysed or brought in properly". Checked against the sources, the sheet and every task
+had come; what had not was what Mizito keeps in labels and in its sales section. A client file's label is
+its account manager, not anyone who may edit the file (which the first reading took). A project's label is
+its state — 21 «در حال مذاکره», 15 «بلاتکلیف», 2 «رد شده», 9 «فعال», all on archived projects — whether it
+is the agency's own, and its account manager. 106 sales deals (value in toman, stage as a probability,
+loss reasons and sources as labels) were not read at all. Tasks' phases name their unit; 365 tasks had
+more than one assignee. Two people had a second, removed account. Only 13 sheet rows had found their
+Mizito project.
+
+**Decision.** A third file, `mizito-extra/1` (labels by type, each project's labels and phases, the deals),
+read by `fromMizito(mizito, sheet, extra)` and passed as `--extra`. The owner's answers: a project «در حال
+مذاکره» is an opportunity in negotiation plus a draft project linked to it (so its work stays); a sheet row
+without a status is on hold. Deals become opportunities (`opportunities` in the neutral shape, written
+before projects so a project can name its opportunity); a rejected project is cancelled and its
+opportunity lost. The rest as the operations guide says. A project's client still cannot change after it
+is made, so all of this is decided before writing.
+
+**Considered.** Updating the records the first move made instead of making them again: the states would
+need transitions the process does not allow from where they stand, and wrongly made projects would need
+deleting. The Mac's copy was put back to the backup taken before the first move, and the move run again;
+the server had not been moved yet.
+
+**Consequences.** On the real files: 69 people, 210 clients (93 with an account manager from a label),
+121 opportunities (21 won, 17 lost, 83 open; 3,025 billion rials), 378 projects (77 running, 87 closed,
+32 draft in negotiation, 180 on hold, 2 cancelled), 698 tasks (358 with a unit from their phase), 720
+comments. 30 empty client workspaces are left out. The 180 on hold are mostly sheet rows the owner left
+without a status: each says so in its hold reason.
+
