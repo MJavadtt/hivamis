@@ -16,6 +16,10 @@
 #   infrastructure/hivamis import-mizito --mizito FILE [--sheet FILE] --as EMAIL [--commit]
 #                                  a move from Mizito and the client sheet: without --commit, what it would make;
 #                                  with it, a backup first, then made — run again, it makes nothing twice
+#   infrastructure/hivamis passwords --as EMAIL [--out FILE] [--commit]
+#                                  a temporary password for everyone who never had one, changed at the first
+#                                  sign-in: without --commit, who; with it, set and written to FILE (default
+#                                  hivamis-passwords.csv, readable by you only) — hand them on, then delete it
 #
 # HIVAMIS_ENV_FILE    the settings file (default: .env beside docker-compose.yml)
 # HIVAMIS_BACKUP_DIR  where backups go (default: ./backups); RETENTION_DAYS (default 30)
@@ -571,6 +575,34 @@ cmd_import_mizito() {
   fi
 }
 
+cmd_passwords() {
+  local as="" out="hivamis-passwords.csv" commit=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --as) as="$2"; shift 2 ;;
+      --out) out="$2"; shift 2 ;;
+      --commit) commit=1; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -n "$as" ] || die "passwords needs --as EMAIL (this organisation's system administrator)"
+  [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  if [ "$commit" != 1 ]; then
+    cli users:passwords --as "$as"
+    say "→ nothing was set: run the same command with --commit to set them and write $out"
+    return
+  fi
+  [ ! -e "$out" ] || die "$out already exists — move it away first; it is never overwritten"
+  local status=0
+  cli users:passwords --as "$as" --commit --out /tmp/hivamis-passwords.csv || status=$?
+  # Whatever was set is in the file, even when the run stopped part way: it comes out, then leaves the container.
+  (umask 077; compose cp api:/tmp/hivamis-passwords.csv "$out") || true
+  run chmod 600 "$out" || true
+  compose exec -T -u root api rm -f /tmp/hivamis-passwords.csv || true
+  [ "$status" = 0 ] || die "it stopped part way — the passwords set so far are in $out; running it again sets the rest"
+  say "✓ the passwords are in $out (readable by you only). Hand each on in person, then delete the file: each is changed at the first sign-in"
+}
+
 cmd_tenant() {
   local sub="${1:-list}"; shift || true
   case "$sub" in
@@ -590,5 +622,6 @@ case "${1:-help}" in
   upgrade) shift; cmd_upgrade "$@" ;;
   tenant) shift; cmd_tenant "$@" ;;
   import-mizito) shift; cmd_import_mizito "$@" ;;
-  *) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  passwords) shift; cmd_passwords "$@" ;;
+  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 esac

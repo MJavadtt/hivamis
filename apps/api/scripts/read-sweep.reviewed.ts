@@ -309,10 +309,13 @@ export const REVIEWED: Record<string, Verdict> = {
   ]),
   ...of('REFERENCE', ["sites/options.ts#optionsOf#siteOption#1", "sites/reminders.ts#runReminders#organization#1"]),
   // ADR-104: one record's own running clocks.
-  ...of('CHILDREN', ["workflow/engine.ts#forceState#slaClock#1"]),  // ADR-106: a move from Mizito, run from the command line — the units, roles, people and clients it matches
+  ...of('CHILDREN', ["workflow/engine.ts#forceState#slaClock#1"]),
+  // ADR-106: a move from Mizito, run from the command line — the units, roles, people and clients it matches
   // against, and what it already made.
   ...of('REFERENCE', ["onboarding/migration.ts#runMigration#department#1", "onboarding/migration.ts#runMigration#role#1"]),
   ...of('PEOPLE', ["onboarding/migration.ts#runMigration#user#1"]),
   ...of('NAMES', ["onboarding/migration.ts#runMigration#company#1"]),
   ...of('MOVE', ["onboarding/migration.ts#linksOf#importLink#1"]),
+  // The owner's answer (2026-10-30): everyone a move brought in who never had a password — at most the headcount.
+  ...of('PEOPLE', ["onboarding/passwords.ts#waitingForPassword#user#1"]),
 };

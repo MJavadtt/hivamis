@@ -3292,3 +3292,30 @@ coded), 25 contacts, 409 projects (77 running, 154 closed, 177 draft, 1 on hold)
 — 12 seconds, nothing failed, and a second run made nothing. Attachments, and the archived groups'
 reports, remain in Mizito.
 
+---
+
+## ADR-107 — Temporary first passwords for the people a move brought in
+
+**Context.** After the move from Mizito (ADR-106) the owner asked for "every user's username and
+password". There are none to give: the people brought in have only the activation placeholder, and every
+password that exists is an argon2 hash that cannot be read back. Asked, the owner chose temporary
+passwords, here and on the server, over the one-time links.
+
+**Decision.** `cli users:passwords` (and `hivamis passwords`) gives a temporary password to everyone
+active whose hash is still the placeholder — no one else. Twelve letters from an alphabet without the
+look-alikes (0/O, 1/l/I), in three groups, always with the lower case, upper case and digit the policy
+asks for. Each is set in its own transaction, only if the placeholder is still there, with
+`mustChangePassword`, any open activation link revoked, sessions ended and a `PASSWORD_SET` audit row
+under the system administrator named by `--as`. The passwords go to one file, opened new (`wx`, mode
+0600) before the first is set and written row by row, so a run that stops has already handed over what it
+set. They never reach the output, a log or the database in the clear. On a server the file is made in the
+container, copied out with mode 0600, and removed from the container.
+
+**Considered.** Printing the list (it would sit in the terminal's scrollback and any log of it); one
+password for everyone (one leak opens every account); the links alone (the owner's first choice, still
+there for anyone who prefers them).
+
+**Consequences.** The administrator knows each password until it is changed at the first sign-in, so the
+file is handed on in person and deleted. Sign-in is by email, so the 39 people with a stand-in address
+sign in with it until the administrator sets their real one.
+

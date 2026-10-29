@@ -18,8 +18,12 @@
  *                          a move from Mizito and the client sheet (src/onboarding/mizito.ts), as that system
  *                          administrator: without --commit, what it would make; with it, made. Run again, it
  *                          makes nothing twice.
+ *   users:passwords        --as EMAIL [--slug s] [--commit --out FILE]
+ *                          a temporary password for everyone who never had one (src/onboarding/passwords.ts),
+ *                          changed at the first sign-in: without --commit, who; with it, set, and written to
+ *                          FILE (made new, readable by its owner only) — never to the output.
  */
-import { readFile } from 'node:fs/promises';
+import { open, readFile } from 'node:fs/promises';
 import { prisma } from './db.js';
 import { AppError } from './lib/errors.js';
 import { deactivateDemoAccounts } from './lib/demo-accounts.js';
@@ -29,6 +33,7 @@ import { APP_VERSION } from './version.js';
 import { planReset, resetOrganization } from './setup/reset.js';
 import { runMigration } from './onboarding/migration.js';
 import { fromMizito } from './onboarding/mizito.js';
+import { issueTemporaryPasswords, waitingForPassword } from './onboarding/passwords.js';
 import { isSystemAdmin } from './auth/grants.js';
 
 /** Standard input, whole, without its last line break: how a password reaches this, unseen by `ps`. */
@@ -45,6 +50,22 @@ async function organizationFor(slug: string | undefined): Promise<string> {
   if (all.length !== 1) throw new AppError(400, 'MISSING_FLAG', '--slug لازم است: این نصب بیش از یک سازمان دارد.');
   return all[0]!.id;
 }
+
+/** The `--as` of a command that writes as someone: this organisation's system administrator, or a refusal. */
+async function systemAdminFor(organizationId: string, email: string): Promise<{ id: string; organizationId: string }> {
+  const as = email.trim().toLowerCase();
+  const admin = await prisma.user.findFirst({
+    where: { organizationId, email: as, isActive: true, deletedAt: null },
+    select: { id: true, roles: { select: { role: { select: { code: true } } } } },
+  });
+  if (!admin || !isSystemAdmin({ roles: admin.roles.map((r) => r.role.code) })) {
+    throw new AppError(403, 'NOT_SYSTEM_ADMIN', `--as باید ایمیل مدیر سیستمِ این سازمان باشد؛ «${as}» نیست.`);
+  }
+  return { id: admin.id, organizationId };
+}
+
+/** One line of the passwords file: every field quoted, as a spreadsheet reads it. */
+const csvLine = (fields: (string | null)[]) => `${fields.map((f) => `"${(f ?? '').replace(/"/g, '""')}"`).join(',')}\r\n`;
 
 type Flags = Record<string, string[]>;
 
@@ -113,23 +134,38 @@ export async function run(argv: string[]): Promise<unknown> {
     }
     case 'import:mizito': {
       const organizationId = await organizationFor(one(flags, 'slug'));
-      const as = need(flags, 'as').trim().toLowerCase();
-      const admin = await prisma.user.findFirst({
-        where: { organizationId, email: as, isActive: true, deletedAt: null },
-        select: { id: true, roles: { select: { role: { select: { code: true } } } } },
-      });
       // The move writes past the process's rules (an opening state, a closed project): the system administrator's, and on the record as theirs.
-      if (!admin || !isSystemAdmin({ roles: admin.roles.map((r) => r.role.code) })) {
-        throw new AppError(403, 'NOT_SYSTEM_ADMIN', `--as باید ایمیل مدیر سیستمِ این سازمان باشد؛ «${as}» نیست.`);
-      }
+      const admin = await systemAdminFor(organizationId, need(flags, 'as'));
       const mizito = JSON.parse(await readFile(need(flags, 'mizito'), 'utf8'));
       const sheetPath = one(flags, 'sheet');
       const sheet = sheetPath ? JSON.parse(await readFile(sheetPath, 'utf8')) : null;
-      return runMigration({ id: admin.id, organizationId }, fromMizito(mizito, sheet), { commit: !!flags.commit });
+      return runMigration(admin, fromMizito(mizito, sheet), { commit: !!flags.commit });
+    }
+    case 'users:passwords': {
+      const organizationId = await organizationFor(one(flags, 'slug'));
+      const admin = await systemAdminFor(organizationId, need(flags, 'as'));
+      if (!flags.commit) {
+        const people = await waitingForPassword(organizationId);
+        return { dryRun: true, count: people.length, people: people.map((p) => `${p.fullName} → ${p.email}`) };
+      }
+      // Opened before any password is set, and only if it is new: a file already there is never overwritten.
+      const out = need(flags, 'out');
+      const file = await open(out, 'wx', 0o600);
+      let count = 0;
+      try {
+        await file.write(`\uFEFF${csvLine(['نام', 'نام کاربری (ایمیل)', 'رمز موقت', 'واحد'])}`);
+        for await (const p of issueTemporaryPasswords(admin)) {
+          await file.write(csvLine([p.fullName, p.email, p.password, p.unit]));
+          count++;
+        }
+      } finally {
+        await file.close();
+      }
+      return { count, file: out, mustChangePassword: true };
     }
     default:
       return {
-        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes] | import:mizito --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit]',
+        usage: 'status | reference:sync [--slug s] | tenant:list | tenant:create --name --slug --admin-email --admin-name [--host h]… | tenant:update --slug [--name] [--add-host h] [--remove-host h] [--suspend|--resume] [--quota-mb N|none] | demo:deactivate | org:reset --keep-admin EMAIL [--slug s] [--password-stdin] [--yes] | import:mizito --mizito FILE [--sheet FILE] --as EMAIL [--slug s] [--commit] | users:passwords --as EMAIL [--slug s] [--commit --out FILE]',
       };
   }
 }
