@@ -13,7 +13,7 @@ import {
 } from './ui';
 import { formatRelative, localDigits } from '../lib/format';
 import { AssigneePicker } from './AssigneePicker';
-import { QuickCreateButton } from './QuickCreate';
+import { EditRecordButton, QuickCreateButton, RECORD_KINDS } from './QuickCreate';
 import { flow, loc, tr, trx } from '../i18n';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
@@ -131,6 +131,8 @@ export function WorkflowActions({
         {systemAdmin && WORKFLOWS[entity] && (
           <Button size={size} variant="ghost" onClick={() => { setToState(''); setReason(''); setForcing(true); }}>{tr('تغییر مستقیم وضعیت')}</Button>
         )}
+        {/* Every part of the record, the system administrator's to change (the owner's instruction, 2026-10-30). */}
+        {RECORD_KINDS.some((k) => k.key === entity) && <EditRecordButton path={RECORD_KINDS.find((k) => k.key === entity)!.path} id={id} />}
       </div>
 
       {blocked.length > 0 && (
@@ -317,6 +319,7 @@ export function EntityList<T extends { id: string }>({
   const navigate = useNavigate();
 
   const listQuery = { page, pageSize: 25, q: search || undefined, ...filterValues, ...extraQuery };
+  const editable = useSystemAdmin() && RECORD_KINDS.some((k) => k.path === path);
   const { data, isLoading, error, refetch, isFetching } = useList<T>(path, listQuery, undefined, offline);
 
   const submitSearch = (e: React.FormEvent) => {
@@ -375,12 +378,13 @@ export function EntityList<T extends { id: string }>({
         <>
           <div data-tour="list-table"><Table>
             <thead className="bg-ink-50/60">
-              <tr>{columns.map((c) => <Th key={c.key} className={c.className}>{c.header}</Th>)}</tr>
+              <tr>{columns.map((c) => <Th key={c.key} className={c.className}>{c.header}</Th>)}{editable && <Th className="w-10"><span className="sr-only">{tr('ویرایش')}</span></Th>}</tr>
             </thead>
             <tbody>
               {data.items.map((row) => (
                 <Tr key={row.id} onClick={rowHref ? () => navigate(rowHref(row)) : undefined}>
                   {columns.map((c) => <Td key={c.key} className={c.className}>{c.render(row)}</Td>)}
+                  {editable && <Td className="w-10"><EditRecordButton path={path} id={row.id} compact /></Td>}
                 </Tr>
               ))}
             </tbody>

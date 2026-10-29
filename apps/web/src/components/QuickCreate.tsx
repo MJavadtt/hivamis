@@ -1,17 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  DEPARTMENT_LABELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_LABELS, createBriefSchema, createChangeRequestSchema, createCompanySchema, createContactSchema, createContractSchema,
+  DEPARTMENT_LABELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_LABELS, adminEditSchema, createBriefSchema, createChangeRequestSchema, createCompanySchema, createContactSchema, createContractSchema,
   createDecisionSchema, createDeliverableSchema, createIssueSchema, createLeadSchema, createOpportunitySchema, createOutsourceRequestSchema,
   createProjectSchema, createProposalSchema, createRevisionSchema, createRiskSchema, createStatusReportSchema, createSupplierSchema,
   createTaskSchema, createWorkOrderSchema, stateLabelFa, type DepartmentCode, type DirectChannel, type LeadSourceKind,
 } from '@hiva/contracts';
 import { currencyFa } from './Fx';
-import { apiGet, apiPost, type Page } from '../lib/api';
+import { apiGet, apiPatch, apiPost, type Page } from '../lib/api';
 import { useSystemAdmin } from '../lib/auth';
 import { JalaliDateInput } from './JalaliDateInput';
-import { Button, Checkbox, Field, IconPlus, Input, Modal, Select, Textarea, useToast } from './ui';
+import { Button, Checkbox, Field, IconPencil, IconPlus, Input, LoadingBlock, Modal, Select, Textarea, useToast } from './ui';
 import { isEnglish, tr, trx } from '../i18n';
 
 /**
@@ -21,6 +21,10 @@ import { isEnglish, tr, trx } from '../i18n';
  * required, the choices, the records a field points at. Nothing about a kind is written twice, so a
  * field added to a schema appears here by itself. The record is made through the ordinary create route
  * and lands in the history under the administrator's name, without the steps that usually precede it.
+ *
+ * Editing any part of a record, the same way (the owner, 2026-10-30: "as system administrator I want to
+ * change every single part"): the form is the record's own fields as it was made, with what the process
+ * sets on it later (`adminEditSchema`), filled in as they stand; only what was changed is sent.
  */
 
 /** A contracts create schema, read for its shape — the web does not depend on zod itself. */
@@ -84,6 +88,7 @@ const LONG = new Set([
   'executiveSummary', 'approach', 'deliverablesSummary', 'timelineSummary', 'objective', 'inScope', 'outOfScope', 'scopeOfWork', 'brief', 'expectedOutput',
   'requiredResources', 'scopeSummary', 'paymentTerms', 'requestedChange', 'requiredCorrection', 'mitigation', 'context', 'decision', 'alternatives',
   'progress', 'completed', 'inProgress', 'next', 'risks', 'issues', 'decisionsNeeded', 'financialStatus', 'notes', 'justification', 'address',
+  'holdReason', 'cancelReason', 'lostReason', 'blockReason',
 ]);
 
 function unwrap(t: any): { t: any; optional: boolean } {
@@ -143,6 +148,8 @@ const LABELS: Record<string, string> = {
   timelineStatus: tr('وضعیت زمان‌بندی'), risks: tr('ریسک‌ها'), issues: tr('مسائل'), decisionsNeeded: tr('تصمیم‌های لازم'),
   financialStatus: tr('وضعیت مالی'), kind: tr('نوع'), specialty: tr('تخصص'), dayRate: tr('نرخ روزانه'), supplierId: tr('تأمین‌کننده'),
   proposedSupplierName: tr('تأمین‌کنندهٔ پیشنهادی'), estimatedCost: tr('هزینهٔ تخمینی'), neededBy: tr('مورد نیاز تا'), justification: tr('توجیه'),
+  legacyRef: tr('کد پروژه در فایل'), actualStart: tr('آغاز واقعی'), actualEnd: tr('پایان واقعی'), holdReason: tr('دلیل توقف'),
+  cancelReason: tr('دلیل لغو'), lostReason: tr('دلیل باخت'), wonAt: tr('تاریخ برد'), blockReason: tr('دلیل توقف کار'),
 };
 const labelOf = (key: string) => LABELS[key] ?? key;
 /** Choices named by their own vocabulary rather than the shared state labels. */
@@ -164,18 +171,77 @@ const choiceLabel = (key: string, v: string) => {
 /* ── the form ─────────────────────────────────────────────────────────────── */
 
 function RefSelect({ spec, value, onChange }: { spec: FieldSpec; value: string; onChange: (v: string) => void }) {
-  const people = useQuery<{ id: string; fullName: string; jobTitle: string | null }[]>({ queryKey: ['/people', ''], queryFn: () => apiGet('/people'), enabled: spec.kind === 'person' });
-  const records = useQuery<Page<any>>({ queryKey: [spec.ref?.path, 'pick'], queryFn: () => apiGet(spec.ref!.path, { pageSize: '200' }), enabled: spec.kind === 'record' });
-  const options = spec.kind === 'person'
+  const isRecord = spec.kind === 'record';
+  // A list holds at most 200 (the API's page): past that, the search finds the rest.
+  const [q, setQ] = useState('');
+  const search = useDeferredValue(q.trim());
+  const people = useQuery<{ id: string; fullName: string; jobTitle: string | null }[]>({ queryKey: ['/people', ''], queryFn: () => apiGet('/people'), enabled: !isRecord });
+  const records = useQuery<Page<any>>({
+    queryKey: [spec.ref?.path, 'pick', search], queryFn: () => apiGet(spec.ref!.path, { pageSize: '200', ...(search ? { q: search } : {}) }), enabled: isRecord,
+  });
+  const listed = (records.data?.items ?? []).some((r) => r.id === value);
+  // The record it points at now, shown whether or not the list reaches it.
+  const current = useQuery<any>({ queryKey: [spec.ref?.path, value, 'picked'], queryFn: () => apiGet(`${spec.ref!.path}/${value}`), enabled: isRecord && !!value && !!records.data && !listed });
+  const options = !isRecord
     ? (people.data ?? []).map((p) => ({ value: p.id, label: p.jobTitle ? `${p.fullName} — ${p.jobTitle}` : p.fullName }))
-    : (records.data?.items ?? []).map((r) => ({ value: r.id as string, label: spec.ref!.show(r) }));
-  return (
+    : [...(current.data && !listed ? [current.data] : []), ...(records.data?.items ?? [])].map((r) => ({ value: r.id as string, label: spec.ref!.show(r) }));
+  const select = (
     <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={labelOf(spec.key)}>
       <option value="">{spec.required ? tr('— برگزینید —') : tr('— هیچ —')}</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </Select>
   );
+  if (!isRecord) return select;
+  return (
+    <div className="space-y-1.5">
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('جستجو…')} aria-label={tr('جستجوی {0}', labelOf(spec.key))} />
+      {select}
+    </div>
+  );
 }
+
+/** One field's control, the same in the create form and the edit form. */
+function FieldControl({ f, value, set }: { f: FieldSpec; value: unknown; set: (key: string, value: unknown) => void }) {
+  const label = labelOf(f.key);
+  switch (f.kind) {
+    case 'long': return <Textarea value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
+    case 'number': return <Input type="number" inputMode="decimal" value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
+    case 'date': return <JalaliDateInput value={(value as string) ?? ''} onChange={(d) => set(f.key, d)} label={label} />;
+    case 'bool': return <Checkbox label={label} checked={!!value} onChange={(e) => set(f.key, e.target.checked)} />;
+    case 'enum': return (
+      <Select value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)}>
+        <option value="">{f.required ? tr('— برگزینید —') : tr('— هیچ —')}</option>
+        {f.options!.map((o) => <option key={o} value={o}>{choiceLabel(f.key, o)}</option>)}
+      </Select>
+    );
+    case 'enums': return (
+      <div className="flex flex-wrap gap-3">{f.options!.map((o) => (
+        <Checkbox key={o} label={choiceLabel(f.key, o)} checked={((value as string[]) ?? []).includes(o)}
+          onChange={(e) => set(f.key, e.target.checked ? [...((value as string[]) ?? []), o] : ((value as string[]) ?? []).filter((x) => x !== o))} />
+      ))}</div>
+    );
+    case 'person': case 'record': return <RefSelect spec={f} value={(value as string) ?? ''} onChange={(x) => set(f.key, x)} />;
+    default: return <Input value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
+  }
+}
+
+function FieldGrid({ fields, v, set, issues }: { fields: FieldSpec[]; v: Record<string, unknown>; set: (key: string, value: unknown) => void; issues: Record<string, string> }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {fields.map((f) => {
+        const control = <FieldControl f={f} value={v[f.key]} set={set} />;
+        if (f.kind === 'bool') return <div key={f.key} className="sm:col-span-2">{control}</div>;
+        const wide = f.kind === 'long' || f.kind === 'enums';
+        return <div key={f.key} className={wide ? 'sm:col-span-2' : undefined}><Field label={labelOf(f.key)} required={f.required} error={issues[f.key]}>{control}</Field></div>;
+      })}
+    </div>
+  );
+}
+
+const issuesOf = (e: any) => {
+  const list = e?.details?.issues as { path: string; message: string }[] | undefined;
+  return list ? Object.fromEntries(list.map((i) => [i.path.split('.')[0]!, trx(i.message)])) : {};
+};
 
 export function QuickCreateForm({ kind, onClose }: { kind: RecordKind; onClose: () => void }) {
   const fields = useMemo(() => fieldsOf(kind.schema), [kind]);
@@ -203,8 +269,7 @@ export function QuickCreateForm({ kind, onClose }: { kind: RecordKind; onClose: 
       onClose();
       if (kind.href) navigate(kind.href(made.id));
     } catch (e: any) {
-      const list = e?.details?.issues as { path: string; message: string }[] | undefined;
-      if (list) setIssues(Object.fromEntries(list.map((i) => [i.path.split('.')[0]!, trx(i.message)])));
+      setIssues(issuesOf(e));
       toast(e?.message ?? tr('عملیات ناموفق بود.'), 'danger');
     } finally { setBusy(false); }
   };
@@ -213,38 +278,80 @@ export function QuickCreateForm({ kind, onClose }: { kind: RecordKind; onClose: 
     <Modal open wide onClose={onClose} title={tr('{0} تازه — مستقیم، به‌عنوان مدیر سیستم', kind.label)}
       footer={<><Button onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={missing} onClick={() => void save()}>{tr('ساختن')}</Button></>}>
       <p className="mb-3 text-xs text-ink-600">{tr('بی‌مراحل پیشین ساخته می‌شود و با نام شما در سابقه می‌ماند.')}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {fields.map((f) => {
-          const label = labelOf(f.key);
-          const value = v[f.key];
-          const wide = f.kind === 'long' || f.kind === 'enums';
-          const control = (() => {
-            switch (f.kind) {
-              case 'long': return <Textarea value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
-              case 'number': return <Input type="number" inputMode="decimal" value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
-              case 'date': return <JalaliDateInput value={(value as string) ?? ''} onChange={(d) => set(f.key, d)} label={label} />;
-              case 'bool': return <Checkbox label={label} checked={!!value} onChange={(e) => set(f.key, e.target.checked)} />;
-              case 'enum': return (
-                <Select value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)}>
-                  <option value="">{f.required ? tr('— برگزینید —') : tr('— هیچ —')}</option>
-                  {f.options!.map((o) => <option key={o} value={o}>{choiceLabel(f.key, o)}</option>)}
-                </Select>
-              );
-              case 'enums': return (
-                <div className="flex flex-wrap gap-3">{f.options!.map((o) => (
-                  <Checkbox key={o} label={choiceLabel(f.key, o)} checked={((value as string[]) ?? []).includes(o)}
-                    onChange={(e) => set(f.key, e.target.checked ? [...((value as string[]) ?? []), o] : ((value as string[]) ?? []).filter((x) => x !== o))} />
-                ))}</div>
-              );
-              case 'person': case 'record': return <RefSelect spec={f} value={(value as string) ?? ''} onChange={(x) => set(f.key, x)} />;
-              default: return <Input value={(value as string) ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
-            }
-          })();
-          if (f.kind === 'bool') return <div key={f.key} className="sm:col-span-2">{control}</div>;
-          return <div key={f.key} className={wide ? 'sm:col-span-2' : undefined}><Field label={label} required={f.required} error={issues[f.key]}>{control}</Field></div>;
-        })}
-      </div>
+      <FieldGrid fields={fields} v={v} set={set} issues={issues} />
     </Modal>
+  );
+}
+
+/** A stored value as its control holds it: a day, a number as typed, a list, or blank. */
+function formValue(f: FieldSpec, raw: unknown): unknown {
+  if (raw === null || raw === undefined) return f.kind === 'enums' ? [] : f.kind === 'bool' ? false : '';
+  if (f.kind === 'date') return String(raw).slice(0, 10);
+  if (f.kind === 'number') return String(raw);
+  return raw;
+}
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
+
+export function QuickEditForm({ kind, id, onClose }: { kind: RecordKind; id: string; onClose: () => void }) {
+  // Every field it was made with and what the process sets later; required stays as it was made.
+  const fields = useMemo(() => {
+    const required = new Set(fieldsOf(kind.schema).filter((f) => f.required).map((f) => f.key));
+    return fieldsOf(adminEditSchema(kind.path, kind.schema as never)).map((f) => ({ ...f, required: required.has(f.key) }));
+  }, [kind]);
+  const record = useQuery<Record<string, unknown>>({ queryKey: [kind.path, id, 'edit'], queryFn: () => apiGet(`${kind.path}/${id}`) });
+  const initial = useMemo(() => (record.data ? Object.fromEntries(fields.map((f) => [f.key, formValue(f, record.data[f.key])])) : null), [record.data, fields]);
+  const [changed, setChanged] = useState<Record<string, unknown>>({});
+  const [issues, setIssues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const qc = useQueryClient();
+  const v = { ...(initial ?? {}), ...changed };
+  const set = (key: string, value: unknown) => setChanged((x) => ({ ...x, [key]: value }));
+  const edits = fields.filter((f) => f.key in changed && !sameValue(changed[f.key], initial?.[f.key]));
+
+  const save = async () => {
+    setBusy(true); setIssues({});
+    const body: Record<string, unknown> = {};
+    for (const f of edits) {
+      const value = changed[f.key];
+      const blank = value === '' || value === undefined;
+      // A field the record must have is left as it was; any other emptied one is cleared.
+      if (blank && f.required) continue;
+      body[f.key] = blank ? null : f.kind === 'number' ? Number(value) : value;
+    }
+    try {
+      await apiPatch(`${kind.path}/${id}`, body);
+      toast(tr('{0} ویرایش شد.', kind.label));
+      await qc.invalidateQueries();
+      onClose();
+    } catch (e: any) {
+      setIssues(issuesOf(e));
+      toast(e?.message ?? tr('عملیات ناموفق بود.'), 'danger');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal open wide onClose={onClose} title={tr('ویرایش {0} — به‌عنوان مدیر سیستم', kind.label)}
+      footer={<><Button onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!edits.length} onClick={() => void save()}>{tr('ذخیره')}</Button></>}>
+      <p className="mb-3 text-xs text-ink-600">{tr('هر بخش این رکورد را می‌توانید عوض کنید؛ فقط آنچه تغییر دادید ذخیره می‌شود و با نام شما در سابقه می‌ماند. وضعیت از «تغییر مستقیم وضعیت» عوض می‌شود.')}</p>
+      {!initial ? <LoadingBlock /> : <FieldGrid fields={fields} v={v} set={set} issues={issues} />}
+    </Modal>
+  );
+}
+
+/** «ویرایش» on a record, for the system administrator: every part of it, past what the ordinary edit locks. */
+export function EditRecordButton({ path, id, compact }: { path: string; id: string; compact?: boolean }) {
+  const systemAdmin = useSystemAdmin();
+  const [open, setOpen] = useState(false);
+  const kind = RECORD_KINDS.find((k) => k.path === path);
+  if (!systemAdmin || !kind) return null;
+  return (
+    <span onClick={(e) => e.stopPropagation()}>
+      {compact
+        ? <Button size="sm" variant="ghost" aria-label={tr('ویرایش {0}', kind.label)} title={tr('ویرایش {0}', kind.label)} data-testid="edit-record" onClick={() => setOpen(true)}><IconPencil className="size-4" /></Button>
+        : <Button size="sm" data-testid="edit-record" onClick={() => setOpen(true)}><IconPencil className="size-4" />{tr('ویرایش')}</Button>}
+      {open && <QuickEditForm kind={kind} id={id} onClose={() => setOpen(false)} />}
+    </span>
   );
 }
 

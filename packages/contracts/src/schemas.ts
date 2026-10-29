@@ -1263,3 +1263,37 @@ export const chatRequestSchema = z.object({
     title: z.string().max(200).nullish(),
   }).nullish(),
 });
+
+/* ── the system administrator's edit ─────────────────────────────────────── */
+
+/**
+ * What a record keeps beyond the fields it was made with — set later in the process, by another record's
+ * page or by a move from another system — which only the system administrator edits directly.
+ */
+const ADMIN_EXTRA: Record<string, z.ZodRawShape> = {
+  '/projects': {
+    legacyRef: z.string().trim().max(40), opportunityId: idSchema, actualStart: z.coerce.date(), actualEnd: z.coerce.date(),
+    holdReason: z.string().trim().max(2000), cancelReason: z.string().trim().max(2000),
+  },
+  '/opportunities': { lostReason: z.string().trim().max(2000), wonAt: z.coerce.date() },
+  '/tasks': { blockReason: z.string().trim().max(2000) },
+};
+
+/**
+ * The system administrator's edit of a record of this kind (the owner, 2026-10-30: "as system administrator
+ * I want to change every single part"): every field it was made with — those the ordinary edit locks
+ * afterwards included, a project's client or a task's project — and what ADMIN_EXTRA adds. Each is
+ * optional; one a record may lack is cleared with null. One shape for the API's edit and the web's form.
+ */
+export function adminEditSchema(path: string, create: z.ZodTypeAny): z.ZodObject<z.ZodRawShape> {
+  let base = create;
+  while (base instanceof z.ZodEffects) base = base.innerType();
+  if (!(base instanceof z.ZodObject)) throw new Error(`adminEditSchema: ${path} is not made from an object schema`);
+  const shape: z.ZodRawShape = {};
+  for (const [key, field] of Object.entries((base as z.ZodObject<z.ZodRawShape>).shape)) {
+    // A field the record must have is never blank, and a list with a default is emptied, not nulled.
+    shape[key] = field instanceof z.ZodDefault || !field.isOptional() ? field.optional() : field.nullable().optional();
+  }
+  for (const [key, field] of Object.entries(ADMIN_EXTRA[path] ?? {})) shape[key] = field.nullable().optional();
+  return z.object(shape);
+}

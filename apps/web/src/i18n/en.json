@@ -3788,5 +3788,14 @@
   "شمارهٔ همراه (اختیاری)": "Mobile number (optional)",
   "دست‌کم ۱۲ نویسه، با حرف بزرگ و کوچک لاتین و عدد.": "At least 12 characters, with upper- and lower-case Latin letters and a digit.",
   "کد مشتری": "Client code",
-  "جستجو در نام، کد یا صنعت…": "Search by name, code or industry…"
+  "جستجو در نام، کد یا صنعت…": "Search by name, code or industry…",
+  "کد پروژه در فایل": "Code in the sheet",
+  "آغاز واقعی": "Actual start",
+  "پایان واقعی": "Actual end",
+  "تاریخ برد": "Won on",
+  "دلیل توقف کار": "Why the work is blocked",
+  "{0} ویرایش شد.": "{0} saved.",
+  "ویرایش {0} — به‌عنوان مدیر سیستم": "Edit {0} — as system administrator",
+  "هر بخش این رکورد را می‌توانید عوض کنید؛ فقط آنچه تغییر دادید ذخیره می‌شود و با نام شما در سابقه می‌ماند. وضعیت از «تغییر مستقیم وضعیت» عوض می‌شود.": "You can change any part of this record; only what you change is saved, and it stays in the history under your name. The status changes through «Change status directly».",
+  "جستجوی {0}": "Search {0}"
 }

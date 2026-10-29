@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeAny } from 'zod';
 import type { Permission } from '@hiva/contracts';
-import { paginationSchema } from '@hiva/contracts';
+import { adminEditSchema, paginationSchema } from '@hiva/contracts';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { audit } from '../lib/audit.js';
@@ -10,6 +10,7 @@ import { actorFrom, orderBy, page, parse } from './http.js';
 import { allowedFor } from '../workflow/engine.js';
 import { nextCode } from './codes.js';
 import { assertOwnReferences, hasOrganizationColumn } from './scope.js';
+import { isSystemAdmin } from '../auth/grants.js';
 
 export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   /** URL segment, e.g. "projects". */
@@ -60,6 +61,8 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
   opts: CrudOptions<C, U>,
 ): void {
   const model = () => (prisma as any)[opts.model];
+  // The system administrator edits every part of a record (the owner, 2026-10-30), past what the ordinary edit locks.
+  const adminEdit = adminEditSchema(`/${opts.path}`, opts.createSchema);
   const sortable = opts.sortable ?? ['createdAt', 'updatedAt'];
   // Every read and write below goes through this. Audit SEC-1: contacts had no organisation column,
   // so nothing scoped them and every organisation saw every other's.
@@ -152,7 +155,7 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
     async (req) => {
       const actor = actorFrom(req);
       const { id } = req.params as { id: string };
-      const input = parse(opts.updateSchema, req.body);
+      const input = parse(isSystemAdmin(actor) ? adminEdit : opts.updateSchema, req.body);
       const before = await findScoped(id, actor.organizationId);
       if (!before) throw notFound();
       // `state` is owned exclusively by the workflow engine.

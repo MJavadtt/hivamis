@@ -604,7 +604,8 @@ describe('The rule lab', () => {
    * written.
    */
   it('records a guard saying no, with the guard that said it', async () => {
-    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION' } });
+    // One with no authorisation basis on record, whichever the database returns first.
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION', authorizations: { none: { revokedAt: null } } }, orderBy: { code: 'asc' } });
     const before = await prisma.auditEvent.count({ where: { action: 'TRANSITION_BLOCKED', entityId: project.id } });
     expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
     const blocked = await prisma.auditEvent.findFirst({ where: { action: 'TRANSITION_BLOCKED', entityId: project.id }, orderBy: { createdAt: 'desc' } });
@@ -655,7 +656,7 @@ describe('The rule lab', () => {
   });
 
   it('credits a relaxed rule with the attempts it would have let through', async () => {
-    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION' } });
+    const project = await prisma.project.findFirstOrThrow({ where: { state: 'PENDING_AUTHORIZATION', authorizations: { none: { revokedAt: null } } }, orderBy: { code: 'asc' } });
     expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
     expect((await move('project', project.id, 'authorize', tokens.deputy)).status).toBe(422);
 

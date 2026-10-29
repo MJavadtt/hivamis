@@ -5,6 +5,7 @@ import { stateLabelFa } from '@hiva/contracts';
 import { apiGet } from '../lib/api';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList } from '../components/common';
+import { EditRecordButton } from '../components/QuickCreate';
 import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, Select, StatTile, StateBadge, cx } from '../components/ui';
 import { formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
 import { tr, trx } from '../i18n';
@@ -110,7 +111,7 @@ function SupplierDetail({ id }: { id: string }) {
   return (
     <>
       <PageHeader title={s.name} subtitle={[trx(stateLabelFa(s.kind)), s.departmentCode, s.specialty].filter(Boolean).join(' · ')}
-        actions={<Link to="/suppliers"><Button size="sm">{tr('همهٔ تأمین‌کنندگان')}</Button></Link>} />
+        actions={<><EditRecordButton path="/suppliers" id={s.id} /><Link to="/suppliers"><Button size="sm">{tr('همهٔ تأمین‌کنندگان')}</Button></Link></>} />
       <PageBody>
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="supplier-stats">
           <StatTile label={tr('امتیاز کلی')} value={rating(e.overall)} hint={tr('{0} ارزیابی', localDigits(e.count))} tone={e.overall == null ? 'neutral' : e.overall >= 4 ? 'success' : e.overall >= 3 ? 'warning' : 'danger'} />

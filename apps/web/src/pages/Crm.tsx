@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { EditRecordButton } from '../components/QuickCreate';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
@@ -363,6 +364,7 @@ export function CompanyDetail() {
         )}
         actions={
           <>
+            <EditRecordButton path="/companies" id={c.id} />
             <PdfButton kind="company" id={c.id} label={tr('پرونده مشتری')} />
             <PdfBundleButton kind="company" id={c.id} />
           </>
@@ -426,6 +428,7 @@ export function CompanyDetail() {
                           <p className="ltr">{ct.phone ?? ''}</p>
                           {ct.isPrimary && <Badge tone="progress">{tr('مخاطب اصلی')}</Badge>}
                         </div>
+                        <EditRecordButton path="/contacts" id={ct.id} compact />
                       </li>
                     ))}
                   </ul>

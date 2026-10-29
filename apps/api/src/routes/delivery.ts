@@ -257,7 +257,7 @@ const deliveryRoutes: FastifyPluginAsync = async (app) => {
     path: 'projects', model: 'project', workflowEntity: 'project', codeScope: 'project',
     permissions: { read: 'project.read', write: 'project.write' },
     createSchema: createProjectSchema, updateSchema: updateProjectSchema,
-    sortable: ['createdAt', 'plannedEnd', 'name'], searchable: ['name', 'objective'],
+    sortable: ['createdAt', 'plannedEnd', 'name'], searchable: ['name', 'objective', 'code', 'legacyRef'],
     filter: (req) => {
       const { state, companyId, accountOwnerId, health } = req.query as Record<string, string | undefined>;
       return {

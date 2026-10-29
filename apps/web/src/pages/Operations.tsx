@@ -7,6 +7,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { EstimateCheck } from '../components/EstimateCheck';
 import { CurrencySelect, FxPreview } from '../components/Fx';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
+import { EditRecordButton } from '../components/QuickCreate';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { REVISION_REASON_LABELS, stateLabelFa } from '@hiva/contracts';
@@ -168,7 +169,7 @@ export function TaskDetail() {
                     <Tr key={r.id}>
                       <Td><Code>{r.code}</Code></Td>
                       <Td className="text-xs">{trx(REVISION_REASON_LABELS[r.reason] ?? r.reason)}</Td>
-                      <Td><StateBadge state={r.state} /></Td>
+                      <Td><div className="flex items-center gap-1"><StateBadge state={r.state} /><EditRecordButton path="/revisions" id={r.id} compact /></div></Td>
                       <Td className="text-xs">{formatDate(r.dueDate)}</Td>
                     </Tr>
                   ))}
@@ -363,7 +364,7 @@ export function WorkOrderDetail() {
                     <Td><p className="text-sm">{t.title}</p><Code>{t.code}</Code></Td>
                     <Td className="text-xs">{t.assigneeId ? '—' : '—'}</Td>
                     <Td className="text-xs">{formatDate(t.dueDate)}</Td>
-                    <Td><StateBadge state={t.state} /></Td>
+                    <Td><div className="flex items-center gap-1"><StateBadge state={t.state} /><EditRecordButton path="/tasks" id={t.id} compact /></div></Td>
                   </Tr>
                 ))}
               </tbody>

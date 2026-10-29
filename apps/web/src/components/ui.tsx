@@ -487,6 +487,7 @@ export const IconLogout = ico(<><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /
 export const IconSettings = ico(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.63.68 1.1 1.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" /></>);
 export const IconRefresh = ico(<><path d="M3 12a9 9 0 0115.5-6.4L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 01-15.5 6.4L3 16" /><path d="M3 21v-5h5" /></>);
 export const IconPlus = ico(<><path d="M12 5v14M5 12h14" /></>);
+export const IconPencil = ico(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>);
 export const IconArrow = ico(<><path d="M19 12H5M12 19l-7-7 7-7" /></>);
 export const IconClock = ico(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>);
 export const IconFold = ico(<><path d="M5 5v14" /><path d="M18 7l-5 5 5 5" /></>);

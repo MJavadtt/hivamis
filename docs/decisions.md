@@ -3352,3 +3352,32 @@ the server had not been moved yet.
 comments. 30 empty client workspaces are left out. The 180 on hold are mostly sheet rows the owner left
 without a status: each says so in its hold reason.
 
+---
+
+## ADR-109 — The system administrator edits every part of a record
+
+**Context.** The owner (2026-10-30): "I still cannot make many changes in different sections — I cannot
+change a project's account owner. I said that as system administrator I want to change every single part."
+ADR-104 let them make any record and put it in any state. Changing one already made was another matter:
+the API's ordinary edit took the account owner, but no page offered an edit form, and the ordinary edit
+locks a record's anchor once it exists (a project's client, a contact's or an opportunity's company, a
+brief's opportunity, a proposal's brief, a task's project and source).
+
+**Decision.**
+- **One edit shape** in the contracts, `adminEditSchema(path, createSchema)`: every field the record was made
+  with, the locked ones included, each optional, and one the record may lack cleared with null; plus what
+  the process sets later and no form offers (a project's code in the sheet, opportunity, actual dates, hold
+  and cancel reasons; an opportunity's loss reason and win date; why a task is blocked).
+- **The API's edit** (`registerCrud`'s PATCH, every kind it serves) parses with that shape for the system
+  administrator in their own right (`isSystemAdmin`) and with the ordinary update schema for everyone else.
+  The kind's own update step still runs (a lead's duplicate check, a contract's exchange rate).
+- **The web's edit** (`QuickEditForm`, beside `QuickCreateForm` and built the same way from the same shape)
+  is filled in with the record as it stands and sends only what changed. It is offered as «ویرایش» beside
+  the status actions on every record's page, and as a pencil on every row of every list and of the tables
+  a project's, a client's and a work order's pages hold (tasks, deliverables, revisions, risks, issues,
+  decisions, the status report, contacts).
+
+**What still holds.** The state belongs to the workflow — «تغییر مستقیم وضعیت» (ADR-104), not the form.
+A reference must name a record of the same organisation. Every edit is an `UPDATE` audit row under the
+administrator, with the record before and after.
+

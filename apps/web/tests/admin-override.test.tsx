@@ -7,7 +7,7 @@ import { AuthProvider } from '../src/lib/auth';
 import { LocaleProvider } from '../src/lib/locale';
 import { markSignedIn, setAccessToken } from '../src/lib/api';
 import { WorkflowActions } from '../src/components/common';
-import { QuickCreateButton, RECORD_KINDS, fieldsOf } from '../src/components/QuickCreate';
+import { EditRecordButton, QuickCreateButton, RECORD_KINDS, fieldsOf } from '../src/components/QuickCreate';
 import { createProjectSchema, createTaskSchema } from '@hiva/contracts';
 
 /**
@@ -31,7 +31,9 @@ function mount(roles: string[], ui: JSX.Element) {
     if (p.endsWith('/preflight')) return json({ transitions: [{ action: 'activate', ready: false, permitted: true, checks: [{ guard: 'project.hasRaci', labelFa: 'RACI ثبت شده باشد', ok: false, messageFa: 'RACI ثبت نشده است.' }] }] });
     if (p.endsWith('/force')) return json({ fromState: 'PLANNING', toState: 'ACTIVE', action: 'admin_force' });
     if (p === '/companies') return json({ items: [{ id: 'c1', legalName: 'شرکت نمونه', brandName: null }], total: 1, page: 1, pageSize: 200, pageCount: 1 });
-    if (p === '/people') return json([{ id: 'u2', fullName: 'رضا شریفی', jobTitle: null }]);
+    if (p === '/people') return json([{ id: 'u2', fullName: 'رضا شریفی', jobTitle: null }, { id: 'u3', fullName: 'مریم حقیقی', jobTitle: null }]);
+    if (p === '/companies/c9') return json({ id: 'c9', legalName: 'مشتری دورتر از صفحهٔ اول', brandName: null });
+    if (p === '/projects/p1' && method === 'GET') return json({ id: 'p1', name: 'پروژهٔ قدیم', companyId: 'c9', accountOwnerId: 'u2', plannedEnd: '2026-12-01T00:00:00.000Z', legacyRef: 'H1001-01', plannedBudget: '5000000' });
     if (p === '/projects' && method === 'POST') return json({ id: 'np1' }, 201);
     return json({});
   }));
@@ -81,6 +83,38 @@ describe('The system administrator above the process', () => {
     fireEvent.click(save);
     await waitFor(() => expect(sent.some((x) => x.path === '/projects' && x.method === 'POST')).toBe(true));
     expect(sent.find((x) => x.path === '/projects' && x.method === 'POST')!.body).toEqual({ name: 'پروژهٔ مستقیم', companyId: 'c1', accountOwnerId: 'u2' });
+  });
+});
+
+describe('Editing every part of a record (owner’s instruction, 2026-10-30)', () => {
+  it('fills in the record as it stands and sends only what was changed — a blank cleared', async () => {
+    const sent = mount(['SUPER_ADMIN'], <EditRecordButton path="/projects" id="p1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'ویرایش' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await waitFor(() => expect((dialog.getByLabelText(/^نام/) as HTMLInputElement).value).toBe('پروژهٔ قدیم'));
+    const save = dialog.getByRole('button', { name: 'ذخیره' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await waitFor(() => expect(dialog.getByRole('option', { name: 'مریم حقیقی' })).toBeTruthy());
+    expect((dialog.getByLabelText('مالک اکانت') as HTMLSelectElement).value).toBe('u2');
+    // The client it points at is past the first page of clients: shown all the same.
+    await waitFor(() => expect(dialog.getByRole('option', { name: 'مشتری دورتر از صفحهٔ اول' })).toBeTruthy());
+    expect((dialog.getByLabelText('مشتری') as HTMLSelectElement).value).toBe('c9');
+    fireEvent.change(dialog.getByLabelText('مالک اکانت'), { target: { value: 'u3' } });
+    fireEvent.change(dialog.getByLabelText('کد پروژه در فایل'), { target: { value: '' } });
+    fireEvent.click(save);
+    await waitFor(() => expect(sent.some((x) => x.path === '/projects/p1' && x.method === 'PATCH')).toBe(true));
+    expect(sent.find((x) => x.path === '/projects/p1' && x.method === 'PATCH')!.body).toEqual({ accountOwnerId: 'u3', legacyRef: null });
+  });
+
+  it('sits beside the state actions on a record’s page', async () => {
+    mount(['SUPER_ADMIN'], <WorkflowActions entity="project" id="p1" transitions={MOVES} />);
+    expect(await screen.findByRole('button', { name: 'ویرایش' })).toBeTruthy();
+  });
+
+  it('is not there for anyone else', async () => {
+    mount(['CEO'], <><WorkflowActions entity="project" id="p1" transitions={MOVES} /><EditRecordButton path="/projects" id="p1" /></>);
+    expect(await screen.findByRole('button', { name: /شروع اجرای پروژه/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'ویرایش' })).toBeNull();
   });
 });
 
