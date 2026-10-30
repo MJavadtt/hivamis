@@ -15,6 +15,8 @@ export interface BookingViewer {
   permissions: readonly string[];
   /** permission → who delegated it; an approver's stand-in sees what the approver would. */
   delegated?: Record<string, string>;
+  /** The system administrator in their own right, who may change any booking (ADR-110). */
+  systemAdmin?: boolean;
 }
 
 export const seesAll = (v: Pick<BookingViewer, 'permissions'>) => v.permissions.includes('meeting.view_all');

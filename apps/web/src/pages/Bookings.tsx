@@ -311,19 +311,23 @@ export function BookingEditor({ booking, onClose, onSaved }: { booking?: Booking
     try {
       const saved = booking ? await apiPut<Booking>(`/bookings/${booking.id}`, body()) : await apiPost<Booking>('/bookings', body());
       if (send) await apiPost(`/workflow/booking/${saved.id}/transitions`, { action: 'submit' });
-      toast(send ? tr('رزرو برای تأیید فرستاده شد.') : tr('پیش‌نویس رزرو ذخیره شد.'));
+      toast(send ? tr('رزرو برای تأیید فرستاده شد.') : draft ? tr('پیش‌نویس رزرو ذخیره شد.') : tr('رزرو ویرایش شد.'));
       await qc.invalidateQueries();
       onClose();
       if (onSaved) onSaved(saved.id); else navigate(`/bookings/${saved.id}`);
     } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(null); }
   };
   const ready = title.trim().length >= 3 && !Number.isNaN(new Date(start).getTime());
+  // Past its draft only the system administrator edits it (ADR-110): saved as it stands, at the stage it is.
+  const draft = !booking || ['DRAFT', 'CHANGES_REQUESTED'].includes(booking.state);
 
   return (
     <Modal open wide title={booking ? tr('ویرایش رزرو {0}', booking.code) : tr('رزرو تازه')} onClose={onClose} footer={<>
       <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
-      <Button loading={busy === 'draft'} disabled={!ready || !!busy} onClick={() => void save(false)}>{tr('ذخیرهٔ پیش‌نویس')}</Button>
-      <Button variant="primary" loading={busy === 'send'} disabled={!ready || !!busy || !approverId} onClick={() => void save(true)}>{tr('ذخیره و فرستادن برای تأیید')}</Button>
+      {draft ? <>
+        <Button loading={busy === 'draft'} disabled={!ready || !!busy} onClick={() => void save(false)}>{tr('ذخیرهٔ پیش‌نویس')}</Button>
+        <Button variant="primary" loading={busy === 'send'} disabled={!ready || !!busy || !approverId} onClick={() => void save(true)}>{tr('ذخیره و فرستادن برای تأیید')}</Button>
+      </> : <Button variant="primary" loading={busy === 'draft'} disabled={!ready || !!busy} onClick={() => void save(false)}>{tr('ذخیره')}</Button>}
     </>}>
       <div className="grid gap-4 md:grid-cols-2" data-testid="booking-editor">
         <div className="space-y-3">

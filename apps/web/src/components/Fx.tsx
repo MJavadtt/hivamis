@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CURRENCIES, CURRENCY_LABELS, type Currency } from '@hiva/contracts';
-import { apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EntitySelect } from '../pages/Forms';
 import { JalaliDateInput } from './JalaliDateInput';
@@ -260,29 +260,51 @@ export function FxReport() {
 
 /* ── Issuing and receiving ─────────────────────────────────────────────── */
 
-export function NewInvoiceModal({ onClose }: { onClose: () => void }) {
-  const [v, setV] = useState({ kind: 'INVOICE', companyId: '', projectId: '', number: '', issueDate: localDateOnly(new Date()), dueDate: '', currency: 'IRR', taxPercent: '10' });
+/**
+ * Issuing an invoice — or editing one (the owner, 2026-10-30; ADR-110): a draft by whoever issues
+ * invoices, any by the system administrator. The server recomputes the totals and says no where the
+ * books need it — below what was received, posted to accounting, awaited by the tax system.
+ */
+export function NewInvoiceModal({ onClose, invoiceId }: { onClose: () => void; invoiceId?: string }) {
+  const [v, setV] = useState({ kind: 'INVOICE', companyId: '', projectId: '', number: '', issueDate: localDateOnly(new Date()), dueDate: '', currency: 'IRR', taxPercent: '10', notes: '' });
   const [lines, setLines] = useState([{ description: '', quantity: '1', unitPrice: '' }]);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const qc = useQueryClient();
+  const { data: was } = useQuery<any>({ queryKey: [`/invoices/${invoiceId}`], queryFn: () => apiGet(`/invoices/${invoiceId}`), enabled: !!invoiceId });
+  // The invoice as it stands, once: in its own currency, as its lines were written.
+  useEffect(() => {
+    if (!was) return;
+    setV({
+      kind: was.kind, companyId: was.companyId, projectId: was.projectId ?? '', number: was.number, issueDate: String(was.issueDate).slice(0, 10),
+      dueDate: was.dueDate ? String(was.dueDate).slice(0, 10) : '', currency: was.currency, taxPercent: String(Number(was.taxPercent)), notes: was.notes ?? '',
+    });
+    setLines((was.lines as { description: string; quantity: number; unitPrice: number }[]).map((l) => ({ description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) })));
+  }, [was]);
   const subtotal = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
   const total = subtotal * (1 + Number(v.taxPercent || 0) / 100);
   const valid = v.companyId && v.number.trim() && lines.every((l) => l.description.trim() && Number(l.unitPrice) >= 0 && l.unitPrice !== '');
   const save = async () => {
     setBusy(true);
+    const body = {
+      kind: v.kind, companyId: v.companyId, number: v.number.trim(), issueDate: v.issueDate, currency: v.currency, taxPercent: Number(v.taxPercent || 0),
+      lines: lines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })),
+    };
     try {
-      await apiPost('/invoices', {
-        kind: v.kind, companyId: v.companyId, projectId: v.projectId || undefined, number: v.number.trim(),
-        issueDate: v.issueDate, dueDate: v.dueDate || undefined, currency: v.currency, taxPercent: Number(v.taxPercent || 0),
-        lines: lines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })),
-      });
-      toast(tr('سند مالی صادر شد.')); await qc.invalidateQueries(); onClose();
+      if (invoiceId) {
+        const after = await apiPatch<{ taxCorrectionDue?: boolean }>(`/invoices/${invoiceId}`, { ...body, projectId: v.projectId || null, dueDate: v.dueDate || null, notes: v.notes.trim() || null });
+        toast(after.taxCorrectionDue ? tr('سند مالی ویرایش شد. این سند در سامانهٔ مؤدیان پذیرفته شده بود؛ «اصلاحی» آن را بفرستید.') : tr('سند مالی ویرایش شد.'));
+      } else {
+        await apiPost('/invoices', { ...body, projectId: v.projectId || undefined, dueDate: v.dueDate || undefined, notes: v.notes.trim() || undefined });
+        toast(tr('سند مالی صادر شد.'));
+      }
+      await qc.invalidateQueries(); onClose();
     } catch (e: any) { toast(e?.message ?? tr('صدور ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title={tr('صدور سند مالی')} onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!valid} onClick={() => void save()}>{tr('صدور')}</Button></>}>
+    <Modal open wide title={invoiceId ? tr('ویرایش سند مالی {0}', was?.number ?? '') : tr('صدور سند مالی')} onClose={onClose}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!valid || (!!invoiceId && !was)} onClick={() => void save()}>{invoiceId ? tr('ذخیره') : tr('صدور')}</Button></>}>
+      {was?.accountingExportId && <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">{tr('این سند به خروجی حسابداری رفته است: مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود.')}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={tr('نوع')}><Select value={v.kind} onChange={(e) => setV({ ...v, kind: e.target.value })} aria-label={tr('نوع')}><option value="INVOICE">{tr('فاکتور')}</option><option value="PROFORMA">{tr('پیش‌فاکتور')}</option></Select></Field>
         <Field label={tr('شماره')} required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label={tr('شماره')} /></Field>
@@ -304,6 +326,7 @@ export function NewInvoiceModal({ onClose }: { onClose: () => void }) {
         ))}
         <Button size="sm" variant="ghost" onClick={() => setLines([...lines, { description: '', quantity: '1', unitPrice: '' }])}>{tr('ردیف تازه')}</Button>
       </div>
+      <div className="mt-4"><Field label={tr('یادداشت')}><Textarea value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} aria-label={tr('یادداشت')} /></Field></div>
       <p className="mt-3 text-sm text-ink-700">{tr('جمع با مالیات:')}{' '}<strong>{money(total, v.currency)}</strong></p>
       <div className="mt-2"><FxPreview currency={v.currency} amount={total} on={v.issueDate} /></div>
     </Modal>

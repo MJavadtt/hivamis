@@ -5,6 +5,7 @@ import {
   paginationSchema, RESOURCE_TYPES,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { isSystemAdmin } from '../auth/grants.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
@@ -39,7 +40,7 @@ const assertParkingHasSpaces = (r: { type?: string; capacity?: number }) => {
   if (r.type === 'PARKING' && r.capacity !== undefined && r.capacity < 1) throw badRequest('VALIDATION_ERROR', 'پارکینگ دست‌کم یک جای پارک دارد.', { field: 'capacity' });
 };
 
-const viewer = (a: ReturnType<typeof actorFrom>): BookingViewer => ({ id: a.id, organizationId: a.organizationId, permissions: a.permissions, delegated: a.delegated });
+const viewer = (a: ReturnType<typeof actorFrom>): BookingViewer => ({ id: a.id, organizationId: a.organizationId, permissions: a.permissions, delegated: a.delegated, systemAdmin: isSystemAdmin(a) });
 
 const bookingRoutes: FastifyPluginAsync = async (app) => {
   const book = { preHandler: [app.authenticate, app.requirePermissions('meeting.book')] };
@@ -239,7 +240,7 @@ const bookingRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const input = parse(bookingDraftSchema, req.body);
-    await saveDraft(actor, input, id);
+    await saveDraft(actor, input, id, { systemAdmin: isSystemAdmin(actor) });
     return bookingView(id, viewer(actor));
   });
 

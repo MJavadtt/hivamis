@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useSystemAdmin } from '../lib/auth';
 import { offlineQuery } from '../lib/offline';
 import { useSearchParams } from 'react-router-dom';
@@ -592,22 +592,35 @@ const ENTITY_PATHS: Record<string, { path: string; label: (r: any) => string }> 
 /** Exported for the finance dialogs (roadmap #28). */
 export function EntitySelect({ entity, value, onChange }: { entity: string; value: string; onChange: (v: string) => void }) {
   const config = ENTITY_PATHS[entity];
-  const { data, isError } = useQuery<{ items: any[] }>({
-    queryKey: [config?.path, 'picker'],
-    queryFn: () => apiGet(config!.path, { pageSize: 100 }),
+  // A list holds at most 200 (the API's page); past that a search finds the rest (210 clients after the
+  // move from Mizito), and the record chosen is shown whether or not the list reaches it.
+  const [q, setQ] = useState('');
+  const search = useDeferredValue(q.trim());
+  const { data, isError } = useQuery<{ items: any[]; total?: number }>({
+    queryKey: [config?.path, 'picker', search],
+    queryFn: () => apiGet(config!.path, { pageSize: 200, ...(search ? { q: search } : {}) }),
     enabled: !!config,
     staleTime: 60_000,
   });
+  const listed = !value || !!data?.items?.some((r) => r.id === value);
+  const current = useQuery<any>({
+    queryKey: [config?.path, value, 'picked'], queryFn: () => apiGet(`${config!.path}/${value}`),
+    enabled: !!config && !config.path.includes('?') && !!data && !listed,
+  });
+  const more = !!search || (data?.total ?? 0) > (data?.items?.length ?? 0);
 
   if (!config || isError) {
     return <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={tr('شناسه رکورد')} className="ltr" />;
   }
-  return (
+  const select = (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{tr('— انتخاب —')}</option>
+      {current.data && !listed && <option value={current.data.id}>{config.label(current.data)}</option>}
       {data?.items?.map((r) => <option key={r.id} value={r.id}>{config.label(r)}</option>)}
     </Select>
   );
+  if (!more) return select;
+  return <div className="space-y-1.5"><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('جستجو…')} aria-label={tr('جستجو…')} />{select}</div>;
 }
 
 /* ── Submissions ───────────────────────────────────────────────────────── */

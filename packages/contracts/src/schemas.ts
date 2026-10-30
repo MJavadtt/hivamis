@@ -520,6 +520,15 @@ export const createInvoiceSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+/**
+ * An invoice's edit (ADR-110): any of its fields, a line list replacing the old one whole; one it may
+ * lack is cleared with null. Its totals are the server's, from its lines, as when it was made.
+ */
+export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
+  projectId: idSchema.nullish(), contractId: idSchema.nullish(), dueDate: z.coerce.date().nullish(),
+  notes: z.string().trim().max(2000).nullish(),
+});
+
 export const createPaymentSchema = z.object({
   invoiceId: idSchema.optional(),
   projectId: idSchema.optional(),

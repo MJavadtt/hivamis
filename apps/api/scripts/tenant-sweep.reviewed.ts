@@ -66,6 +66,7 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/brand.ts#GET /documents/:id/brand-check",
     "routes/brand.ts#PUT /companies/:id/brand",
     "routes/commercial.ts#GET /projects/:id/finance",
+    "routes/commercial.ts#PATCH /invoices/:id",
     "routes/commercial.ts#POST /contracts/:id/amendments",
     "routes/commercial.ts#POST /payments",
     "routes/commercial.ts#POST /projects/:id/settle",

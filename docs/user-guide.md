@@ -336,6 +336,14 @@ and not billed, flight over without proof, awaiting the vendor's invoice, and in
   one; and an accepted invoice is cancelled at the authority first, then here — the system will not
   let the books say a sale never happened while the tax authority still holds it. Each invoice row
   in the financial documents list shows where it stands.
+- **Editing an invoice** — the pencil ✎ beside each row of the financial documents list opens the
+  invoice's form with its lines, client, dates and notes. A draft is edited by whoever issues
+  invoices, an invoice in any state by the system administrator. The totals are worked out again from
+  the lines. What the books need holds for everyone: the amount never falls below what was received,
+  and the receipts move the state against the new amount; an invoice with a receipt keeps its
+  currency; nothing reported changes until the tax system has answered, and if it had accepted the
+  invoice the message says to send its correction («اصلاحی»); and one in the accounting export keeps
+  its amount, client, kind and date — cancel it and issue a new one.
 - **Export to the accounting package (خروجی حسابداری)** — the ledger stays in your accounting
   software; this tab writes its vouchers so nothing is typed in twice. Under **سرفصل‌ها و قالب فایل**
   the finance manager enters the code of each account in your own chart (receivables, revenue, VAT,
@@ -740,6 +748,10 @@ booking is confirmed.
    afterwards.
 6. **تغییر زمان** sends a confirmed booking back for approval at the new time. **لغو رزرو** frees
    everything; a meeting that never had minutes is removed with it.
+7. The system administrator changes any booking at any stage with **ویرایش**, saved where it stands
+   without going back for approval. Replies and guests' arrivals stay; a confirmed booking holds its
+   room, parking and people again at the new time — if that time is taken, the change is refused —
+   and its meeting moves with it.
 
 **For the office.** **مدیریت رزرو** keeps the rooms (seats, floor, place, what each offers), the
 equipment, parking and cars, and the catering a booking can ask for. Whatever is no longer used is

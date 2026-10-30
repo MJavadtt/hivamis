@@ -114,4 +114,30 @@ describe('Booking a meeting', () => {
       action: 'reschedule', reason: 'مشتری دیرتر می‌رسد', payload: { startsAt: B.startsAt, endsAt: B.endsAt },
     }));
   });
+
+  it('lets the system administrator change a confirmed booking, saved as it stands and not sent again (ADR-110)', async () => {
+    const B = {
+      id: 'b2', code: 'BKG-000002', state: 'CONFIRMED', title: 'جلسهٔ قطعی', description: null, kind: 'INTERNAL',
+      startsAt: '2026-10-21T07:30:00.000Z', endsAt: '2026-10-21T08:30:00.000Z', placeNote: null, organizerId: 'u9', approverId: 'm1',
+      organizer: { id: 'u9', fullName: 'نیما فروزان' }, approver: { id: 'm1', fullName: 'سپیده آذر' }, room: ROOM, parking: null, parkingSpaces: 0,
+      project: null, company: null, meeting: { id: 'mt2', code: 'MTG-000005' }, resources: [], guests: [], catering: [], decisionNote: null, cancelReason: null,
+      editable: true, participants: [], availableTransitions: [],
+    };
+    const sent = mount('/bookings/b2', (p, method) => {
+      if (p === '/bookings/b2' && method === 'GET') return json(B);
+      if (p === '/bookings/b2' && method === 'PUT') return json({ ...B, title: 'جلسهٔ قطعیِ ویرایش‌شده' });
+      if (p === '/bookings/approvers') return json({ approvers: [{ id: 'm1', fullName: 'سپیده آذر' }], suggested: 'm1' });
+      if (p === '/bookings/availability') return json({ available: true, conflicts: [], freeRooms: [ROOM], suggestions: [] });
+      if (p === '/booking/catering' || p === '/people') return json([]);
+      return undefined;
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'ویرایش' }));
+    const editor = await screen.findByTestId('booking-editor');
+    expect(screen.queryByRole('button', { name: 'ذخیره و فرستادن برای تأیید' })).toBeNull();
+    fireEvent.change(within(editor).getAllByRole('textbox')[0]!, { target: { value: 'جلسهٔ قطعیِ ویرایش‌شده' } });
+    fireEvent.click(screen.getByRole('button', { name: 'ذخیره' }));
+    await waitFor(() => expect(sent.some((x) => x.path === '/bookings/b2' && x.method === 'PUT')).toBe(true));
+    expect(sent.find((x) => x.path === '/bookings/b2' && x.method === 'PUT')!.body).toMatchObject({ title: 'جلسهٔ قطعیِ ویرایش‌شده', roomId: 'r1' });
+    expect(sent.some((x) => x.path.startsWith('/workflow/booking/b2/transitions'))).toBe(false);
+  });
 });

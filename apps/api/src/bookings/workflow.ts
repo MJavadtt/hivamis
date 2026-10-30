@@ -119,7 +119,7 @@ export const BOOKING_GUARD_LABELS: Record<string, string> = {
 };
 
 /** The meeting a confirmed booking is, made once and kept in step with it. */
-async function meetingFor(tx: Tx, record: Record<string, any>, participantIds: string[], actorId: string): Promise<string> {
+export async function meetingFor(tx: Tx, record: Record<string, any>, participantIds: string[], actorId: string, reason = `رزرو ${record.code} دوباره قطعی شد`): Promise<string> {
   const [people, guests] = await Promise.all([
     tx.user.findMany({ where: { id: { in: [record.organizerId, ...participantIds] }, organizationId: record.organizationId }, select: { fullName: true } }),
     tx.bookingGuest.findMany({ where: { bookingId: record.id }, select: { fullName: true, company: true } }),
@@ -133,7 +133,7 @@ async function meetingFor(tx: Tx, record: Record<string, any>, participantIds: s
     const before = await tx.meeting.findUnique({ where: { id: record.meetingId } });
     if (before) {
       const after = await tx.meeting.update({ where: { id: before.id }, data: fields });
-      await audit({ organizationId: record.organizationId, actorId, action: 'UPDATE', entityType: 'meeting', entityId: after.id, before, after, reason: `رزرو ${record.code} دوباره قطعی شد` }, tx);
+      await audit({ organizationId: record.organizationId, actorId, action: 'UPDATE', entityType: 'meeting', entityId: after.id, before, after, reason }, tx);
       return after.id;
     }
   }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import { useAuth, useSystemAdmin } from '../lib/auth';
 import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, PAYMENT_METHODS, money } from '../components/Fx';
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
 import { AccountingTab } from '../components/AccountingExport';
@@ -12,7 +12,7 @@ import { Code, EntityList, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import {
-  Badge, Button, Card, DescRow, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile,
+  Badge, Button, Card, DescRow, EmptyState, ErrorBlock, IconPencil, LoadingBlock, StateBadge, StatTile,
   Table, Tabs, Td, Th, Tr,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, localDigits } from '../lib/format';
@@ -149,6 +149,10 @@ export function Finance() {
   const [issuing, setIssuing] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [taxFor, setTaxFor] = useState<string | null>(null);
+  // A draft by whoever issues invoices; any invoice by the system administrator (ADR-110).
+  const [editing, setEditing] = useState<string | null>(null);
+  const systemAdmin = useSystemAdmin();
+  const mayEdit = (i: { state: string }) => systemAdmin || (can('finance.invoice') && i.state === 'DRAFT');
   const { data: invoices, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['/invoices'], queryFn: () => apiGet('/invoices', { pageSize: 50 }),
   });
@@ -177,6 +181,7 @@ export function Finance() {
         <Tabs tabs={[{ key: 'docs', label: tr('اسناد و تراکنش‌ها') }, { key: 'moadian', label: tr('سامانهٔ مؤدیان') }, { key: 'accounting', label: tr('خروجی حسابداری') }, { key: 'rates', label: tr('نرخ ارز') }, { key: 'fx', label: tr('اثر نرخ ارز') }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
+      {editing && <NewInvoiceModal invoiceId={editing} onClose={() => setEditing(null)} />}
       {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
       {taxFor && <InvoiceTax invoiceId={taxFor} onClose={() => setTaxFor(null)} />}
       <PageBody className="space-y-5">
@@ -197,7 +202,7 @@ export function Finance() {
               {!invoices?.items.length ? <EmptyState title={tr('سندی صادر نشده')} /> : (
                 <Table>
                   <thead className="bg-ink-50/60">
-                    <tr><Th>{tr('شماره')}</Th><Th>{tr('نوع')}</Th><Th>{tr('مشتری')}</Th><Th>{tr('پروژه')}</Th><Th>{tr('صدور')}</Th><Th>{tr('سررسید')}</Th><Th>{tr('مبلغ')}</Th><Th>{tr('دریافتی')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('مؤدیان')}</Th></tr>
+                    <tr><Th>{tr('شماره')}</Th><Th>{tr('نوع')}</Th><Th>{tr('مشتری')}</Th><Th>{tr('پروژه')}</Th><Th>{tr('صدور')}</Th><Th>{tr('سررسید')}</Th><Th>{tr('مبلغ')}</Th><Th>{tr('دریافتی')}</Th><Th>{tr('وضعیت')}</Th><Th>{tr('مؤدیان')}</Th><Th className="w-10"><span className="sr-only">{tr('ویرایش')}</span></Th></tr>
                   </thead>
                   <tbody>
                     {invoices.items.map((i: any) => (
@@ -214,6 +219,7 @@ export function Finance() {
                         <Td>{i.kind === 'INVOICE' && i.state !== 'DRAFT' && (
                           <button type="button" onClick={() => setTaxFor(i.id)} aria-label={tr('مؤدیان {0}', i.number)}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
                         )}</Td>
+                        <Td>{mayEdit(i) && <Button size="sm" variant="ghost" aria-label={tr('ویرایش سند {0}', i.number)} title={tr('ویرایش')} onClick={() => setEditing(i.id)}><IconPencil className="size-4" /></Button>}</Td>
                       </Tr>
                     ))}
                   </tbody>

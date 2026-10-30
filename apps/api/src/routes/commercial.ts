@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
   createContractSchema, createAmendmentSchema, createInvoiceSchema,
-  createPaymentSchema, paginationSchema,
+  createPaymentSchema, paginationSchema, updateInvoiceSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { registerCrud } from '../lib/crud.js';
@@ -12,6 +12,7 @@ import { nextCode } from '../lib/codes.js';
 import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, settledEpsilon } from '../finance/fx.js';
 import { money, sumOf, toMoney, type Money } from '../lib/money.js';
 import { assertOwnReferences } from '../lib/scope.js';
+import { isSystemAdmin } from '../auth/grants.js';
 
 const commercialRoutes: FastifyPluginAsync = async (app) => {
   /* ── Contracts ───────────────────────────────────────────────────────── */
@@ -171,6 +172,83 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       ipAddress: actor.ipAddress, requestId: actor.requestId,
     });
     return reply.code(201).send(invoice);
+  });
+
+  /**
+   * Editing an invoice (the owner, 2026-10-30; ADR-110): its issuer while it is a draft, the system
+   * administrator in any state. What the books need holds for both: the totals are recomputed from the
+   * lines as when it was made; never below what has been received; no other currency once something
+   * was; nothing the tax system was sent while its answer is awaited; and once posted to the
+   * accounting export, not its amount, client, kind or date — that is a cancellation and a new invoice.
+   * A receipt moves the state, and so does a total that changes what the receipts settle.
+   */
+  app.patch('/invoices/:id', {
+    preHandler: [app.authenticate, app.requirePermissions('finance.invoice')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const input = parse(updateInvoiceSchema, req.body);
+    await assertOwnReferences('invoice', input, actor.organizationId);
+    return prisma.$transaction(async (tx) => {
+      const before = await tx.invoice.findFirst({ where: { id, organizationId: actor.organizationId }, include: { taxSubmissions: { select: { subject: true, status: true } } } });
+      if (!before) throw notFound('سند مالی');
+      const { taxSubmissions, ...was } = before;
+      if (was.state !== 'DRAFT' && !isSystemAdmin(actor)) {
+        throw new AppError(409, 'INVOICE_NOT_DRAFT', 'سند مالیِ صادرشده ویرایش نمی‌شود؛ فقط پیش‌نویس — یا مدیر سیستم.', { state: was.state });
+      }
+      // What the edit really changes: both sides read the same way — dates as instants, the rate as a number.
+      const held: Record<string, unknown> = { ...was, issueDate: was.issueDate.toISOString(), dueDate: was.dueDate?.toISOString() ?? null, taxPercent: Number(was.taxPercent) };
+      const sent: Record<string, unknown> = { ...input, issueDate: input.issueDate?.toISOString(), dueDate: input.dueDate === undefined ? undefined : input.dueDate?.toISOString() ?? null };
+      const changes = (k: keyof typeof input) => sent[k] !== undefined && JSON.stringify(sent[k]) !== JSON.stringify(held[k]);
+      const amounts = (['lines', 'taxPercent', 'currency', 'issueDate'] as const).some(changes);
+      const reported = amounts || (['companyId', 'number', 'kind'] as const).some(changes);
+      if (reported && taxSubmissions.some((s) => ['QUEUED', 'SENT'].includes(s.status))) {
+        throw new AppError(409, 'INVOICE_TAX_IN_FLIGHT', 'گزارش این سند به سامانهٔ مؤدیان در جریان است؛ پس از پاسخ سامانه ویرایشش کنید.');
+      }
+      if (was.accountingExportId && (amounts || (['companyId', 'kind'] as const).some(changes))) {
+        throw new AppError(409, 'INVOICE_POSTED', 'این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.');
+      }
+      const data: Record<string, unknown> = {};
+      for (const k of ['kind', 'number', 'companyId', 'projectId', 'contractId', 'dueDate', 'notes'] as const) if (input[k] !== undefined) data[k] = input[k];
+      if (amounts) {
+        const currency = input.currency ?? was.currency;
+        const paid = D(was.paidAmount);
+        if (currency !== was.currency && paid.gt(0)) {
+          throw new AppError(409, 'INVOICE_CURRENCY_PAID', 'برای این سند دریافتی ثبت شده است؛ ارزش دیگر عوض نمی‌شود.');
+        }
+        const lines = input.lines ?? (was.lines as { description: string; quantity: number; unitPrice: number }[]);
+        const taxPercent = input.taxPercent ?? Number(was.taxPercent);
+        const issueDate = input.issueDate ?? was.issueDate;
+        const subtotal = lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice)), D(0));
+        const taxAmount = subtotal.mul(taxPercent).div(100);
+        const fx = await convertMany(tx, actor.organizationId, currency, { subtotal, taxAmount }, issueDate);
+        const total = fx.base.subtotal.add(fx.base.taxAmount);
+        const originalTotal = fx.original ? fx.original.subtotal.add(fx.original.taxAmount) : null;
+        // What the receipts settle, in the invoice's own currency, against the new total.
+        const settled = originalTotal ? D(was.originalPaidAmount ?? 0) : paid;
+        const owed = originalTotal ?? total;
+        const eps = settledEpsilon(fx.currency);
+        if (settled.gt(owed.add(eps))) {
+          throw new AppError(409, 'INVOICE_BELOW_PAID', 'مبلغ تازهٔ سند از آنچه برایش دریافت شده کمتر است.', { paid: settled.toString(), total: owed.toString() });
+        }
+        Object.assign(data, {
+          issueDate, lines: lines as object, subtotal: fx.base.subtotal, taxPercent, taxAmount: fx.base.taxAmount, total,
+          currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate,
+          originalSubtotal: fx.original?.subtotal ?? null, originalTaxAmount: fx.original?.taxAmount ?? null, originalTotal,
+          ...(originalTotal ? { paidAmount: settled.mul(fx.fxRate).toDecimalPlaces(2) } : {}),
+        });
+        if (['PAID', 'PARTIALLY_PAID'].includes(was.state)) data.state = settled.gte(owed.sub(eps)) ? 'PAID' : settled.gt(0) ? 'PARTIALLY_PAID' : was.state;
+      }
+      const after = await tx.invoice.update({ where: { id }, data });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'invoice', entityId: id,
+        before: was, after, ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      // Accepted by the tax system and changed since: what was reported needs its correction («اصلاحی»).
+      const accepted = taxSubmissions.filter((s) => s.status === 'ACCEPTED');
+      const taxCorrectionDue = reported && accepted.length > 0 && !accepted.some((s) => s.subject === 'CANCELLATION');
+      return { ...after, taxCorrectionDue };
+    });
   });
 
   /* ── Payments ────────────────────────────────────────────────────────── */

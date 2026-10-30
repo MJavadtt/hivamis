@@ -6,7 +6,8 @@ import { nextCode } from '../lib/codes.js';
 import { assertOwnReferences } from '../lib/scope.js';
 import { allowedFor } from '../workflow/engine.js';
 import { seesAll, type BookingViewer } from './access.js';
-import { approverIds, mayApprove } from './workflow.js';
+import { approverIds, mayApprove, meetingFor } from './workflow.js';
+import { hold } from './holds.js';
 
 /**
  * A booking as its organiser writes it (audit F-9): saved whole, as a draft, until it is sent. Every
@@ -58,18 +59,25 @@ async function checkNames(tx: Tx, organizationId: string, organizerId: string, i
   return { people, parkingId, approverId };
 }
 
-/** Creates a draft, or replaces one the organiser may still change. */
-export async function saveDraft(actor: Actor, input: BookingDraft, existingId?: string) {
+/**
+ * Creates a draft, or replaces one the organiser may still change — or, for the system administrator
+ * (the owner, 2026-10-30; ADR-110), any booking at any stage. A change keeps what still stands: a
+ * participant who stays keeps their reply, a guest who stays their arrival; a booking that holds its
+ * room, things and people holds them again at what it now says — or the change is refused, as a
+ * confirmation would be — and its meeting follows it.
+ */
+export async function saveDraft(actor: Actor, input: BookingDraft, existingId?: string, opts: { systemAdmin?: boolean } = {}) {
   return prisma.$transaction(async (tx) => {
     const before = existingId
       ? await tx.booking.findFirst({ where: { id: existingId, organizationId: actor.organizationId }, include: { participants: true, resources: true, guests: true, catering: true } })
       : null;
     if (existingId && !before) throw notFound('رزرو');
-    if (before && before.organizerId !== actor.id) throw notFound('رزرو');
-    if (before && !EDITABLE.includes(before.state)) {
+    if (before && before.organizerId !== actor.id && !opts.systemAdmin) throw notFound('رزرو');
+    if (before && !EDITABLE.includes(before.state) && !opts.systemAdmin) {
       throw new AppError(409, 'NOT_EDITABLE', 'این رزرو دیگر پیش‌نویس نیست؛ برای زمان تازه «تغییر زمان» را بزنید.', { state: before.state });
     }
-    const { people, parkingId, approverId } = await checkNames(tx, actor.organizationId, actor.id, input);
+    const organizerId = before?.organizerId ?? actor.id;
+    const { people, parkingId, approverId } = await checkNames(tx, actor.organizationId, organizerId, input);
     const row = {
       title: input.title, description: input.description ?? null, kind: input.kind,
       startsAt: input.startsAt, endsAt: input.endsAt, roomId: input.roomId ?? null, placeNote: input.placeNote ?? null,
@@ -81,19 +89,40 @@ export async function saveDraft(actor: Actor, input: BookingDraft, existingId?: 
       : await tx.booking.create({ data: { ...row, organizationId: actor.organizationId, code: await nextCode(tx, 'booking'), organizerId: actor.id } });
     const of = { bookingId: booking.id, organizationId: actor.organizationId };
     if (before) {
-      await tx.bookingParticipant.deleteMany({ where: { bookingId: booking.id } });
+      await tx.bookingParticipant.deleteMany({ where: { bookingId: booking.id, userId: { notIn: people } } });
       await tx.bookingResource.deleteMany({ where: { bookingId: booking.id } });
-      await tx.bookingGuest.deleteMany({ where: { bookingId: booking.id } });
       await tx.bookingCatering.deleteMany({ where: { bookingId: booking.id } });
     }
-    if (people.length) await tx.bookingParticipant.createMany({ data: people.map((userId) => ({ ...of, userId })) });
+    const staying = new Set(before?.participants.map((p) => p.userId) ?? []);
+    const joining = people.filter((userId) => !staying.has(userId));
+    if (joining.length) await tx.bookingParticipant.createMany({ data: joining.map((userId) => ({ ...of, userId })) });
     if (input.resourceIds.length) await tx.bookingResource.createMany({ data: [...new Set(input.resourceIds)].map((resourceId) => ({ ...of, resourceId })) });
-    if (input.guests.length) await tx.bookingGuest.createMany({ data: input.guests.map((g) => ({ ...of, ...g, company: g.company ?? null, email: g.email ?? null, phone: g.phone ?? null })) });
+    // A guest is known by name: one who stays keeps their arrival, and what the form does not carry.
+    const guestsBefore = new Map((before?.guests ?? []).map((g) => [g.fullName.trim(), g]));
+    for (const g of input.guests) {
+      const was = guestsBefore.get(g.fullName.trim());
+      guestsBefore.delete(g.fullName.trim());
+      if (was) await tx.bookingGuest.update({ where: { id: was.id }, data: { company: g.company ?? null, isVip: g.isVip, email: g.email ?? was.email, phone: g.phone ?? was.phone } });
+      else await tx.bookingGuest.create({ data: { ...of, ...g, company: g.company ?? null, email: g.email ?? null, phone: g.phone ?? null } });
+    }
+    if (guestsBefore.size) await tx.bookingGuest.deleteMany({ where: { id: { in: [...guestsBefore.values()].map((g) => g.id) } } });
     if (input.catering.length) await tx.bookingCatering.createMany({ data: input.catering.map((c) => ({ ...of, optionId: c.optionId, quantity: c.quantity })) });
+    if (before) {
+      const holding = await tx.personHold.count({ where: { bookingId: booking.id, organizationId: actor.organizationId } });
+      if (holding) {
+        await hold(tx, {
+          id: booking.id, organizationId: actor.organizationId, startsAt: input.startsAt, endsAt: input.endsAt, roomId: input.roomId ?? null,
+          resourceIds: input.resourceIds, parkingId, parkingSpaces: input.parkingSpaces, personIds: [organizerId, ...people],
+        });
+      }
+      if (booking.meetingId) await meetingFor(tx, booking, people, actor.id, `رزرو ${booking.code} ویرایش شد`);
+    }
     const after = { ...booking, participantIds: people, resourceIds: input.resourceIds, guests: input.guests, catering: input.catering };
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: before ? 'UPDATE' : 'CREATE', entityType: 'booking', entityId: booking.id,
-      before: before ?? undefined, after, ipAddress: actor.ipAddress, requestId: actor.requestId,
+      before: before ?? undefined,
+      after: before && (before.organizerId !== actor.id || !EDITABLE.includes(before.state)) ? { ...after, asSystemAdministrator: true } : after,
+      ipAddress: actor.ipAddress, requestId: actor.requestId,
     }, tx);
     return booking;
   });
@@ -131,7 +160,7 @@ export async function bookingView(id: string, v: BookingViewer, db: Tx | typeof 
     participants: b.participants.map((p) => ({ userId: p.userId, fullName: p.user.fullName, response: p.response })),
     resources: b.resources.map((r) => r.resource),
     catering: b.catering.map((c) => ({ optionId: c.option.id, labelFa: c.option.labelFa, labelEn: c.option.labelEn, quantity: c.quantity })),
-    editable: EDITABLE.includes(b.state) && b.organizerId === v.id,
+    editable: (EDITABLE.includes(b.state) && b.organizerId === v.id) || !!v.systemAdmin,
     availableTransitions: movesFor(b, v),
   };
 }

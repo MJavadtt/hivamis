@@ -3797,5 +3797,11 @@
   "{0} ویرایش شد.": "{0} saved.",
   "ویرایش {0} — به‌عنوان مدیر سیستم": "Edit {0} — as system administrator",
   "هر بخش این رکورد را می‌توانید عوض کنید؛ فقط آنچه تغییر دادید ذخیره می‌شود و با نام شما در سابقه می‌ماند. وضعیت از «تغییر مستقیم وضعیت» عوض می‌شود.": "You can change any part of this record; only what you change is saved, and it stays in the history under your name. The status changes through «Change status directly».",
-  "جستجوی {0}": "Search {0}"
+  "جستجوی {0}": "Search {0}",
+  "سند مالی ویرایش شد. این سند در سامانهٔ مؤدیان پذیرفته شده بود؛ «اصلاحی» آن را بفرستید.": "Invoice saved. The tax system had accepted it: send its correction report.",
+  "سند مالی ویرایش شد.": "Invoice saved.",
+  "ویرایش سند مالی {0}": "Edit invoice {0}",
+  "این سند به خروجی حسابداری رفته است: مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود.": "This invoice has gone to the accounting export: its amount, client, kind and date no longer change.",
+  "رزرو ویرایش شد.": "Booking saved.",
+  "ویرایش سند {0}": "Edit invoice {0}"
 }

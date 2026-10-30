@@ -3195,5 +3195,11 @@
   "وضعیت «{0}» در فایل پروژه‌ها شناخته نشد": "Status «{0}» in the projects sheet was not recognised",
   "وضعیتش در فایل پروژه‌ها خالی بود": "Its status in the projects sheet was empty",
   "{0} ردیف فایل پروژه‌ها به پروژهٔ همان‌نامِ میزیتو پیوست": "{0} rows of the projects sheet joined the Mizito project of the same name",
-  "همکاران دیگر در میزیتو: {0}": "Other assignees in Mizito: {0}"
+  "همکاران دیگر در میزیتو: {0}": "Other assignees in Mizito: {0}",
+  "رزرو {0} ویرایش شد": "Booking {0} edited",
+  "سند مالیِ صادرشده ویرایش نمی‌شود؛ فقط پیش‌نویس — یا مدیر سیستم.": "An issued invoice is not edited — only a draft, or by the system administrator.",
+  "گزارش این سند به سامانهٔ مؤدیان در جریان است؛ پس از پاسخ سامانه ویرایشش کنید.": "This invoice's report to the tax system is under way; edit it once the system has answered.",
+  "این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.": "This invoice has gone to the accounting export; its amount, client, kind and date no longer change — cancel it and issue a new one.",
+  "برای این سند دریافتی ثبت شده است؛ ارزش دیگر عوض نمی‌شود.": "A receipt is recorded against this invoice; its currency no longer changes.",
+  "مبلغ تازهٔ سند از آنچه برایش دریافت شده کمتر است.": "The invoice's new amount is less than what has been received for it."
 }

@@ -3381,3 +3381,33 @@ brief's opportunity, a proposal's brief, a task's project and source).
 A reference must name a record of the same organisation. Every edit is an `UPDATE` audit row under the
 administrator, with the record before and after.
 
+---
+
+## ADR-110 — Invoices and bookings are edited too
+
+**Context.** The owner (2026-10-30), after ADR-109: "make invoices and bookings editable too." Neither is
+a `registerCrud` kind. An invoice had no edit at all; a booking's (`PUT /bookings/:id`) was its
+organiser's, while a draft, and replaced its participants, guests and catering whole.
+
+**Decision.**
+- **An invoice** (`PATCH /invoices/:id`, `updateInvoiceSchema`): a draft by whoever holds
+  `finance.invoice`, any state by the system administrator. Its totals are recomputed from the lines as
+  on creation, at the issue date's rate. What the books need holds for both, each refusal named: never
+  below what was received (`INVOICE_BELOW_PAID`); no other currency once something was
+  (`INVOICE_CURRENCY_PAID`); nothing reported while the tax system's answer is awaited
+  (`INVOICE_TAX_IN_FLIGHT`); once in the accounting export, not its amount, client, kind or date
+  (`INVOICE_POSTED` — that is a cancellation, whose reversal the export already writes, and a new
+  invoice). A paid or part-paid invoice's state follows the receipts against the new total, as a receipt
+  moves it. An edit of one the tax system accepted answers `taxCorrectionDue`, and the page says to send
+  the correction. The finance list gives each row the reader may edit a pencil, and the form is the one
+  that issues invoices, filled in.
+- **A booking**: the system administrator edits any booking at any stage (`editable` for them, the
+  organiser's `NOT_EDITABLE` and ownership not asked). A change keeps what still stands — a participant
+  who stays keeps their reply, a guest who stays (by name) their arrival and the details the form does
+  not carry — for everyone's edits, drafts included. A booking that holds its room, things and people
+  holds them again at its new values under the same locks and exclusion constraints as a confirmation,
+  or the change is refused (`BOOKING_CONFLICT`); its meeting follows (`meetingFor`). The editor of a
+  booking past its draft saves it where it stands, without sending it for approval again.
+- **Pickers past their first page.** `EntitySelect` (the forms' and the invoice form's) reads 200, offers
+  a search when there are more, and shows the record chosen whether or not the list reaches it.
+
