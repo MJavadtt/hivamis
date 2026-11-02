@@ -22,7 +22,7 @@ import { businessHoursBetween } from '../lib/business-calendar.js';
  */
 
 export type WorkKind =
-  | 'task' | 'workOrder' | 'qcUnit' | 'qcAccount' | 'qcFinal' | 'formApproval' | 'revision' | 'clarification';
+  | 'task' | 'workOrder' | 'qcUnit' | 'qcAccount' | 'qcFinal' | 'unitApproval' | 'formApproval' | 'revision' | 'clarification';
 
 export interface WorkItem {
   kind: WorkKind;
@@ -47,7 +47,7 @@ export interface WorkItem {
 }
 
 const KIND_LABEL: Record<WorkKind, string> = {
-  task: 'وظیفه', workOrder: 'سفارش کار', qcUnit: 'QC واحد', qcAccount: 'QC اکانت', qcFinal: 'QC نهایی',
+  task: 'وظیفه', workOrder: 'سفارش کار', qcUnit: 'QC واحد', qcAccount: 'QC اکانت', qcFinal: 'QC نهایی', unitApproval: 'تأیید مدیر رسانه',
   formApproval: 'تأیید فرم', revision: 'اصلاحیه', clarification: 'رفع ابهام',
 };
 
@@ -108,6 +108,10 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
       can('qc.final')
         ? prisma.proposal.findMany({ where: { organizationId: org, state: 'FINAL_QC' }, include: { brief: { select: { title: true } } }, orderBy: { createdAt: 'asc' }, take: over(QUEUE_CAP) })
         : Promise.resolve([]),
+      // The media unit's manager approves the proposals the unit worked on (the owner's «فرآیند محیطی»).
+      can('proposal.unit_approve') && (person.departmentCode === 'ME' || isSystemAdmin(person))
+        ? prisma.proposal.findMany({ where: { organizationId: org, state: 'UNIT_APPROVAL' }, include: { brief: { select: { title: true } } }, orderBy: { updatedAt: 'asc' }, take: over(QUEUE_CAP) })
+        : Promise.resolve([]),
       can('form.approve')
         ? prisma.formSubmission.findMany({
             // Every pending form waits for the system administrator; anyone else, those for their roles.
@@ -123,7 +127,7 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
       }),
     ]);
     const truncated = sources.some((rows) => rows.length > QUEUE_CAP);
-    const [tasks, orders, clarifications, unitQc, accountQc, finalQc, forms, revisions] = sources.map((rows) => rows.slice(0, QUEUE_CAP)) as typeof sources;
+    const [tasks, orders, clarifications, unitQc, accountQc, finalQc, unitApprovals, forms, revisions] = sources.map((rows) => rows.slice(0, QUEUE_CAP)) as typeof sources;
 
     const items: WorkItem[] = [
       ...tasks.map((t) => item('task', 'task', t.id, t.code, t.title, t.state, t.project, t.dueDate, `/tasks/${t.id}`)),
@@ -132,6 +136,7 @@ const myWorkRoutes: FastifyPluginAsync = async (app) => {
       ...unitQc.map((d) => item('qcUnit', 'deliverable', d.id, d.code, d.name, d.state, d.project, d.dueDate, '/qc')),
       ...accountQc.map((d) => item('qcAccount', 'deliverable', d.id, d.code, d.name, d.state, d.project, d.dueDate, '/qc')),
       ...finalQc.map((p) => item('qcFinal', 'proposal', p.id, p.code, p.brief?.title ?? p.code, p.state, null, null, `/proposals/${p.id}`)),
+      ...unitApprovals.map((p) => item('unitApproval', 'proposal', p.id, p.code, p.brief?.title ?? p.code, p.state, null, null, `/proposals/${p.id}`)),
       ...forms.map((f) => item('formApproval', 'formSubmission', f.id, f.code, f.definition.nameFa, f.state, f.project, null, '/forms')),
       ...revisions.map((r) => item('revision', 'revision', r.id, r.code, r.deliverable?.name ?? r.reason, r.state, r.deliverable?.project ?? null, r.dueDate, '/qc')),
     ];

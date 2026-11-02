@@ -30,7 +30,7 @@ const unitName = (code: string) => {
   return l ? (isEnglish() ? l.en : l.fa) : code;
 };
 const ORDER_STATES = ['SUBMITTED', 'CLARIFICATION_REQUESTED', 'ISSUED', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS'] as const;
-const PROPOSAL_STATES = ['DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'FINAL_QC', 'APPROVED'] as const;
+const PROPOSAL_STATES = ['DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'UNIT_APPROVAL', 'FINAL_QC', 'APPROVED'] as const;
 
 export function OperationsDesk() {
   const qc = useQueryClient();

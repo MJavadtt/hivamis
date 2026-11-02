@@ -140,6 +140,7 @@ export const STATE_LABELS: Record<string, { fa: string; tone: LabelTone }> = {
   UNDER_REVIEW: { fa: 'در حال بررسی', tone: 'progress' },
   UNDETERMINED: { fa: 'تعیین‌نشده', tone: 'neutral' },
   UNIT: { fa: 'واحد اجرایی', tone: 'neutral' },
+  UNIT_APPROVAL: { fa: 'تأیید مدیر رسانه', tone: 'warning' },
   UNIT_MANAGER_REVIEW: { fa: 'بررسی مدیر واحد', tone: 'progress' },
   URGENT: { fa: 'فوری', tone: 'neutral' },
   WON: { fa: 'برنده', tone: 'success' },

@@ -3201,5 +3201,17 @@
   "گزارش این سند به سامانهٔ مؤدیان در جریان است؛ پس از پاسخ سامانه ویرایشش کنید.": "This invoice's report to the tax system is under way; edit it once the system has answered.",
   "این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.": "This invoice has gone to the accounting export; its amount, client, kind and date no longer change — cancel it and issue a new one.",
   "برای این سند دریافتی ثبت شده است؛ ارزش دیگر عوض نمی‌شود.": "A receipt is recorded against this invoice; its currency no longer changes.",
-  "مبلغ تازهٔ سند از آنچه برایش دریافت شده کمتر است.": "The invoice's new amount is less than what has been received for it."
+  "مبلغ تازهٔ سند از آنچه برایش دریافت شده کمتر است.": "The invoice's new amount is less than what has been received for it.",
+  "تأیید مدیر رسانه": "Media manager's approval",
+  "تأیید پروپوزال به‌عنوان مدیر واحد رسانه": "Approve proposals as the media unit's manager",
+  "ارسال برای تأیید مدیر رسانه": "Send to the media manager",
+  "تأیید مدیر واحد رسانه": "Media manager approves",
+  "بازگشت برای بازبینی قیمت": "Return for repricing",
+  "فرآیند محیطی": "Out-of-home process",
+  "واحد رسانه روی این پروپوزال کاری نداشته است؛ آن را مستقیم به QC نهایی بفرستید.": "The media unit did no work on this proposal; send it straight to final QC.",
+  "واحد رسانه روی این پروپوزال کار کرده است؛ اول مدیر واحد رسانه باید آن را تأیید کند.": "The media unit worked on this proposal; its manager must approve it first.",
+  "این تأیید با مدیر واحد رسانه است.": "This approval is the media unit manager's.",
+  "واحد رسانه روی پروپوزال کار کرده باشد": "The media unit worked on the proposal",
+  "واحد رسانه روی پروپوزال کاری نداشته باشد (وگرنه اول تأیید مدیر رسانه)": "The media unit did no work on the proposal (otherwise the media manager approves first)",
+  "تأییدکننده مدیر واحد رسانه باشد": "The approver is the media unit's manager"
 }

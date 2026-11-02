@@ -507,6 +507,22 @@ export const GUIDE: GuideSection[] = [
     steps: listSteps(t('پروژه', 'project'), t('روی پروژه بزنید تا «پروژه ۳۶۰» باز شود: همه چیز یک پروژه در یک صفحه.', 'Click a project to open Project 360: everything about a project on one page.')),
   },
   {
+    id: 'ooh', route: '^/projects/[^/]+/ooh', permission: 'project.read', manual: 'Account',
+    title: t('مسیر اجرای محیطی', 'The out-of-home journey'),
+    summary: t('اجرای یک کمپین محیطی در شش گام: مجوز شروع، سفارش اجرا به واحد محیطی، طرح اکران، و گزارش‌های شروع، دوره‌ای و پایان اکران با تأیید مشتری.',
+      'Carrying out an out-of-home campaign in six steps: the go-ahead, the execution order to the out-of-home unit, the display artwork, and the start, periodic and end reports with the client\'s approval.'),
+    keywords: 'محیطی بیلبورد اکران طرح اکران آتلیه ری‌سایز گزارش اکران out-of-home billboard display artwork resize report',
+    steps: [
+      step('[data-tour="journey"]', t('گام‌ها', 'The steps'), t('گام‌های انجام‌شده تیک دارند و گامی که اکنون نوبت آن است پررنگ است.', 'Steps that are done are ticked, and the one to do now is in bold.')),
+      step('[data-tour="ooh-order"]', t('سفارش اجرا', 'The execution order'), t('سفارش اجرا با پروپوزال قراردادشده به واحد محیطی می‌رود. شروع و پایان اکران و فاصلهٔ گزارش‌های دوره‌ای را بنویسید تا گزارش‌ها با مهلتشان ساخته شوند.',
+        'The execution order goes to the out-of-home unit with the contracted proposal. Set the display\'s start and end and how often it is reported on, and the reports are made with their deadlines.')),
+      step('[data-tour="ooh-art"]', t('طرح اکران', 'The display artwork'), t('چه کسی طرح را آماده یا ری‌سایز می‌کند — آتلیهٔ هیوا، صاحب رسانه، یا خود مشتری. پس از تأیید مشتری، فایل‌ها با یک دکمه به واحد محیطی می‌رسند؛ اگر مشتری تأیید نکند، دوباره انتخاب می‌کنید.',
+        'Who prepares or resizes the artwork — Hiva\'s studio, the media owner, or the client. Once the client approves, one button sends the files to the out-of-home unit; if the client does not, you choose again.')),
+      step('[data-tour="ooh-periodic"]', t('گزارش‌های اکران', 'Display reports'), t('واحد محیطی عکس‌ها و فایل هر گزارش را می‌گذارد، اکانت بررسی می‌کند و برای تأیید مشتری می‌فرستد. گزارش دوره‌ای دیگری هم می‌شود افزود.',
+        'The out-of-home unit adds each report\'s photos and file, Account checks it and sends it for the client\'s approval. Another periodic report can be added.')),
+    ],
+  },
+  {
     id: 'project', route: '^/projects/[^/]+', permission: 'project.read', manual: 'Account',
     title: t('پروژه ۳۶۰', 'Project 360'),
     summary: t('همه چیز یک پروژه در یک صفحه: اجرا، زمان‌بندی، کیفیت، حاکمیت، مالی، رسانه، مشتری و بستن پروژه.',

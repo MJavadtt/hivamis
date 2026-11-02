@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEPARTMENT_CODES, DEPARTMENT_LABELS, PRIORITY_LEVELS, stateLabelFa, type DepartmentCode } from '@hiva/contracts';
+import { DEPARTMENT_CODES, DEPARTMENT_LABELS, type DepartmentCode } from '@hiva/contracts';
 import { apiGet, apiPost, type Page } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatCurrency, formatDate, localDigits } from '../lib/format';
@@ -10,6 +10,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { JourneySteps, StepSection, type JourneyStep } from '../components/Journey';
 import { StageProgress, placeOn } from '../components/StageProgress';
 import { JalaliDateInput } from '../components/JalaliDateInput';
+import { UnitOrderForm } from '../components/UnitOrderForm';
 import { WorkflowActions } from '../components/common';
 import { ReturnNote, StagePill } from '../components/WorkCard';
 import { Button, EmptyState, ErrorBlock, Field, Input, LoadingBlock, Select, Textarea, useToast } from '../components/ui';
@@ -44,7 +45,6 @@ interface Order {
   id: string; code: string; title: string; state: string; targetDepartmentCode: DepartmentCode; proposalId: string | null;
   deadline: string | null; owner: { fullName: string } | null; availableTransitions: Transition[];
 }
-interface Person { id: string; fullName: string; jobTitle: string | null; department: { code: string } | null }
 
 const unitName = (code: string) => {
   const l = DEPARTMENT_LABELS[code as DepartmentCode];
@@ -55,7 +55,7 @@ const MAKERS = DEPARTMENT_CODES.filter((d) => !['M', 'OP', 'FI', 'LG', 'A', 'S']
 
 /** How far a proposal has come, as an index on its road (−1 before one exists). */
 const along = (state: string | undefined) => (state ? placeOn('proposal', state).at : -1);
-const AT = { DRAFT: 0, AWAITING: 1, INTEGRATION: 2, APPROVED: 5, DELIVERED: 6 } as const;
+const AT = { DRAFT: 0, AWAITING: 1, INTEGRATION: 2, APPROVED: 6, DELIVERED: 7 } as const;
 
 /** In one sentence, what the brief is waiting for. */
 export function nextFor(brief: { state: string }, proposal?: { state: string }): string {
@@ -69,6 +69,7 @@ export function nextFor(brief: { state: string }, proposal?: { state: string }):
     case 'AWAITING_UNIT_OUTPUTS': return tr('منتظر خروجی و هزینهٔ واحدها.');
     case 'INTEGRATION': return tr('خروجی‌ها رسیده است؛ یکپارچه کنید و به قیمت‌گذاری بفرستید.');
     case 'PRICING': return tr('قیمت فروش را تعیین کنید و به QC نهایی بفرستید.');
+    case 'UNIT_APPROVAL': return tr('منتظر تأیید مدیر واحد رسانه است.');
     case 'FINAL_QC': return tr('در QC نهایی است.');
     case 'APPROVED': return tr('تأیید نهایی شده؛ آن را به فروش تحویل دهید.');
     case 'DELIVERED_TO_SALES': return tr('به فروش تحویل شد؛ فروش آن را به مشتری ارائه می‌کند.');
@@ -168,7 +169,8 @@ export function AccountJourney() {
   const b = brief.data;
   const p = latest ? proposal.data : undefined;
   const at = along(p?.state);
-  const mine = (orders.data?.items ?? []).filter((o) => !o.proposalId || o.proposalId === p?.id).filter((o) => o.state !== 'CANCELLED');
+  // The proposal's own orders; an execution order made later for the project is the execution path's (ADR-120).
+  const mine = (orders.data?.items ?? []).filter((o) => !!p && o.proposalId === p.id).filter((o) => o.state !== 'CANCELLED');
   const approved = b.state === 'APPROVED';
   const steps: JourneyStep[] = [
     { key: 'review', label: tr('بررسی بریف'), done: approved },
@@ -225,13 +227,13 @@ export function AccountJourney() {
         <StepSection n={5} tour="proposal-finish" title={tr('یکپارچه‌سازی، قیمت و QC نهایی')} done={steps[4]!.done}
           hint={tr('خروجی‌ها در یک پروپوزال جمع می‌شوند، قیمت فروش با دلیلش تعیین و به تأیید مقام مجاز می‌رسد، و QC نهایی آن را می‌پذیرد.')}>
           {!p || at < AT.INTEGRATION ? <p className="text-sm text-ink-500">{tr('پس از رسیدن و پذیرش خروجی همهٔ واحدها.')}</p>
-            : <FinishProposal proposal={p} onDone={refresh} />}
+            : <FinishProposal proposal={p} media={mine.some((o) => o.proposalId === p.id && o.targetDepartmentCode === 'ME')} onDone={refresh} />}
         </StepSection>
 
         <StepSection n={6} tour="deliver" title={tr('تحویل به فروش')} done={steps[5]!.done}
           hint={tr('پروپوزال تأییدشده به فروش تحویل می‌شود تا به مشتری ارائه کند. پاسخ مشتری همین‌جا دیده می‌شود.')}>
           {!p || at < AT.APPROVED ? <p className="text-sm text-ink-500">{tr('پس از تأیید نهایی پروپوزال.')}</p>
-            : <Deliver proposal={p} project={project} onDone={refresh} />}
+            : <Deliver proposal={p} project={project} media={mine.some((o) => o.targetDepartmentCode === 'ME')} onDone={refresh} />}
         </StepSection>
       </PageBody>
     </>
@@ -368,54 +370,14 @@ function UnitOrders({ brief: b, project, proposal: p, orders, onDone }: { brief:
 
 /** The order's nine parts, filled from the brief where it already says them. */
 function OrderForm({ unit, brief: b, project, proposal: p, onClose, onDone }: { unit: DepartmentCode; brief: Brief; project: ProjectRow; proposal: Proposal; onClose: () => void; onDone: () => void }) {
-  const people = useQuery<Person[]>({ queryKey: ['/people', ''], queryFn: () => apiGet('/people') });
-  const inUnit = (people.data ?? []).filter((x) => x.department?.code === unit);
-  const toast = useToast();
-  const [v, setV] = useState({
-    title: tr('{0} — {1}', unitName(unit), project.name),
-    scopeOfWork: b.scope ?? '',
-    brief: [b.businessObjective, b.targetAudience && tr('مخاطب: {0}', b.targetAudience)].filter(Boolean).join('\n'),
-    expectedOutput: b.expectedDeliverables ?? '', outputFormat: '',
-    deadline: (project.plannedEnd ?? b.desiredDeadline ?? '').slice(0, 10), ownerId: '', priority: 'NORMAL',
-  });
-  const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof v, value: string) => setV((x) => ({ ...x, [k]: value }));
-  const ready = v.title.trim().length >= 2 && v.scopeOfWork.trim().length >= 2 && v.brief.trim().length >= 2 && v.expectedOutput.trim().length >= 2 && !!v.outputFormat.trim() && !!v.deadline && !!v.ownerId;
-  const save = async () => {
-    setBusy(true);
-    try {
-      await apiPost('/work-orders', {
-        projectId: project.id, proposalId: p.id, targetDepartmentCode: unit, title: v.title.trim(), scopeOfWork: v.scopeOfWork.trim(), brief: v.brief.trim(),
-        expectedOutput: v.expectedOutput.trim(), outputFormat: v.outputFormat.trim(), deadline: v.deadline, ownerId: v.ownerId, priority: v.priority,
-      });
-      toast(tr('سفارش نوشته شد. با «صدور سفارش» به واحد می‌رسد.'));
-      onClose(); onDone();
-    } catch (e: any) { toast(e?.message ?? tr('ذخیره ناموفق بود.'), 'danger'); } finally { setBusy(false); }
-  };
   return (
-    <div className="mt-2 grid gap-3 rounded-lg bg-surface p-3 ring-1 ring-edge sm:grid-cols-2" data-testid="order-form">
-      <div className="sm:col-span-2"><Field label={tr('عنوان سفارش')} required><Input value={v.title} onChange={(e) => set('title', e.target.value)} aria-label={tr('عنوان سفارش')} /></Field></div>
-      <Field label={tr('چه کاری باید انجام شود؟')} required><Textarea value={v.scopeOfWork} onChange={(e) => set('scopeOfWork', e.target.value)} rows={2} aria-label={tr('شرح کار')} /></Field>
-      <Field label={tr('برای چه؟ (بریف واحد)')} required><Textarea value={v.brief} onChange={(e) => set('brief', e.target.value)} rows={2} aria-label={tr('بریف واحد')} /></Field>
-      <Field label={tr('چه چیزی تحویل می‌دهد؟')} required><Textarea value={v.expectedOutput} onChange={(e) => set('expectedOutput', e.target.value)} rows={2} aria-label={tr('خروجی مورد انتظار')} /></Field>
-      <Field label={tr('در چه قالبی؟')} required hint={tr('مثلاً: فایل لایه‌باز و PDF')}><Input value={v.outputFormat} onChange={(e) => set('outputFormat', e.target.value)} aria-label={tr('قالب خروجی')} /></Field>
-      <Field label={tr('تا کی؟')} required><JalaliDateInput mode="date" value={v.deadline || null} onChange={(d) => set('deadline', d)} label={tr('مهلت سفارش')} /></Field>
-      <Field label={tr('مسئول در واحد')} required>
-        <Select value={v.ownerId} onChange={(e) => set('ownerId', e.target.value)} aria-label={tr('مسئول سفارش')}>
-          <option value="">{tr('— برگزینید —')}</option>
-          {(inUnit.length ? inUnit : people.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.jobTitle ? `${x.fullName} — ${x.jobTitle}` : x.fullName}</option>)}
-        </Select>
-      </Field>
-      <Field label={tr('فوریت')}>
-        <Select value={v.priority} onChange={(e) => set('priority', e.target.value)} aria-label={tr('فوریت سفارش')}>
-          {PRIORITY_LEVELS.map((l) => <option key={l} value={l}>{trx(stateLabelFa(l))}</option>)}
-        </Select>
-      </Field>
-      <div className="sm:col-span-2 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
-        <Button variant="primary" loading={busy} disabled={!ready} onClick={() => void save()}>{tr('ذخیرهٔ سفارش')}</Button>
-      </div>
-    </div>
+    <UnitOrderForm unit={unit} projectId={project.id} proposalId={p.id} onClose={onClose} onDone={onDone} defaults={{
+      title: tr('{0} — {1}', unitName(unit), project.name),
+      scopeOfWork: b.scope ?? '',
+      brief: [b.businessObjective, b.targetAudience && tr('مخاطب: {0}', b.targetAudience)].filter(Boolean).join('\n'),
+      expectedOutput: b.expectedDeliverables ?? '',
+      deadline: (project.plannedEnd ?? b.desiredDeadline ?? '').slice(0, 10),
+    }} />
   );
 }
 
@@ -455,10 +417,13 @@ function UnitOutputs({ proposal: p, orders, onDone }: { proposal: Proposal; orde
   );
 }
 
-function FinishProposal({ proposal: p, onDone }: { proposal: Proposal; onDone: () => void }) {
+function FinishProposal({ proposal: p, media, onDone }: { proposal: Proposal; media: boolean; onDone: () => void }) {
   const { can } = useAuth();
   const finalQc = p.qcReviews.find((q) => q.level === 'FINAL');
-  const move = along(p.state) < AT.APPROVED || p.state === 'CLIENT_REVISION_REQUESTED' ? forwardMove(p.availableTransitions) : null;
+  // After pricing, a proposal the media unit worked on goes to that unit's manager; any other, to final QC.
+  const options = p.state === 'PRICING' ? p.availableTransitions.filter((t) => t.action === (media ? 'send_to_unit_approval' : 'send_to_final_qc')) : p.availableTransitions;
+  const moves = p.state === 'UNIT_APPROVAL' ? p.availableTransitions
+    : [along(p.state) < AT.APPROVED || p.state === 'CLIENT_REVISION_REQUESTED' ? forwardMove(options) : null].filter((m): m is Transition => !!m);
   return (
     <div className="space-y-3">
       <StageProgress inline entity="proposal" state={p.state} transitions={p.availableTransitions} />
@@ -470,13 +435,14 @@ function FinishProposal({ proposal: p, onDone }: { proposal: Proposal; onDone: (
       </dl>
       <div className="flex flex-wrap items-center gap-2">
         {p.state === 'PRICING' && can('pricing.set_price') && <Link to={`/proposals/${p.id}`}><Button variant="secondary">{tr('تعیین قیمت در صفحهٔ پروپوزال')}</Button></Link>}
-        {move && <WorkflowActions minimal entity="proposal" id={p.id} transitions={[move]} onDone={onDone} />}
+        {!!moves.length && <WorkflowActions minimal entity="proposal" id={p.id} transitions={moves} onDone={onDone} />}
       </div>
+      {p.state === 'UNIT_APPROVAL' && <p className="text-sm text-ink-600">{tr('واحد رسانه روی این پروپوزال کار کرده است؛ مدیر آن واحد قیمت و محتوا را تأیید می‌کند یا با دلیل برای بازبینی قیمت برمی‌گرداند.')}</p>}
     </div>
   );
 }
 
-function Deliver({ proposal: p, project, onDone }: { proposal: Proposal; project?: ProjectRow; onDone: () => void }) {
+function Deliver({ proposal: p, project, media, onDone }: { proposal: Proposal; project?: ProjectRow; media: boolean; onDone: () => void }) {
   const move = p.state === 'APPROVED' ? forwardMove(p.availableTransitions) : null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -484,6 +450,7 @@ function Deliver({ proposal: p, project, onDone }: { proposal: Proposal; project
       <div className="flex gap-2">
         {move && <WorkflowActions minimal entity="proposal" id={p.id} transitions={[move]} onDone={onDone} />}
         {p.state === 'CLIENT_APPROVED' && project && <Link to={`/projects/${project.id}`}><Button variant="secondary">{tr('رفتن به پروژه')}</Button></Link>}
+        {p.state === 'CLIENT_APPROVED' && project && media && <Link to={`/projects/${project.id}/ooh`}><Button variant="primary">{tr('مسیر اجرای محیطی')}</Button></Link>}
       </div>
     </div>
   );

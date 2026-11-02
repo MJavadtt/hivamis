@@ -26,7 +26,7 @@ const GENERIC: Record<string, Stage> = {
   // Waiting: handed in, and someone else is to look at it or decide.
   SUBMITTED: 'waiting', IN_QC: 'waiting', UNDER_REVIEW: 'waiting', PENDING_APPROVAL: 'waiting', LEGAL_REVIEW: 'waiting', SCOPE_REVIEW: 'waiting',
   COMMERCIAL_REVIEW: 'waiting', PENDING_CUSTOMER_APPROVAL: 'waiting', PENDING_AUTHORIZATION: 'waiting', PENDING_SIGNATURE: 'waiting',
-  UNIT_MANAGER_REVIEW: 'waiting', MANAGEMENT_REVIEW: 'waiting', FINAL_QC: 'waiting', PENDING_CLOSURE: 'waiting', CLOSURE_PENDING: 'waiting',
+  UNIT_MANAGER_REVIEW: 'waiting', MANAGEMENT_REVIEW: 'waiting', UNIT_APPROVAL: 'waiting', FINAL_QC: 'waiting', PENDING_CLOSURE: 'waiting', CLOSURE_PENDING: 'waiting',
   DELIVERED_TO_SALES: 'waiting', PRESENTED_TO_CLIENT: 'waiting',
   // Stopped.
   BLOCKED: 'stopped', ON_HOLD: 'stopped',
@@ -81,7 +81,7 @@ export interface WorkItem {
 export interface Transition { action: string; labelFa: string; labelEn: string; requiresReason: boolean; to: string }
 
 /** Work that asks the person for a decision on someone else's: they read, and approve or send back. */
-const DECISIONS = new Set(['formApproval', 'qcUnit', 'qcAccount', 'qcFinal']);
+const DECISIONS = new Set(['formApproval', 'qcUnit', 'qcAccount', 'qcFinal', 'unitApproval']);
 export const isDecision = (i: WorkItem) => DECISIONS.has(i.kind);
 
 /** How a person sorts their own work: what came back, what is late, what is theirs to decide, the rest. */
@@ -108,6 +108,7 @@ export function whatToDo(i: WorkItem): string {
     case 'qcUnit': return tr('همکارتان خروجی را تحویل داده است. بررسی کنید و تأیید یا برای اصلاح برگردانید.');
     case 'qcAccount': return tr('خروجی برای کنترل کیفیت اکانت آمده است. بررسی کنید و تأیید یا برگشت دهید.');
     case 'qcFinal': return tr('پروپوزال برای بررسی نهایی آمده است. بررسی کنید و تصمیم بگیرید.');
+    case 'unitApproval': return tr('پروپوزالی که واحد رسانه رویش کار کرده منتظر تأیید شماست. قیمت و محتوا را ببینید؛ تأیید کنید یا با دلیل برگردانید.');
     case 'clarification': return tr('واحد اجرا دربارهٔ این سفارش سؤال دارد. پاسخ دهید تا کار ادامه پیدا کند.');
     case 'revision': return i.state === 'IN_PROGRESS'
       ? tr('اصلاح را تمام کنید و دوباره تحویل دهید.')

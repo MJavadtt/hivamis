@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  DEPARTMENT_CODES, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
+  DEPARTMENT_CODES, DELIVERABLE_KINDS, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
   BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS,
@@ -379,6 +379,9 @@ export const updateTaskSchema = createTaskSchema.partial().omit({ projectId: tru
 export const createDeliverableSchema = z.object({
   projectId: idSchema,
   proposalId: idSchema.optional(),
+  /** The unit's order it is made under: its unit sees it there. */
+  workOrderId: idSchema.optional(),
+  kind: z.enum(DELIVERABLE_KINDS).optional(),
   name: z.string().trim().min(2).max(200),
   description: z.string().trim().max(4000).optional(),
   departmentCode: z.enum(DEPARTMENT_CODES),

@@ -50,6 +50,10 @@ export function briefCompleteness(brief: Record<string, any>): { score: number; 
  * Guard registry. Each guard encodes one Doc_H governance rule that RBAC alone cannot express.
  * The workflow engine refuses the transition when a guard returns `ok: false`.
  */
+/** A proposal's orders to the media unit that still stand. */
+const mediaOrders = (tx: Tx, proposalId: string) =>
+  tx.workOrder.count({ where: { proposalId, targetDepartmentCode: 'ME', state: { not: 'CANCELLED' } } });
+
 export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> = {
   /** Doc_H control point A / cycle 1 — an incomplete brief may not be approved. */
   'brief.isComplete': async ({ record }) => {
@@ -131,6 +135,25 @@ export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> =
           rule: 'Doc_H §E — قیمت‌گذاری',
           messageFa: 'قیمت فروش تعیین نشده است؛ ابتدا فرآیند Pricing را تکمیل کنید.',
         },
+
+  /**
+   * The owner's «فرآیند محیطی» (2026-11-02): a proposal the media unit worked on — an order to the unit
+   * that was not cancelled — is approved by that unit's manager after pricing; one it did not, is not.
+   */
+  'proposal.hasMediaWork': async ({ tx, id }) =>
+    (await mediaOrders(tx, id)) > 0
+      ? pass
+      : { ok: false, rule: 'فرآیند محیطی', messageFa: 'واحد رسانه روی این پروپوزال کاری نداشته است؛ آن را مستقیم به QC نهایی بفرستید.' },
+  'proposal.noMediaWork': async ({ tx, id }) =>
+    (await mediaOrders(tx, id)) === 0
+      ? pass
+      : { ok: false, rule: 'فرآیند محیطی', messageFa: 'واحد رسانه روی این پروپوزال کار کرده است؛ اول مدیر واحد رسانه باید آن را تأیید کند.' },
+  'proposal.byMediaManager': async ({ tx, actorId }) => {
+    const actor = await tx.user.findUnique({ where: { id: actorId }, select: { department: { select: { code: true } } } });
+    return actor?.department?.code === 'ME'
+      ? pass
+      : { ok: false, rule: 'فرآیند محیطی', messageFa: 'این تأیید با مدیر واحد رسانه است.' };
+  },
 
   /** Doc_H §9 level 3 — the proposal cannot be approved without a passing Final QC. */
   'proposal.finalQcPassed': async ({ tx, id }) => {
@@ -532,6 +555,9 @@ export const GUARD_LABELS: Record<string, string> = {
   'proposal.allCostsDeclared': 'همهٔ واحدها قیمت تمام‌شده را اعلام کرده باشند',
   'proposal.pricingComplete': 'قیمت‌گذاری تکمیل شده باشد',
   'proposal.finalQcPassed': 'QC نهایی با نتیجهٔ قبول ثبت شده باشد',
+  'proposal.hasMediaWork': 'واحد رسانه روی پروپوزال کار کرده باشد',
+  'proposal.noMediaWork': 'واحد رسانه روی پروپوزال کاری نداشته باشد (وگرنه اول تأیید مدیر رسانه)',
+  'proposal.byMediaManager': 'تأییدکننده مدیر واحد رسانه باشد',
   'proposal.pricingApproved': 'قیمت فروش به تأیید مدیریت رسیده باشد',
   'project.hasValidAuthorizationBasis': 'مبنای مجوز (قرارداد، پیش‌پرداخت یا تأییدیهٔ مدیریت) معتبر باشد',
   'project.isAuthorized': 'مجوز شروع پروژه صادر شده باشد',

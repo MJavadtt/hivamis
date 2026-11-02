@@ -3650,3 +3650,43 @@ named client is checked with `assertOwnReferences` before anything is made: anot
 client answers `422 UNKNOWN_REFERENCE`, exactly as a client that does not exist (SEC-12), and the lead
 stays as it was. With no client named, a new one is made in the caller's organisation, as before.
 Test 082.
+
+---
+
+## ADR-120 — The out-of-home process: the media manager's approval and the execution journey
+
+**Context.** The owner's «فرآیند محیطی» (2026-11-02) breaks the out-of-home unit's work into steps. Its
+sales part — brief, order to the unit, the unit's proposal checked and priced, the proposal approved
+and handed to Sales with its margin, sent back for changes — is the account journey (ADR-114); it left
+open who approves the proposal, and the owner answered: the media unit's manager too. Its execution
+part — contract and go-ahead, the execution order with the contracted proposal, the display artwork
+(who resizes it: Hiva's studio, the media owner, or the client; the client's approval; back to the
+choice if refused; the files to the unit), and the start, periodic and end-of-display reports each sent
+for the client's approval — had pieces in the system but no path through them. In the organisation the
+out-of-home unit is the media unit (ME) and the studio («آتلیه») the creative unit (CR).
+
+**Decision.**
+- **The media manager's approval.** The proposal gains a state, `UNIT_APPROVAL`, between `PRICING` and
+  `FINAL_QC` (migration `20261102120000_ooh_process` widens its check). A proposal with a standing order
+  to the media unit goes there (`send_to_unit_approval`, guard `proposal.hasMediaWork`) and cannot skip
+  it (`send_to_final_qc` now guards `proposal.noMediaWork`); others go to final QC as before. Approving
+  (`unit_approve`) and sending back for repricing with a reason (`unit_return`) need the new permission
+  `proposal.unit_approve` (given to `UNIT_MANAGER`) and the guard `proposal.byMediaManager` — the actor
+  is in the media unit — so another unit's manager, or a full-access role, cannot stand in. The item
+  waits in the media manager's `/me/work` (kind `unitApproval`). An organisation that edited its
+  `UNIT_MANAGER` grants adds the permission by hand.
+- **What a deliverable is.** `deliverables.kind` (nullable; `OOH_ARTWORK`, `OOH_START_REPORT`,
+  `OOH_PERIODIC_REPORT`, `OOH_END_REPORT`, checked in the database) and `workOrderId` are accepted on
+  create, so the artwork and reports are told apart and sit under the order their unit sees.
+- **«مسیر اجرای محیطی»** (`/projects/:id/ooh`, from Project 360 and the account journey once the client
+  approved): the go-ahead (ADR-116); the execution order — the media unit's order made for the project
+  rather than its proposal — through the shared `UnitOrderForm`; the display's dates and report
+  interval turned into report deliverables (`reportPlan`); the artwork as one `OOH_ARTWORK` deliverable
+  whose unit says who prepares it (CR with its own studio order, ME under the execution order, A for the
+  client's own files), changed when the client refuses; its files handed to the unit as a task on the
+  execution order (`deliverableId`, the order's owner); each report through its own road to the client's
+  approval (`ClientApprovalsPanel`), and periodic reports added at will.
+
+**Limits.** The margin table Sales receives is the proposal's own cost, price and margin, as before. A
+client's own artwork needs no client approval and is handed over once its files are in. Switching the
+artwork from the studio or media owner to the client keeps its earlier order link.

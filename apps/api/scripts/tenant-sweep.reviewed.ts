@@ -237,6 +237,9 @@ export const REVIEWED: Record<string, Verdict> = {
     "workflow/guards.ts#'deliverable.accountQcPassed'",
     "workflow/guards.ts#'invoice.taxCancellationFiled'",
     "workflow/guards.ts#'mediaOrder.bookedByMediaOrAccount'",
+    // The proposal's own orders to the media unit, and the acting person's own unit (ADR-120).
+    "workflow/guards.ts#mediaOrders",
+    "workflow/guards.ts#'proposal.byMediaManager'",
     "workflow/guards.ts#'opportunity.hasApprovedProposal'",
     "workflow/guards.ts#'project.allDeliverablesAccepted'",
     "workflow/guards.ts#'project.closureChecklistComplete'",

@@ -177,6 +177,9 @@ export function ProjectDetail() {
         }
         actions={
           <>
+            {(data.workOrders.some((w: any) => w.targetDepartmentCode === 'ME') || data.deliverables.some((d: any) => d.kind?.startsWith('OOH_'))) && (
+              <Link to={`/projects/${p.id}/ooh`}><Button variant="primary">{tr('مسیر اجرای محیطی')}</Button></Link>
+            )}
             <PdfButton kind="project" id={p.id} label={tr('پرونده پروژه')} />
             <PdfBundleButton kind="project" id={p.id} />
             <RecordHistory entityType="project" entityId={p.id} />

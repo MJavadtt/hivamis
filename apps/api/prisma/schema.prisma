@@ -1065,6 +1065,8 @@ model Deliverable {
   name              String
   description       String?
   departmentCode    String
+  /// OOH_ARTWORK, OOH_START_REPORT, OOH_PERIODIC_REPORT, OOH_END_REPORT — or none (DELIVERABLE_KINDS).
+  kind              String?
   format            String?
   version           String     @default("v1")
   dueDate           DateTime?

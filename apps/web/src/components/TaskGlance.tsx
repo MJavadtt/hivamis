@@ -1,13 +1,11 @@
-import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiBlob, apiGet, apiUpload } from '../lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { localDigits } from '../lib/format';
 import { forwardMove, stageOf, whatToDo, type Transition } from '../lib/plain';
 import { WorkflowActions } from './common';
 import { DueText, ReturnNote, StagePill } from './WorkCard';
-import { Button, useToast } from './ui';
+import { DeliverableFiles } from './DeliverableFiles';
 import { tr } from '../i18n';
 
 /**
@@ -23,46 +21,16 @@ interface Task {
 }
 interface Order { id: string; scopeOfWork: string; brief: string; expectedOutput: string; outputFormat: string; owner: { fullName: string } | null; project: { company: { legalName: string } | null } | null }
 interface Person { id: string; fullName: string; jobTitle: string | null }
-interface DocumentRow { id: string; fileName: string; mimeType: string }
-
-async function openPreview(id: string) {
-  const url = URL.createObjectURL(await apiBlob(`/documents/${id}/preview`));
-  window.open(url, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
 
 export function TaskGlance({ task: t, onDone }: { task: Task; onDone?: () => void }) {
   const { can } = useAuth();
-  const toast = useToast();
-  const qc = useQueryClient();
   const order = useQuery<Order>({ queryKey: [`/work-orders/${t.workOrder?.id}`], queryFn: () => apiGet(`/work-orders/${t.workOrder!.id}`), enabled: !!t.workOrder && can('workorder.read') });
   const people = useQuery<Person[]>({ queryKey: ['/people', ''], queryFn: () => apiGet('/people') });
-  const files = useQuery<DocumentRow[]>({
-    queryKey: ['/documents', { deliverableId: t.deliverableId }], queryFn: () => apiGet('/documents', { deliverableId: t.deliverableId! }), enabled: !!t.deliverableId && can('document.read'),
-  });
-  const picker = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const asker = people.data?.find((p) => p.id === t.createdById);
   const o = order.data;
   const move = forwardMove(t.availableTransitions);
   const returned = stageOf(t.state, 'task') === 'returned';
 
-  const upload = async (list: FileList | null) => {
-    if (!list?.length || !t.deliverableId) return;
-    setUploading(true);
-    let failed = 0;
-    for (const f of Array.from(list)) {
-      const fd = new FormData();
-      // The field before the file: the server reads fields that arrive ahead of the stream.
-      fd.append('deliverableId', t.deliverableId);
-      fd.append('file', f, f.name);
-      try { await apiUpload('/documents', fd); } catch { failed += 1; }
-    }
-    setUploading(false);
-    if (picker.current) picker.current.value = '';
-    await qc.invalidateQueries({ queryKey: ['/documents'] });
-    toast(failed ? tr('{0} فایل نرسید؛ دوباره بفرستید.', localDigits(failed)) : tr('فایل‌ها کنار خروجی گذاشته شد.'), failed ? 'danger' : 'success');
-  };
 
   const rows: [string, React.ReactNode][] = [
     [tr('چه خواسته شده'), o?.scopeOfWork || t.description || t.title],
@@ -97,20 +65,8 @@ export function TaskGlance({ task: t, onDone }: { task: Task; onDone?: () => voi
 
       {t.deliverableId && (
         <div className="mt-3" data-testid="task-files">
-          <p className="text-xs text-ink-500">{tr('فایل‌های خروجی')}</p>
-          {!files.data?.length ? <p className="mt-1 text-sm text-ink-500">{tr('هنوز فایلی گذاشته نشده است.')}</p> : (
-            <ul className="mt-1 flex flex-wrap gap-2">
-              {files.data.map((f) => (
-                <li key={f.id}><button type="button" onClick={() => void openPreview(f.id)} className="rounded-full bg-ink-50 px-3 py-1 text-xs text-brand-700 ring-1 ring-ink-200 hover:underline">{f.fileName}</button></li>
-              ))}
-            </ul>
-          )}
-          {can('document.write') && (
-            <>
-              <input ref={picker} type="file" multiple className="hidden" onChange={(e) => void upload(e.target.files)} aria-label={tr('گذاشتن فایل خروجی')} />
-              <Button size="sm" variant="secondary" className="mt-2" loading={uploading} onClick={() => picker.current?.click()}>{tr('گذاشتن فایل خروجی')}</Button>
-            </>
-          )}
+          <p className="mb-1 text-xs text-ink-500">{tr('فایل‌های خروجی')}</p>
+          <DeliverableFiles deliverableId={t.deliverableId} />
         </div>
       )}
 

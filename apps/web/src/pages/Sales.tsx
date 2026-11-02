@@ -181,7 +181,7 @@ export function ProposalsList() {
             options: [
               { value: 'DRAFT', label: tr('پیش‌نویس') }, { value: 'AWAITING_UNIT_OUTPUTS', label: tr('در انتظار واحدها') },
               { value: 'INTEGRATION', label: tr('یکپارچه‌سازی') }, { value: 'PRICING', label: tr('قیمت‌گذاری') },
-              { value: 'FINAL_QC', label: tr('QC نهایی') }, { value: 'APPROVED', label: tr('تأییدشده') },
+              { value: 'UNIT_APPROVAL', label: tr('تأیید مدیر رسانه') }, { value: 'FINAL_QC', label: tr('QC نهایی') }, { value: 'APPROVED', label: tr('تأییدشده') },
               { value: 'DELIVERED_TO_SALES', label: tr('تحویل به فروش') },
               { value: 'PRESENTED_TO_CLIENT', label: tr('ارائه به مشتری') },
               { value: 'CLIENT_APPROVED', label: tr('تأیید مشتری') }, { value: 'CLIENT_REJECTED', label: tr('رد مشتری') },

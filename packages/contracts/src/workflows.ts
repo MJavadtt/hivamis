@@ -93,7 +93,7 @@ export const PROPOSAL_WORKFLOW: WorkflowDef = {
   labelFa: 'پروپوزال',
   initial: 'DRAFT',
   states: [
-    'DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'FINAL_QC', 'APPROVED',
+    'DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'UNIT_APPROVAL', 'FINAL_QC', 'APPROVED',
     'DELIVERED_TO_SALES', 'PRESENTED_TO_CLIENT', 'CLIENT_REVISION_REQUESTED', 'CLIENT_APPROVED', 'CLIENT_REJECTED',
   ],
   terminal: ['CLIENT_APPROVED', 'CLIENT_REJECTED'],
@@ -101,7 +101,11 @@ export const PROPOSAL_WORKFLOW: WorkflowDef = {
     { from: ['DRAFT'], to: 'AWAITING_UNIT_OUTPUTS', action: 'dispatch_orders', labelFa: 'ارسال سفارش به واحدها', labelEn: 'Dispatch unit orders', permission: 'workorder.issue' },
     { from: ['AWAITING_UNIT_OUTPUTS'], to: 'INTEGRATION', action: 'integrate', labelFa: 'یکپارچه‌سازی خروجی‌ها', labelEn: 'Integrate outputs', permission: 'proposal.integrate', guards: ['proposal.allUnitOutputsAccepted'], startsSla: 'SLA_INTEGRATION' },
     { from: ['INTEGRATION'], to: 'PRICING', action: 'send_to_pricing', labelFa: 'ارسال به قیمت‌گذاری', labelEn: 'Send to pricing', permission: 'pricing.set_price', guards: ['proposal.allCostsDeclared'], stopsSla: ['SLA_INTEGRATION'], startsSla: 'SLA_PRICING' },
-    { from: ['PRICING'], to: 'FINAL_QC', action: 'send_to_final_qc', labelFa: 'ارسال به QC نهایی', labelEn: 'Send to Final QC', permission: 'pricing.set_price', guards: ['proposal.pricingComplete'], stopsSla: ['SLA_PRICING'], startsSla: 'SLA_FINAL_QC' },
+    { from: ['PRICING'], to: 'FINAL_QC', action: 'send_to_final_qc', labelFa: 'ارسال به QC نهایی', labelEn: 'Send to Final QC', permission: 'pricing.set_price', guards: ['proposal.pricingComplete', 'proposal.noMediaWork'], stopsSla: ['SLA_PRICING'], startsSla: 'SLA_FINAL_QC' },
+    // The owner's «فرآیند محیطی» (2026-11-02): a proposal the media unit worked on is approved by that unit's manager too, after pricing.
+    { from: ['PRICING'], to: 'UNIT_APPROVAL', action: 'send_to_unit_approval', labelFa: 'ارسال برای تأیید مدیر رسانه', labelEn: 'Send to the media manager', permission: 'pricing.set_price', guards: ['proposal.pricingComplete', 'proposal.hasMediaWork'], stopsSla: ['SLA_PRICING'] },
+    { from: ['UNIT_APPROVAL'], to: 'FINAL_QC', action: 'unit_approve', labelFa: 'تأیید مدیر واحد رسانه', labelEn: 'Media manager approves', permission: 'proposal.unit_approve', guards: ['proposal.byMediaManager'], startsSla: 'SLA_FINAL_QC' },
+    { from: ['UNIT_APPROVAL'], to: 'PRICING', action: 'unit_return', labelFa: 'بازگشت برای بازبینی قیمت', labelEn: 'Return for repricing', permission: 'proposal.unit_approve', guards: ['proposal.byMediaManager'], requiresReason: true, startsSla: 'SLA_PRICING' },
     { from: ['FINAL_QC'], to: 'INTEGRATION', action: 'final_qc_reject', labelFa: 'رد در QC نهایی', labelEn: 'Final QC rejected', permission: 'qc.final', requiresReason: true, stopsSla: ['SLA_FINAL_QC'] },
     { from: ['FINAL_QC'], to: 'APPROVED', action: 'approve', labelFa: 'تأیید نهایی پروپوزال', labelEn: 'Approve proposal', permission: 'qc.final', guards: ['proposal.finalQcPassed', 'proposal.pricingApproved'], stopsSla: ['SLA_FINAL_QC'] },
     { from: ['APPROVED'], to: 'DELIVERED_TO_SALES', action: 'deliver_to_sales', labelFa: 'تحویل به فروش', labelEn: 'Deliver to Sales', permission: 'proposal.deliver_to_sales', startsSla: 'SLA_PROPOSAL_HANDOVER' },

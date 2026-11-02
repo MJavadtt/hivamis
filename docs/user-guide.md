@@ -215,6 +215,23 @@ deadline, who is responsible, filled from the brief where it already says them �
 send back what each unit hands in, beside the cost it declared; integrate, price and pass final QC; and
 hand the proposal to Sales, where the client's answer then shows.
 
+**A proposal the media unit worked on.** After pricing, a proposal with an order to the media
+(out-of-home) unit goes to that unit's manager — **ارسال برای تأیید مدیر رسانه** — before final QC. Only
+the media unit's manager approves it (**تأیید مدیر واحد رسانه**) or sends it back for repricing with a
+reason; it waits in their **کارهای من**. A proposal the media unit did not work on goes to final QC as
+before.
+
+**Out-of-home campaigns — «مسیر اجرای محیطی».** On a project the media unit works on, Project 360 has
+a **مسیر اجرای محیطی** button: six steps from the go-ahead to the end-of-display report. Write the
+execution order to the out-of-home unit (filled from the contracted proposal) and set the display's
+start, end and how often it is reported on — the start, periodic and end reports are made with their
+deadlines, under that order. For the display artwork, choose who prepares or resizes it: Hiva's studio
+(its order is written right there), the media owner (through the out-of-home unit), or the client (send
+them the structures' dimensions, then add the files they send). The studio's or media owner's version
+goes to the client for approval; if the client does not approve, choose again. Once ready, **ارسال
+فایل‌ها برای واحد محیطی** gives the unit a task with the files. Each report the unit hands in is checked
+and sent for the client's approval; another periodic report can be added at any time.
+
 1. **Brief control** — open the brief and review it. If it is incomplete, use *بازگشت بریف ناقص*
    with a reason; it goes back to Sales and the return is counted. Approve only a complete brief —
    the system will refuse otherwise.

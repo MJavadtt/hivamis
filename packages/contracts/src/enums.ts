@@ -114,7 +114,7 @@ export type BriefState = (typeof BRIEF_STATES)[number];
 
 /** Doc_H stages D, E, F — integration → pricing → final QC → sales → customer. */
 export const PROPOSAL_STATES = [
-  'DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'FINAL_QC',
+  'DRAFT', 'AWAITING_UNIT_OUTPUTS', 'INTEGRATION', 'PRICING', 'UNIT_APPROVAL', 'FINAL_QC',
   'APPROVED', 'DELIVERED_TO_SALES', 'PRESENTED_TO_CLIENT',
   'CLIENT_REVISION_REQUESTED', 'CLIENT_APPROVED', 'CLIENT_REJECTED',
 ] as const;
@@ -143,6 +143,14 @@ export const TASK_STATES = [
   'SUBMITTED', 'IN_QC', 'REVISION_REQUIRED', 'APPROVED', 'CLOSED', 'CANCELLED',
 ] as const;
 export type TaskState = (typeof TASK_STATES)[number];
+
+/**
+ * What a deliverable is, where the process needs to tell (owner's «فرآیند محیطی», 2026-11-02): the artwork
+ * an out-of-home display runs, and the reports at its start, during it and at its end. Most deliverables
+ * have none.
+ */
+export const DELIVERABLE_KINDS = ['OOH_ARTWORK', 'OOH_START_REPORT', 'OOH_PERIODIC_REPORT', 'OOH_END_REPORT'] as const;
+export type DeliverableKind = (typeof DELIVERABLE_KINDS)[number];
 
 export const DELIVERABLE_STATES = [
   'PLANNED', 'IN_PROGRESS', 'SUBMITTED', 'IN_QC',

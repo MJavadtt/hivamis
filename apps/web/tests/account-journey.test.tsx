@@ -145,6 +145,19 @@ describe('A brief’s account journey', () => {
     expect(within(orders).getByRole('button', { name: 'ارسال سفارش به واحدها' })).toBeTruthy();
   });
 
+  it('after pricing, sends a proposal the media unit worked on to that unit’s manager, not to final QC', async () => {
+    mount(<AccountJourney />, '/account/journey/b-1', (p) => {
+      if (p === '/briefs/b-1') return BRIEF({ proposals: [{ id: 'p-1', code: 'PRP-000003', title: 'پروپوزال', state: 'PRICING', version: 1 }] });
+      if (p === '/proposals/p-1') return PROPOSAL({ state: 'PRICING', salePrice: '100', availableTransitions: [move('send_to_final_qc', 'ارسال به QC نهایی'), move('send_to_unit_approval', 'ارسال برای تأیید مدیر رسانه')] });
+      if (p === '/projects') return page([PROJECT]);
+      if (p === '/work-orders') return page([{ id: 'w-m', code: 'WO-000013', title: 'بیلبورد', state: 'COMPLETED', targetDepartmentCode: 'ME', proposalId: 'p-1', deadline: null, owner: null, availableTransitions: [] }]);
+      return undefined;
+    });
+    const finish = await screen.findByRole('region', { name: 'یکپارچه‌سازی، قیمت و QC نهایی' });
+    expect(await within(finish).findByRole('button', { name: 'ارسال برای تأیید مدیر رسانه' })).toBeTruthy();
+    expect(within(finish).queryByRole('button', { name: 'ارسال به QC نهایی' })).toBeNull();
+  });
+
   it('shows what each unit handed in and what it cost, to accept or send back', async () => {
     mount(<AccountJourney />, '/account/journey/b-1', (p) => {
       if (p === '/briefs/b-1') return BRIEF({ proposals: [{ id: 'p-1', code: 'PRP-000003', title: 'پروپوزال', state: 'AWAITING_UNIT_OUTPUTS', version: 1 }] });
