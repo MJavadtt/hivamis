@@ -15,6 +15,7 @@ import Onboarding from './pages/Onboarding';
 import Assistant from './pages/Assistant';
 import { ProjectDetail, ProjectsList } from './pages/Projects';
 import { CompaniesList, CompanyDetail, LeadsList, OpportunitiesList, OpportunityDetail } from './pages/Crm';
+import { CustomerJourney, NewCustomer } from './pages/SalesJourney';
 import { BriefDetail, BriefsList, ProposalDetail, ProposalsList } from './pages/Sales';
 import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
@@ -115,6 +116,8 @@ export default function App() {
         <Route path="/people/:id" element={<PersonPage />} />
 
         <Route path="/leads" element={<Guarded permission="crm.lead.read" element={<LeadsList />} />} />
+        <Route path="/sales/new" element={<Guarded permission="crm.lead.write" anyOf={['crm.company.write']} element={<NewCustomer />} />} />
+        <Route path="/sales/journey/:companyId" element={<Guarded permission="crm.company.read" element={<CustomerJourney />} />} />
         <Route path="/opportunities" element={<Guarded permission="crm.opportunity.read" element={<OpportunitiesList />} />} />
         <Route path="/opportunities/:id" element={<Guarded permission="crm.opportunity.read" element={<OpportunityDetail />} />} />
         <Route path="/companies" element={<Guarded permission="crm.company.read" element={<CompaniesList />} />} />

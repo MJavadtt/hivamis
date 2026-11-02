@@ -162,6 +162,16 @@ and desktop apps, not in Telegram Web.
 
 **Your loop: acquire → qualify → brief → present → close.**
 
+**The guided way.** **ثبت مشتری تازه** in the menu takes a new customer in three short parts — who it
+is (name and line of business), the people you are in touch with (as many as needed; the first is the
+main contact and needs a mobile), and where it came from — and saves the client, its contacts and its
+lead together, with no estimated value to guess. It then opens the customer's **مسیر فروش** (also a
+button on every client's page), four numbered steps on one page: the customer and its contacts; each
+call, meeting or visit with whom, where, what was said and when to follow up, newest first; making it
+a sale and writing the brief in plain questions; and sending the brief to Account. If Account sends it
+back, that step says who did and why, and offers to send it again. Converting a lead from the leads
+list now asks which client it is for, choosing the client already on file under the same name.
+
 1. **Leads** — record a new lead, then move it Contact → Qualify. Converting creates the
    opportunity and, if needed, the customer record. A lead needs its **تلفن همراه**; type it any
    way (۰۹۱۲…, +98…, with spaces) and it is kept as 09xxxxxxxxx. If the number is already a lead or

@@ -66,6 +66,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('CRM و فروش'),
     items: [
+      { to: '/sales/new', label: tr('ثبت مشتری تازه'), icon: IconUsers, permission: 'crm.lead.write', anyOf: ['crm.company.write'] },
       { to: '/leads', label: tr('سرنخ‌ها'), icon: IconUsers, permission: 'crm.lead.read' },
       { to: '/opportunities', label: tr('فرصت‌های فروش'), icon: IconBriefcase, permission: 'crm.opportunity.read' },
       { to: '/companies', label: tr('مشتریان'), icon: IconUsers, permission: 'crm.company.read' },

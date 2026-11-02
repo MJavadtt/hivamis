@@ -3468,3 +3468,36 @@ ended or the record is cancelled. It shows under the header of each of those pag
 responsible where the record names one. The roads are a reading of the declared workflows, kept beside
 them; the engine still decides every move.
 
+
+---
+
+## ADR-113 — A customer's sales journey, step by step
+
+**Context.** The owner's brief (2026-11-02) asks for the sales process as a guided journey: register a
+customer with several contacts, its source and introducer and no estimated value; record each meeting
+and follow-up (with whom, where, a summary, the next date); turn it into a sale and write the brief;
+send it for review, with a plain word on what happens next and on anything sent back. Until now these
+were five pages — leads, clients, a client's activities tab, opportunities, briefs — and the order
+between them was the salesperson's to know.
+
+**Decision.** Two pages, frontend only, writing through the routes the CRM already has:
+- **«ثبت مشتری تازه»** (`/sales/new`, needs `crm.lead.write` and `crm.company.write`): the customer,
+  any number of contacts and the lead's two-step source. Saving makes the lead (`POST /leads` — the
+  main contact's mobile, checked while typed against `/leads/duplicates` as on the lead form), then the
+  client (`POST /companies`), then each contact (`POST /contacts`, the first primary). A save that stops
+  half-way remembers what it already made, so trying again does not make it twice. A client already on
+  file under the same name is pointed to.
+- **«مسیر فروش»** (`/sales/journey/:companyId`, from the new-customer page and a button on every
+  client's page): `JourneySteps` (customer → follow-ups → sale and brief → sent) over four numbered
+  sections. Follow-ups are activities (`POST /activities`); the brief is `POST /briefs` asked as plain
+  questions; the lead moves through its own workflow (`WorkflowActions minimal`) and converts with
+  `POST /leads/:id/convert` naming this same client; the brief is sent with its own forward move, and a
+  returned brief shows who returned it and why (`ReturnNote`).
+- Converting a lead from the leads list now asks which client it is for, defaulting to the one on file
+  under the same name, instead of always making a new client.
+
+**Limits, said rather than worked around.** An activity has no contact, place or attachment field, so
+the follow-up form writes «با: …» and «محل: …» at the head of its summary. A lead does not name its
+client until it is converted, so the journey finds an unconverted lead by its company name. The brief
+form asks the main questions; the brief's own page keeps the rest (competitors, constraints, success
+criteria) and its completeness score.

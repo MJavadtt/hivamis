@@ -12,7 +12,7 @@ import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
 import {
   Badge, Button, Card, DescRow, EmptyState, ErrorBlock, Field, Input, LoadingBlock,
-  Modal, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
+  Modal, Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
 import { LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, leadSourceFa, normalizeIranMobile } from '@hiva/contracts';
@@ -183,6 +183,14 @@ function LeadModal({ onClose }: { onClose: () => void }) {
 function ConvertModal({ lead, onClose }: { lead: any; onClose: () => void }) {
   const [title, setTitle] = useState(tr('فرصت — {0}', lead.companyName));
   const [value, setValue] = useState(String(lead.estimatedValue ?? ''));
+  // The client it becomes a sale for: one already on file under the same name, or a new one.
+  const clients = useQuery<{ items: { id: string; legalName: string; brandName: string | null }[] }>({
+    queryKey: ['/companies', 'convert', lead.companyName],
+    queryFn: () => apiGet('/companies', { q: lead.companyName, pageSize: '10' }),
+  });
+  const [companyId, setCompanyId] = useState<string | null>(lead.companyId ?? null);
+  const exact = clients.data?.items.find((c) => [c.legalName, c.brandName].some((n) => n?.trim() === lead.companyName.trim()));
+  const chosen = companyId ?? exact?.id ?? '';
   const navigate = useNavigate();
   const convert = useAction(
     (body: unknown) => apiPost<{ id: string }>(`/leads/${lead.id}/convert`, body),
@@ -190,7 +198,7 @@ function ConvertModal({ lead, onClose }: { lead: any; onClose: () => void }) {
   );
 
   const submit = async () => {
-    const opp = await convert.mutateAsync({ title, estimatedValue: value ? Number(value) : undefined });
+    const opp = await convert.mutateAsync({ title, estimatedValue: value ? Number(value) : undefined, companyId: chosen || undefined });
     onClose();
     navigate(`/opportunities/${(opp as any).id}`);
   };
@@ -205,8 +213,13 @@ function ConvertModal({ lead, onClose }: { lead: any; onClose: () => void }) {
         </>
       }
     >
-      <p className="mb-3 text-xs text-ink-500">{tr('در صورت نبود مشتری متناظر، رکورد مشتری به‌صورت خودکار ایجاد می‌شود.')}</p>
       <div className="space-y-4">
+        <Field label={tr('برای کدام مشتری؟')} hint={chosen ? undefined : tr('مشتری تازه‌ای به نام «{0}» ساخته می‌شود.', lead.companyName)}>
+          <Select value={chosen} onChange={(e) => setCompanyId(e.target.value)} aria-label={tr('مشتری فرصت')}>
+            <option value="">{tr('مشتری تازه: {0}', lead.companyName)}</option>
+            {clients.data?.items.map((c) => <option key={c.id} value={c.id}>{c.legalName}{c.brandName ? ` (${c.brandName})` : ''}</option>)}
+          </Select>
+        </Field>
         <Field label={tr('عنوان فرصت')} required><Input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
         <Field label={tr('ارزش تخمینی (ریال)')}><Input type="number" value={value} onChange={(e) => setValue(e.target.value)} className="ltr" /></Field>
       </div>
@@ -366,6 +379,7 @@ export function CompanyDetail() {
         )}
         actions={
           <>
+            <Link to={`/sales/journey/${c.id}`}><Button variant="primary">{tr('مسیر فروش')}</Button></Link>
             <EditRecordButton path="/companies" id={c.id} />
             <PdfButton kind="company" id={c.id} label={tr('پرونده مشتری')} />
             <PdfBundleButton kind="company" id={c.id} />
