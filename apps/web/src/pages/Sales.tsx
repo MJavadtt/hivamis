@@ -64,6 +64,7 @@ export function BriefsList() {
 
 export function BriefDetail() {
   const { id } = useParams<{ id: string }>();
+  const { canAny } = useAuth();
   const { data, isLoading, error, refetch } = useQuery<any>({
     queryKey: [`/briefs/${id}`], queryFn: () => apiGet(`/briefs/${id}`), enabled: !!id,
   });
@@ -83,6 +84,7 @@ export function BriefDetail() {
           {data.opportunity && <Link to={`/opportunities/${data.opportunity.id}`} className="text-brand-600 hover:underline">{data.opportunity.title}</Link>}</span>}
         actions={
           <>
+            {canAny('brief.review', 'proposal.write') && <Link to={`/account/journey/${data.id}`}><Button variant="primary">{tr('مسیر اکانت')}</Button></Link>}
             <PdfButton kind="brief" id={data.id} />
             <PdfBundleButton kind="brief" id={data.id} />
             <WorkflowActions entity="brief" id={data.id} transitions={data.availableTransitions} />
@@ -205,7 +207,7 @@ export function ProposalsList() {
 export function ProposalDetail() {
   const { id } = useParams<{ id: string }>();
   const [pricing, setPricing] = useState(false);
-  const { can } = useAuth();
+  const { can, canAny } = useAuth();
 
   const { data, isLoading, error, refetch } = useQuery<any>({
     queryKey: [`/proposals/${id}`], queryFn: () => apiGet(`/proposals/${id}`), enabled: !!id,
@@ -238,6 +240,7 @@ export function ProposalDetail() {
             {can('pricing.approve') && data.salePrice && !data.pricingApprovedAt && (
               <Button variant="primary" loading={approvePricing.isPending} onClick={() => approvePricing.mutate(undefined)}>{tr('تأیید قیمت‌گذاری')}</Button>
             )}
+            {data.brief && canAny('brief.review', 'proposal.write') && <Link to={`/account/journey/${data.brief.id}`}><Button variant="ghost">{tr('مسیر اکانت')}</Button></Link>}
             <PdfButton kind="proposal" id={data.id} />
             <PdfBundleButton kind="proposal" id={data.id} />
             <WorkflowActions entity="proposal" id={data.id} transitions={data.availableTransitions} />

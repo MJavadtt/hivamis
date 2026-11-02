@@ -3501,3 +3501,33 @@ the follow-up form writes «با: …» and «محل: …» at the head of its s
 client until it is converted, so the journey finds an unconverted lead by its company name. The brief
 form asks the main questions; the brief's own page keeps the rest (competitors, constraints, success
 criteria) and its completeness score.
+
+---
+
+## ADR-114 — Account's part of a sale, step by step
+
+**Context.** The owner's brief (2026-11-02) asks for a step-by-step account-management process with a
+progress indicator. Account's work on a sale ran across the brief, proposal, project and work-order
+pages, and — outside the system administrator's direct-create forms (ADR-109) — the web app had no way
+to open a project, a proposal or a work order at all, though the API has always offered all three to
+Account (`project.write`, `proposal.write`, `workorder.issue`).
+
+**Decision.** Two pages, frontend only, through the existing routes and moves:
+- **«میز اکانت»** (`/account`, for `brief.review` or `proposal.write`): every brief past draft, grouped by
+  what it waits for — review, in Account's hands, with Sales and the client, sent back — each with one
+  plain sentence (`nextFor`) read from the brief's state and its latest proposal's.
+- **«مسیر اکانت»** (`/account/journey/:briefId`, from the desk and the brief and proposal pages): six
+  `StepSection`s — the brief's facts and gaps with its own moves (approve, or return with a reason);
+  `POST /projects` and `POST /proposals` together, filled from the brief; one `POST /work-orders` per unit
+  the brief names (or another chosen), its required parts filled from the brief and its owner chosen from
+  the unit's people, then issued by its own move; each unit's handed-in output with its declared cost,
+  accepted or sent back by the order's own moves; the proposal's figures, final QC and next move; and the
+  hand-over to Sales with the client's answer.
+- `forwardMove` (ADR-111) now also treats `reopen`, `request_revision`, `client_request_revision`,
+  `escalate` and `expire` as moves away from the obvious next step: a handed-in work order's main
+  button had been «بازگشت برای اصلاح».
+
+**Limits, said rather than worked around.** A project names its brief but the project list cannot be
+filtered by it, so the page reads the client's projects and picks the brief's. Pricing keeps its own
+dialog on the proposal page, where its rule (who may set, who may approve) is explained; the journey
+links to it.

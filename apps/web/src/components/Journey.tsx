@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { localDigits } from '../lib/format';
 import { cx } from './ui';
 import { tr } from '../i18n';
@@ -17,8 +17,17 @@ export const currentStep = (steps: JourneyStep[]) => steps.findIndex((s) => !s.d
 
 export function JourneySteps({ steps }: { steps: JourneyStep[] }) {
   const now = currentStep(steps);
+  const list = useRef<HTMLOListElement>(null);
+  // On a narrow screen the steps scroll: the one to do now is brought into view.
+  useEffect(() => {
+    const el = list.current;
+    const here = el?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (el && here && el.scrollWidth > el.clientWidth) {
+      el.scrollLeft += here.getBoundingClientRect().left - el.getBoundingClientRect().left - el.clientWidth / 2 + here.clientWidth / 2;
+    }
+  }, [now]);
   return (
-    <ol className="flex gap-1 overflow-x-auto rounded-xl bg-surface px-3 py-3 ring-1 ring-edge" aria-label={tr('گام‌ها')} data-testid="journey-steps" data-tour="journey">
+    <ol ref={list} className="flex gap-1 overflow-x-auto rounded-xl bg-surface px-3 py-3 ring-1 ring-edge" aria-label={tr('گام‌ها')} data-testid="journey-steps" data-tour="journey">
       {steps.map((s, i) => (
         <li key={s.key} aria-current={i === now ? 'step' : undefined}
           className={cx('flex min-w-[7rem] flex-1 flex-col items-center gap-1 text-center text-[12.5px] leading-5',

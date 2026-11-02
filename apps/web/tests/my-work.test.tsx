@@ -6,7 +6,7 @@ import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
 import { markSignedIn, setAccessToken } from '../src/lib/api';
 import MyWork from '../src/pages/MyWork';
-import { groupOf, stageOf, whatToDo } from '../src/lib/plain';
+import { forwardMove, groupOf, stageOf, whatToDo } from '../src/lib/plain';
 
 /**
  * The owner's brief (2026-11-02): a person sees what to do, not how the system works. Each piece of
@@ -87,6 +87,11 @@ describe('My work, in plain words', () => {
     const own = { ...queue.items[4]!, availableTransitions: [{ action: 'send_to_qc', labelFa: 'ارسال به کنترل کیفیت', labelEn: 'Send to QC', requiresReason: false, to: 'IN_QC' }] };
     expect(groupOf(own as never)).toBe('todo');
     expect(whatToDo(own as never)).toBe('تحویل داده شده و گام بعد با شماست: «ارسال به کنترل کیفیت».');
+    // Sending handed-in work back is a choice beside the way forward, never the way forward itself.
+    const t = (action: string) => ({ action, labelFa: action, labelEn: action, requiresReason: false, to: 'X' });
+    expect(forwardMove([t('reopen'), t('complete')])?.action).toBe('complete');
+    expect(forwardMove([t('client_request_revision'), t('client_approve')])?.action).toBe('client_approve');
+    expect(forwardMove([t('escalate'), t('expire')])).toBeNull();
   });
 
   it('says in one sentence how the day looks, and sorts the work as a person would', async () => {

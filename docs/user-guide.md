@@ -200,6 +200,16 @@ Doc_H §2 separates these loops, and the permission model enforces it.
 
 **Your loop: receive brief → coordinate → integrate → price → deliver → run the project.**
 
+**The guided way.** **میز اکانت** in the menu lists every brief that has reached Account under what
+it waits for — new briefs to review, those in Account's hands, those with Sales and the client, those
+sent back — each with one sentence saying what is next. A brief's **مسیر اکانت** (also a button on the
+brief and proposal pages) walks it in six numbered steps: review the brief (what Sales said, what is
+missing, approve or send back with a reason); open the project and the proposal together with one button,
+filled from the brief; write each unit's order — the work, its purpose, the output, its format, the
+deadline, who is responsible, filled from the brief where it already says them — and issue it; accept or
+send back what each unit hands in, beside the cost it declared; integrate, price and pass final QC; and
+hand the proposal to Sales, where the client's answer then shows.
+
 1. **Brief control** — open the brief and review it. If it is incomplete, use *بازگشت بریف ناقص*
    with a reason; it goes back to Sales and the return is counted. Approve only a complete brief —
    the system will refuse otherwise.

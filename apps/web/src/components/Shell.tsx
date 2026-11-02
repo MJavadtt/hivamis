@@ -75,6 +75,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('اکانت و پروپوزال'),
     items: [
+      { to: '/account', label: tr('میز اکانت'), icon: IconClipboard, permission: 'brief.read', anyOf: ['brief.review', 'proposal.write'] },
       { to: '/briefs', label: tr('بریف‌ها'), icon: IconClipboard, permission: 'brief.read' },
       { to: '/proposals', label: tr('پروپوزال‌ها'), icon: IconFile, permission: 'proposal.read' },
     ],

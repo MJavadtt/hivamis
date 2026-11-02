@@ -16,6 +16,7 @@ import Assistant from './pages/Assistant';
 import { ProjectDetail, ProjectsList } from './pages/Projects';
 import { CompaniesList, CompanyDetail, LeadsList, OpportunitiesList, OpportunityDetail } from './pages/Crm';
 import { CustomerJourney, NewCustomer } from './pages/SalesJourney';
+import { AccountDesk, AccountJourney } from './pages/AccountJourney';
 import { BriefDetail, BriefsList, ProposalDetail, ProposalsList } from './pages/Sales';
 import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
@@ -123,6 +124,8 @@ export default function App() {
         <Route path="/companies" element={<Guarded permission="crm.company.read" element={<CompaniesList />} />} />
         <Route path="/companies/:id" element={<Guarded permission="crm.company.read" element={<CompanyDetail />} />} />
 
+        <Route path="/account" element={<Guarded permission="brief.read" anyOf={['brief.review', 'proposal.write']} element={<AccountDesk />} />} />
+        <Route path="/account/journey/:briefId" element={<Guarded permission="brief.read" element={<AccountJourney />} />} />
         <Route path="/briefs" element={<Guarded permission="brief.read" element={<BriefsList />} />} />
         <Route path="/briefs/:id" element={<Guarded permission="brief.read" element={<BriefDetail />} />} />
         <Route path="/proposals" element={<Guarded permission="proposal.read" element={<ProposalsList />} />} />
