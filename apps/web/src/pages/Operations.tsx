@@ -7,6 +7,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { EstimateCheck } from '../components/EstimateCheck';
 import { CurrencySelect, FxPreview } from '../components/Fx';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
+import { StageProgress } from '../components/StageProgress';
 import { EditRecordButton } from '../components/QuickCreate';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -135,6 +136,7 @@ export function TaskDetail() {
         actions={<WorkflowActions entity="task" id={data.id} transitions={data.availableTransitions} />}
       />
       <SuggestedForms entity="task" id={id} />
+      <StageProgress entity="task" state={data.state} transitions={data.availableTransitions} owner={data.assignee?.fullName} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title={tr('شرح وظیفه')}>
@@ -308,6 +310,7 @@ export function WorkOrderDetail() {
         }
       />
       <SuggestedForms entity="workOrder" id={id} />
+      <StageProgress entity="workOrder" state={data.state} transitions={data.availableTransitions} owner={data.owner?.fullName} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('عناصر الزامی سفارش')} className="lg:col-span-2" subtitle="Doc_H §C">
           <dl className="divide-y divide-ink-100">
@@ -523,6 +526,7 @@ export function ChangeDetail() {
         }
       />
       <SuggestedForms entity="changeRequest" id={id} />
+      <StageProgress entity="changeRequest" state={data.state} transitions={data.availableTransitions} />
       <PageBody className="space-y-5">
         {data.scopeVerdict === 'OUT_OF_SCOPE' && missing.length > 0 && (
           <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">

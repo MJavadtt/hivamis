@@ -133,7 +133,7 @@ export function whatToDo(i: WorkItem): string {
 }
 
 /** Moves a person makes to stop, turn down or send back — never the obvious next step. */
-const AWAY = /reject|cancel|lose|disqualify|terminate|return|withdraw|hold|block|clarif/;
+const AWAY = /reject|cancel|lose|disqualify|terminate|return|withdraw|hold|block|clarif|request_changes|reschedule/;
 
 /** The one move that takes the work forward, when the person may make it. */
 export function forwardMove(transitions: Transition[]): Transition | null {

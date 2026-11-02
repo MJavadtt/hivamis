@@ -9,6 +9,7 @@ import { AccountingTab } from '../components/AccountingExport';
 import { ESignCard } from '../components/ESign';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { StageProgress } from '../components/StageProgress';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import {
@@ -81,6 +82,7 @@ export function ContractDetail() {
         }
       />
       <SuggestedForms entity="contract" id={id} />
+      <StageProgress entity="contract" state={data.state} transitions={data.availableTransitions} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('اطلاعات قرارداد')} className="lg:col-span-1">
           <dl className="px-4 py-1">

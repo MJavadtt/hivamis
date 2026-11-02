@@ -3451,3 +3451,20 @@ unit, assignee or submission date; the card shows what it carries (project, dead
 notification about a record kind with no page of its own (a user, a security alert's detail) is read
 where it stands.
 
+---
+
+## ADR-112 — Where a record stands, on its own page
+
+**Context.** The owner's brief (2026-11-02) asks every project, and every process, to show its current
+stage, the one before and the next, without the workflow engine's details. A record page showed its
+state as one badge among the header's buttons.
+
+**Decision.** `StageProgress` (frontend only) draws the main road of a process — lead, opportunity,
+brief, proposal, project, work order, task, change request, contract, booking — with the steps passed
+ticked and the step the record is on marked; a state off the road (sent back for correction, stopped)
+sits on the step it went back to, in its own colour. One sentence says what comes next: the reader's to
+take when the server offers them the forward move (`forwardMove`), else whose it is, or that the road has
+ended or the record is cancelled. It shows under the header of each of those pages, with the person
+responsible where the record names one. The roads are a reading of the declared workflows, kept beside
+them; the engine still decides every move.
+

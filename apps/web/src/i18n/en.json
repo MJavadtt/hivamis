@@ -3869,5 +3869,14 @@
   "نمایش بر اساس گروه": "Show by group",
   "هر کاری که به شما سپرده شود، یا منتظر تصمیم شما باشد، همین‌جا می‌آید.": "Any work given to you, or awaiting your decision, comes here.",
   "تحویل داده شده و گام بعد با شماست: «{0}».": "Handed in, and the next step is yours: “{0}”.",
-  "{0} {1} پرسید": "{0} asked {1}"
+  "{0} {1} پرسید": "{0} asked {1}",
+  "«{0}» است و دیگر جلو نمی‌رود.": "It is “{0}” and goes no further.",
+  "این مسیر به پایان رسیده است.": "This road has come to its end.",
+  "گام بعد با شماست: «{0}» — دکمه‌اش در همین صفحه است.": "The next step is yours: “{0}” — its button is on this page.",
+  "گام بعد: «{0}» — با کسی است که این گام به او سپرده شده.": "Next: “{0}” — with whoever that step is given to.",
+  "مسیر کار": "Where it stands",
+  "گام‌ها": "Steps",
+  "اکنون: «{0}»": "Now: “{0}”",
+  ". ": ". ",
+  "مسئول: {0}": "Responsible: {0}"
 }

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { BriefQuality } from '../components/BriefQuality';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { StageProgress } from '../components/StageProgress';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
@@ -89,6 +90,7 @@ export function BriefDetail() {
         }
       />
       <SuggestedForms entity="brief" id={id} />
+      <StageProgress entity="brief" state={data.state} transitions={data.availableTransitions} />
       <PageBody className="space-y-5">
         {!complete && (
           <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">
@@ -243,6 +245,7 @@ export function ProposalDetail() {
         }
       />
       <SuggestedForms entity="proposal" id={id} />
+      <StageProgress entity="proposal" state={data.state} transitions={data.availableTransitions} />
       <PageBody className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile label={tr('قیمت تمام‌شده')} value={formatCurrency(data.totalCost)} hint={tr('اعلام‌شده توسط واحدها')} />

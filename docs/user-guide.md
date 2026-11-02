@@ -132,6 +132,11 @@ group's name to see only it.
 **Notifications.** Each notification, under the bell or on the workspace, opens its record and is
 marked read as it opens.
 
+**Where it stands.** At the top of every project, opportunity, brief, proposal, task, work order,
+change request, contract and booking are the main steps of its process in order: those passed are
+ticked, the one it is on stands out, and a sentence says what the next step is and whether it is yours
+or someone else's — and, if it came back for correction or is stopped, says so.
+
 **Live.** The small dot on the bell is green while the page is live: a record moved by someone
 else — an order accepted, a deliverable through QC, an invoice issued — appears on the screen you
 have open within a couple of seconds, and a new notification at once. Amber means connecting; grey

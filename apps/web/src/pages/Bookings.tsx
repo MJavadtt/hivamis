@@ -6,6 +6,7 @@ import { apiGet, apiPost, apiPut } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime, localDigits, sep } from '../lib/format';
 import { PageBody, PageHeader } from '../components/Shell';
+import { StageProgress } from '../components/StageProgress';
 import {
   Badge, Button, Card, DescRow, ErrorBlock, Field, Input, LoadingBlock, Modal, Select, Spinner, StateBadge, Tabs, Textarea, cx, useToast,
 } from '../components/ui';
@@ -124,6 +125,7 @@ export function BookingPage() {
         actions={b.editable ? <Button onClick={() => setEditing(true)}>{tr('ویرایش')}</Button> : undefined}
       />
       <PageBody>
+        <div className="mb-5"><StageProgress inline entity="booking" state={b.state} transitions={b.availableTransitions} owner={b.organizer?.fullName} /></div>
         <div className="grid gap-5 lg:grid-cols-3" data-testid="booking">
           <div className="space-y-5 lg:col-span-2">
             <Card title={tr('جلسه')}>

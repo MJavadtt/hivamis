@@ -5,6 +5,7 @@ import { apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
+import { StageProgress } from '../components/StageProgress';
 import { EditRecordButton } from '../components/QuickCreate';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -270,6 +271,7 @@ export function OpportunityDetail() {
         actions={<WorkflowActions entity="opportunity" id={data.id} transitions={data.availableTransitions} />}
       />
       <SuggestedForms entity="opportunity" id={id} />
+      <StageProgress entity="opportunity" state={data.state} transitions={data.availableTransitions} owner={data.owner?.fullName} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <Card title={tr('اطلاعات فرصت')} className="lg:col-span-1">
           <dl className="px-4 py-1">
