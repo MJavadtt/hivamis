@@ -275,6 +275,15 @@ are too few won deals to compare against, the card says so instead of averaging 
 
 **Your loop: accept → plan → execute → unit QC → declare cost → deliver.**
 
+**Your work at a glance.** A task's page now opens with **این کار در یک نگاه**: what is asked, who
+asked, the project and client, what to hand in and in what format, the deadline and who is responsible,
+the requester's own explanation, and the output's files — add yours there with **گذاشتن فایل خروجی**.
+Beneath, one sentence says what to do now and its button does it; work sent back says who sent it and
+why. Questions and notes go under **یادداشت‌ها** on the same page, where they stay. **For unit
+managers:** a unit-QC card in **کارهای من** opens the review of that very output, and the review is
+two choices — **تأیید و ارسال**, or **برگرداندن برای اصلاح** with a clear reason (the common ones are a
+click away); sending back raises the revision with your reason as the correction expected.
+
 1. **Work orders** — accept within four working hours, or raise a clarification. The acceptance
    clock is visible and starts the moment the order is issued.
 2. **Tasks** — accept, start, submit. If you will miss a deadline, report it *before* the deadline
@@ -428,6 +437,12 @@ nothing signed there is a legal signature, and the signed file says so on its la
 ---
 
 ## PMO / Operations
+
+**The operations desk — «میز عملیات».** One page, across every project: the outputs units have
+handed in and that wait to be accepted or sent back; the questions units asked before taking an
+order, with who asked and the answer's button; the orders not yet taken, oldest first; each unit's
+load (not taken, in hand, handed in); and the proposals being put together from the units' work, each
+with its next step. The buttons appear only for the decisions you are allowed to take.
 
 - **Traffic** — capacity versus committed hours per person, with over-allocation flagged. Each
   person is measured on their own working calendar and leave, and capacity is the smaller of

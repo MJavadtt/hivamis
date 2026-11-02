@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiBlob, apiGet, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -9,7 +9,7 @@ import { Code, WorkflowActions } from '../components/common';
 import { PdfButton } from '../components/PdfButton';
 import {
   Badge, Button, Card, Checkbox, EmptyState, ErrorBlock, Field, LoadingBlock, Modal,
-  Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, useToast,
+  StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, useToast,
 } from '../components/ui';
 import { formatDate, formatRelative, localDigits, daysFromNow } from '../lib/format';
 import { REVISION_REASON_LABELS } from '@hiva/contracts';
@@ -46,14 +46,21 @@ const CHECKLISTS: Record<string, { key: string; label: string }[]> = {
   ],
 };
 
+/** The reasons work is most often sent back for, one click into the explanation. */
+const QUICK_REASONS = [tr('با بریف نمی‌خواند'), tr('ناقص است'), tr('کیفیت کافی نیست'), tr('با هویت بصری نمی‌خواند'), tr('خطای فنی دارد')];
+
 const LEVEL_TITLES: Record<string, string> = {
   UNIT: tr('QC سطح ۱ — واحد اجرایی'),
   ACCOUNT: tr('QC سطح ۲ — اکانت'),
   FINAL: tr('QC سطح ۳ — نهایی'),
 };
 
+const LEVEL_OF: Record<string, string> = { unit: 'UNIT', account: 'ACCOUNT', final: 'FINAL' };
+
 export default function Quality() {
-  const [tab, setTab] = useState('account');
+  // A work card opens the page on its own level and its own item (`?tab=unit&review=…`).
+  const [params, setParams] = useSearchParams();
+  const [tab, setTab] = useState(() => (['unit', 'account', 'final', 'revisions'].includes(params.get('tab') ?? '') ? params.get('tab')! : 'account'));
   const [review, setReview] = useState<{ level: string; target: any } | null>(null);
   const { can } = useAuth();
 
@@ -61,6 +68,12 @@ export default function Quality() {
     queryKey: ['/qc/queue'],
     queryFn: () => apiGet('/qc/queue'),
   });
+  const asked = params.get('review');
+  const askedRow = asked && LEVEL_OF[tab] ? (data?.[tab as 'unit' | 'account' | 'final'] ?? []).find((r) => r.id === asked) : undefined;
+  if (askedRow && !review && can(`qc.${tab}`)) {
+    setReview({ level: LEVEL_OF[tab]!, target: askedRow });
+    setParams((p) => { p.delete('review'); return p; }, { replace: true });
+  }
 
   if (isLoading) return <LoadingBlock />;
   if (error) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
@@ -241,7 +254,7 @@ function RevisionsTable({ rows }: { rows: any[] }) {
 
 function QcReviewModal({ level, target, onClose }: { level: string; target: any; onClose: () => void }) {
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
-  const [verdict, setVerdict] = useState<'PASSED' | 'FAILED'>('PASSED');
+  const [verdict, setVerdict] = useState<'PASSED' | 'FAILED' | null>(null);
   const [findings, setFindings] = useState('');
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -265,7 +278,7 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         level,
         ...(isProposal ? { proposalId: target.id } : { deliverableId: target.id }),
         checklist,
-        verdict,
+        verdict: verdict!,
         findings: findings.trim() || undefined,
         ...(isProposal ? {} : { annotationIds: carried }),
       });
@@ -295,11 +308,11 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         <>
           <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
           <Button
-            variant={verdict === 'PASSED' ? 'primary' : 'danger'}
+            variant={verdict === 'FAILED' ? 'danger' : 'primary'}
             loading={busy}
-            disabled={verdict === 'FAILED' && findings.trim().length < 3 && carried.length === 0}
+            disabled={!verdict || (verdict === 'FAILED' && findings.trim().length < 3 && carried.length === 0)}
             onClick={() => void submit()}
-          >{tr('ثبت نتیجه')}</Button>
+          >{verdict === 'FAILED' ? tr('برگرداندن برای اصلاح') : verdict === 'PASSED' ? tr('تأیید و ارسال') : tr('ثبت نتیجه')}</Button>
         </>
       }
     >
@@ -319,28 +332,44 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
         ))}
       </div>
 
-      <div className="mt-4">
-        <Field label={tr('نتیجه')} required>
-          <Select value={verdict} onChange={(e) => setVerdict(e.target.value as 'PASSED' | 'FAILED')}>
-            <option value="PASSED">{tr('تأیید')}</option>
-            <option value="FAILED">{tr('عدم تأیید')}</option>
-          </Select>
-        </Field>
-      </div>
+      {/* Two decisions, said as a person makes them (the owner's brief, 2026-11-02). */}
+      <fieldset className="mt-4" data-testid="qc-decision">
+        <legend className="mb-2 text-xs font-bold text-ink-700">{tr('تصمیم شما')}</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button type="button" aria-pressed={verdict === 'PASSED'} onClick={() => setVerdict('PASSED')}
+            className={`rounded-lg px-3 py-2.5 text-start text-sm ring-1 ${verdict === 'PASSED' ? 'bg-emerald-50 text-emerald-900 ring-emerald-400' : 'bg-surface text-ink-800 ring-ink-200 hover:bg-ink-50'}`}>
+            <span className="block font-bold">{tr('تأیید و ارسال')}</span>
+            <span className="block text-[12.5px] text-ink-500">{isProposal ? tr('پروپوزال برای تأیید نهایی آماده است.') : tr('خروجی درست است و به گام بعد می‌رود.')}</span>
+          </button>
+          <button type="button" aria-pressed={verdict === 'FAILED'} onClick={() => setVerdict('FAILED')}
+            className={`rounded-lg px-3 py-2.5 text-start text-sm ring-1 ${verdict === 'FAILED' ? 'bg-amber-50 text-amber-900 ring-amber-400' : 'bg-surface text-ink-800 ring-ink-200 hover:bg-ink-50'}`}>
+            <span className="block font-bold">{tr('برگرداندن برای اصلاح')}</span>
+            <span className="block text-[12.5px] text-ink-500">{tr('با توضیح روشن به مسئولش برمی‌گردد و اصلاحیه صادر می‌شود.')}</span>
+          </button>
+        </div>
+      </fieldset>
 
-      <div className="mt-3">
-        <Field
-          label={tr('یافته‌ها')}
-          required={verdict === 'FAILED'}
-          hint={
-            verdict === 'FAILED'
-              ? tr('در صورت عدم تأیید، ثبت یافته‌ها الزامی است و به‌صورت خودکار اصلاحیه صادر می‌شود (قانون ۱۰).')
-              : undefined
-          }
-        >
-          <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} rows={3} />
-        </Field>
-      </div>
+      {verdict === 'FAILED' && (
+        <div className="mt-3">
+          <div className="mb-2 flex flex-wrap gap-1.5" aria-label={tr('دلیل‌های رایج')}>
+            {QUICK_REASONS.map((r) => (
+              <button key={r} type="button" onClick={() => setFindings((f) => (f.includes(r) ? f : [f.trim(), r].filter(Boolean).join(tr('؛ '))))}
+                className="rounded-full bg-ink-50 px-2.5 py-1 text-xs text-ink-700 ring-1 ring-ink-200 hover:bg-amber-50">{r}</button>
+            ))}
+          </div>
+          <Field label={tr('چه چیزی باید اصلاح شود؟')} required
+            hint={tr('این توضیح کنار کار می‌ماند و مسئولش آن را می‌بیند؛ اصلاحیه به‌صورت خودکار صادر می‌شود (قانون ۱۰).')}>
+            <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} rows={3} aria-label={tr('چه چیزی باید اصلاح شود؟')} />
+          </Field>
+        </div>
+      )}
+      {verdict === 'PASSED' && (
+        <div className="mt-3">
+          <Field label={tr('یادداشت (اختیاری)')}>
+            <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} rows={2} aria-label={tr('یادداشت (اختیاری)')} />
+          </Field>
+        </div>
+      )}
 
       {!isProposal && (
         <div className="mt-3 rounded-lg border border-ink-200 p-3" data-testid="qc-annotations">

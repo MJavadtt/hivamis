@@ -92,6 +92,8 @@ describe('My work, in plain words', () => {
     expect(forwardMove([t('reopen'), t('complete')])?.action).toBe('complete');
     expect(forwardMove([t('client_request_revision'), t('client_approve')])?.action).toBe('client_approve');
     expect(forwardMove([t('escalate'), t('expire')])).toBeNull();
+    // Answering a unit's question takes the order forward; asking one does not.
+    expect(forwardMove([t('request_clarification'), t('clarify')])?.action).toBe('clarify');
   });
 
   it('says in one sentence how the day looks, and sorts the work as a person would', async () => {

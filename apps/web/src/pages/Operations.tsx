@@ -8,6 +8,7 @@ import { EstimateCheck } from '../components/EstimateCheck';
 import { CurrencySelect, FxPreview } from '../components/Fx';
 import { Code, EntityList, StateHistory, WorkflowActions } from '../components/common';
 import { StageProgress } from '../components/StageProgress';
+import { TaskGlance } from '../components/TaskGlance';
 import { EditRecordButton } from '../components/QuickCreate';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
@@ -139,6 +140,7 @@ export function TaskDetail() {
       <StageProgress entity="task" state={data.state} transitions={data.availableTransitions} owner={data.assignee?.fullName} />
       <PageBody className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          <TaskGlance task={data} onDone={() => void refetch()} />
           <Card title={tr('شرح وظیفه')}>
             <div className="whitespace-pre-line px-4 py-3 text-sm leading-7 text-ink-800">
               {data.description || <span className="text-ink-400">{tr('— شرحی ثبت نشده —')}</span>}

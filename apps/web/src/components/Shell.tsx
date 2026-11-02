@@ -83,6 +83,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('اجرا و کنترل'),
     items: [
+      { to: '/operations', label: tr('میز عملیات'), icon: IconCheckCircle, permission: 'workorder.read', anyOf: ['qc.account', 'proposal.integrate', 'workorder.issue', 'traffic.manage'] },
       { to: '/projects', label: tr('پروژه‌ها'), icon: IconLayers, permission: 'project.read' },
       { to: '/work-orders', label: tr('سفارش‌های کار'), icon: IconClipboard, permission: 'workorder.read' },
       { to: '/qc', label: tr('کنترل کیفیت'), icon: IconShield, permission: 'qc.read' },

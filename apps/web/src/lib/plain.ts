@@ -133,7 +133,7 @@ export function whatToDo(i: WorkItem): string {
 }
 
 /** Moves a person makes to stop, turn down or send back — never the obvious next step. */
-const AWAY = /reject|cancel|lose|disqualify|terminate|return|withdraw|hold|block|clarif|request_changes|revision|reopen|reschedule|escalate|expire/;
+const AWAY = /reject|cancel|lose|disqualify|terminate|return|withdraw|hold|block|request_clarification|request_changes|revision|reopen|reschedule|escalate|expire/;
 
 /** The one move that takes the work forward, when the person may make it. */
 export function forwardMove(transitions: Transition[]): Transition | null {
@@ -163,4 +163,8 @@ export function pageOf(entityType: string | null | undefined, id: string | null 
 }
 
 /** Where a queue item opens: a form opens on itself, not on the forms page. */
-export const hrefOf = (i: WorkItem) => (i.kind === 'formApproval' ? pageOf('formSubmission', i.entityId)! : i.href);
+const QC_TAB: Record<string, string> = { qcUnit: 'unit', qcAccount: 'account', qcFinal: 'final' };
+
+/** Where a card's decision is taken: a form on itself, a quality review on its own level and item. */
+export const hrefOf = (i: WorkItem) => (i.kind === 'formApproval' ? pageOf('formSubmission', i.entityId)!
+  : QC_TAB[i.kind] ? `/qc?tab=${QC_TAB[i.kind]}&review=${i.entityId}` : i.href);

@@ -3531,3 +3531,36 @@ Account (`project.write`, `proposal.write`, `workorder.issue`).
 filtered by it, so the page reads the client's projects and picks the brief's. Pricing keeps its own
 dialog on the proposal page, where its rule (who may set, who may approve) is explained; the journey
 links to it.
+
+---
+
+## ADR-115 — Operations' one place, a unit's task at a glance, two decisions for its manager
+
+**Context.** The owner's brief (2026-11-02) asks for an operations workspace (receive the units' work,
+review it, return what is incomplete, approve outputs, consolidate proposals); a task view for the
+execution units (what, who asked, which project, what to deliver, files, deadline, who is responsible,
+comments, submit); and two straightforward decisions for department managers — approve and forward, or
+return for correction with a clear reason.
+
+**Decision.** Frontend only:
+- **«میز عملیات»** (`/operations`, for `qc.account`, `proposal.integrate`, `workorder.issue` or
+  `traffic.manage`): work orders by state across every project — handed in (with the order's own moves),
+  questions asked (`ReturnNote` says who asked what, and the answer's move), not yet taken (oldest
+  first) — each unit's load, and the proposals between unit outputs and final approval with `nextFor`.
+  In this organisation accepting outputs and integrating are Account's (`qc.account`,
+  `proposal.integrate`); PMO reads the desk and its buttons appear for whoever holds the move.
+- **«این کار در یک نگاه»** (`TaskGlance`, top of a task's page): the order's scope, requester (the task's
+  creator), project and client, expected output and format, deadline, assignee, the order's brief, the
+  deliverable's files with an upload (`POST /documents` with `deliverableId`), what to do now and its
+  one move; a returned task says who returned it and why.
+- **Two decisions in QC:** the review dialog asks «تأیید و ارسال» or «برگرداندن برای اصلاح» instead of a
+  verdict list; sending back needs a reason, with common reasons one click away, and still raises the
+  revision itself (rule 10). A QC card in «کارهای من» opens `/qc?tab=…&review=…`, the review of that
+  item, instead of the page's first tab.
+- `forwardMove` no longer treats `clarify` — answering a unit's question — as a move away; only
+  `request_clarification` is.
+
+**Limits, said rather than worked around.** The brief's "requesting creative studio integration" has no
+record of its own here: integration is a move on the proposal, taken by Account. A task's files are its
+deliverable's; a task without a deliverable has none to show, and its notes stay in «یادداشت‌ها». The
+task's requester is the person who made the task — the work order does not record who issued it.

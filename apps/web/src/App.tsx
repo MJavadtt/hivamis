@@ -17,6 +17,7 @@ import { ProjectDetail, ProjectsList } from './pages/Projects';
 import { CompaniesList, CompanyDetail, LeadsList, OpportunitiesList, OpportunityDetail } from './pages/Crm';
 import { CustomerJourney, NewCustomer } from './pages/SalesJourney';
 import { AccountDesk, AccountJourney } from './pages/AccountJourney';
+import { OperationsDesk } from './pages/OperationsDesk';
 import { BriefDetail, BriefsList, ProposalDetail, ProposalsList } from './pages/Sales';
 import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
@@ -133,6 +134,7 @@ export default function App() {
 
         <Route path="/projects" element={<Guarded permission="project.read" element={<ProjectsList />} />} />
         <Route path="/projects/:id" element={<Guarded permission="project.read" element={<ProjectDetail />} />} />
+        <Route path="/operations" element={<Guarded permission="workorder.read" anyOf={['qc.account', 'proposal.integrate', 'workorder.issue', 'traffic.manage']} element={<OperationsDesk />} />} />
         <Route path="/work-orders" element={<Guarded permission="workorder.read" element={<WorkOrdersList />} />} />
         <Route path="/work-orders/:id" element={<Guarded permission="workorder.read" element={<WorkOrderDetail />} />} />
         <Route path="/tasks" element={<Guarded permission="task.read" element={<TasksList />} />} />
