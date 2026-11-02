@@ -82,8 +82,8 @@ export const GUIDE: GuideSection[] = [
       step('[data-tour="meetings"]', t('جلسه‌های پیش رو', 'Upcoming meetings'), t('جلسه‌های دو هفتهٔ آینده‌تان؛ روی هر کدام بزنید تا باز شود.', 'Your meetings in the next two weeks; click one to open it.')),
       step('[data-tour="my-projects"]', t('پروژه‌های من', 'My projects'), t('پروژه‌هایی که در آن‌ها کار می‌کنید، با وضعیتشان به زبان ساده و اینکه روی روال هستند یا نه.',
         'The projects you work on, where each stands in plain words, and whether it is on track.')),
-      step('[data-tour="search"]', t('رفتن به هر پرونده', 'Go to any record'), t('نام یا کد پروژه، مشتری، وظیفه یا قرارداد را بنویسید. Ctrl+K هم جستجو را باز می‌کند.',
-        'Type the name or code of a project, client, task or contract. Ctrl+K opens the search too.')),
+      step('[data-tour="search"]', t('رفتن به هر پرونده', 'Go to any record'), t('نام یا کد پروژه، مشتری، وظیفه، سفارش کار، شمارهٔ قرارداد یا نام همکار را بنویسید؛ هر نتیجه وضعیتش را ساده می‌گوید. پرسشی مثل «چطور ساعت کارم را ثبت کنم» پاسخش را از راهنما نشان می‌دهد. Ctrl+K هم جستجو را باز می‌کند.',
+        'Type the name or code of a project, client, task or work order, a contract number, or a colleague\'s name; each result says its status plainly. A question such as “how do I log my hours” shows its answer from the guide. Ctrl+K opens the search too.')),
     ],
   },
   {

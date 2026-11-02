@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { offlineQuery } from '../lib/offline';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RECORD_PAGES } from '@hiva/contracts';
+import { RECORD_PAGES, normaliseGuideText, searchGuide } from '@hiva/contracts';
 import { apiGet, apiPost } from '../lib/api';
 import { OutboxBadge } from './Outbox';
 import { useAuth } from '../lib/auth';
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useLocale, type Locale } from '../lib/locale';
 import { OwlGuide } from './owl/OwlGuide';
-import { guideBus } from '../lib/guide';
+import { gt, guideBus, guideLocale, sectionsFor } from '../lib/guide';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import { formatYear, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
@@ -28,6 +28,7 @@ import { AssistantButton } from './AssistantChat';
 import { BrandLockup, HivaLogo } from './Brand';
 import { ActingBanner } from './ActingBanner';
 import { NoticeRow, type NotificationRow } from './Notice';
+import { StagePill } from './WorkCard';
 
 interface NavItem {
   to: string;
@@ -379,16 +380,20 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
 
 interface SearchItem {
   id: string; code?: string; legalName?: string; title?: string; name?: string; state?: string;
+  /** A line under the name: a colleague's job, the guide page a step is on. */
+  sub?: string;
 }
 
 interface SearchGroup {
   type: string;
-  labelFa: string;
+  labelFa?: string;
+  /** A group the page adds itself, already in the reader's language. */
+  label?: string;
   items: SearchItem[];
 }
 
 /** Where a found record opens — the same map the chat links a named record by (audit F-5). */
-const SEARCH_ROUTES = RECORD_PAGES;
+const SEARCH_ROUTES: Record<string, string> = { ...RECORD_PAGES, workOrder: '/work-orders', person: '/people' };
 
 function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
   const [term, setTerm] = useState('');
@@ -416,12 +421,40 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const { data, isFetching } = useQuery<{ groups: SearchGroup[]; total: number }>({
+  const { can, canAny } = useAuth();
+  const asking = term.trim().length >= 2;
+  const { data: found, isFetching } = useQuery<{ groups: SearchGroup[]; total: number }>({
     queryKey: ['search', term],
     queryFn: () => apiGet('/search', { q: term }),
-    enabled: term.trim().length >= 2,
+    enabled: asking,
     staleTime: 10_000,
   });
+  // What the search route does not cover (the owner's brief, 2026-11-02: "search by employee name and
+  // other business identifiers"), from the routes that do: colleagues and work orders.
+  const people = useQuery<{ id: string; fullName: string; jobTitle: string | null; email: string }[]>({
+    queryKey: ['/people', ''], queryFn: () => apiGet('/people'), enabled: asking && open, staleTime: 300_000,
+  });
+  const orders = useQuery<{ items: { id: string; code: string; title: string; state: string; project?: { name: string } | null }[] }>({
+    queryKey: ['/work-orders', 'search', term], queryFn: () => apiGet('/work-orders', { q: term, pageSize: '5' }), enabled: asking && can('workorder.read'), staleTime: 10_000,
+  });
+  const data = useMemo(() => {
+    if (!found) return found;
+    const q = normaliseGuideText(term.trim());
+    const colleagues = q.length < 2 ? [] : (people.data ?? [])
+      .filter((p) => [p.fullName, p.jobTitle, p.email].some((x) => x && normaliseGuideText(x).includes(q)))
+      .slice(0, 5).map((p) => ({ id: p.id, title: p.fullName, sub: p.jobTitle ?? undefined }));
+    // "How do I…" is answered from the guide, among the pages this person may open.
+    const allowed = new Set(sectionsFor(can as never, canAny as never).map((x) => x.id));
+    const help = searchGuide(term, guideLocale(), 6).filter((m) => allowed.has(m.section.id) && m.score > 0).slice(0, 3)
+      .map((m) => ({ id: `${m.section.id}:${m.step ? m.section.steps.indexOf(m.step) : 0}`, title: m.step ? tr('{0} — {1}', gt(m.step.title), gt(m.section.title)) : gt(m.section.title), sub: gt(m.step?.body ?? m.section.summary) }));
+    const groups: SearchGroup[] = [
+      ...found.groups,
+      ...(orders.data?.items.length ? [{ type: 'workOrder', label: tr('سفارش‌های کار'), items: orders.data.items.map((o) => ({ id: o.id, code: o.code, title: o.title, state: o.state, sub: o.project?.name })) }] : []),
+      ...(colleagues.length ? [{ type: 'person', label: tr('همکاران'), items: colleagues }] : []),
+      ...(help.length ? [{ type: 'guide', label: tr('راهنما: چطور…'), items: help }] : []),
+    ];
+    return { groups, total: groups.reduce((n, g) => n + g.items.length, 0) };
+  }, [found, people.data, orders.data, term, can, canAny]);
 
   // Flattened across groups, because arrow keys move through results, not through headings.
   const flat = useMemo(
@@ -431,7 +464,10 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
   useEffect(() => { setActive(0); }, [term, data]);
 
   const go = (entry: { group: string; item: SearchItem }) => {
-    navigate(`${SEARCH_ROUTES[entry.group] ?? '/'}/${entry.item.id}`);
+    if (entry.group === 'guide') {
+      const [sectionId, step] = entry.item.id.split(':');
+      guideBus.emit({ type: 'tour', sectionId: sectionId!, step: Number(step) || 0 });
+    } else navigate(`${SEARCH_ROUTES[entry.group] ?? '/'}/${entry.item.id}`);
     setOpen(false);
     setTerm('');
   };
@@ -489,8 +525,8 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
             <p className="px-3 py-6 text-center text-sm text-ink-500" role="status">{tr('نتیجه‌ای یافت نشد.')}</p>
           ) : (
             data.groups.map((group) => (
-              <div key={group.type} role="group" aria-label={loc(group, 'label')} className="mb-1.5 last:mb-0">
-                <p className="px-2.5 py-1 text-[12.5px] font-semibold text-ink-400">{loc(group, 'label')}</p>
+              <div key={group.type} role="group" aria-label={group.label ?? loc(group, 'label')} className="mb-1.5 last:mb-0">
+                <p className="px-2.5 py-1 text-[12.5px] font-semibold text-ink-400">{group.label ?? loc(group, 'label')}</p>
                 {group.items.map((item) => {
                   const i = flat.findIndex((f) => f.item.id === item.id && f.group === group.type);
                   const isActive = i === active;
@@ -508,10 +544,14 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
                         isActive ? 'bg-brand-50 text-brand-800' : 'hover:bg-ink-100',
                       )}
                     >
-                      <span className="truncate text-ink-700">
-                        {item.legalName ?? item.title ?? item.name}
+                      <span className="min-w-0">
+                        <span className="block truncate text-ink-700">{item.legalName ?? item.title ?? item.name}</span>
+                        {item.sub && <span className={cx('block text-[12.5px] text-ink-400', group.type === 'guide' ? 'line-clamp-2' : 'truncate')}>{item.sub}</span>}
                       </span>
-                      {item.code && <span className="ltr shrink-0 text-[12.5px] text-ink-400 whitespace-nowrap">{item.code}</span>}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {item.state && <StagePill state={item.state} entity={group.type} />}
+                        {item.code && <span className="ltr text-[12.5px] text-ink-400 whitespace-nowrap">{item.code}</span>}
+                      </span>
                     </button>
                   );
                 })}

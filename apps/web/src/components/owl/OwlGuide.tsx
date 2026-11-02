@@ -92,8 +92,15 @@ export function OwlGuide() {
   useEffect(() => guideBus.on((signal) => {
     if (signal.type === 'open') { setTour(null); setOpen(true); return; }
     const s = sectionsFor(can as never, canAny as never).find((x) => x.id === signal.sectionId);
-    if (s) startTour(s, signal.step ?? 0);
-  }), [can, canAny, startTour]);
+    if (!s) return;
+    // A tour of another page (asked for from the search) goes there first, then starts.
+    if (guideFor(pathname)?.id !== s.id) {
+      // A page with no address of its own (one record's page) cannot be toured from here: open the guide.
+      if (!s.path) { setTour(null); setOpen(true); return; }
+      setOpen(false); setPending({ sectionId: s.id, step: signal.step ?? 0 }); navigate(s.path); return;
+    }
+    startTour(s, signal.step ?? 0);
+  }), [can, canAny, startTour, pathname, navigate]);
 
   // A new page ends a tour of the old one — unless the tour was asked for on the new page.
   useEffect(() => {

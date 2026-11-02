@@ -3613,3 +3613,24 @@ open issues, breached SLA clocks — and each unit's work-order owner. `glance()
 
 **Limits.** "Next" is by deadline; a project's milestones and critical path stay on its schedule tab,
 which has its own data.
+
+---
+
+## ADR-118 — One search for records, colleagues and answers
+
+**Context.** The owner's brief (2026-11-02) asks for a global search by customer, project, contract
+number, task, employee name and other business identifiers, with results shown simply. `/search`
+covered clients, opportunities, projects, tasks, contracts (title, code, number), briefs and proposals;
+not colleagues or work orders.
+
+**Decision.** Frontend only, in the top bar's search: colleagues found in `/people` (name, job, email,
+with Persian letters folded the way the guide's search folds them) and work orders from
+`/work-orders?q=` join the server's groups; each result shows its plain status (`StagePill`) and a
+second line where one helps (a colleague's job, an order's project); and a question is answered from
+the guide (`searchGuide`, among the sections the person may open), the answer's own text under it —
+choosing it takes them to its page and starts the tour at that step (`guideBus` `tour` now navigates
+first when the section is another page's), or, for one record's page, which has no address of its own,
+opens the guide.
+
+**Limits.** Leads and invoices are not searched here: leads have no page of their own to open and
+invoices no text search; both are found on their own lists.

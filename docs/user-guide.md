@@ -77,6 +77,11 @@ logo; hover over an icon to see its name. Each person's choice is remembered on 
 phone, search is the magnifier at the top. The language is set on your own page, and the light or
 dark theme follows the phone's.
 
+**Search.** The box at the top (or Ctrl+K) finds clients, projects, tasks, work orders, briefs,
+proposals, contracts by title or number, and colleagues by name, job or email — each result with its
+status in plain words. Ask it a question («چطور ساعت کارم را ثبت کنم») and it also shows the guide's
+answer: click it and the guide takes you to the page and walks you through that step.
+
 **Language.** The **EN** / **فا** button at the top switches the whole interface between Persian and
 English; the page reloads in the other language and remembers the choice, here and on your next
 device. In English, numbers use Latin digits, amounts read "Rials", dates are Gregorian and date
