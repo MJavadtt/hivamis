@@ -18,6 +18,7 @@ import { CompaniesList, CompanyDetail, LeadsList, OpportunitiesList, Opportunity
 import { CustomerJourney, NewCustomer } from './pages/SalesJourney';
 import { AccountDesk, AccountJourney } from './pages/AccountJourney';
 import { OperationsDesk } from './pages/OperationsDesk';
+import { CommercialDesk } from './pages/CommercialDesk';
 import { BriefDetail, BriefsList, ProposalDetail, ProposalsList } from './pages/Sales';
 import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
@@ -147,6 +148,7 @@ export default function App() {
         <Route path="/suppliers/:id" element={<Guarded permission="supplier.read" element={<Suppliers />} />} />
         <Route path="/traffic" element={<Guarded permission="traffic.read" element={<Traffic />} />} />
 
+        <Route path="/commercial" element={<Guarded anyOf={['contract.draft', 'contract.legal_review', 'contract.approve', 'contract.sign', 'finance.invoice', 'finance.proforma', 'project.authorize']} element={<CommercialDesk />} />} />
         <Route path="/contracts" element={<Guarded permission="contract.read" element={<ContractsList />} />} />
         <Route path="/contracts/:id" element={<Guarded permission="contract.read" element={<ContractDetail />} />} />
         <Route path="/finance" element={<Guarded permission="finance.read" element={<Finance />} />} />

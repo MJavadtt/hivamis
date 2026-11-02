@@ -514,6 +514,8 @@ export const GUIDE: GuideSection[] = [
     keywords: 'پروژه ۳۶۰ زمان بندی مسیر بحرانی ریسک بستن project 360 schedule critical path risk closure',
     steps: [
       step(ANY.header, t('پروژه', 'The project'), t('کد، مشتری، وضعیت و سلامت پروژه. دکمه‌های بالای صفحه خروجی PDF و گزارش مشتری‌اند.', 'The code, client, state and health. The buttons at the top export a PDF and the client report.')),
+      step('[data-tour="start-authorization"]', t('مجوز شروع کار', 'The go-ahead'), t('یکی از سه مبنا را برگزینید — قرارداد امضاشده، سفارش رسمی مشتری، یا دستور اجرا با فاکتور — و سندش را بنویسید؛ بی‌قرارداد هم می‌شود شروع کرد.',
+        'Choose one of three bases — a signed contract, the client\'s official order, or an execution order with an invoice — and name its document; work can start without a contract.')),
       RELATED,
       step(ANY.tabs, t('بخش‌ها', 'Its parts'), t('«اجرا» وظایف و سفارش‌ها، «زمان‌بندی» مسیر بحرانی و پیش‌بینی تحویل، «کیفیت» QC، «حاکمیت» ریسک‌ها و جلسه‌ها، «مالی» بودجه و حاشیه، «بستن پروژه» چک‌لیست پایانی.',
         '“Delivery” has tasks and orders, “Schedule” the critical path and delivery forecast, “Quality” QC, “Governance” risks and meetings, “Finance” budget and margin, “Close project” the closing checklist.')),
@@ -580,6 +582,23 @@ export const GUIDE: GuideSection[] = [
     steps: [
       step(ANY.header, t('پیشنهاد بعدی', 'Who next'), t('بالای فهرست، بر پایهٔ سابقه رتبه می‌دهد که درخواست بعدی را به چه کسی بسپارید.', 'At the top of the list, a ranking by evidence of whom to send the next request to.')),
       step(undefined, t('صفحهٔ هر تأمین‌کننده', 'Each supplier\'s page'), t('امتیاز کلی و چهار بعد ارزیابی، تحویل به‌موقع و خط زمانی درخواست‌ها و ارزیابی‌ها.', 'The overall rating and its four dimensions, on-time delivery, and a timeline of requests and evaluations.')),
+    ],
+  },
+  {
+    id: 'commercial-desk', route: '^/commercial/?$', path: '/commercial', manual: 'Finance',
+    title: t('میز قرارداد و مالی', 'The contracts and finance desk'),
+    summary: t('قراردادهای فروش، پیش‌فاکتورها و فاکتورها، پروژه‌های منتظر مجوز شروع و درخواست‌های خرید — هر کدام با یک جمله دربارهٔ آنچه منتظرش است.',
+      'Sales contracts, proformas and invoices, projects waiting for their go-ahead, and purchase requests — each with one sentence on what it waits for.'),
+    keywords: 'قرارداد فاکتور پیش‌فاکتور پرداخت مجوز شروع خرید تأمین contract invoice proforma payment go-ahead purchase',
+    steps: [
+      step('[data-tour="commercial-summary"]', t('در یک جمله', 'In one sentence'), t('چند قرارداد در جریان است، چند سند مالی باز و چندتا سررسیدگذشته، چند پروژه منتظر مجوز و چند درخواست خرید.',
+        'How many contracts are under way, how many financial documents are open and how many are overdue, how many projects wait for a go-ahead and how many purchases wait.')),
+      step('[data-tour="commercial-contracts"]', t('قراردادهای فروش', 'Sales contracts'), t('هر قرارداد روی مسیرش؛ در بررسی حقوقی، تأیید و بازگرداندن با توضیح کنار هم‌اند.',
+        'Each contract on its road; in legal review, approving and sending back with a reason sit side by side.')),
+      step('[data-tour="commercial-invoices"]', t('پیش‌فاکتورها و فاکتورها', 'Proformas and invoices'), t('از پیش‌نویس تا پرداخت؛ سررسیدگذشته‌ها قرمزند.', 'From draft to paid; overdue ones are in red.')),
+      step('[data-tour="commercial-go-ahead"]', t('مجوز شروع', 'Go-ahead'), t('پروژه با قرارداد، سفارش رسمی مشتری، یا دستور اجرا با فاکتور شروع می‌شود؛ مبنا را در صفحهٔ پروژه ثبت کنید.',
+        'A project starts on a contract, the client\'s official order, or an execution order with an invoice; record the basis on the project\'s page.')),
+      step('[data-tour="commercial-purchases"]', t('خرید و تأمین بیرونی', 'Purchases'), t('درخواست‌هایی که منتظر تصمیم یا تأمین‌اند، با دکمهٔ تصمیم.', 'Requests waiting for a decision or to be fulfilled, with the decision\'s buttons.')),
     ],
   },
   {

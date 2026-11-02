@@ -11,6 +11,7 @@ import { PdfBundleButton } from '../components/PdfBundleButton';
 import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
 import { StageProgress } from '../components/StageProgress';
+import { StartAuthorization } from '../components/StartAuthorization';
 import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
 import { Gantt } from '../components/Gantt';
@@ -187,6 +188,10 @@ export function ProjectDetail() {
       />
       <SuggestedForms entity="project" id={id} />
       <StageProgress entity="project" state={p.state} transitions={data.availableTransitions} owner={p.accountOwner?.fullName} />
+      {(['DRAFT', 'PENDING_AUTHORIZATION'].includes(p.state) || (!authorized && ['PLANNING', 'ACTIVE'].includes(p.state))) && (
+        <StartAuthorization projectId={p.id} companyId={p.company.id} transitions={data.availableTransitions ?? []}
+          recorded={p.authorizations?.[0] ?? null} onDone={() => void refetch()} />
+      )}
 
       {!authorized && ['ACTIVE', 'PLANNING'].includes(p.state) && (
         <div className="mx-5 mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200">

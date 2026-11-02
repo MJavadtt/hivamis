@@ -3564,3 +3564,34 @@ return for correction with a clear reason.
 record of its own here: integration is a move on the proposal, taken by Account. A task's files are its
 deliverable's; a task without a deliverable has none to show, and its notes stay in «یادداشت‌ها». The
 task's requester is the person who made the task — the work order does not record who issued it.
+
+---
+
+## ADR-116 — Contracts and money by what they wait for; starting work without a contract
+
+**Context.** The owner's brief (2026-11-02) asks to keep finance and legal as they are but make them
+simpler to work in (contract preparation, invoice requests, proformas, final approvals, documents);
+to support the two contract processes, purchase and sales; and to let work start on a non-contractual
+order or instruction instead of forcing every project through a contract. The organisation's rule
+(Doc_H §13, `POST /projects/:id/authorize`) already accepts three bases — a signed contract, the
+client's official order, an execution order tied to a proforma or invoice — but the web app had no
+screen to record one; it was reachable only through a form.
+
+**Decision.** Frontend only:
+- **«مجوز شروع کار»** (`StartAuthorization`, on a project without a go-ahead): the three bases as plain
+  choices; the client's signed or registered contracts, or its proformas and invoices, offered when the
+  basis needs one; the document's number and a note; then the project's own next move. Recording is for
+  `project.authorize`; others are told whose it is.
+- **«میز قرارداد و مالی»** (`/commercial`, for those who draft, review, approve or sign contracts, issue
+  proformas or invoices, or authorise projects): sales contracts by state with one sentence each
+  (`contractNext`) and their moves — approve and send back side by side in legal review; proformas and
+  invoices from draft to paid with overdue ones marked (`invoiceNext`), linking to the finance page
+  where they are issued and paid; projects in `PENDING_AUTHORIZATION`; and outsourcing requests waiting
+  for a decision or fulfilment, with their moves.
+
+**Limits, said rather than worked around.** The system holds sales contracts (with the client) only.
+A purchase from a supplier is an outsourcing request — request, unit manager, management, approval,
+fulfilment — with no contract record of its own, so the brief's ten-step purchase contract (legal
+review, draft, financial review, supplier negotiation, signing, guarantees) cannot be shown as a road
+without a backend change; the desk shows the purchase as it is. Invoice rows do not carry their moves
+in the list, so the desk links to the finance page for issuing, sending and recording payments.

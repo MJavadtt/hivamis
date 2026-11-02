@@ -105,6 +105,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('تجاری و مالی'),
     items: [
+      { to: '/commercial', label: tr('میز قرارداد و مالی'), icon: IconCheckCircle, anyOf: ['contract.draft', 'contract.legal_review', 'contract.approve', 'contract.sign', 'finance.invoice', 'finance.proforma', 'project.authorize'] },
       { to: '/contracts', label: tr('قراردادها'), icon: IconFile, permission: 'contract.read' },
       { to: '/finance', label: tr('مالی'), icon: IconMoney, permission: 'finance.read' },
     ],

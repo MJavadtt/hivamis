@@ -361,6 +361,19 @@ and not billed, flight over without proof, awaiting the vendor's invoice, and in
 
 ## Finance
 
+**The contracts and finance desk — «میز قرارداد و مالی».** One page for Finance, Legal and whoever
+gives projects their go-ahead: sales contracts on their road (request → drafting → legal and
+financial review → internal approval → the client's signature → registration and documents), with
+approve and send-back side by side in review; proformas and invoices from draft to paid, the overdue
+ones in red; projects waiting for their go-ahead; and purchase and outsourcing requests waiting for a
+decision. Each row says in one sentence what is next.
+
+**Starting work without a contract.** Not everything needs a contract. On a project that has no
+go-ahead yet, **مجوز شروع کار** offers the three bases the organisation accepts — a signed contract,
+the client's official order, or an execution order tied to a proforma or invoice — in plain words; pick
+the one you have, name its document (and the contract or invoice, when it is one of those), and record
+it. Then the project's next button gives the go-ahead.
+
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.
   Recording a receipt rolls the invoice to partially paid or paid automatically.
 - **Settlement** — settling a project computes invoiced, received and balance, and ticks the
