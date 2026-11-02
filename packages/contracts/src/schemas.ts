@@ -215,6 +215,13 @@ export const createLeadSchema = leadFields.superRefine((v, ctx) => {
 /** A change to the source is checked whole, against what the lead already has (apps/api/src/crm). */
 export const updateLeadSchema = leadFields.partial();
 
+/** A qualified lead becomes an opportunity: on a client already on file (this organisation's), or a new one. */
+export const convertLeadSchema = z.object({
+  companyId: idSchema.optional(),
+  title: z.string().trim().min(2).max(200).optional(),
+  estimatedValue: z.coerce.number().min(0).optional(),
+});
+
 /** A role's permissions as the system administrator grants them (Hivamis task 6). */
 export const roleGrantSchema = z.object({
   permissions: z.array(z.string().trim().min(3).max(60)).max(200),

@@ -3634,3 +3634,19 @@ opens the guide.
 
 **Limits.** Leads and invoices are not searched here: leads have no page of their own to open and
 invoices no text search; both are found on their own lists.
+
+---
+
+## ADR-119 — A lead's conversion names only the caller's own client
+
+**Context.** `POST /leads/:id/convert` took `companyId` from the body as it came and filed the new
+opportunity — and the lead's conversion — under it, without asking whose client it was. With more than
+one organisation on an installation (roadmap #50), a person in one could attach a sale to another's
+client. The sales journey and the leads list now name the client on every conversion (ADR-113), so the
+gap was no longer theoretical.
+
+**Decision.** The body is read through `convertLeadSchema` (an id, a title, a non-negative value) and a
+named client is checked with `assertOwnReferences` before anything is made: another organisation's
+client answers `422 UNKNOWN_REFERENCE`, exactly as a client that does not exist (SEC-12), and the lead
+stays as it was. With no client named, a new one is made in the caller's organisation, as before.
+Test 082.

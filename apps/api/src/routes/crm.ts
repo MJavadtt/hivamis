@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  createActivitySchema, createCompanySchema, createContactSchema, createLeadSchema,
+  convertLeadSchema, createActivitySchema, createCompanySchema, createContactSchema, createLeadSchema,
   createOpportunitySchema, updateCompanySchema, updateContactSchema, updateLeadSchema,
   updateOpportunitySchema, paginationSchema, createLeadReferrerSchema, updateLeadReferrerSchema,
   DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, SALES_DEPARTMENT, normalizeIranMobile,
@@ -201,15 +201,17 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
   }, async (req, reply) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const { companyId, title, estimatedValue } = (req.body ?? {}) as Record<string, any>;
+    const { companyId, title, estimatedValue } = parse(convertLeadSchema, req.body ?? {});
 
     const lead = await prisma.lead.findFirst({
       where: { id, organizationId: actor.organizationId },
     });
     if (!lead) throw notFound('سرنخ');
+    // The client named must be this organisation's: another's answers as one that does not exist (SEC-12).
+    if (companyId) await assertOwnReferences('opportunity', { companyId }, actor.organizationId);
 
     const result = await prisma.$transaction(async (tx) => {
-      let targetCompanyId: string = companyId;
+      let targetCompanyId = companyId;
       if (!targetCompanyId) {
         const company = await tx.company.create({
           data: {
