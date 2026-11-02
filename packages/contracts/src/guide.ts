@@ -514,6 +514,8 @@ export const GUIDE: GuideSection[] = [
     keywords: 'پروژه ۳۶۰ زمان بندی مسیر بحرانی ریسک بستن project 360 schedule critical path risk closure',
     steps: [
       step(ANY.header, t('پروژه', 'The project'), t('کد، مشتری، وضعیت و سلامت پروژه. دکمه‌های بالای صفحه خروجی PDF و گزارش مشتری‌اند.', 'The code, client, state and health. The buttons at the top export a PDF and the client report.')),
+      step('[data-tour="project-glance"]', t('پروژه در یک نگاه', 'The project at a glance'), t('وضعیت و سلامت، آنچه انجام شده، آنچه در جریان است و با چه کسی، گام‌های بعد با مهلتشان، آنچه گیر کرده یا دیر است، و مسئول هر واحد.',
+        'Its status and health, what is done, what is in progress and with whom, the next steps with their deadlines, what is stuck or late, and who is responsible in each unit.')),
       step('[data-tour="start-authorization"]', t('مجوز شروع کار', 'The go-ahead'), t('یکی از سه مبنا را برگزینید — قرارداد امضاشده، سفارش رسمی مشتری، یا دستور اجرا با فاکتور — و سندش را بنویسید؛ بی‌قرارداد هم می‌شود شروع کرد.',
         'Choose one of three bases — a signed contract, the client\'s official order, or an execution order with an invoice — and name its document; work can start without a contract.')),
       RELATED,

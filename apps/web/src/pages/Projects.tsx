@@ -12,6 +12,7 @@ import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
 import { StageProgress } from '../components/StageProgress';
 import { StartAuthorization } from '../components/StartAuthorization';
+import { ProjectGlance } from '../components/ProjectGlance';
 import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
 import { Gantt } from '../components/Gantt';
@@ -219,6 +220,7 @@ export function ProjectDetail() {
       <PageBody className="space-y-5">
         {tab === 'overview' && (
           <>
+            <ProjectGlance data={data} />
             {/* At the top of the project, where it can still change how the work is run. */}
             <ProjectLessons projectId={p.id} />
             <Overview data={data} />

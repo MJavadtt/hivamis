@@ -222,8 +222,12 @@ hand the proposal to Sales, where the client's answer then shows.
 4. **Integration and pricing** — once every unit output is in and every cost is declared,
    integrate, then set the sale price with a written rationale. Someone with approval authority
    must confirm it — you cannot approve your own pricing.
-5. **Execution** — after the contract is authorised, run the project from Project 360: tasks,
-   traffic, risks, issues, change requests, status reports, and the closure checklist.
+5. **Execution** — after the go-ahead, run the project from Project 360: tasks, traffic, risks,
+   issues, change requests, status reports, and the closure checklist. Its overview opens with
+   **پروژه در یک نگاه**: the status and health, what is done, what is in progress and with whom,
+   the next deadlines, what is stuck or late (blocked or overdue tasks, units' questions, open
+   issues, missed SLAs), and who is responsible in each unit. A project without a go-ahead shows
+   **مجوز شروع کار** above it (see Finance).
 6. **Client approval that holds up later** — on Project 360, a delivered deliverable has a
    **تأیید مشتری** button. Choose the client contact and the files (upload them there if they are
    not attached yet) and send. The client gets a link to a page with the files, downloads each one,

@@ -3595,3 +3595,21 @@ fulfilment — with no contract record of its own, so the brief's ten-step purch
 review, draft, financial review, supplier negotiation, signing, guarantees) cannot be shown as a road
 without a backend change; the desk shows the purchase as it is. Invoice rows do not carry their moves
 in the list, so the desk links to the finance page for issuing, sending and recording payments.
+
+---
+
+## ADR-117 — A project at a glance
+
+**Context.** The owner's brief (2026-11-02) asks every project's overview to answer: what is the
+current status, what has been completed, what is in progress, what is the next step, who is
+responsible, and is anything blocked. Project 360 had all of it, across tabs and tables.
+
+**Decision.** `ProjectGlance` opens the project's overview: the plain stage and health and the account
+owner; tasks and deliverables done out of their totals; tasks in progress with their assignees; the
+next four deadlines among open tasks and deliverables; what is stuck or late — blocked tasks with
+their reason, overdue tasks with days late and assignee, work orders waiting on a unit's question,
+open issues, breached SLA clocks — and each unit's work-order owner. `glance()` reads only what
+`/projects/:id/360` already returns.
+
+**Limits.** "Next" is by deadline; a project's milestones and critical path stay on its schedule tab,
+which has its own data.
