@@ -27,13 +27,18 @@ import { flow, loc, tr, trx } from '../i18n';
 const OFFLINE_MOVES = new Set(['task.submit']);
 
 export function WorkflowActions({
-  entity, id, transitions, onDone, size = 'sm',
+  entity, id, transitions, onDone, size = 'sm', minimal,
 }: {
   entity: string;
   id: string;
   transitions: Transition[] | undefined;
   onDone?: () => void;
   size?: 'sm' | 'md';
+  /**
+   * Only these moves, as buttons — on a work card, where the record's own page holds the rest: no
+   * direct state change, no edit, no prerequisites list (a missing one still marks its button).
+   */
+  minimal?: boolean;
 }) {
   const [pending, setPending] = useState<Transition | null>(null);
   const [reason, setReason] = useState('');
@@ -58,10 +63,10 @@ export function WorkflowActions({
     enabled: !!transitions?.length,
   });
   const checksFor = (action: string) =>
-    preflight?.transitions.find((t) => t.action === action)?.checks ?? [];
+    preflight?.transitions?.find((t) => t.action === action)?.checks ?? [];
   const blocked = (transitions ?? []).filter((t) => checksFor(t.action).some((c) => !c.ok));
 
-  if (!transitions?.length && !systemAdmin) return null;
+  if (!transitions?.length && (!systemAdmin || minimal)) return null;
 
   const prompt = PAYLOAD_PROMPTS[`${entity}.${pending?.action ?? ''}`];
   const run = async (t: Transition, why?: string) => {
@@ -128,14 +133,14 @@ export function WorkflowActions({
             </Button>
           );
         })}
-        {systemAdmin && WORKFLOWS[entity] && (
+        {!minimal && systemAdmin && WORKFLOWS[entity] && (
           <Button size={size} variant="ghost" onClick={() => { setToState(''); setReason(''); setForcing(true); }}>{tr('تغییر مستقیم وضعیت')}</Button>
         )}
         {/* Every part of the record, the system administrator's to change (the owner's instruction, 2026-10-30). */}
-        {RECORD_KINDS.some((k) => k.key === entity) && <EditRecordButton path={RECORD_KINDS.find((k) => k.key === entity)!.path} id={id} />}
+        {!minimal && RECORD_KINDS.some((k) => k.key === entity) && <EditRecordButton path={RECORD_KINDS.find((k) => k.key === entity)!.path} id={id} />}
       </div>
 
-      {blocked.length > 0 && (
+      {!minimal && blocked.length > 0 && (
         <div className="mt-2 space-y-2" data-testid="preflight">
           {systemAdmin && <p className="text-xs font-medium text-amber-800">{tr('شما مدیر سیستم هستید: این کارها بدون این پیش‌نیازها هم انجام می‌شود و با نام شما در سابقه می‌ماند.')}</p>}
           {blocked.map((t) => (

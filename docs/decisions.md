@@ -3411,3 +3411,43 @@ organiser's, while a draft, and replaced its participants, guests and catering w
 - **Pickers past their first page.** `EntitySelect` (the forms' and the invoice form's) reads 200, offers
   a search when there are more, and shows the record chosen whether or not the list reaches it.
 
+---
+
+## ADR-111 — Work, in plain words: the workspace and «کارهای من»
+
+**Context.** The owner's brief (2026-11-02): ordinary employees must understand, without training, what
+they have to do, why, where to click and what happens next — "the system manages the complexity; the
+person sees simplicity". A frontend change only: no schema, API contract, business logic or workflow
+engine is touched. The application already gathered everything a person must do in one place
+(`/me/work`, roadmap #41), each item with its link and the moves the person may make; what it showed was
+a technical reading of it — codes, SLA chips, kind filters, four figure tiles and three tables on the
+first page.
+
+**Decision.**
+- **A plain-language layer** (`apps/web/src/lib/plain.ts`): every state of every workflow is read as one
+  of eight things a person needs to know — new, in progress, awaiting review, returned for correction,
+  stopped, approved, done, cancelled (`stageOf`, with the few states a kind of record means otherwise).
+  The states themselves are unchanged and still shown on the record's own page. A queue item is read as
+  what to do now (`whatToDo`), sorted as a person thinks of it (`groupOf`: returned, urgent, awaiting
+  their decision, theirs to do, handed in and with someone else), with its one forward move
+  (`forwardMove` — never cancel, reject, block or ask), and opened where it is decided (a form on
+  itself).
+- **A work card** (`WorkCard`): title and project, the plain status, what to do, the deadline as a
+  person says it, and one button — the forward move through `WorkflowActions` in a new `minimal` mode
+  (only that move, its reason or extra value asked for as before, no direct state change, edit or
+  prerequisites list on a card), or «بررسی و تصمیم» for a decision. Returned work says who sent it back,
+  when and why, read from the record's own state history.
+- **«میز کار من»** (`/`): one sentence for the day, then returned, urgent and next work as cards; upcoming
+  meetings (`/bookings?scope=mine`), new notifications, the person's projects with their plain status
+  and health, recently finished tasks. The figures page it replaced stays, as «نمای آماری من»
+  (`/overview`).
+- **«کارهای من»** (`/my-work`): the same cards in five groups, with a summary sentence; the system
+  administrator's `?for=` view, the device's offline copy and the outbox are kept.
+- **Notifications open their record** (`NoticeRow`, `pageOf`) and are marked read as they open.
+- The help guide's tours and the written manual follow the new pages.
+
+**Limits, said rather than worked around.** `/me/work` does not carry an item's client, requesting
+unit, assignee or submission date; the card shows what it carries (project, deadline, state). A
+notification about a record kind with no page of its own (a user, a security alert's detail) is read
+where it stands.
+

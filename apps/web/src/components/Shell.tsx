@@ -11,7 +11,7 @@ import { useLocale, type Locale } from '../lib/locale';
 import { OwlGuide } from './owl/OwlGuide';
 import { guideBus } from '../lib/guide';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
-import { formatRelative, formatYear, localDigits } from '../lib/format';
+import { formatYear, localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
 import { useQueueReplay } from '../lib/sync';
 import { MessengerMenuItem } from './Messenger';
@@ -27,6 +27,7 @@ import { QuickForms } from './QuickForms';
 import { AssistantButton } from './AssistantChat';
 import { BrandLockup, HivaLogo } from './Brand';
 import { ActingBanner } from './ActingBanner';
+import { NoticeRow, type NotificationRow } from './Notice';
 
 interface NavItem {
   to: string;
@@ -51,7 +52,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('کار من'),
     items: [
-      { to: '/', label: tr('داشبورد'), icon: IconDashboard },
+      { to: '/', label: tr('میز کار من'), icon: IconDashboard },
       { to: '/my-work', label: tr('کارهای من'), icon: IconCheckCircle },
       { to: '/tasks', label: tr('وظایف'), icon: IconCheckCircle, permission: 'task.read' },
       { to: '/forms', label: tr('فرم‌ها'), icon: IconFile, permission: 'form.read' },
@@ -108,6 +109,7 @@ const NAV: NavGroup[] = [
   {
     label: tr('تحلیل و مدیریت'),
     items: [
+      { to: '/overview', label: tr('نمای آماری من'), icon: IconChart },
       { to: '/reports', label: tr('گزارش‌ها'), icon: IconChart, permission: 'report.read' },
       // No permission of its own: memory only ever searches what the caller may already read.
       { to: '/memory', label: tr('حافظهٔ سازمان'), icon: IconSearch },
@@ -518,11 +520,6 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
   );
 }
 
-interface NotificationRow {
-  id: string; kind: string; title: string; body: string | null;
-  severity: string; readAt: string | null; createdAt: string;
-}
-
 /** Opens the owl's guide to this page (Hivamis task 8); the full written guide is one click inside it. */
 function HelpButton() {
   return (
@@ -647,17 +644,7 @@ function Notifications() {
             {!data?.items.length ? (
               <p className="px-3 py-8 text-center text-sm text-ink-500">{tr('اعلانی وجود ندارد.')}</p>
             ) : (
-              data.items.slice(0, 20).map((n) => (
-                <div key={n.id} className={cx('border-b border-ink-200/60 px-3 py-2.5 last:border-0', !n.readAt && 'bg-brand-50/60')}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-ink-800">{trx(n.title)}</p>
-                    {n.severity === 'CRITICAL' && <Badge tone="danger">{tr('بحرانی')}</Badge>}
-                    {n.severity === 'WARNING' && <Badge tone="warning">{tr('هشدار')}</Badge>}
-                  </div>
-                  {n.body && <p className="mt-0.5 text-xs text-ink-500">{trx(n.body)}</p>}
-                  <p className="mt-1 text-[12.5px] text-ink-400">{formatRelative(n.createdAt)}</p>
-                </div>
-              ))
+              data.items.slice(0, 20).map((n) => <NoticeRow key={n.id} n={n} onOpen={() => setOpen(false)} />)
             )}
           </div>
         </div>

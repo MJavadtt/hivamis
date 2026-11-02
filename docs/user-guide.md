@@ -99,23 +99,38 @@ only for the installed app, from iOS 16.4. On Linux, install from Chrome, Chromi
 does not install web apps. For field work, open `/m` on the phone and install that too: **هیوامیس
 همراه**, which opens on the three field tasks.
 
-## The dashboard — «داشبورد»
+## Your workspace — «میز کار من»
 
-The first page after signing in. Four tiles count what is yours, and each opens the list behind it:
-**وظایف باز من**, **وظایف تاخیردار** (past their due date), **در انتظار تأیید** (forms waiting for your
-decision) and **نقض روند** (your deadlines broken or about to be). Beside your tasks are
-**اصلاحیه‌ها** — revisions assigned to you or your unit — and **روندهای من**, the deadline clocks you
-own. **پروژه‌های من** has two halves: **در حال اجرا (فعال)**, the projects you run or work on, and
-**فروش (فرصت فروش)**, the opportunities you own that are not yet won or lost (for those who see the
-sales pipeline).
+The first page after signing in. One sentence says what is yours today — how much work, how much came
+back to correct, how much is urgent and how much awaits your decision — and the button beside it opens
+all of it. Below, the work comes in the order to look at it: **برگشت برای اصلاح** (returned for
+correction), **فوری** (urgent), **کارهای بعدی** (next). Each piece of work is a card: what it is and
+which project, where it stands in plain words («تازه», «در حال انجام», «منتظر بررسی», «برگشت برای
+اصلاح», «متوقف», «تأیید شد», «انجام شد»), one sentence that says what to do now, the deadline as you
+would say it («مهلت: فردا», «۳ روز از مهلت گذشته»), and one button that does it. A returned card says
+who sent it back, when and with what note. Beside the work are **جلسه‌های پیش رو** (the next two
+weeks) and **اعلان‌های تازه**; below, **پروژه‌های من** with where each stands and whether it is on
+track, and **تازه انجام داده‌اید** (recently finished).
+
+## Your figures — «نمای آماری من»
+
+The tiles and tables the first page used to carry — open and overdue tasks, forms awaiting your
+approval, deadlines, projects and sales opportunities in figures — open from the link at the foot of
+the workspace and from the **تحلیل و مدیریت** menu.
 
 ## Your queue — «کارهای من»
 
-Everything that sits with you, in one list: tasks assigned to you, work orders you own, QC
-waiting for your level, forms awaiting your approval, revisions assigned to you, and — if you
-issue work orders — clarification requests from the units. Ordered by urgency: a breached SLA
-first, then whatever runs out soonest, then by due date. Each row carries its own actions, so
-you accept, submit or send to QC from the list. Filter by kind with the chips above it.
+Everything that is yours, each with its next step: tasks assigned to you, work orders you own, outputs
+awaiting your review, forms awaiting your decision, revisions assigned to you, and — if you issue work
+orders — the units' questions. A sentence at the top says how the queue looks, and the work comes in
+five groups: **برگشت برای اصلاح**, **فوری** (past or near its deadline), **منتظر تصمیم شما**,
+**کارهای من** and **تحویل داده‌ام** (what you handed in, waiting on someone else). The most urgent come
+first in each. Each card carries its main button — accept, start, hand in; for a form or a review,
+**بررسی و تصمیم** — and **جزئیات** opens the record with everything else that can be done. Click a
+group's name to see only it.
+
+**Notifications.** Each notification, under the bell or on the workspace, opens its record and is
+marked read as it opens.
 
 **Live.** The small dot on the bell is green while the page is live: a record moved by someone
 else — an order accepted, a deliverable through QC, an invoice issued — appears on the screen you

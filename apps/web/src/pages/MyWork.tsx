@@ -2,26 +2,17 @@ import { useState } from 'react';
 import { Outbox } from '../components/Outbox';
 import { Freshness } from '../components/Freshness';
 import { offlineQuery } from '../lib/offline';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { apiGet } from '../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PageBody, PageHeader } from '../components/Shell';
-import { Code, WorkflowActions } from '../components/common';
-import { Badge, Button, Card, EmptyState, ErrorBlock, LoadingBlock, StateBadge, StatTile, cx } from '../components/ui';
-import { formatDate, formatRelative, localDigits } from '../lib/format';
+import { WorkCard } from '../components/WorkCard';
+import { Button, Card, EmptyState, ErrorBlock, LoadingBlock } from '../components/ui';
+import { localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus } from '../lib/live';
-import { loc, tr, trx } from '../i18n';
+import { groupOf, type WorkGroup, type WorkItem } from '../lib/plain';
+import { tr } from '../i18n';
 
-interface WorkItem {
-  kind: string; entityType: string; entityId: string; code: string; title: string; state: string;
-  projectCode: string | null; projectName: string | null; dueAt: string | null;
-  sla: {
-    policyCode: string; labelFa: string; state: string; dueAt: string; budgetHours: number; controlledHours: number;
-    risk?: { probability: number; risk: 'WATCH' | 'LIKELY' | 'CRITICAL'; becauseFa: string | null } | null;
-  } | null;
-  href: string;
-  availableTransitions: { action: string; labelFa: string; labelEn: string; requiresReason: boolean; to: string }[];
-}
 interface Queue {
   items: WorkItem[]; counts: Record<string, number>; kinds: Record<string, string>; breached: number; atRisk: number;
   /** Audit PERF-4: a queue longer than one reading takes; what has waited longest is shown. */
@@ -30,35 +21,35 @@ interface Queue {
   person?: { id: string; fullName: string } | null;
 }
 
-/** How a clock reads at a glance: what is left of it, or that it is gone. */
-function SlaChip({ sla }: { sla: NonNullable<WorkItem['sla']> }) {
-  const left = Math.max(0, sla.budgetHours - sla.controlledHours);
-  const tone = sla.state === 'BREACHED' ? 'danger' : sla.state === 'AT_RISK' ? 'warning' : sla.state === 'PAUSED' ? 'neutral' : 'info';
-  const text = sla.state === 'BREACHED' ? tr('نقض شده — {0}', formatRelative(sla.dueAt))
-    : sla.state === 'PAUSED' ? tr('متوقف')
-    : tr('{0} ساعت کاری مانده', localDigits(Math.round(left * 10) / 10));
-  return <Badge tone={tone} className="whitespace-nowrap">{loc(sla, 'label')}: {text}</Badge>;
+/** The groups a person sorts their work by, in the order they should look at them. */
+const GROUPS: { key: WorkGroup; label: string; empty: string }[] = [
+  { key: 'returned', label: tr('برگشت برای اصلاح'), empty: tr('چیزی برای اصلاح برنگشته است.') },
+  { key: 'urgent', label: tr('فوری'), empty: tr('کار فوری ندارید.') },
+  { key: 'decide', label: tr('منتظر تصمیم شما'), empty: tr('چیزی منتظر تصمیم شما نیست.') },
+  { key: 'todo', label: tr('کارهای من'), empty: tr('کار دیگری با شما نیست.') },
+  { key: 'waiting', label: tr('تحویل داده‌ام'), empty: tr('چیزی منتظر بررسی دیگران نیست.') },
+];
+
+/** One sentence that says how the day looks. */
+export function summaryOf(items: WorkItem[]): string {
+  const count = (g: WorkGroup) => items.filter((i) => groupOf(i) === g).length;
+  const open = items.filter((i) => groupOf(i) !== 'waiting').length;
+  if (!open) return tr('کاری منتظر شما نیست.');
+  const parts = [tr('{0} کار با شماست', localDigits(open))];
+  if (count('returned')) parts.push(tr('{0} کار برای اصلاح برگشته', localDigits(count('returned'))));
+  if (count('urgent')) parts.push(tr('{0} کار فوری است', localDigits(count('urgent'))));
+  if (count('decide')) parts.push(tr('{0} مورد منتظر تصمیم شماست', localDigits(count('decide'))));
+  return `${parts.join(tr('، '))}${tr('.')}`;
 }
 
 /**
- * "You are going to run out of time" — said while there is still time to act (roadmap #8),
- * with the reason attached, because a bare percentage is not something anyone can act on.
- */
-function RiskChip({ risk }: { risk: NonNullable<NonNullable<WorkItem['sla']>['risk']> }) {
-  return (
-    <Badge tone={risk.risk === 'CRITICAL' ? 'danger' : risk.risk === 'LIKELY' ? 'warning' : 'info'}
-      className="whitespace-nowrap" >
-      <span title={trx(risk.becauseFa ?? undefined)}>{tr('احتمال نقض {0}٪', localDigits(Math.round(risk.probability * 100)))}</span>
-    </Badge>
-  );
-}
-
-/**
- * One queue for one person. Ordered by the server — a breached clock first, then whatever runs
- * out soonest — and each item carries its own actions, so the work gets done from the list.
+ * Everything a person has to do, in one place (roadmap #41; the owner's brief, 2026-11-02): each
+ * piece of work as a card that says what to do and offers the one button that does it, sorted by
+ * what came back, what is late, what waits on their decision, the rest — and what they have handed
+ * in, which waits on someone else. The server's order inside each group: soonest deadline first.
  */
 export default function MyWork() {
-  const [kind, setKind] = useState<string | null>(null);
+  const [group, setGroup] = useState<WorkGroup | null>(null);
   const live = useLiveStatus();
   // Kept on the device: the work list is what a person opens in the field (audit F-7).
   // `?for=` — someone else's queue, for the system administrator; read live, never kept on the device.
@@ -68,70 +59,54 @@ export default function MyWork() {
     ? { queryKey: ['/me/work', forId], queryFn: () => apiGet('/me/work', { for: forId }), refetchInterval: fallbackInterval(live) }
     : { ...offlineQuery<Queue>('/me/work'), refetchInterval: fallbackInterval(live) });
 
-  const items = (data?.items ?? []).filter((i) => !kind || i.kind === kind);
+  const all = data?.items ?? [];
+  const inGroup = (g: WorkGroup) => all.filter((i) => groupOf(i) === g);
+  const shown = group ? GROUPS.filter((g) => g.key === group) : GROUPS;
 
   return (
     <>
       <PageHeader
         title={data?.person ? tr('کارهای {0}', data.person.fullName) : tr('کارهای من')}
-        subtitle={data?.person ? tr('صف کار این نفر، همان‌طور که خودش می‌بیند — اقدام‌ها با دسترسی شما و به نام شما ثبت می‌شوند.') : tr('هر چه با شماست، در یک صف — به ترتیب نزدیکی مهلت، نه تاریخ ایجاد')} />
+        subtitle={data?.person ? tr('صف کار این نفر، همان‌طور که خودش می‌بیند — اقدام‌ها با دسترسی شما و به نام شما ثبت می‌شوند.') : tr('هر چه با شماست، با گام بعدی‌اش — فوری‌ترها بالاتر')} />
       <PageBody>
         {!forId && <Freshness path="/me/work" />}
         {!forId && <div className="mb-4 empty:hidden"><Outbox /></div>}
         {isLoading ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={refetch} /> : !data ? null : (
           <>
-            <div data-tour="tiles" className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile label={tr('در صف')} value={localDigits(data.items.length)} />
-              <StatTile label={tr('مهلت نقض‌شده')} value={localDigits(data.breached)} tone={data.breached > 0 ? 'danger' : 'success'} />
-              <StatTile label={tr('در خطر')} value={localDigits(data.atRisk)} tone={data.atRisk > 0 ? 'warning' : 'neutral'} />
-              <StatTile label={tr('نوع کار')} value={localDigits(Object.values(data.counts).filter(Boolean).length)} />
-            </div>
+            <p data-tour="work-summary" className="mb-4 text-[15px] font-medium text-ink-800" data-testid="work-summary">{summaryOf(all)}</p>
             {data.truncated && (
               <p role="status" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900" data-testid="work-truncated">
                 {tr('صف شما بلندتر از آن است که یک‌جا نشان داده شود؛ آنچه بیشتر منتظر مانده آمده است. با بستن کارها بقیه نمایان می‌شوند.')}
               </p>
             )}
 
-            <div data-tour="work-kinds" className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={tr('فیلتر بر اساس نوع کار')}>
-              <Button size="sm" variant={kind === null ? 'primary' : 'secondary'} onClick={() => setKind(null)}>{tr('همه')}</Button>
-              {Object.entries(data.kinds).filter(([k]) => data.counts[k]).map(([k, label]) => (
-                <Button key={k} size="sm" variant={kind === k ? 'primary' : 'secondary'} onClick={() => setKind(kind === k ? null : k)}>
-                  {trx(label)} <span className="ms-1 text-[12.5px] opacity-70">{localDigits(data.counts[k]!)}</span>
+            <div data-tour="work-groups" className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label={tr('نمایش بر اساس گروه')}>
+              <Button size="sm" variant={group === null ? 'primary' : 'secondary'} onClick={() => setGroup(null)}>{tr('همه')}</Button>
+              {GROUPS.filter((g) => inGroup(g.key).length).map((g) => (
+                <Button key={g.key} size="sm" variant={group === g.key ? 'primary' : 'secondary'} onClick={() => setGroup(group === g.key ? null : g.key)}>
+                  {g.label} <span className="ms-1 text-[12.5px] opacity-70">{localDigits(inGroup(g.key).length)}</span>
                 </Button>
               ))}
             </div>
 
-            <Card tour="work-list">
-              {!items.length ? <EmptyState title={tr('کاری در صف شما نیست')} /> : (
-                <ul className="divide-y divide-ink-100" data-testid="my-work">
-                  {items.map((i) => (
-                    <li key={`${i.kind}:${i.entityId}`} className={cx('px-4 py-3', i.sla?.state === 'BREACHED' && 'bg-rose-50/40')}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge tone="neutral">{trx(data.kinds[i.kind] ?? i.kind)}</Badge>
-                            <Link to={i.href} className="truncate text-sm font-medium text-ink-800 hover:underline">{i.title}</Link>
-                            <Code>{i.code}</Code>
-                            <StateBadge state={i.state} />
-                          </div>
-                          <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-ink-500">
-                            {i.projectCode && <span>{i.projectName} <Code>{i.projectCode}</Code></span>}
-                            {i.dueAt && <span>{tr('مهلت: {0} — {1}', formatDate(i.dueAt), formatRelative(i.dueAt))}</span>}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-2">
-                          {i.sla && <SlaChip sla={i.sla} />}
-                          {i.sla?.risk && <RiskChip risk={i.sla.risk} />}
-                          {i.availableTransitions.length > 0
-                            ? <WorkflowActions entity={i.entityType} id={i.entityId} transitions={i.availableTransitions} onDone={() => void refetch()} />
-                            : <Link to={i.href}><Button size="sm">{tr('باز کردن')}</Button></Link>}
-                        </div>
+            <div data-tour="work-list" className="space-y-6" data-testid="my-work">
+              {!all.length ? (
+                <Card><EmptyState title={tr('کاری در صف شما نیست')} description={tr('هر کاری که به شما سپرده شود، یا منتظر تصمیم شما باشد، همین‌جا می‌آید.')} /></Card>
+              ) : shown.map((g) => {
+                const items = inGroup(g.key);
+                if (!items.length && !group) return null;
+                return (
+                  <section key={g.key} aria-label={g.label}>
+                    <h2 className="mb-2 text-sm font-bold text-ink-700">{g.label} <span className="font-normal text-ink-400">{localDigits(items.length)}</span></h2>
+                    {!items.length ? <p className="text-sm text-ink-500">{g.empty}</p> : (
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {items.map((i) => <WorkCard key={`${i.kind}:${i.entityId}`} item={i} onDone={() => void refetch()} />)}
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           </>
         )}
       </PageBody>

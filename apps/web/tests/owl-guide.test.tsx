@@ -77,11 +77,11 @@ describe('Hiva the owl', () => {
   it('plays the page step by step, lighting what each step is about, and moves on by itself', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame'] });
     const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-      return (this as HTMLElement).dataset?.tour === 'tiles'
+      return (this as HTMLElement).dataset?.tour === 'today'
         ? ({ top: 100, left: 40, width: 600, height: 120, bottom: 220, right: 640, x: 40, y: 100, toJSON: () => ({}) } as DOMRect)
         : ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
     });
-    mount({ at: '/', permissions: [], page: <div data-tour="tiles">کاشی‌ها</div> });
+    mount({ at: '/', permissions: [], page: <div data-tour="today">امروز</div> });
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
     fireEvent.click(screen.getByRole('button', { name: 'هیوا — راهنمای این صفحه' }));
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });

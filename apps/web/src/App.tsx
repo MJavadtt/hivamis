@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button, LoadingBlock } from './components/ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
 import Forms from './pages/Forms';
 import Quality from './pages/Quality';
 import Admin from './pages/Admin';
@@ -105,7 +106,8 @@ export default function App() {
       <Suspense fallback={<LoadingBlock />}>
       <ErrorBoundary>
         <Routes>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/overview" element={<Dashboard />} />
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/delegations" element={<Delegations />} />
         <Route path="/me" element={<Me />} />

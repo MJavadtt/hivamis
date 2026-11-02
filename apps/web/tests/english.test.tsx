@@ -79,7 +79,7 @@ describe('in English', () => {
 
   it('reads the guide in English, headed with its own English section titles', async () => {
     const { findSection } = await import('../src/lib/help');
-    expect(findSection('The dashboard — «داشبورد»')?.heading).toBe('The dashboard');
+    expect(findSection('Your workspace — «میز کار من»')?.heading).toBe('Your workspace');
     expect(findSection('Sales')?.heading).toBe('Sales');
     expect(findSection('Sales')?.body).toMatch(/^\*\*Your loop/);
   });
