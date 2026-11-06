@@ -11,7 +11,8 @@ import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
 import { assertStorageFor, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
-import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS, mayReadSiteFile } from '../sites/access.js';
+import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS } from '../sites/access.js';
+import { isFileRecord, mayReadFile, mayReadRecord, recordInOrganization } from '../documents/records.js';
 
 /** Only these types are accepted; anything executable or unknown is refused. */
 const ALLOWED_MIME = new Set([
@@ -44,7 +45,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const { projectId, companyId, contractId, deliverableId, proposalId, versions, venueId, siteProjectId } = req.query as Record<string, string | undefined>;
+    const { projectId, companyId, contractId, deliverableId, proposalId, versions, venueId, siteProjectId, recordType, recordId } = req.query as Record<string, string | undefined>;
     const rows = await prisma.document.findMany({
       where: {
         // A file shared in a conversation is its members' (audit F-5), served by the chat alone.
@@ -57,12 +58,15 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
         ...(contractId ? { contractId } : {}), ...(deliverableId ? { deliverableId } : {}),
         ...(proposalId ? { proposalId } : {}),
         ...(venueId ? { venueId } : {}), ...(siteProjectId ? { siteProjectId } : {}),
+        ...(recordType ? { recordType } : {}), ...(recordId ? { recordId } : {}),
       },
       include: { uploadedBy: { select: { id: true, fullName: true } } },
       orderBy: { createdAt: 'desc' }, take: 200,
     });
-    // A venue's photo or a deployment project's file is read with that module's permission (ADR-103).
-    return rows.filter((d) => mayReadSiteFile(actor.permissions, d));
+    // A venue's photo or a deployment project's file is read with that module's permission (ADR-103),
+    // and a record's file as the record is (ADR-121).
+    const readable = await Promise.all(rows.map((d) => mayReadFile(actor, d)));
+    return rows.filter((_, i) => readable[i]);
   });
 
   app.post('/documents', {
@@ -227,6 +231,18 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     } else if (!links.siteProjectId && !replaced) {
       site.siteRecordType = null; site.siteRecordId = null;
     }
+    /**
+     * A file on any other record (ADR-121): on that record alone, by someone who may read it, in this
+     * organisation. Another's record, or none, answers as `links` do below.
+     */
+    const record = replaced ? { recordType: replaced.recordType, recordId: replaced.recordId } : { recordType: val('recordType'), recordId: val('recordId') };
+    if (!replaced && (record.recordType || record.recordId)) {
+      const { recordType, recordId } = record;
+      if (!isFileRecord(recordType) || !recordId) return fail('VALIDATION_ERROR', 'پرونده‌ای که فایل به آن پیوست می‌شود نامعتبر است.');
+      if (Object.values(links).some(Boolean) || brandRole || qcReviewId || chatConversationId) return fail('RECORD_FILE_ALONE', 'پیوست یک پرونده فقط به همان پرونده وصل می‌شود.');
+      if (!(await recordInOrganization(recordType, recordId, actor.organizationId))) return fail('UNKNOWN_REFERENCE', 'پرونده‌ای که فایل به آن پیوست می‌شود پیدا نشد.', 422);
+      if (!(await mayReadRecord(actor, recordType, recordId))) return fail('FORBIDDEN', 'به این پرونده دسترسی ندارید.', 403);
+    }
     const owners: Record<keyof typeof links, { count: (a: object) => Promise<number> }> = {
       projectId: prisma.project, companyId: prisma.company, contractId: prisma.contract,
       deliverableId: prisma.deliverable, submissionId: prisma.formSubmission, proposalId: prisma.proposal,
@@ -257,7 +273,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
           projectId: links.projectId, companyId: links.companyId,
           contractId: links.contractId, deliverableId: links.deliverableId,
           submissionId: links.submissionId, proposalId: links.proposalId, qcReviewId, chatConversationId,
-          venueId: links.venueId, siteProjectId: links.siteProjectId, ...site,
+          venueId: links.venueId, siteProjectId: links.siteProjectId, ...site, ...record,
           tags: val('tags')?.split(',').map((t) => t.trim()).filter(Boolean) ?? replaced?.tags ?? [],
           uploadedById: actor.id,
           lineageId: replaced ? replaced.lineageId ?? replaced.id : id,
@@ -298,7 +314,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !(await mayReadFile(actor, doc))) throw notFound('سند');
 
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_DOWNLOAD',
@@ -331,7 +347,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
+    if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !(await mayReadFile(actor, doc))) throw notFound('سند');
     if (!PREVIEWABLE(doc.mimeType)) throw new AppError(422, 'PREVIEW_UNSUPPORTED', 'این نوع فایل پیش‌نمایش ندارد؛ آن را دریافت کنید.');
     const seen = await prisma.auditEvent.findFirst({
       where: { actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, createdAt: { gte: new Date(Date.now() - 3_600_000) } },
@@ -352,8 +368,8 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
-    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null }, select: { id: true, lineageId: true, venueId: true, siteProjectId: true, siteRecordType: true } });
-    if (!doc || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
+    const doc = await prisma.document.findFirst({ where: { id, organizationId: actor.organizationId, deletedAt: null, chatConversationId: null }, select: { id: true, lineageId: true, venueId: true, siteProjectId: true, siteRecordType: true, recordType: true, recordId: true } });
+    if (!doc || !(await mayReadFile(actor, doc))) throw notFound('سند');
     const lineage = doc.lineageId ?? doc.id;
     const rows = await prisma.document.findMany({
       where: { organizationId: actor.organizationId, deletedAt: null, OR: [{ lineageId: lineage }, { id: lineage }] },
@@ -398,7 +414,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc || doc.organizationId !== actor.organizationId || doc.chatConversationId || !mayReadSiteFile(actor.permissions, doc)) throw notFound('سند');
+    if (!doc || doc.organizationId !== actor.organizationId || doc.chatConversationId || !(await mayReadFile(actor, doc))) throw notFound('سند');
     // A deployment project's evidence stays once what it evidences is decided (ADR-103): a contract
     // sent or approved, an approval, a payment, a decided deduction.
     if (doc.siteProjectId && doc.siteRecordId) {

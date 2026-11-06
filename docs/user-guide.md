@@ -77,6 +77,16 @@ logo; hover over an icon to see its name. Each person's choice is remembered on 
 phone, search is the magnifier at the top. The language is set on your own page, and the light or
 dark theme follows the phone's.
 
+**Going back.** Every page has **بازگشت** at its top: it returns to where you came from, or, if you
+opened the page straight from a link or a notification, to the page above it.
+
+**Attachments.** Every record can hold files. A record's page — client, opportunity, brief, proposal,
+project, work order, task, change request, supplier, contract, booking — has **پیوست‌ها** in its header,
+with how many there are. A record that is a row of another page — lead, invoice, meeting, follow-up,
+risk, issue, decision, status report, revision, media order, purchase request — has a paperclip beside
+it. A follow-up can take its files as it is saved. A file is read as its record is: an invoice's files by
+those who may read invoices, a private booking's by those who see the booking.
+
 **Search.** The box at the top (or Ctrl+K) finds clients, projects, tasks, work orders, briefs,
 proposals, contracts by title or number, and colleagues by name, job or email — each result with its
 status in plain words. Ask it a question («چطور ساعت کارم را ثبت کنم») and it also shows the guide's

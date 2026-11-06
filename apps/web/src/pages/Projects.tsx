@@ -12,6 +12,7 @@ import { SlaClocksCard } from '../components/SlaClocks';
 import { RecordHistory } from '../components/RecordHistory';
 import { StageProgress } from '../components/StageProgress';
 import { StartAuthorization } from '../components/StartAuthorization';
+import { AttachButton, onRecord } from '../components/RecordFiles';
 import { ProjectGlance } from '../components/ProjectGlance';
 import { ClientReportButton } from '../components/ClientReportButton';
 import { BudgetByOrder } from '../components/BudgetByOrder';
@@ -361,7 +362,7 @@ function Overview({ data }: { data: Project360 }) {
         <SlaClocksCard entityType="project" entityId={p.id} />
 
         <Card title={tr('آخرین گزارش وضعیت')}
-          action={data.statusReports.length ? <div className="flex items-center gap-1"><ClientReportButton reportId={data.statusReports[0].id} /><EditRecordButton path="/status-reports" id={data.statusReports[0].id} compact /></div> : undefined}>
+          action={data.statusReports.length ? <div className="flex items-center gap-1"><ClientReportButton reportId={data.statusReports[0].id} /><AttachButton target={onRecord('statusReport', data.statusReports[0].id)} title={data.statusReports[0].period} /><EditRecordButton path="/status-reports" id={data.statusReports[0].id} compact /></div> : undefined}>
           {!data.statusReports.length ? <EmptyState title={tr('گزارشی ثبت نشده')} /> : (
             <div className="space-y-2 px-4 py-3 text-sm">
               <p className="text-xs text-ink-500">{tr('دوره:')}{' '}{data.statusReports[0].period}</p>
@@ -472,7 +473,7 @@ function QualityTab({ data }: { data: Project360 }) {
                 <Td className="max-w-sm text-xs">{r.requiredCorrection}</Td>
                 <Td><UnitTag code={r.responsibleDepartmentCode} /></Td>
                 <Td className="text-xs">{formatDate(r.dueDate)}</Td>
-                <Td><div className="flex items-center gap-1"><StateBadge state={r.state} /><EditRecordButton path="/revisions" id={r.id} compact /></div></Td>
+                <Td><div className="flex items-center gap-1"><StateBadge state={r.state} /><AttachButton target={onRecord('revision', r.id)} title={r.code} /><EditRecordButton path="/revisions" id={r.id} compact /></div></Td>
               </Tr>
             ))}
           </tbody>
@@ -520,7 +521,7 @@ function GovernanceTab({ data }: { data: Project360 }) {
                 <li key={r.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-ink-800">{r.title}</p>
-                    <div className="flex items-center gap-1"><StateBadge state={r.state} /><EditRecordButton path="/risks" id={r.id} compact /></div>
+                    <div className="flex items-center gap-1"><StateBadge state={r.state} /><AttachButton target={onRecord('risk', r.id)} title={r.title} /><EditRecordButton path="/risks" id={r.id} compact /></div>
                   </div>
                   <p className="mt-1 text-xs text-ink-500">{r.description}</p>
                   <div className="mt-1.5 flex gap-1.5">
@@ -540,7 +541,7 @@ function GovernanceTab({ data }: { data: Project360 }) {
                 <li key={i.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm text-ink-800">{i.title}</p>
-                    <div className="flex items-center gap-1"><StateBadge state={i.state} /><EditRecordButton path="/issues" id={i.id} compact /></div>
+                    <div className="flex items-center gap-1"><StateBadge state={i.state} /><AttachButton target={onRecord('issue', i.id)} title={i.title} /><EditRecordButton path="/issues" id={i.id} compact /></div>
                   </div>
                   <p className="mt-0.5 text-xs text-ink-500">{i.description}</p>
                 </li>
@@ -549,7 +550,7 @@ function GovernanceTab({ data }: { data: Project360 }) {
                 <li key={d.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm text-ink-800">{d.title}</p>
-                    <div className="flex items-center gap-1"><Badge tone="progress">{tr('تصمیم')}</Badge><EditRecordButton path="/decisions" id={d.id} compact /></div>
+                    <div className="flex items-center gap-1"><Badge tone="progress">{tr('تصمیم')}</Badge><AttachButton target={onRecord('decision', d.id)} title={d.title} /><EditRecordButton path="/decisions" id={d.id} compact /></div>
                   </div>
                   <p className="mt-0.5 text-xs text-ink-500">{d.decision}</p>
                 </li>

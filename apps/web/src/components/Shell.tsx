@@ -29,6 +29,8 @@ import { BrandLockup, HivaLogo } from './Brand';
 import { ActingBanner } from './ActingBanner';
 import { NoticeRow, type NotificationRow } from './Notice';
 import { StagePill } from './WorkCard';
+import { BackButton } from './BackButton';
+import { PageAttachments, usePageTarget } from './RecordFiles';
 
 interface NavItem {
   to: string;
@@ -312,6 +314,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 {tr('بدون اتصال — آنچه می‌بینید آخرین نسخهٔ ذخیره‌شده روی همین دستگاه است. زمان، یادداشت، تحویل وظیفه و فرم در صف می‌مانند تا شبکه برگردد؛ تأییدها و کارهای دیگر به اتصال نیاز دارند.')}
               </p>
             )}
+            <BackButton className="mx-3 mt-2 sm:mx-5 lg:mx-0 lg:mt-0" />
             <div className="flex-1 pb-6">{children}</div>
             <PageFooter />
           </div>
@@ -701,6 +704,8 @@ function Notifications() {
 export function PageHeader({ title, subtitle, actions, badge }: {
   title: string; subtitle?: ReactNode; actions?: ReactNode; badge?: ReactNode;
 }) {
+  // A page that is one record offers its files here (ADR-121), whatever else the page does.
+  const files = usePageTarget();
   return (
     // The kit's page head ("Name Project"): the title and its actions in a box of their own — here a
     // pane of glass.
@@ -712,7 +717,7 @@ export function PageHeader({ title, subtitle, actions, badge }: {
         </div>
         {subtitle && <div className="mt-1 text-xs font-semibold text-ink-500">{subtitle}</div>}
       </div>
-      {actions && <div data-tour="page-actions" className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {(actions || files) && <div data-tour="page-actions" className="flex flex-wrap items-center gap-2">{files && <PageAttachments target={files} />}{actions}</div>}
     </div>
   );
 }

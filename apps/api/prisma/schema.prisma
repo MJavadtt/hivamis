@@ -1931,6 +1931,9 @@ model Document {
   siteProject        SiteProject?      @relation(fields: [siteProjectId], references: [id], onDelete: Cascade)
   siteRecordType     String?
   siteRecordId       String?
+  /// A file on any other record (ADR-121): FILE_RECORD_TYPES names the kind; read as that record is.
+  recordType         String?
+  recordId           String?
   category           String?
   caption            String?
   takenAt            DateTime?
@@ -1968,6 +1971,7 @@ model Document {
   @@index([chatConversationId])
   @@index([venueId])
   @@index([siteProjectId, siteRecordType, siteRecordId])
+  @@index([organizationId, recordType, recordId])
   @@map("documents")
 }
 

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { Code, WorkflowActions } from './common';
 import { CurrencySelect, FxPreview, money } from './Fx';
 import { JalaliDateInput } from './JalaliDateInput';
+import { AttachButton, onRecord } from './RecordFiles';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, StateBadge, StatTile, Table, Td, Th, Tr, useToast } from './ui';
 import { formatCurrency, formatDate, localDateOnly, localDigits } from '../lib/format';
 import { loc, tr, trx } from '../i18n';
@@ -77,6 +78,7 @@ export function ProjectMedia({ projectId }: { projectId: string }) {
                   <Td><StateBadge state={o.state} /></Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-1">
+                      <AttachButton target={onRecord('mediaOrder', o.id)} title={o.code} />
                       {can('finance.payment') && ['BOOKED', 'AIRED'].includes(o.state) && <Button size="sm" variant="ghost" onClick={() => setInvoicing(o)}>{tr('صورت‌حساب رسانه')}</Button>}
                       <WorkflowActions entity="mediaOrder" id={o.id} transitions={o.availableTransitions} onDone={() => void refresh()} />
                     </div>

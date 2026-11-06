@@ -10,6 +10,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { JourneySteps, StepSection, type JourneyStep } from '../components/Journey';
 import { LeadSourcePicker, sourceComplete, type LeadSourceValue } from '../components/LeadSource';
 import { JalaliDateInput } from '../components/JalaliDateInput';
+import { AttachButton, onRecord, uploadFiles } from '../components/RecordFiles';
 import { WorkflowActions } from '../components/common';
 import { ReturnNote, StagePill } from '../components/WorkCard';
 import { Button, Checkbox, ErrorBlock, Field, Input, LoadingBlock, Select, Textarea, useToast } from '../components/ui';
@@ -254,7 +255,7 @@ export function CustomerJourney() {
               {activities.map((a) => (
                 <li key={a.id} className="relative">
                   <span className="absolute -start-[1.4rem] top-1.5 size-2.5 rounded-full bg-brand-500" aria-hidden />
-                  <p className="text-xs text-ink-500">{KINDS[a.kind] ?? a.kind} — {formatDate(a.occurredAt)}</p>
+                  <p className="flex items-center gap-1 text-xs text-ink-500">{KINDS[a.kind] ?? a.kind} — {formatDate(a.occurredAt)}<AttachButton target={onRecord('activity', a.id)} title={KINDS[a.kind] ?? a.kind} /></p>
                   <p className="mt-0.5 whitespace-pre-line text-sm leading-7 text-ink-800">{a.summary}</p>
                   {(a.nextStep || a.nextStepDue) && (
                     <p className="mt-0.5 text-xs text-brand-700">{tr('پیگیری بعدی')}{a.nextStepDue ? ` (${formatDate(a.nextStepDue)} — ${formatRelative(a.nextStepDue)})` : ''}{a.nextStep ? `: ${a.nextStep}` : ''}</p>
@@ -321,6 +322,7 @@ function AddContact({ companyId, onDone }: { companyId: string; onDone: () => vo
 function FollowUp({ companyId, opportunityId, contacts, onDone }: { companyId: string; opportunityId?: string; contacts: Company360['company']['contacts']; onDone: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
   const [v, setV] = useState({ kind: 'MEETING', occurredAt: today, contactId: '', place: '', summary: '', nextStep: '', nextStepDue: '' });
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const save = async () => {
@@ -329,13 +331,15 @@ function FollowUp({ companyId, opportunityId, contacts, onDone }: { companyId: s
     // The activity keeps a summary, a next step and its date; with whom and where are said at its head.
     const head = [who && tr('با: {0}', who), v.place.trim() && tr('محل: {0}', v.place.trim())].filter(Boolean).join(' — ');
     try {
-      await apiPost('/activities', {
+      const activity = await apiPost<{ id: string }>('/activities', {
         companyId, opportunityId, kind: v.kind, occurredAt: v.occurredAt,
         summary: [head, v.summary.trim()].filter(Boolean).join('\n'),
         nextStep: v.nextStep.trim() || undefined, nextStepDue: v.nextStepDue || undefined,
       });
-      toast(tr('پیگیری ثبت شد.'));
+      const failed = await uploadFiles(onRecord('activity', activity.id), files);
+      toast(failed ? tr('پیگیری ثبت شد، اما {0} فایل نرسید؛ از گیرهٔ کنار آن دوباره بفرستید.', localDigits(failed)) : tr('پیگیری ثبت شد.'), failed ? 'danger' : 'success');
       setV({ ...v, summary: '', nextStep: '', nextStepDue: '', place: '' });
+      setFiles([]);
       onDone();
     } catch (e: any) { toast(e?.message ?? tr('ثبت ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
@@ -357,7 +361,13 @@ function FollowUp({ companyId, opportunityId, contacts, onDone }: { companyId: s
       <div className="sm:col-span-2"><Field label={tr('خلاصهٔ گفت‌وگو')} required><Textarea value={v.summary} onChange={(e) => setV({ ...v, summary: e.target.value })} rows={3} aria-label={tr('خلاصهٔ گفت‌وگو')} /></Field></div>
       <Field label={tr('پیگیری بعدی چیست؟')}><Input value={v.nextStep} onChange={(e) => setV({ ...v, nextStep: e.target.value })} placeholder={tr('مثلاً: فرستادن نمونه‌کار')} aria-label={tr('پیگیری بعدی')} /></Field>
       <Field label={tr('تا کی؟')}><JalaliDateInput mode="date" value={v.nextStepDue || null} onChange={(d) => setV({ ...v, nextStepDue: d })} label={tr('تاریخ پیگیری بعدی')} /></Field>
-      <div className="sm:col-span-2 flex justify-end"><Button variant="primary" loading={busy} disabled={v.summary.trim().length < 2} onClick={() => void save()}>{tr('ثبت پیگیری')}</Button></div>
+      <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+        <label className="text-sm text-ink-600">
+          {tr('فایل‌های پیوست')}{files.length ? ` (${localDigits(files.length)})` : ''}
+          <input type="file" multiple className="ms-2 text-xs" aria-label={tr('فایل‌های پیوست پیگیری')} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+        </label>
+        <Button variant="primary" loading={busy} disabled={v.summary.trim().length < 2} onClick={() => void save()}>{tr('ثبت پیگیری')}</Button>
+      </div>
     </div>
   );
 }

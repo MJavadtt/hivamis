@@ -4274,5 +4274,15 @@
   "فایل‌های چاپی طرح در ابعاد هر سازه": "Print files of the artwork for each structure",
   "فایل چاپی (PDF یا TIFF) و فایل لایه‌باز": "Print file (PDF or TIFF) and layered source",
   "گذاشتن عکس‌ها و فایل گزارش": "Add the report's photos and file",
-  "تأیید مدیر رسانه": "Media manager's approval"
+  "تأیید مدیر رسانه": "Media manager's approval",
+  "الصاق فایل": "Attach files",
+  "فایل‌ها الصاق شد.": "Files attached.",
+  "«{0}» برداشته شود؟": "Remove “{0}”?",
+  "حذف ناموفق بود.": "Removal failed.",
+  "هنوز فایلی الصاق نشده است.": "No file attached yet.",
+  "برداشتن {0}": "Remove {0}",
+  "پیوست‌های {0}": "Attachments of {0}",
+  "پیگیری ثبت شد، اما {0} فایل نرسید؛ از گیرهٔ کنار آن دوباره بفرستید.": "Follow-up saved, but {0} files did not arrive; send them again from the paperclip beside it.",
+  "فایل‌های پیوست": "Attached files",
+  "فایل‌های پیوست پیگیری": "Follow-up's attached files"
 }

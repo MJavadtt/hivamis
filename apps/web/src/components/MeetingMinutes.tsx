@@ -4,6 +4,7 @@ import { apiGet, apiPost, apiUpload } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { UserSelect } from '../pages/Forms';
 import { JalaliDateInput } from './JalaliDateInput';
+import { AttachButton, onRecord } from './RecordFiles';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
 import { Code } from './common';
 import { formatDate, formatDateTime, localDigits } from '../lib/format';
@@ -55,9 +56,10 @@ export function ProjectMeetings({ projectId, meetings }: { projectId: string; me
                 {m.minutesRecordedAt
                   ? <Badge tone="success">{tr('صورتجلسه ثبت شده{0}', tasks ? tr(' — {0} وظیفه', localDigits(tasks)) : '')}</Badge>
                   : <Badge tone="warning">{tr('بدون صورتجلسه')}</Badge>}
-                {mayWrite && !m.minutesRecordedAt && (
-                  <Button size="sm" variant="primary" className="ms-auto" onClick={() => setOpen(m)}>{tr('ثبت صورتجلسه')}</Button>
-                )}
+                <span className="ms-auto flex items-center gap-1">
+                  <AttachButton target={onRecord('meeting', m.id)} title={m.subject} />
+                  {mayWrite && !m.minutesRecordedAt && <Button size="sm" variant="primary" onClick={() => setOpen(m)}>{tr('ثبت صورتجلسه')}</Button>}
+                </span>
               </li>
             );
           })}

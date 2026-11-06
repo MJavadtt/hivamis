@@ -3213,5 +3213,9 @@
   "این تأیید با مدیر واحد رسانه است.": "This approval is the media unit manager's.",
   "واحد رسانه روی پروپوزال کار کرده باشد": "The media unit worked on the proposal",
   "واحد رسانه روی پروپوزال کاری نداشته باشد (وگرنه اول تأیید مدیر رسانه)": "The media unit did no work on the proposal (otherwise the media manager approves first)",
-  "تأییدکننده مدیر واحد رسانه باشد": "The approver is the media unit's manager"
+  "تأییدکننده مدیر واحد رسانه باشد": "The approver is the media unit's manager",
+  "پرونده‌ای که فایل به آن پیوست می‌شود نامعتبر است.": "The record the file is attached to is not valid.",
+  "پیوست یک پرونده فقط به همان پرونده وصل می‌شود.": "A record's attachment belongs to that record alone.",
+  "پرونده‌ای که فایل به آن پیوست می‌شود پیدا نشد.": "The record the file is attached to was not found.",
+  "به این پرونده دسترسی ندارید.": "You do not have access to this record."
 }

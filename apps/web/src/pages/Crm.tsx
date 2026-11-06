@@ -7,6 +7,7 @@ import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { StageProgress } from '../components/StageProgress';
 import { EditRecordButton } from '../components/QuickCreate';
+import { AttachButton, onRecord } from '../components/RecordFiles';
 import { PdfButton } from '../components/PdfButton';
 import { PdfBundleButton } from '../components/PdfBundleButton';
 import { useAction } from '../hooks/queries';
@@ -64,7 +65,7 @@ export function LeadsList() {
             { key: 'value', header: tr('ارزش تخمینی'), render: (r) => <span className="text-xs" title={exactCurrency(r.estimatedValue)}>{formatCurrency(r.estimatedValue)}</span> },
             { key: 'owner', header: tr('مالک'), render: (r) => <span className="text-xs">{r.owner?.fullName ?? '—'}</span> },
             { key: 'state', header: tr('وضعیت'), render: (r) => <StateBadge state={r.state} /> },
-            { key: 'actions', header: tr('اقدام'), render: (r) => <LeadActions lead={r} /> },
+            { key: 'actions', header: tr('اقدام'), render: (r) => <div className="flex items-center gap-1"><LeadActions lead={r} /><AttachButton target={onRecord('lead', r.id)} title={r.name} /></div> },
           ]}
         />
       </PageBody>
@@ -576,7 +577,7 @@ export function CompanyDetail() {
                     <li key={a.id} className="px-4 py-3">
                       <div className="flex items-center justify-between gap-2">
                         <Badge tone="neutral">{a.kind}</Badge>
-                        <span className="text-xs text-ink-400">{formatRelative(a.occurredAt)}</span>
+                        <span className="flex items-center gap-1 text-xs text-ink-400">{formatRelative(a.occurredAt)}<AttachButton target={onRecord('activity', a.id)} title={a.summary.slice(0, 40)} /></span>
                       </div>
                       <p className="mt-1 text-sm text-ink-700">{a.summary}</p>
                       {a.nextStep && <p className="mt-1 text-xs text-brand-600">{tr('اقدام بعدی:')}{' '}{a.nextStep}</p>}

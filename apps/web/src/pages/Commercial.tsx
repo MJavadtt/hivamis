@@ -7,6 +7,7 @@ import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, PAYMENT_ME
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
 import { AccountingTab } from '../components/AccountingExport';
 import { ESignCard } from '../components/ESign';
+import { AttachButton, onRecord } from '../components/RecordFiles';
 import { PageBody, PageHeader } from '../components/Shell';
 import { Code, EntityList, WorkflowActions } from '../components/common';
 import { StageProgress } from '../components/StageProgress';
@@ -221,7 +222,10 @@ export function Finance() {
                         <Td>{i.kind === 'INVOICE' && i.state !== 'DRAFT' && (
                           <button type="button" onClick={() => setTaxFor(i.id)} aria-label={tr('مؤدیان {0}', i.number)}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
                         )}</Td>
-                        <Td>{mayEdit(i) && <Button size="sm" variant="ghost" aria-label={tr('ویرایش سند {0}', i.number)} title={tr('ویرایش')} onClick={() => setEditing(i.id)}><IconPencil className="size-4" /></Button>}</Td>
+                        <Td><div className="flex items-center gap-1">
+                          <AttachButton target={onRecord('invoice', i.id)} title={i.number} />
+                          {mayEdit(i) && <Button size="sm" variant="ghost" aria-label={tr('ویرایش سند {0}', i.number)} title={tr('ویرایش')} onClick={() => setEditing(i.id)}><IconPencil className="size-4" /></Button>}
+                        </div></Td>
                       </Tr>
                     ))}
                   </tbody>

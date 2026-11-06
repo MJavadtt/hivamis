@@ -3690,3 +3690,31 @@ out-of-home unit is the media unit (ME) and the studio («آتلیه») the crea
 **Limits.** The margin table Sales receives is the proposal's own cost, price and margin, as before. A
 client's own artwork needs no client approval and is handed over once its files are in. Switching the
 artwork from the studio or media owner to the client keeps its earlier order link.
+
+---
+
+## ADR-121 — A way back on every page, and files on every record
+
+**Context.** The owner (2026-11-06): file attachment in every section, and a back button on every page.
+Files could be filed against eight kinds of record through a column each, so a lead, a task, a brief, an
+invoice or a risk had nowhere to hold one.
+
+**Decision.**
+- **«بازگشت»** sits in the shell, above every page: it steps back through the router's own history, or,
+  on a page opened straight from a link, goes to the page above (`parentOf`). The workspace, being the
+  top, has none. The client portal's pages already have theirs.
+- **`documents.recordType` / `recordId`** attach a file to any of `FILE_RECORD_TYPES`, on that record
+  alone (`RECORD_FILE_ALONE`), in the caller's organisation (`UNKNOWN_REFERENCE`, one answer for none and
+  another's). A column of its own stays for the records that had one.
+- **A record's file is read as the record is.** Every route that reads a file passes through
+  `mayReadFile`: the record kind's read permission — an invoice's file is Finance's, not everyone's who
+  may read files — and, for a booking, that booking's own visibility. Someone who may not read the
+  record cannot attach to it either.
+- **In the web app**, `FileShelf` is the one place files are shown, opened and added. `PageHeader` offers
+  «پیوست‌ها» on every page that is one record (`targetOfPage`), so a new record page needs one line
+  there; `AttachButton` is the paperclip on records that are rows of another page. The follow-up form
+  attaches as it saves.
+
+**Limits.** A form that makes a new record attaches once the record exists, from the record — the
+follow-up form is the exception, because the owner's brief named files on follow-ups. The deployment
+projects and venues keep their own file panels, with their own evidence rules (ADR-103).

@@ -152,6 +152,13 @@ export type TaskState = (typeof TASK_STATES)[number];
 export const DELIVERABLE_KINDS = ['OOH_ARTWORK', 'OOH_START_REPORT', 'OOH_PERIODIC_REPORT', 'OOH_END_REPORT'] as const;
 export type DeliverableKind = (typeof DELIVERABLE_KINDS)[number];
 
+/** The records a file can be attached to, beyond those with a column of their own (ADR-121). */
+export const FILE_RECORD_TYPES = [
+  'lead', 'opportunity', 'activity', 'brief', 'workOrder', 'task', 'changeRequest', 'revision',
+  'risk', 'issue', 'decision', 'statusReport', 'meeting', 'invoice', 'supplier', 'outsourceRequest', 'mediaOrder', 'booking',
+] as const;
+export type FileRecordType = (typeof FILE_RECORD_TYPES)[number];
+
 export const DELIVERABLE_STATES = [
   'PLANNED', 'IN_PROGRESS', 'SUBMITTED', 'IN_QC',
   'REVISION_REQUIRED', 'APPROVED', 'DELIVERED', 'ACCEPTED',

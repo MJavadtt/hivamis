@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
+import { AuthProvider } from '../src/lib/auth';
+import { markSignedIn, setAccessToken } from '../src/lib/api';
 import Suppliers from '../src/pages/Suppliers';
 
 /** The supplier 360 turns three tables into four numbers a manager can act on. */
@@ -16,19 +18,22 @@ const suggestions = [{ ...profile, score: 78 }, { ...profile, supplier: { ...pro
 
 function json(body: unknown) { return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }); }
 function mount(path: string) {
+  setAccessToken('t'); markSignedIn(true);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
+    if (url.includes('/auth/refresh')) return json({ accessToken: 't', refreshToken: 'r' });
+    if (url.includes('/auth/me')) return json({ id: 'u1', email: 'x@hiva.local', fullName: 'x', jobTitle: null, department: null, organization: { id: 'o', name: 'o', currency: 'IRR' }, roles: [], permissions: ['supplier.read'], locale: 'fa', mustChangePassword: false });
     if (url.includes('/suppliers/suggest')) return json(suggestions);
     if (url.includes('/360')) return json(profile);
     return json({ items: [], total: 0, page: 1, pageSize: 20 });
   }));
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <QueryClientProvider client={qc}><ToastProvider>
+    <QueryClientProvider client={qc}><ToastProvider><AuthProvider>
       <MemoryRouter initialEntries={[path]}>
         <Routes><Route path="/suppliers" element={<Suppliers />} /><Route path="/suppliers/:id" element={<Suppliers />} /></Routes>
       </MemoryRouter>
-    </ToastProvider></QueryClientProvider>,
+    </AuthProvider></ToastProvider></QueryClientProvider>,
   );
 }
 

@@ -7,6 +7,7 @@ import { forwardMove, type Transition } from '../lib/plain';
 import { PageBody, PageHeader } from '../components/Shell';
 import { WorkflowActions } from '../components/common';
 import { StagePill } from '../components/WorkCard';
+import { AttachButton, onRecord } from '../components/RecordFiles';
 import { EmptyState, LoadingBlock } from '../components/ui';
 import { tr } from '../i18n';
 
@@ -105,7 +106,7 @@ export function CommercialDesk() {
             {!invoiceRows.length ? <EmptyState title={tr('سند مالی بازی نیست.')} /> : invoiceRows.map((i) => (
               <Row key={i.id} title={`${i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')} ${i.number}`} href="/finance"
                 who={[i.company?.legalName, i.project?.name, formatCurrency(i.total), i.dueDate && tr('سررسید {0}', formatDate(i.dueDate))].filter(Boolean).join(' · ')}
-                state={<StagePill state={i.state} entity="invoice" />} next={invoiceNext(i)} warn={late.includes(i)} />
+                state={<StagePill state={i.state} entity="invoice" />} next={invoiceNext(i)} warn={late.includes(i)}><AttachButton target={onRecord('invoice', i.id)} title={i.number} /></Row>
             ))}
           </Section>
         )}
@@ -126,7 +127,10 @@ export function CommercialDesk() {
               <Row key={r.id} title={r.scopeOfWork} href="/suppliers"
                 who={[r.project?.name, r.supplier?.name ?? r.proposedSupplierName, formatCurrency(r.estimatedCost), tr('تا {0}', formatDate(r.neededBy))].filter(Boolean).join(' · ')}
                 state={<StagePill state={r.state} />} next={r.state === 'APPROVED' ? tr('تأیید شده است؛ وقتی تأمین شد، آن را ثبت کنید.') : tr('منتظر تصمیم است: تأیید، رد، یا ارجاع به مدیریت.')}>
-                {!!r.availableTransitions.length && <WorkflowActions minimal entity="outsourceRequest" id={r.id} transitions={r.availableTransitions} onDone={refresh} />}
+                <div className="flex flex-wrap items-center gap-1">
+                  <AttachButton target={onRecord('outsourceRequest', r.id)} title={r.code} />
+                  {!!r.availableTransitions.length && <WorkflowActions minimal entity="outsourceRequest" id={r.id} transitions={r.availableTransitions} onDone={refresh} />}
+                </div>
               </Row>
             ))}
           </Section>
