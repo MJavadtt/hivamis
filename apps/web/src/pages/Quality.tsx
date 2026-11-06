@@ -304,6 +304,7 @@ function QcReviewModal({ level, target, onClose }: { level: string; target: any;
       open
       onClose={onClose}
       title={LEVEL_TITLES[level]}
+      draftKey={`qc:${level}:${target.id}`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>

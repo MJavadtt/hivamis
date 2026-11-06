@@ -136,6 +136,17 @@ export const GUIDE: GuideSection[] = [
     ],
   },
   {
+    id: 'drafts', route: '^/drafts', path: '/drafts', manual: 'Your queue — «کارهای من»',
+    title: t('پیش‌نویس‌های من', 'My drafts'),
+    summary: t('هر چه در فرم‌ها نوشته‌اید و ثبت نکرده‌اید خودکار نگه داشته می‌شود؛ فقط شما می‌بینید و تا ثبت فرم یا حذف شما می‌ماند.',
+      'Whatever you typed in a form and did not save is kept automatically; only you see it, and it stays until the form is saved or you delete it.'),
+    keywords: 'پیش نویس ذخیره خودکار ناتمام فرم draft autosave unfinished',
+    steps: [
+      step('[data-tour="drafts"]', t('پیش‌نویس‌ها', 'Your drafts'), t('هر پیش‌نویس می‌گوید کجاست و چه نوشته‌اید. «ادامه» به همان صفحه می‌رود و نوشته‌ها برمی‌گردد؛ «حذف» آن را برای همیشه برمی‌دارد.',
+        'Each draft says where it is and what you wrote. Continue goes to that page and your text comes back; Delete removes it for good.')),
+    ],
+  },
+  {
     id: 'tasks', route: '^/tasks/?$', path: '/tasks', permission: 'task.read', manual: 'Execution units (Strategy, Creative, Media, Digital)',
     title: t('وظایف', 'Tasks'),
     summary: t('همهٔ وظایفی که می‌توانید ببینید، با وضعیت، مسئول و مهلت. هر وظیفه به یک سند مرجع وصل است.',

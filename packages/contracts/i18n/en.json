@@ -3217,5 +3217,7 @@
   "پرونده‌ای که فایل به آن پیوست می‌شود نامعتبر است.": "The record the file is attached to is not valid.",
   "پیوست یک پرونده فقط به همان پرونده وصل می‌شود.": "A record's attachment belongs to that record alone.",
   "پرونده‌ای که فایل به آن پیوست می‌شود پیدا نشد.": "The record the file is attached to was not found.",
-  "به این پرونده دسترسی ندارید.": "You do not have access to this record."
+  "به این پرونده دسترسی ندارید.": "You do not have access to this record.",
+  "این پیش‌نویس بزرگ‌تر از آن است که نگه داشته شود.": "This draft is too large to keep.",
+  "پیش‌نویس‌های شما زیاد شده است؛ چندتا را حذف کنید.": "You have too many drafts; delete some."
 }

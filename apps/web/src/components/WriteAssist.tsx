@@ -59,7 +59,7 @@ function WritePanel({ value, kind: initialKind, onUse, onClose }: { value: strin
     <Modal open title={tr('نوشتن با دستیار')} onClose={close} wide>
       <div className="space-y-3">
         <Field label={rewrite ? tr('چه تغییری بدهد؟') : tr('چه بنویسد؟')} required>
-          <Input value={instruction} onChange={(e) => setInstruction(e.target.value)} maxLength={2000} autoFocus
+          <Input draft={false} value={instruction} onChange={(e) => setInstruction(e.target.value)} maxLength={2000} autoFocus
             placeholder={rewrite ? tr('مثلاً: رسمی‌تر و کوتاه‌تر کن') : tr('مثلاً: بریف کمپین معرفی محصول جدید برای جوانان شهری')} />
         </Field>
         <div className="flex flex-wrap items-end gap-3">
@@ -87,7 +87,7 @@ function WritePanel({ value, kind: initialKind, onUse, onClose }: { value: strin
         {error && <p className="text-xs text-rose-700" role="alert">{error}</p>}
         {(draft || state === 'writing') && (
           <Field label={tr('پیش‌نویس — پیش از گذاشتن در فرم می‌توانید ویرایشش کنید')}>
-            <Textarea rows={10} value={draft} onChange={(e) => setDraft(e.target.value)} dir={lang === 'en' ? 'ltr' : 'rtl'} data-testid="write-draft" />
+            <Textarea draft={false} rows={10} value={draft} onChange={(e) => setDraft(e.target.value)} dir={lang === 'en' ? 'ltr' : 'rtl'} data-testid="write-draft" />
           </Field>
         )}
         <div className="flex justify-end gap-2">

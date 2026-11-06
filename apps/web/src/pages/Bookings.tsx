@@ -217,7 +217,7 @@ function Reschedule({ booking, onClose }: { booking: Booking; onClose: () => voi
     } catch (e) { toast((e as Error).message, 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open title={tr('تغییر زمان')} onClose={onClose} footer={<>
+    <Modal open title={tr('تغییر زمان')} draftKey={`reschedule:${booking.id}`} onClose={onClose} footer={<>
       <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
       <Button variant="primary" loading={busy} disabled={!reason.trim() || !check.data?.available} onClick={() => void save()}>{tr('فرستادن برای تأیید')}</Button>
     </>}>

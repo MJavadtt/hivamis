@@ -87,6 +87,14 @@ risk, issue, decision, status report, revision, media order, purchase request �
 it. A follow-up can take its files as it is saved. A file is read as its record is: an invoice's files by
 those who may read invoices, a private booking's by those who see the booking.
 
+**Drafts.** Whatever you type in a form is saved as a draft as you go — closing the window, going to
+another page or losing the connection loses nothing. Come back to the form and it is filled in again,
+with a note saying so and a **حذف پیش‌نویس** button. A draft leaves when you really submit the form, or
+when you delete it; cancelling keeps it. **پیش‌نویس‌های من** in the menu lists them all, with what each
+says. Drafts are yours alone: nobody else, the system administrator included, can read them, and they
+follow you to your other devices. Passwords, codes and keys are never kept, nor are search boxes,
+conversations, the assistant, or the system's own settings.
+
 **Search.** The box at the top (or Ctrl+K) finds clients, projects, tasks, work orders, briefs,
 proposals, contracts by title or number, and colleagues by name, job or email — each result with its
 status in plain words. Ask it a question («چطور ساعت کارم را ثبت کنم») and it also shows the guide's

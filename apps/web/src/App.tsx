@@ -20,6 +20,8 @@ import { AccountDesk, AccountJourney } from './pages/AccountJourney';
 import { OperationsDesk } from './pages/OperationsDesk';
 import { CommercialDesk } from './pages/CommercialDesk';
 import { OohJourney } from './pages/OohJourney';
+import Drafts from './pages/Drafts';
+import { DraftProvider } from './lib/drafts';
 import { BriefDetail, BriefsList, ProposalDetail, ProposalsList } from './pages/Sales';
 import {
   ChangeDetail, ChangesList, TaskDetail, TasksList, Traffic, WorkOrderDetail, WorkOrdersList,
@@ -107,12 +109,14 @@ export default function App() {
   }
 
   return (
+    <DraftProvider>
     <Shell>
       <Suspense fallback={<LoadingBlock />}>
       <ErrorBoundary>
         <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/overview" element={<Dashboard />} />
+        <Route path="/drafts" element={<Drafts />} />
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/delegations" element={<Delegations />} />
         <Route path="/me" element={<Me />} />
@@ -186,5 +190,6 @@ export default function App() {
       </ErrorBoundary>
       </Suspense>
     </Shell>
+    </DraftProvider>
   );
 }

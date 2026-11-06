@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, type Page } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useDraftState } from '../lib/drafts';
 import { formatCurrency, formatDate } from '../lib/format';
 import { forwardMove, type Transition } from '../lib/plain';
 import { WorkflowActions } from './common';
@@ -35,7 +36,7 @@ export function StartAuthorization({ projectId, companyId, transitions, recorded
   const { can } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
-  const [basis, setBasis] = useState<Basis | null>(null);
+  const [basis, setBasis] = useDraftState<Basis | null>(tr('مبنای شروع کار'), null);
   const [v, setV] = useState({ contractId: '', invoiceId: '', referenceDocument: '', notes: '' });
   const [busy, setBusy] = useState(false);
   const may = can('project.authorize');

@@ -183,6 +183,13 @@ export interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+/** Told of every write that succeeded, before its caller hears: a form is still on screen (ADR-122). */
+const mutationListeners = new Set<(path: string) => void>();
+export function onMutation(listener: (path: string) => void) {
+  mutationListeners.add(listener);
+  return () => { mutationListeners.delete(listener); };
+}
+
 export async function api<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   for (const [k, v] of Object.entries(opts.query ?? {})) {
@@ -207,6 +214,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     if (await attemptRefresh()) res = await reach(send);
   }
 
+  if (res.ok && opts.method && opts.method !== 'GET') mutationListeners.forEach((l) => l(path));
   if (res.status === 204) return undefined as T;
   if (!res.ok) throw await failure(res);
   return opts.raw ? ((await res.text()) as T) : ((await res.json()) as T);

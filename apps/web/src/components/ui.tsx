@@ -2,7 +2,8 @@ import { forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDismissable, useFocusTrap } from '../hooks/useDismissable';
 import type { ReactNode, ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
-import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { DraftNotice, DraftScope, FieldContext, useDraftControl } from '../lib/drafts';
 import { localDigits } from '../lib/format';
 import { STATE_LABELS } from '@hiva/contracts';
 import { pair, tr } from '../i18n';
@@ -258,45 +259,71 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export function Field({ label, required, hint, error, children }: {
   label: string; required?: boolean; hint?: string; error?: string; children: ReactNode;
 }) {
+  const root = useRef<HTMLLabelElement>(null);
+  const field = useMemo(() => ({ label, root }), [label]);
   return (
-    <label className="block">
-      <span className="mb-1 flex items-center gap-1 text-xs font-bold text-ink-700">
-        {label}
-        {required && <span className="text-rose-700">*</span>}
-      </span>
-      {children}
-      {hint && !error && <span className="mt-1 block text-[12.5px] text-ink-500">{hint}</span>}
-      {error && <span className="mt-1 block text-[12.5px] text-rose-700">{error}</span>}
-    </label>
+    <FieldContext.Provider value={field}>
+      <label ref={root} className="block">
+        <span className="mb-1 flex items-center gap-1 text-xs font-bold text-ink-700">
+          {label}
+          {required && <span className="text-rose-700">*</span>}
+        </span>
+        {children}
+        {hint && !error && <span className="mt-1 block text-[12.5px] text-ink-500">{hint}</span>}
+        {error && <span className="mt-1 block text-[12.5px] text-rose-700">{error}</span>}
+      </label>
+    </FieldContext.Provider>
   );
 }
 
 const CONTROL = 'w-full rounded-lg border-0 bg-surface px-3 py-2 text-[14px] leading-5 text-ink-800 shadow-sm ring-1 ring-inset ring-ink-200 placeholder:text-ink-400 focus:bg-panel focus:ring-2 focus:ring-inset focus:ring-brand-500 disabled:bg-ink-50 disabled:text-ink-500';
 
+/** `draft={false}`: what is typed here is not kept as a draft (ADR-122). */
+type Drafted = { draft?: boolean };
+
 /** Forwards its ref so a caller can focus or measure the field — JalaliDateInput needs both. */
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...rest }, ref) => <input {...rest} ref={ref} className={cx(CONTROL, className)} />,
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & Drafted>(
+  ({ className, draft, ...rest }, ref) => {
+    const own = useRef<HTMLInputElement | null>(null);
+    const onChange = useDraftControl(rest, 'input', { draft, el: () => own.current });
+    const both = useCallback((node: HTMLInputElement | null) => {
+      own.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    }, [ref]);
+    return <input {...rest} onChange={rest.onChange && onChange} ref={both} className={cx(CONTROL, className)} />;
+  },
 );
 Input.displayName = 'Input';
 
-export const Textarea = ({ className, rows = 3, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-  <textarea {...rest} rows={rows} className={cx(CONTROL, 'resize-y', className)} />
-);
+export const Textarea = ({ className, rows = 3, draft, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & Drafted) => {
+  const own = useRef<HTMLTextAreaElement>(null);
+  const onChange = useDraftControl(rest, 'textarea', { draft, el: () => own.current });
+  return <textarea {...rest} ref={own} onChange={rest.onChange && onChange} rows={rows} className={cx(CONTROL, 'resize-y', className)} />;
+};
 
-export const Select = ({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) => (
-  <select {...rest} className={cx(CONTROL, 'pe-8', className)}>
-    {children}
-  </select>
-);
+export const Select = ({ className, children, draft, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & Drafted) => {
+  const own = useRef<HTMLSelectElement>(null);
+  const onChange = useDraftControl(rest, 'select', { draft, el: () => own.current });
+  return (
+    <select {...rest} ref={own} onChange={rest.onChange && onChange} className={cx(CONTROL, 'pe-8', className)}>
+      {children}
+    </select>
+  );
+};
 
-export function Checkbox({ label, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
+export function Checkbox({ label, draft, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode } & Drafted) {
   const id = useId();
+  const own = useRef<HTMLInputElement>(null);
+  const onChange = useDraftControl(rest, 'checkbox', { draft, label, el: () => own.current });
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start gap-2 text-sm text-ink-700">
       <input
         id={id}
         type="checkbox"
         {...rest}
+        ref={own}
+        onChange={rest.onChange && onChange}
         className="mt-0.5 size-4 shrink-0 rounded-md border-ink-300 text-brand-600 accent-brand-600 focus:ring-brand-600"
       />
       <span>{label}</span>
@@ -350,8 +377,10 @@ export function Pagination({ page, pageCount, total, onChange }: {
 
 /* ── Overlays ──────────────────────────────────────────────────────────── */
 
-export function Modal({ open, onClose, title, children, footer, wide }: {
+export function Modal({ open, onClose, title, children, footer, wide, draftKey }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean;
+  /** What tells this dialog's draft from the same dialog on another row (ADR-122); its title otherwise. */
+  draftKey?: string;
 }) {
   // Escape, outside-click and focus restoration come from the shared hook, so this behaves
   // identically to the other two overlays rather than implementing its own subset.
@@ -386,7 +415,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: {
             <IconClose className="size-4" />
           </button>
         </header>
-        <div className="max-h-[65vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[65vh] overflow-y-auto px-5 py-4"><DraftScope title={title} draftKey={draftKey}><DraftNotice className="mb-3" />{children}</DraftScope></div>
         {footer && <footer className="flex justify-end gap-2 border-t border-ink-200/70 px-5 py-3">{footer}</footer>}
       </div>
     </div>,

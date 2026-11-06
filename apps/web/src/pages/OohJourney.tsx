@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DeliverableKind } from '@hiva/contracts';
 import { apiGet, apiPatch, apiPost, type Page } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useDraftState } from '../lib/drafts';
 import { localDigits } from '../lib/format';
 import { forwardMove, type Transition } from '../lib/plain';
 import { PageBody, PageHeader } from '../components/Shell';
@@ -280,7 +281,7 @@ function Artwork({ project: p, exec, art, studio, handedOff, onDone }: { project
 function ChoosePreparer({ project: p, exec, art, onDone }: { project: Project360['project']; exec: Order; art?: Deliverable; onDone: () => void }) {
   const { can } = useAuth();
   const toast = useToast();
-  const [who, setWho] = useState<'CR' | 'ME' | 'A' | null>(null);
+  const [who, setWho] = useDraftState<'CR' | 'ME' | 'A' | null>(tr('چه کسی طرح را آماده یا ری‌سایز می‌کند؟'), null);
   const [notes, setNotes] = useState(art?.description ?? '');
   const [due, setDue] = useState((art?.dueDate ?? p.plannedStart ?? '').slice(0, 10));
   const [studio, setStudio] = useState(false);

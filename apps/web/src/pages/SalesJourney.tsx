@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DEPARTMENT_LABELS, DEPARTMENT_CODES, normalizeIranMobile, type DepartmentCode } from '@hiva/contracts';
 import { ApiError, apiGet, apiPost, type Page } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useDraftState } from '../lib/drafts';
 import { formatDate, formatRelative, localDigits } from '../lib/format';
 import { forwardMove, stageOf, type Transition } from '../lib/plain';
 import { PageBody, PageHeader } from '../components/Shell';
@@ -42,8 +43,9 @@ export function NewCustomer() {
   const [name, setName] = useState('');
   const [industry, setIndustry] = useState('');
   const [notes, setNotes] = useState('');
-  const [contacts, setContacts] = useState<ContactDraft[]>([blankContact()]);
-  const [source, setSource] = useState<LeadSourceValue>({});
+  // Rows and a two-step choice are no single field: kept in the draft whole.
+  const [contacts, setContacts] = useDraftState<ContactDraft[]>(tr('مخاطب‌ها'), [blankContact()]);
+  const [source, setSource] = useDraftState<LeadSourceValue>(tr('از کجا آمده؟'), {});
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   // What a save that stopped half-way already made, so that trying again does not make it twice.

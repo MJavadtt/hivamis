@@ -3718,3 +3718,37 @@ invoice or a risk had nowhere to hold one.
 **Limits.** A form that makes a new record attaches once the record exists, from the record — the
 follow-up form is the exception, because the owner's brief named files on follow-ups. The deployment
 projects and venues keep their own file panels, with their own evidence rules (ADR-103).
+
+---
+
+## ADR-122 — Whatever is typed is a draft until it is saved or deleted
+
+**Context.** The owner (2026-11-06): a field filled in any section is saved as a draft automatically,
+unless the person deletes it. There are some ninety dialogs and many page forms, each with its own state,
+so a change form by form would never be finished and the next form would be forgotten.
+
+**Decision.**
+- **In the shared controls.** `Input`, `Textarea`, `Select`, `Checkbox` and `JalaliDateInput` bind
+  themselves (`useDraftControl`) to the place they are in: the page, or a dialog on it (`Modal` is a
+  `DraftScope`). A field is named by its `Field` label and the section around it. A control outside a
+  field or a dialog is a filter, not a form, and is left alone; a text area always counts. A choice that
+  is no input — a card picked, a list of rows — uses `useDraftState`.
+- **On the server, for the person alone** (`user_drafts`, `GET/PUT/DELETE /me/drafts`): it follows them
+  across devices and survives a cleared browser. Every route is the caller's own rows; no role reads
+  another's, the system administrator included. A draft is not a record, so it is not audited.
+- **Coming back**, each field is given its text through its own `onChange`, one at a time with a tick
+  between, because most forms build their next state from the last render's.
+- **It goes** when the form is saved or the person deletes it, and only then. A write that succeeds right
+  after a click inside a dialog or section ends that form's draft (`onMutation`, `mutated`); a failed save,
+  a cancel or closing the window keeps it. «پیش‌نویس‌های من» (`/drafts`) lists them with their text.
+- **Never another record's.** Each field keeps what it held when typing began (`base`); a draft whose
+  `base` differs from what the dialog opens with belongs to another record and is not poured in. Dialogs
+  with blank fields opened from a row carry a `draftKey` naming the record (a workflow move's reason, a QC
+  review, a payment reversed).
+- **Never kept:** `password`, `file`, `hidden` and search fields, one-time codes, anything labelled as a
+  password, code, key or token whatever its type says; and all of `/chat`, `/ai`, `/admin`, `/install`,
+  `/onboarding` and `/rules`, where a draft has no place or the fields are configuration.
+
+**Limits.** A form that fills itself in after opening may overwrite what was restored until the next
+edit. A dialog's draft comes back when that dialog is opened; the list cannot open it. The mobile page
+(`/m`) and the client portal do not keep drafts.

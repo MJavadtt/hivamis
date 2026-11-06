@@ -1316,3 +1316,11 @@ export function adminEditSchema(path: string, create: z.ZodTypeAny): z.ZodObject
   for (const [key, field] of Object.entries(ADMIN_EXTRA[path] ?? {})) shape[key] = field.nullable().optional();
   return z.object(shape);
 }
+
+/** What a person typed and has not saved (ADR-122). */
+export const saveDraftSchema = z.object({
+  key: z.string().trim().min(1).max(400),
+  title: z.string().trim().max(300),
+  path: z.string().trim().min(1).max(300).regex(/^\//),
+  fields: z.record(z.string().max(500), z.object({ label: z.string().max(300), value: z.unknown(), base: z.unknown().optional() })),
+});

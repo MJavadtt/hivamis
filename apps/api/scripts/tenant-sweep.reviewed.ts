@@ -160,6 +160,9 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/tax.ts#GET /reports/tax",
   ]),
   ...of('OWN', [
+    // A person's drafts are looked up by their own id (ADR-122).
+    "routes/drafts.ts#DELETE /me/drafts/:id",
+    "routes/drafts.ts#PUT /me/drafts",
     "forms/engine.ts#notifyApprovers",
     "forms/suggest.ts#frequentForms",
     "push/service.ts#queueFor",

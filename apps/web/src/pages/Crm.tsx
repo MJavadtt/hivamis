@@ -206,7 +206,7 @@ function ConvertModal({ lead, onClose }: { lead: any; onClose: () => void }) {
 
   return (
     <Modal
-      open onClose={onClose} title={tr('تبدیل سرنخ به فرصت فروش')}
+      open onClose={onClose} title={tr('تبدیل سرنخ به فرصت فروش')} draftKey={`convert:${lead.id}`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>

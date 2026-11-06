@@ -31,6 +31,7 @@ import { NoticeRow, type NotificationRow } from './Notice';
 import { StagePill } from './WorkCard';
 import { BackButton } from './BackButton';
 import { PageAttachments, usePageTarget } from './RecordFiles';
+import { DraftNotice, useDraftTitle } from '../lib/drafts';
 
 interface NavItem {
   to: string;
@@ -57,6 +58,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: '/', label: tr('میز کار من'), icon: IconDashboard },
       { to: '/my-work', label: tr('کارهای من'), icon: IconCheckCircle },
+      { to: '/drafts', label: tr('پیش‌نویس‌های من'), icon: IconFile },
       { to: '/tasks', label: tr('وظایف'), icon: IconCheckCircle, permission: 'task.read' },
       { to: '/forms', label: tr('فرم‌ها'), icon: IconFile, permission: 'form.read' },
       // No permission of its own: every colleague's page is open to everyone signed in (Hivamis task 4).
@@ -315,6 +317,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </p>
             )}
             <BackButton className="mx-3 mt-2 sm:mx-5 lg:mx-0 lg:mt-0" />
+            <DraftNotice className="mx-3 mt-2 sm:mx-5 lg:mx-0" />
             <div className="flex-1 pb-6">{children}</div>
             <PageFooter />
           </div>
@@ -706,6 +709,7 @@ export function PageHeader({ title, subtitle, actions, badge }: {
 }) {
   // A page that is one record offers its files here (ADR-121), whatever else the page does.
   const files = usePageTarget();
+  useDraftTitle(title);
   return (
     // The kit's page head ("Name Project"): the title and its actions in a box of their own — here a
     // pane of glass.

@@ -151,7 +151,7 @@ function AskModal({ subjectType, subjectId, onClose, onLink }: { subjectType: Su
     } catch (e: any) { toast(e?.message ?? tr('ساخت درخواست ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
   return (
-    <Modal open wide title={tr('درخواست تأیید از مشتری')} onClose={onClose}
+    <Modal open wide title={tr('درخواست تأیید از مشتری')} draftKey={`ask:${subjectType}:${subjectId}`} onClose={onClose}
       footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!o.eligible || !contact || (subjectType === 'DELIVERABLE' && !selected.size)} onClick={() => void send()}>{tr('فرستادن')}</Button></>}>
       <div className="space-y-4" data-testid="ask-approval">
         {!o.eligible && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{subjectType === 'DELIVERABLE' ? tr('فقط خروجیِ تحویل‌شده به مشتری را می‌توان برای تأیید فرستاد.') : tr('فقط پروپوزالِ ارائه‌شده به مشتری را می‌توان برای تأیید فرستاد.')}</p>}

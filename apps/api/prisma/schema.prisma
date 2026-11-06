@@ -55,6 +55,7 @@ model Organization {
   idempotencyKeys         IdempotencyKey[]
   userPermissionOverrides UserPermissionOverride[]
   importLinks             ImportLink[]
+  userDrafts              UserDraft[]
 
   @@map("organizations")
 }
@@ -418,6 +419,8 @@ model User {
   teamId   String?
   team     Team?   @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
   teamsLed Team[]  @relation("TeamLead")
+
+  drafts UserDraft[]
 
   @@unique([organizationId, email])
   @@index([organizationId, departmentId])
@@ -4222,4 +4225,25 @@ model ImportLink {
   @@unique([organizationId, source, externalId])
   @@index([entityType, entityId])
   @@map("import_links")
+}
+
+/// What a person typed and has not saved (ADR-122): theirs alone, kept until it is saved or they delete it.
+model UserDraft {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Where it belongs: the page, and the dialog on it.
+  key            String
+  title          String
+  path           String
+  /// Each field: its label, what was typed, and what the field held when typing began.
+  fields         Json
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, key])
+  @@index([organizationId])
+  @@map("user_drafts")
 }

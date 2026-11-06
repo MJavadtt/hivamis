@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   JALALI_MONTHS, JALALI_WEEKDAYS, formatJalaliInput, isoToJalaliParts, jalaliDaysInMonth,
   jalaliFirstWeekday, jalaliPartsToValue, parseJalaliInput, todayJalaliParts, toPersianDigits,
   type JalaliParts,
 } from '../lib/format';
+import { FieldContext, useDraftValue } from '../lib/drafts';
 import { Input, cx } from './ui';
 import { isEnglish, tr } from '../i18n';
 
@@ -24,7 +25,10 @@ type DateInputProps = {
  * datetime — so nothing behind the field knows which calendar it was typed in.
  */
 export function JalaliDateInput(props: DateInputProps) {
-  return isEnglish() ? <GregorianDateInput {...props} /> : <JalaliEntry {...props} />;
+  // The date is the draft, not the text on its way to being one (ADR-122).
+  const record = useDraftValue<string>({ label: useContext(FieldContext)?.label ?? props.label, value: props.value ?? '', apply: props.onChange, enabled: !props.disabled });
+  const onChange = (next: string) => { props.onChange(next); record(next); };
+  return isEnglish() ? <GregorianDateInput {...props} onChange={onChange} /> : <JalaliEntry {...props} onChange={onChange} />;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -41,6 +45,7 @@ function toLocalInput(value: string | null | undefined, mode: 'date' | 'datetime
 function GregorianDateInput({ value, onChange, mode = 'date', disabled, id, invalid, label }: DateInputProps) {
   return (
     <Input
+      draft={false}
       id={id}
       aria-label={label}
       type={mode === 'date' ? 'date' : 'datetime-local'}
@@ -124,6 +129,7 @@ function JalaliEntry({ value, onChange, mode = 'date', disabled, id, invalid, la
   return (
     <div ref={boxRef} className="relative">
       <Input
+        draft={false}
         id={id}
         aria-label={label}
         ref={fieldRef}

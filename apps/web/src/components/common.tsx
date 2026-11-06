@@ -171,6 +171,7 @@ export function WorkflowActions({
         open={!!pending}
         onClose={() => { setPending(null); setReason(''); }}
         title={trx(pending?.labelFa ?? '')}
+        draftKey={`${entity}:${id}:${pending?.action}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => { setPending(null); setReason(''); }}>{tr('انصراف')}</Button>
@@ -202,6 +203,7 @@ export function WorkflowActions({
         open={forcing}
         onClose={() => setForcing(false)}
         title={tr('تغییر مستقیم وضعیت')}
+        draftKey={`${entity}:${id}:force`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setForcing(false)}>{tr('انصراف')}</Button>
@@ -236,6 +238,7 @@ export function WorkflowActions({
         open={!!waiving}
         onClose={() => setWaiving(null)}
         title={tr('صدور استثنا — {0}', waiving?.labelFa ?? '')}
+        draftKey={`${entity}:${id}:waive:${waiving?.action}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setWaiving(null)}>{tr('انصراف')}</Button>

@@ -192,14 +192,14 @@ export function ProjectLedger({ project: p }: { project: Project }) {
         </Modal>
       )}
       {closing && (
-        <Modal open onClose={() => setClosing(null)} title={closing.action === 'WAIVE' ? tr('بخشودن {0}', kindLabel(closing.o.kind)) : tr('باطل کردن {0}', kindLabel(closing.o.kind))}
+        <Modal open onClose={() => setClosing(null)} draftKey={`close:${closing.action}:${closing.o.id}`} title={closing.action === 'WAIVE' ? tr('بخشودن {0}', kindLabel(closing.o.kind)) : tr('باطل کردن {0}', kindLabel(closing.o.kind))}
           footer={<><Button onClick={() => setClosing(null)}>{tr('انصراف')}</Button><Button variant="danger" disabled={reason.trim().length < 3} onClick={() => void run(() => apiPost(`/site-obligations/${closing.o.id}/close`, { action: closing.action, reason }), tr('ثبت شد.')).then((ok) => ok && setClosing(null))}>{tr('ثبت')}</Button></>}>
           <p className="mb-2 text-sm text-ink-600">{closing.action === 'WAIVE' ? tr('مکان مانده را بخشیده است؛ قلم با همین دلیل بسته می‌شود.') : tr('این قلم هرگز بدهی نبوده (اشتباه ثبت شده، یا پروژه زودتر تمام شده). فقط قلم بی‌پرداخت باطل می‌شود.')}</p>
           <Field label={tr('دلیل')} required><Textarea value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         </Modal>
       )}
       {reversing && (
-        <Modal open onClose={() => setReversing(null)} title={tr('برگشت پرداخت')}
+        <Modal open onClose={() => setReversing(null)} title={tr('برگشت پرداخت')} draftKey={`reverse:${reversing.id}`}
           footer={<><Button onClick={() => setReversing(null)}>{tr('انصراف')}</Button><Button variant="danger" disabled={reason.trim().length < 3} onClick={() => void run(() => apiPost(`/site-payments/${reversing.id}/reverse`, { reason }), tr('پرداخت برگشت خورد.')).then((ok) => ok && setReversing(null))}>{tr('برگشت')}</Button></>}>
           <p className="mb-2 text-sm text-ink-600">{tr('پرداخت پاک نمی‌شود؛ برگشت‌خورده علامت می‌خورد و آنچه تسویه کرده بود دوباره باز می‌شود. درست آن را دوباره ثبت کنید.')}</p>
           <Field label={tr('دلیل')} required><Textarea value={reason} onChange={(e) => setReason(e.target.value)} /></Field>

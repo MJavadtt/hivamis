@@ -59,6 +59,7 @@ import positionRoutes from './routes/positions.js';
 import aiPlanRoutes from './routes/ai-plans.js';
 import teamChatRoutes from './routes/team-chat.js';
 import profileRoutes from './routes/profile.js';
+import draftRoutes from './routes/drafts.js';
 import bookingRoutes from './routes/bookings.js';
 import venueRoutes from './routes/venues.js';
 import siteProjectRoutes from './routes/site-projects.js';
@@ -237,6 +238,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(aiPlanRoutes);
     await api.register(teamChatRoutes);
     await api.register(profileRoutes);
+    await api.register(draftRoutes);
     await api.register(bookingRoutes);
     // ADR-103: venues, deployment projects and rentals.
     await api.register(venueRoutes);
