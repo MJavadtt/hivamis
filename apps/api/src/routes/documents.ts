@@ -6,7 +6,7 @@ import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { parse, actorFrom } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
-import { BRAND_ROLES, legalHoldSchema, type BrandRole } from '@hiva/contracts';
+import { BRAND_ROLES, isViewableImage, legalHoldSchema, type BrandRole } from '@hiva/contracts';
 import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
 import { assertStorageFor, writeUpload } from '../documents/storage.js';
@@ -14,28 +14,40 @@ import { audit } from '../lib/audit.js';
 import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS } from '../sites/access.js';
 import { isFileRecord, mayReadFile, mayReadRecord, recordInOrganization } from '../documents/records.js';
 
-/** Only these types are accepted; anything executable or unknown is refused. */
-const ALLOWED_MIME = new Set([
-  // No image/svg+xml: SVG carries script. The download path forces an attachment
-  // disposition and octet-stream, but there is no need to accept the format at all.
-  'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp',
-  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain', 'text/csv', 'application/zip', 'video/mp4',
+/**
+ * The file types accepted, by name; anything executable or unknown is refused. No .svg: it carries script.
+ * The name settles the type, because browsers disagree — Windows calls a .zip `x-zip-compressed`, a
+ * .csv an Excel file, and a .xlsx without Office `octet-stream` — and nothing is taken on its word
+ * either way: the bytes must then match that type (`signatureMatches`), and every file leaves as a
+ * download, never rendered by the browser.
+ */
+const OOXML = 'application/vnd.openxmlformats-officedocument';
+const OPEN_DOCUMENT = 'application/vnd.oasis.opendocument';
+const TYPE_BY_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf', '.txt': 'text/plain', '.csv': 'text/csv', '.rtf': 'application/rtf',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jfif': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+  '.tif': 'image/tiff', '.tiff': 'image/tiff', '.heic': 'image/heic', '.heif': 'image/heic',
+  '.doc': 'application/msword', '.docx': `${OOXML}.wordprocessingml.document`,
+  '.xls': 'application/vnd.ms-excel', '.xlsx': `${OOXML}.spreadsheetml.sheet`,
+  '.ppt': 'application/vnd.ms-powerpoint', '.pptx': `${OOXML}.presentationml.presentation`,
+  '.odt': `${OPEN_DOCUMENT}.text`, '.ods': `${OPEN_DOCUMENT}.spreadsheet`, '.odp': `${OPEN_DOCUMENT}.presentation`,
+  '.psd': 'image/vnd.adobe.photoshop', '.psb': 'image/vnd.adobe.photoshop', '.ai': 'application/illustrator',
+  '.eps': 'application/postscript', '.indd': 'application/x-indesign', '.cdr': 'application/vnd.corel-draw',
+  '.zip': 'application/zip', '.rar': 'application/vnd.rar', '.7z': 'application/x-7z-compressed',
+  '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.avi': 'video/x-msvideo',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg',
   // A client's typefaces, for the brand library (roadmap #42).
-  'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
-]);
-
-/** What the app can show in place: images, video, PDF pages, typefaces. */
-const PREVIEWABLE = (mime: string) => mime.startsWith('image/') || mime === 'video/mp4' || mime === 'application/pdf' || mime.startsWith('font/');
-
-/** Browsers name font files inconsistently; the extension settles it, and the signature is still checked. */
-const FONT_BY_EXT: Record<string, string> = { '.ttf': 'font/ttf', '.otf': 'font/otf', '.woff': 'font/woff', '.woff2': 'font/woff2' };
+  '.ttf': 'font/ttf', '.otf': 'font/otf', '.woff': 'font/woff', '.woff2': 'font/woff2',
+};
+const ALLOWED_MIME = new Set(Object.values(TYPE_BY_EXT));
+/** Text has no signature to hold it to, so its name must say text as well: a script sent as `text/plain` stays out. */
 const declaredType = (mime: string, fileName: string) => {
   const ext = path.extname(fileName).toLowerCase();
-  return FONT_BY_EXT[ext] && (mime.startsWith('font/') || mime.includes('font') || mime === 'application/octet-stream' || mime === 'application/vnd.ms-opentype') ? FONT_BY_EXT[ext]! : mime;
+  return TYPE_BY_EXT[ext] ?? (ext && mime.startsWith('text/') ? 'unknown' : mime);
 };
+
+/** What the app can show in place: images a browser draws, video, PDF pages, typefaces. */
+const PREVIEWABLE = (mime: string) => isViewableImage(mime) || mime === 'video/mp4' || mime === 'application/pdf' || mime.startsWith('font/');
 
 const documentRoutes: FastifyPluginAsync = async (app) => {
   const storageRoot = path.resolve(env.STORAGE_DIR);
@@ -80,7 +92,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     await assertStorageFor(actor.organizationId, 0);
     const mimeType = declaredType(file.mimetype, file.filename);
     if (!ALLOWED_MIME.has(mimeType)) {
-      throw badRequest('UNSUPPORTED_TYPE', `نوع فایل «${file.mimetype}» مجاز نیست.`);
+      throw badRequest('UNSUPPORTED_TYPE', 'این نوع فایل پذیرفته نمی‌شود. PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده مجاز است.');
     }
 
     // Store under a generated name; the client-supplied filename is never used as a path.
@@ -119,7 +131,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       await unlink(target).catch(() => undefined);
       throw badRequest(
         'UNSUPPORTED_TYPE',
-        `محتوای فایل با نوع اعلام‌شده «${file.mimetype}» مطابقت ندارد.`,
+        'محتوای فایل با نوعش نمی‌خواند؛ شاید خراب است یا پسوندش عوض شده.',
       );
     }
 
@@ -174,7 +186,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!review) return fail('UNKNOWN_REFERENCE', 'بررسی کیفیتی که عکس برایش است پیدا نشد.', 422);
       if (review.reviewerId !== actor.id) return fail('FORBIDDEN', 'عکس شاهد را فقط کسی می‌افزاید که بررسی را ثبت کرده است.', 403);
       if (Date.now() - review.reviewedAt.getTime() > 24 * 3_600_000) return fail('QC_EVIDENCE_LATE', 'عکس شاهد تا یک روز پس از ثبت بررسی پذیرفته می‌شود.', 409);
-      if (!mimeType.startsWith('image/')) return fail('QC_EVIDENCE_IMAGE', 'شاهد بررسی کیفیت باید عکس باشد.');
+      if (!isViewableImage(mimeType)) return fail('QC_EVIDENCE_IMAGE', 'شاهد بررسی کیفیت باید عکس باشد.');
       if (Object.values(links).some(Boolean) || brandRole) return fail('QC_EVIDENCE_ALONE', 'عکس شاهد فقط به بررسی کیفیت وصل می‌شود، نه به پرونده‌ای دیگر.');
     }
     /**

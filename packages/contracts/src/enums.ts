@@ -152,6 +152,9 @@ export type TaskState = (typeof TASK_STATES)[number];
 export const DELIVERABLE_KINDS = ['OOH_ARTWORK', 'OOH_START_REPORT', 'OOH_PERIODIC_REPORT', 'OOH_END_REPORT'] as const;
 export type DeliverableKind = (typeof DELIVERABLE_KINDS)[number];
 
+/** Images a browser can show; a Photoshop file or a TIFF is an image too, but it is handed over, not shown. */
+export const isViewableImage = (mime: string) => /^image\/(png|jpeg|gif|webp|bmp)$/.test(mime);
+
 /** The records a file can be attached to, beyond those with a column of their own (ADR-121). */
 export const FILE_RECORD_TYPES = [
   'lead', 'opportunity', 'activity', 'brief', 'workOrder', 'task', 'changeRequest', 'revision',

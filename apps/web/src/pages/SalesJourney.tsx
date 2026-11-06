@@ -339,7 +339,7 @@ function FollowUp({ companyId, opportunityId, contacts, onDone }: { companyId: s
         nextStep: v.nextStep.trim() || undefined, nextStepDue: v.nextStepDue || undefined,
       });
       const failed = await uploadFiles(onRecord('activity', activity.id), files);
-      toast(failed ? tr('پیگیری ثبت شد، اما {0} فایل نرسید؛ از گیرهٔ کنار آن دوباره بفرستید.', localDigits(failed)) : tr('پیگیری ثبت شد.'), failed ? 'danger' : 'success');
+      toast(failed.length ? [tr('پیگیری ثبت شد، اما {0} فایل نرسید؛ از گیرهٔ کنار آن دوباره بفرستید.', localDigits(failed.length)), ...failed].join(' ') : tr('پیگیری ثبت شد.'), failed.length ? 'danger' : 'success');
       setV({ ...v, summary: '', nextStep: '', nextStepDue: '', place: '' });
       setFiles([]);
       onDone();

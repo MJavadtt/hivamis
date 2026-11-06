@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CHAT_ATTACHMENTS_MAX, OVERSIGHT_NOTICE, type ChatNotify } from '@hiva/contracts';
+import { CHAT_ATTACHMENTS_MAX, OVERSIGHT_NOTICE, isViewableImage, type ChatNotify } from '@hiva/contracts';
 import { apiBlob, apiDelete, apiGet, apiPatch, apiPost, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime, formatRelative, localDigits } from '../lib/format';
@@ -307,7 +307,7 @@ function Message({ m, records, names, mine, canModerate, grouped, onReply, onCha
 function Attachment({ a }: { a: MessageView['attachments'][number] }) {
   const toast = useToast();
   const [src, setSrc] = useState<string | null>(null);
-  const image = a.mimeType.startsWith('image/');
+  const image = isViewableImage(a.mimeType);
   useEffect(() => {
     if (!image) return;
     let url: string | null = null;

@@ -3752,3 +3752,37 @@ so a change form by form would never be finished and the next form would be forg
 **Limits.** A form that fills itself in after opening may overwrite what was restored until the next
 edit. A dialog's draft comes back when that dialog is opened; the list cannot open it. The mobile page
 (`/m`) and the client portal do not keep drafts.
+
+## ADR-123 — The file's name settles its type, and its bytes must agree
+
+**Context.** The owner (2026-11-06): files mean PDF, JPEG, PNG, Excel, Word and the like. Those were on the
+allow-list, yet the type was the browser's word for the file, and browsers disagree: a `.xlsx` on a machine
+without Office arrives as `octet-stream`, a `.zip` from Windows as `x-zip-compressed`, a `.csv` as an Excel
+file. Each was refused with a message quoting that word. Once attached, a Word or Excel file could not be
+opened at all: the shelf asked for a preview, which those types do not have, and a PDF came back as an
+opaque blob the browser saved under a random name. The studio's own formats were not accepted.
+
+**Decision.**
+- **`TYPE_BY_EXT` in `routes/documents.ts` is the allow-list.** The extension decides the type; a name with
+  no known extension falls back to the declared type. `signatureMatches` then holds the bytes to that type,
+  so a program renamed `.xlsx` is refused as it was renamed `.pdf`, and nothing the browser says widens it.
+- **Text has no signature**, so a text file's name must say text too: `.html`, `.svg` or `.bat` sent as
+  `text/plain` is refused. UTF-16 text is accepted by its byte-order mark; Excel's «Unicode text» is how
+  Persian often leaves a sheet.
+- **Added:** TIFF, BMP, HEIC, Photoshop, Illustrator, EPS, InDesign, CorelDRAW (the print shops' format),
+  RTF, OpenDocument, RAR, 7z, MOV, WebM, AVI, MP3, WAV, M4A, OGG. **Still refused:** SVG, HTML and
+  anything executable.
+- **«Image» no longer means «the browser can draw it».** `isViewableImage` (contracts) names the ones it
+  can; preview, thumbnails, annotation, QC evidence, chat pictures and venue photos use it, so a Photoshop
+  file is handed over, never shown as a broken picture.
+- **Opening a file** (`openFile`): a PDF or a picture opens in a tab through the audited preview, given its
+  type back on the client. The tab opens on the click, since one opened after the fetch is blocked as a
+  popup, and a blocked tab falls back to a download. Anything else downloads under its own name, Persian
+  included. The API's answer is unchanged: every file still leaves as an opaque attachment. A blob tab
+  inherits the app's CSP; checked in Chromium under the production policy, `object-src 'none'` does not
+  stop its PDF viewer.
+- **A refusal says why:** the name of the file and what is accepted, not a MIME type.
+
+**Limits.** A container is checked as a container: any ZIP passes as a `.docx`, any RIFF as a `.wav`, any
+ISO media file as a `.mov`. The size limit is unchanged at `MAX_UPLOAD_MB` (25 MB; nginx 32 MB), which is
+small for Photoshop files and video; raising it means both settings and the disk.

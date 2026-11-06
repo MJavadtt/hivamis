@@ -6,11 +6,12 @@
  * numbered line each, saying which file and where; the unit fixes against those lines and marks
  * each resolved.
  */
+import { isViewableImage } from '@hiva/contracts';
 import type { Tx } from '../db.js';
 
 export type AnnotatableKind = 'image' | 'video' | 'pdf';
 export const kindOfFile = (mime: string): AnnotatableKind | null =>
-  mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime === 'application/pdf' ? 'pdf' : null;
+  isViewableImage(mime) ? 'image' : mime === 'video/mp4' ? 'video' : mime === 'application/pdf' ? 'pdf' : null;
 /** What each file kind is annotated with. */
 export const ANNOTATION_FOR: Record<AnnotatableKind, 'PIN' | 'TIMECODE' | 'HIGHLIGHT'> = { image: 'PIN', video: 'TIMECODE', pdf: 'HIGHLIGHT' };
 

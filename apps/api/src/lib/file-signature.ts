@@ -5,9 +5,9 @@
  * say anything. Checking it alone means a .exe declared as application/pdf is stored as a PDF.
  * These signatures are checked against the bytes actually received.
  *
- * Hand-rolled rather than pulling in `file-type`: the allow-list is fifteen formats reducible to
- * seven signatures, the container formats (OOXML, legacy Office) share two of them, and the
- * dependency would bring an ESM-only tree for a table that fits on a screen.
+ * Hand-rolled rather than pulling in `file-type`: the allow-list reduces to a few dozen signatures,
+ * the container formats (OOXML, OpenDocument, legacy Office) share two of them, and the dependency
+ * would bring an ESM-only tree for a table that fits on a screen.
  */
 
 const ascii = (s: string): number[] => [...s].map((c) => c.charCodeAt(0));
@@ -34,6 +34,27 @@ const SIGNATURES: Record<string, readonly Signature[]> = {
   'font/otf': [{ offset: 0, bytes: ascii('OTTO') }],
   'font/woff': [{ offset: 0, bytes: ascii('wOFF') }],
   'font/woff2': [{ offset: 0, bytes: ascii('wOF2') }],
+  // The studio's and the printers' working files (ADR-123): layered, vector and print formats.
+  'image/bmp': [{ offset: 0, bytes: ascii('BM') }],
+  'image/tiff': [{ offset: 0, bytes: [0x49, 0x49, 0x2a, 0x00] }, { offset: 0, bytes: [0x4d, 0x4d, 0x00, 0x2a] }],
+  // A phone's photo: an ISO media file, as an MP4 is.
+  'image/heic': [{ offset: 4, bytes: ascii('ftyp') }],
+  'image/vnd.adobe.photoshop': [{ offset: 0, bytes: ascii('8BPS') }],
+  // Illustrator saves a PDF, or PostScript in older versions.
+  'application/illustrator': [{ offset: 0, bytes: ascii('%PDF-') }, { offset: 0, bytes: ascii('%!PS') }],
+  'application/postscript': [{ offset: 0, bytes: ascii('%!PS') }, { offset: 0, bytes: [0xc5, 0xd0, 0xd3, 0xc6] }],
+  'application/x-indesign': [{ offset: 0, bytes: [0x06, 0x06, 0xed, 0xf5, 0xd8, 0x1d, 0x46, 0xe5, 0xbd, 0x31, 0xef, 0xe7, 0xfe, 0x74, 0xb7, 0x1d] }],
+  // CorelDRAW, which the print shops here live in: RIFF in old versions, ZIP since X4.
+  'application/vnd.corel-draw': [{ offset: 0, bytes: ascii('RIFF') }, { offset: 0, bytes: [0x50, 0x4b, 0x03, 0x04] }],
+  'application/rtf': [{ offset: 0, bytes: ascii('{\\rtf') }],
+  'application/vnd.rar': [{ offset: 0, bytes: ascii('Rar!') }],
+  'application/x-7z-compressed': [{ offset: 0, bytes: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c] }],
+  'video/quicktime': ['ftyp', 'moov', 'mdat', 'wide', 'free', 'skip'].map((box) => ({ offset: 4, bytes: ascii(box) })),
+  'video/x-msvideo': [{ offset: 0, bytes: ascii('RIFF') }],
+  'audio/mpeg': [{ offset: 0, bytes: ascii('ID3') }, { offset: 0, bytes: [0xff, 0xfb] }, { offset: 0, bytes: [0xff, 0xf3] }, { offset: 0, bytes: [0xff, 0xf2] }],
+  'audio/wav': [{ offset: 0, bytes: ascii('RIFF') }],
+  'audio/mp4': [{ offset: 4, bytes: ascii('ftyp') }],
+  'audio/ogg': [{ offset: 0, bytes: ascii('OggS') }],
 };
 
 /** ZIP local-file header, plus the empty and spanned variants. */
@@ -53,6 +74,9 @@ for (const t of [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.presentation',
 ]) SIGNATURES[t] = ZIP;
 
 for (const t of [
@@ -79,8 +103,9 @@ export function signatureMatches(declared: string, head: Buffer): boolean {
   if (head.length === 0) return false;
 
   if (TEXT_TYPES.has(declared)) {
-    // A NUL byte in the first chunk means this is not the text file it claims to be.
-    // UTF-16 text is the known false negative here, and is not a format this app accepts.
+    // UTF-16 says so in its first two bytes — Excel's «Unicode text» is how Persian often leaves a sheet.
+    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff)) return true;
+    // Otherwise a NUL byte in the first chunk means this is not the text file it claims to be.
     return !head.subarray(0, 1024).includes(0x00);
   }
 

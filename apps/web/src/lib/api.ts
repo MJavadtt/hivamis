@@ -293,17 +293,23 @@ export async function apiBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
+/** The name the server gave the file: percent-encoded, so a Persian name survives the header. */
+function suggestedName(res: Response, fallback: string): string {
+  const named = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '')?.[1];
+  try { return named ? decodeURIComponent(named) : fallback; } catch { return named!; }
+}
+
 export async function downloadFile(path: string, fallbackName: string): Promise<void> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
   let res = await reach(send);
   if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
-  const ascii = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '');
+  const named = suggestedName(res, fallbackName);
   const blob = await res.blob();
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = href; a.download = ascii?.[1] ?? fallbackName;
+  a.href = href; a.download = named;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
@@ -315,10 +321,10 @@ export async function postDownload(path: string, body: unknown, fallbackName: st
   let res = await reach(send);
   if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
-  const named = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '')?.[1];
+  const named = suggestedName(res, fallbackName);
   const href = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
-  a.href = href; a.download = named ? decodeURIComponent(named) : fallbackName;
+  a.href = href; a.download = named;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }

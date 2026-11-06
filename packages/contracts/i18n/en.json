@@ -1874,7 +1874,6 @@
   "مجوز شروع پروژه صادر شده باشد": "The project start permit has been issued",
   "مجوز صادر شد": "Permit issued",
   "محتوای «{0}» خوانده نشد — فرمت‌های درون آن بررسی نشد": "The content of “{0}” wasn't read — the formats inside it weren't checked",
-  "محتوای فایل با نوع اعلام‌شده «{0}» مطابقت ندارد.": "The file's content doesn't match its declared type “{0}”.",
   "محتوای فایل خوانده نشد": "The file's content couldn't be read",
   "محتوای فایل یک ویدیوی MP4 یا WebM نیست.": "The file is not an MP4 or WebM video.",
   "محتوای فایل‌ها، هماهنگی با بریف، و کاربرد درست لوگو و ترکیب‌بندی — کار بازبین انسانی است": "The files' content, fit with the brief, and correct use of the logo and composition — that's the human reviewer's job",
@@ -2162,7 +2161,6 @@
   "نوع رکورد": "Record type",
   "نوع سند «{0}» پشتیبانی نمی‌شود.": "Document type “{0}” isn't supported.",
   "نوع فایل «{0}» صوت جلسه نیست": "File type “{0}” isn't meeting audio",
-  "نوع فایل «{0}» مجاز نیست.": "File type “{0}” isn't allowed.",
   "نوع فرایند": "Kind of process",
   "نوع فعالیت": "Kind of activity",
   "نوع فیلد «{0}» باید {1} بماند؛ فرآیند به همان نوع تکیه دارد": "The type of field “{0}” must stay {1}; the process relies on that type",
@@ -3219,5 +3217,7 @@
   "پرونده‌ای که فایل به آن پیوست می‌شود پیدا نشد.": "The record the file is attached to was not found.",
   "به این پرونده دسترسی ندارید.": "You do not have access to this record.",
   "این پیش‌نویس بزرگ‌تر از آن است که نگه داشته شود.": "This draft is too large to keep.",
-  "پیش‌نویس‌های شما زیاد شده است؛ چندتا را حذف کنید.": "You have too many drafts; delete some."
+  "پیش‌نویس‌های شما زیاد شده است؛ چندتا را حذف کنید.": "You have too many drafts; delete some.",
+  "این نوع فایل پذیرفته نمی‌شود. PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده مجاز است.": "This kind of file isn't accepted. PDF, images, Word, Excel, PowerPoint, design files, video, audio and archives are.",
+  "محتوای فایل با نوعش نمی‌خواند؛ شاید خراب است یا پسوندش عوض شده.": "The file's content doesn't match its kind; it may be damaged, or its extension may have been changed."
 }

@@ -4103,7 +4103,6 @@
   "دلیل‌های رایج": "Common reasons",
   "چه چیزی باید اصلاح شود؟": "What needs to be corrected?",
   "این توضیح کنار کار می‌ماند و مسئولش آن را می‌بیند؛ اصلاحیه به‌صورت خودکار صادر می‌شود (قانون ۱۰).": "This explanation stays with the work and the person responsible sees it; a revision is raised automatically (rule 10).",
-  "{0} فایل نرسید؛ دوباره بفرستید.": "{0} files did not arrive; send them again.",
   "فایل‌ها کنار خروجی گذاشته شد.": "The files are now with the output.",
   "چه خواسته شده": "What is asked",
   "چه کسی خواسته": "Who asked",
@@ -4298,5 +4297,7 @@
   "این پیش‌نویس از یک پنجره است: در آن صفحه، همان پنجره را باز کنید تا برگردد.": "This draft is from a dialog: open that dialog on its page and it comes back.",
   "آنچه نوشته‌اید و هنوز ثبت نشده. فقط شما این‌ها را می‌بینید؛ با ثبت فرم یا با حذف شما از این‌جا می‌رود.": "What you typed and have not saved. Only you see these; each leaves when its form is saved or you delete it.",
   "پیش‌نویسی ندارید": "You have no drafts",
-  "هر فرمی را که پر کنید و ثبت نکنید، این‌جا پیدا می‌کنید.": "Any form you fill in and do not save, you find here."
+  "هر فرمی را که پر کنید و ثبت نکنید، این‌جا پیدا می‌کنید.": "Any form you fill in and do not save, you find here.",
+  "دریافت {0}": "Download {0}",
+  "PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده.": "PDF, images, Word, Excel, PowerPoint, design files, video, audio and archives."
 }

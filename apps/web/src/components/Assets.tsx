@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { COLOR_SPACE_LABELS } from '@hiva/contracts';
+import { COLOR_SPACE_LABELS, isViewableImage } from '@hiva/contracts';
 import { apiBlob, apiGet, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Modal, Select, useToast } from './ui';
@@ -116,12 +116,12 @@ function useFontFace(url: string | null, id: string) {
 
 /** A look at the file itself: the image, the video, a PDF's first page, a font set in itself. */
 export function FilePreview({ documentId, mimeType, size = 'sm' }: { documentId: string; mimeType: string; size?: 'sm' | 'lg' }) {
-  const previewable = mimeType.startsWith('image/') || mimeType === 'video/mp4' || mimeType === 'application/pdf' || FONT_TYPES.includes(mimeType);
+  const previewable = isViewableImage(mimeType) || mimeType === 'video/mp4' || mimeType === 'application/pdf' || FONT_TYPES.includes(mimeType);
   const url = useFileUrl(previewable ? documentId : null);
   const box = size === 'lg' ? 'max-h-[22rem]' : 'max-h-28';
   if (!previewable) return <div className="grid h-16 w-20 place-items-center rounded bg-ink-100 text-[12px] text-ink-500" data-testid="preview-none">{mimeType.split('/')[1]?.slice(0, 8).toUpperCase()}</div>;
   if (!url) return <div className={`animate-pulse rounded bg-ink-100 ${size === 'lg' ? 'h-64 w-full' : 'h-16 w-20'}`} />;
-  if (mimeType.startsWith('image/')) return <img src={url} alt="" className={`block ${box} max-w-full rounded bg-[repeating-conic-gradient(#e5e7eb_0_25%,#fff_0_50%)] bg-[length:12px_12px] object-contain`} data-testid="preview-image" />;
+  if (isViewableImage(mimeType)) return <img src={url} alt="" className={`block ${box} max-w-full rounded bg-[repeating-conic-gradient(#e5e7eb_0_25%,#fff_0_50%)] bg-[length:12px_12px] object-contain`} data-testid="preview-image" />;
   if (mimeType === 'video/mp4') return <video src={url} controls={size === 'lg'} muted className={`block ${box} max-w-full rounded bg-black`} data-testid="preview-video" />;
   if (mimeType === 'application/pdf') return <PdfFirstPage url={url} width={size === 'lg' ? 360 : 80} />;
   return <FontSample url={url} id={documentId} large={size === 'lg'} />;
@@ -198,7 +198,7 @@ export function VersionsModal({ documentId, onClose, onChanged }: { documentId: 
   const both = from && to && from.id !== to.id ? [from, to] as const : null;
   const refresh = async () => { await qc.invalidateQueries({ queryKey: key }); await onChanged?.(); };
   const label = (v: VersionRow) => tr('نسخهٔ {0}{1}', localDigits(v.version), v.current ? tr(' (فعلی)') : '');
-  const images = both && both.every((v) => v.mimeType.startsWith('image/'));
+  const images = both && both.every((v) => isViewableImage(v.mimeType));
   return (
     <Modal open wide title={tr('نسخه‌های «{0}»', current?.fileName ?? data[data.length - 1]?.fileName ?? '')} onClose={onClose}
       footer={<>{current && <NewVersionButton documentId={current.id} onDone={refresh} label={tr('بارگذاری نسخهٔ جدید')} />}<Button variant="ghost" onClick={onClose}>{tr('بستن')}</Button></>}>

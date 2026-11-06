@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiBlob, apiGet, apiPost } from '../lib/api';
+import { apiGet, apiPost } from '../lib/api';
+import { openFile } from '../components/RecordFiles';
 import { useAuth } from '../lib/auth';
 import { PageBody, PageHeader } from '../components/Shell';
 import { StageZero } from '../components/StageZero';
@@ -196,17 +197,12 @@ interface UnitReview {
 /** What the unit's level-1 QC said, and the photos taken at it — often on set (roadmap #49). */
 export function UnitQcNote({ review }: { review: UnitReview | undefined }) {
   if (!review) return null;
-  const open = async (id: string) => {
-    const url = URL.createObjectURL(await apiBlob(`/documents/${id}/preview`));
-    window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  };
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12.5px] text-ink-500" data-testid="unit-qc-note">
       <Badge tone={review.verdict === 'PASSED' ? 'success' : 'danger'}>{tr('QC سطح ۱: {0}', review.verdict === 'PASSED' ? tr('قبول') : tr('رد'))}</Badge>
       <span>{review.reviewer.fullName} — {formatRelative(review.reviewedAt)}</span>
       {review.documents.map((d, i) => (
-        <button key={d.id} className="text-brand-700 underline" onClick={() => void open(d.id)} title={d.fileName}>{tr('عکس {0}', localDigits(i + 1))}</button>
+        <button key={d.id} className="text-brand-700 underline" onClick={() => void openFile(d)} title={d.fileName}>{tr('عکس {0}', localDigits(i + 1))}</button>
       ))}
     </div>
   );

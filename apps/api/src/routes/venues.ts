@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import {
   idSchema, nameKey, phoneKey, savedViewSchema, siteOptionSchema, siteOptionUpdateSchema, siteSettingsSchema,
-  venueChannelSchema, venueContactSchema, venueDuplicateDecisionSchema, venueListSchema, venueSchema, venueSmsSchema, venueUpdateSchema,
+  venueChannelSchema, venueContactSchema, venueDuplicateDecisionSchema, venueListSchema, venueSchema, venueSmsSchema, venueUpdateSchema, isViewableImage,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { actorFrom, orderBy, page, parse } from '../lib/http.js';
@@ -184,7 +184,7 @@ const venueRoutes: FastifyPluginAsync = async (app) => {
         : null,
     ]);
     const merged = venue.mergedIntoId ? await prisma.venue.findFirst({ where: { id: venue.mergedIntoId, organizationId: actor.organizationId }, select: { id: true, code: true, name: true } }) : null;
-    const photos = venue.documents.filter((d) => d.mimeType.startsWith('image/')).length;
+    const photos = venue.documents.filter((d) => isViewableImage(d.mimeType)).length;
     return {
       ...venue, duplicates, mergedFrom, mergedInto: merged, messages,
       completeness: completenessOf(venue, venue.contacts.length, photos),

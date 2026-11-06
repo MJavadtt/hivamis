@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActingBanner } from '../components/ActingBanner';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiBlob, apiGet, apiPost, apiUpload } from '../lib/api';
+import { apiGet, apiPost, apiUpload } from '../lib/api';
+import { openFile } from '../components/RecordFiles';
 import { useAuth } from '../lib/auth';
 import { fallbackInterval, useLiveStatus, useLiveUpdates } from '../lib/live';
 import { formatDate, formatDateTime, formatRelative, localDigits } from '../lib/format';
@@ -235,13 +236,6 @@ const MAX_PHOTOS = 4;
 interface Deliverable { id: string; code: string; name: string; format: string | null; dueDate: string | null; stageZeroVerdict: 'PASS' | 'WARN' | 'FAIL' | null; description: string | null }
 interface DocumentRow { id: string; fileName: string; mimeType: string }
 
-/** Opens a file the way the app shows it — through the audited preview, never a bare link. */
-async function openPreview(id: string) {
-  const url = URL.createObjectURL(await apiBlob(`/documents/${id}/preview`));
-  window.open(url, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
 function QcSheet({ item, onDone, onClose }: { item: WorkItem; onDone: (message: string) => void; onClose: () => void }) {
   const d = useQuery<Deliverable>({ queryKey: [`/deliverables/${item.entityId}`], queryFn: () => apiGet(`/deliverables/${item.entityId}`) });
   const files = useQuery<DocumentRow[]>({ queryKey: ['/documents', { deliverableId: item.entityId }], queryFn: () => apiGet('/documents', { deliverableId: item.entityId }) });
@@ -329,7 +323,7 @@ function QcSheet({ item, onDone, onClose }: { item: WorkItem; onDone: (message: 
             {files.data.map((f) => (
               <li key={f.id} className="flex items-center justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate" dir="auto">{f.fileName}</span>
-                <button className="shrink-0 text-brand-700 underline" onClick={() => void openPreview(f.id)}>{tr('دیدن')}</button>
+                <button className="shrink-0 text-brand-700 underline" onClick={() => void openFile(f)}>{tr('دیدن')}</button>
               </li>
             ))}
           </ul>

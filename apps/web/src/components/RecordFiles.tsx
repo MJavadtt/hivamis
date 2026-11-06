@@ -1,8 +1,8 @@
 import { useContext, useRef, useState } from 'react';
 import { UNSAFE_LocationContext } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FileRecordType } from '@hiva/contracts';
-import { apiBlob, apiDelete, apiGet, apiUpload } from '../lib/api';
+import { isViewableImage, type FileRecordType } from '@hiva/contracts';
+import { apiBlob, apiDelete, apiGet, apiUpload, downloadFile } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { localDigits } from '../lib/format';
 import { Button, Modal, useToast } from './ui';
@@ -20,10 +20,24 @@ export const onRecord = (recordType: FileRecordType, recordId: string): FileTarg
 
 interface DocumentRow { id: string; fileName: string; mimeType: string }
 
-async function openPreview(id: string) {
-  const url = URL.createObjectURL(await apiBlob(`/documents/${id}/preview`));
-  window.open(url, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+/** A picture or a PDF a browser shows by itself; a Word file or a sheet it can only hand over. */
+const opensInBrowser = (mime: string) => isViewableImage(mime) || mime === 'application/pdf';
+const download = (f: DocumentRow) => downloadFile(`/documents/${f.id}/download`, f.fileName);
+
+/**
+ * Opens a file the way the app shows it — through the audited preview, never a bare link — or hands it
+ * over under its own name if a browser cannot show it. The preview arrives opaque, so it gets its type
+ * back here; and the tab opens first, because one opened after a wait is blocked as a popup.
+ */
+export async function openFile(f: DocumentRow) {
+  const tab = opensInBrowser(f.mimeType) ? window.open('', '_blank') : null;
+  if (!tab) return download(f);
+  tab.opener = null;
+  try {
+    const url = URL.createObjectURL(new Blob([await apiBlob(`/documents/${f.id}/preview`)], { type: f.mimeType }));
+    tab.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (e) { tab.close(); throw e; }
 }
 
 export function useFiles(target: FileTarget | null) {
@@ -33,18 +47,24 @@ export function useFiles(target: FileTarget | null) {
   });
 }
 
-/** Sends files to a record; says how it went. Used by the shelf and by forms that attach as they save. */
-export async function uploadFiles(target: FileTarget, files: File[]): Promise<number> {
-  let failed = 0;
+/** Sends files to a record; says which did not arrive, and why. Used by the shelf and by forms that attach as they save. */
+export async function uploadFiles(target: FileTarget, files: File[]): Promise<string[]> {
+  const failed: string[] = [];
   for (const f of files) {
     const fd = new FormData();
     // The fields before the file: the server reads fields that arrive ahead of the stream.
     for (const [k, v] of Object.entries(target)) fd.append(k, v);
     fd.append('file', f, f.name);
-    try { await apiUpload('/documents', fd); } catch { failed += 1; }
+    try { await apiUpload('/documents', fd); } catch (e: any) { failed.push(`«${f.name}»: ${e?.message ?? tr('بارگذاری ناموفق بود.')}`); }
   }
   return failed;
 }
+
+const DownloadArrow = () => (
+  <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 export function FileShelf({ target, label = tr('الصاق فایل') }: { target: FileTarget; label?: string }) {
   const { can } = useAuth();
@@ -61,8 +81,9 @@ export function FileShelf({ target, label = tr('الصاق فایل') }: { targe
     setUploading(false);
     if (picker.current) picker.current.value = '';
     await qc.invalidateQueries({ queryKey: ['/documents'] });
-    toast(failed ? tr('{0} فایل نرسید؛ دوباره بفرستید.', localDigits(failed)) : tr('فایل‌ها الصاق شد.'), failed ? 'danger' : 'success');
+    toast(failed.length ? failed.join(' ') : tr('فایل‌ها الصاق شد.'), failed.length ? 'danger' : 'success');
   };
+  const reach = (how: (f: DocumentRow) => Promise<void>, f: DocumentRow) => void how(f).catch((e) => toast(e?.message ?? tr('دریافت ناموفق بود.'), 'danger'));
   const remove = async (f: DocumentRow) => {
     if (!window.confirm(tr('«{0}» برداشته شود؟', f.fileName))) return;
     try { await apiDelete(`/documents/${f.id}`); await qc.invalidateQueries({ queryKey: ['/documents'] }); }
@@ -76,7 +97,8 @@ export function FileShelf({ target, label = tr('الصاق فایل') }: { targe
         <ul className="flex flex-wrap gap-2">
           {rows.map((f) => (
             <li key={f.id} className="inline-flex items-center gap-1 rounded-full bg-ink-50 px-3 py-1 text-xs ring-1 ring-ink-200">
-              <button type="button" onClick={() => void openPreview(f.id)} className="text-brand-700 hover:underline">{f.fileName}</button>
+              <button type="button" onClick={() => reach(openFile, f)} className="text-brand-700 hover:underline">{f.fileName}</button>
+              {opensInBrowser(f.mimeType) && <button type="button" onClick={() => reach(download, f)} className="text-ink-400 hover:text-brand-700" aria-label={tr('دریافت {0}', f.fileName)} title={tr('دریافت')}><DownloadArrow /></button>}
               {can('document.delete') && <button type="button" onClick={() => void remove(f)} className="text-ink-400 hover:text-rose-700" aria-label={tr('برداشتن {0}', f.fileName)}>×</button>}
             </li>
           ))}
@@ -86,6 +108,7 @@ export function FileShelf({ target, label = tr('الصاق فایل') }: { targe
         <>
           <input ref={picker} type="file" multiple className="hidden" onChange={(e) => void upload(e.target.files)} aria-label={label} />
           <Button size="sm" variant="secondary" className="mt-2" loading={uploading} onClick={() => picker.current?.click()}>{label}</Button>
+          <p className="mt-1 text-xs text-ink-500">{tr('PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده.')}</p>
         </>
       )}
     </div>

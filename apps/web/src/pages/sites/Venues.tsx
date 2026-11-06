@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isViewableImage } from '@hiva/contracts';
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, downloadFile, type Page } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatDate, formatRelative, localDigits } from '../../lib/format';
@@ -356,7 +357,7 @@ function VenueProfile({ id }: { id: string }) {
   const [archiving, setArchiving] = useState(false);
   const [reason, setReason] = useState('');
   const [deciding, setDeciding] = useState<{ c: Candidate; decision: 'MERGE' | 'DISTINCT' } | null>(null);
-  const photos = useMemo(() => v?.documents.filter((d) => d.mimeType.startsWith('image/')) ?? [], [v]);
+  const photos = useMemo(() => v?.documents.filter((d) => isViewableImage(d.mimeType)) ?? [], [v]);
   if (isLoading) return <LoadingBlock />;
   if (error || !v) return <ErrorBlock error={error} onRetry={() => void refetch()} />;
   const act = async (fn: () => Promise<unknown>, done: string) => {

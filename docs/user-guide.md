@@ -85,7 +85,10 @@ project, work order, task, change request, supplier, contract, booking — has *
 with how many there are. A record that is a row of another page — lead, invoice, meeting, follow-up,
 risk, issue, decision, status report, revision, media order, purchase request — has a paperclip beside
 it. A follow-up can take its files as it is saved. A file is read as its record is: an invoice's files by
-those who may read invoices, a private booking's by those who see the booking.
+those who may read invoices, a private booking's by those who see the booking. PDF, images (JPEG, PNG,
+TIFF…), Word, Excel, PowerPoint, design files (Photoshop, Illustrator, InDesign, Corel, EPS), video, audio
+and archives (ZIP, RAR, 7z) are accepted. Clicking a file's name opens a PDF or an image in a new tab and
+downloads anything else under its own name. A file that isn't accepted says why, right there.
 
 **Drafts.** Whatever you type in a form is saved as a draft as you go — closing the window, going to
 another page or losing the connection loses nothing. Come back to the form and it is filled in again,
