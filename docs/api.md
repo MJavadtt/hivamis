@@ -514,6 +514,9 @@ to the review and the revision.
 
 ## Files, versions and the brand library
 
+A file may be any size (ADR-124). 507 `DISK_FULL`: the server's disk cannot keep it. 413 `STORAGE_QUOTA`:
+the organisation's quota cannot.
+
 Roadmap #42. `POST /documents` (multipart) takes two more fields:
 
 - **`replacesId`** — the upload becomes the next version of that file. It takes the replaced file's
@@ -984,7 +987,7 @@ Hivamis task 8. One recorded video per guide section and language, added by the 
 | Endpoint | Purpose |
 |---|---|
 | `GET /guide/videos` | Any signed-in user. The videos that exist: `id`, `sectionId`, `locale`, `title`, `mimeType`, `sizeBytes`, `createdAt`, uploader |
-| `POST /guide/videos?sectionId=&locale=fa\|en&title=` | `admin.settings`. The file is the one multipart part, MP4 or WebM, checked by its bytes, at most `GUIDE_VIDEO_MAX_MB`. It replaces that section's video in that language, and the old file is deleted. 201 |
+| `POST /guide/videos?sectionId=&locale=fa\|en&title=` | `admin.settings`. The file is the one multipart part, MP4 or WebM, checked by its bytes, of any size. It replaces that section's video in that language, and the old file is deleted. 201 |
 | `DELETE /guide/videos/:id` | `admin.settings`. Removes the video and its file. 204 |
 | `GET /guide/videos/:id/link` | Any signed-in user. `{ url, expiresAt }`: a link that plays this video for three hours |
 | `GET /guide/videos/:id/stream?exp=&sig=` | No token: the signature is the permission. Serves byte ranges (206) as `video/mp4` or `video/webm` with `nosniff`. 403 `LINK_INVALID` when the signature does not match this video or has expired |

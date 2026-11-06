@@ -270,8 +270,7 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
   const ascii = /filename="([^"]+)"/i.exec(disposition);
   const filename = utf8 ? decodeURIComponent(utf8[1]) : (ascii?.[1] ?? `${kind}-${id}.pdf`);
 
-  const blob = await res.blob();
-  const href = URL.createObjectURL(blob);
+  const href = URL.createObjectURL(await received(res));
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;
@@ -284,13 +283,22 @@ export async function downloadPdf(kind: string, id: string): Promise<void> {
 
 /** GET any file the API serves with a content-disposition — CSV templates and exports. */
 /** A file's bytes behind the session — for an <img>, a <video> or pdf.js to show (roadmap #38). */
+/** A file's bytes. A private window holds them in memory and gives up near 2 GB; a dropped line fails here too (ADR-124). */
+async function received(res: Response): Promise<Blob> {
+  try {
+    return await res.blob();
+  } catch {
+    throw new ApiError(0, { code: 'NOT_RECEIVED', message: tr('دریافت فایل کامل نشد. اگر فایل بزرگ است و در پنجرهٔ ناشناس هستید، آن را در پنجرهٔ عادی دریافت کنید.') });
+  }
+}
+
 export async function apiBlob(path: string): Promise<Blob> {
   const url = new URL(`/api/v1${path}`, window.location.origin);
   const send = () => fetch(url, { headers: baseHeaders() });
   let res = await reach(send);
   if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
-  return res.blob();
+  return received(res);
 }
 
 /** The name the server gave the file: percent-encoded, so a Persian name survives the header. */
@@ -306,8 +314,7 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
   const named = suggestedName(res, fallbackName);
-  const blob = await res.blob();
-  const href = URL.createObjectURL(blob);
+  const href = URL.createObjectURL(await received(res));
   const a = document.createElement('a');
   a.href = href; a.download = named;
   document.body.appendChild(a); a.click(); a.remove();
@@ -322,7 +329,7 @@ export async function postDownload(path: string, body: unknown, fallbackName: st
   if (res.status === 401 && wasSignedIn() && (await attemptRefresh())) res = await reach(send);
   if (!res.ok) throw await failure(res);
   const named = suggestedName(res, fallbackName);
-  const href = URL.createObjectURL(await res.blob());
+  const href = URL.createObjectURL(await received(res));
   const a = document.createElement('a');
   a.href = href; a.download = named;
   document.body.appendChild(a); a.click(); a.remove();

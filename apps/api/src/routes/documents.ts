@@ -9,7 +9,7 @@ import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { BRAND_ROLES, isViewableImage, legalHoldSchema, type BrandRole } from '@hiva/contracts';
 import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
-import { assertStorageFor, writeUpload } from '../documents/storage.js';
+import { assertDiskFor, assertStorageFor, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
 import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS } from '../sites/access.js';
 import { isFileRecord, mayReadFile, mayReadRecord, recordInOrganization } from '../documents/records.js';
@@ -85,13 +85,16 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.write')],
   }, async (req, reply) => {
     const actor = actorFrom(req);
-    const file = await (req as any).file();
+    // A file has no size limit (ADR-124), but one that cannot be kept refuses before a byte is read (audit LOG-5).
+    const declared = Number(req.headers['content-length']) || 0;
+    await assertStorageFor(actor.organizationId, declared);
+    await assertDiskFor(declared);
+    const file = await (req as any).file({ limits: { fileSize: Infinity } });
     if (!file) throw badRequest('NO_FILE', 'فایلی ارسال نشده است.');
 
-    // A full store refuses before a byte is read (audit LOG-5).
-    await assertStorageFor(actor.organizationId, 0);
     const mimeType = declaredType(file.mimetype, file.filename);
     if (!ALLOWED_MIME.has(mimeType)) {
+      file.file.resume();
       throw badRequest('UNSUPPORTED_TYPE', 'این نوع فایل پذیرفته نمی‌شود. PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده مجاز است.');
     }
 
@@ -118,12 +121,9 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
       }
     });
 
-    // A stream that breaks off leaves no half-written file behind (audit LOG-5).
-    await writeUpload(file.file, target);
-    if ((file.file as any).truncated) {
-      await unlink(target).catch(() => undefined);
-      throw badRequest('FILE_TOO_LARGE', `حداکثر حجم مجاز ${env.MAX_UPLOAD_MB} مگابایت است.`);
-    }
+    // A stream that breaks off leaves no half-written file behind (audit LOG-5). Nothing reads what is
+    // still on its way after that, so the connection closes with the answer rather than leave the sender waiting.
+    await writeUpload(file.file, target).catch((e) => { reply.header('connection', 'close'); throw e; });
     await assertStorageFor(actor.organizationId, size).catch(async (e) => { await unlink(target).catch(() => undefined); throw e; });
 
     // The declared Content-Type is client-controlled; confirm the bytes agree with it.

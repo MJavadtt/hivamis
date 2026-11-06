@@ -29,6 +29,9 @@ export interface BrandScan {
 const KEEP = 16;
 const round = (v: number) => Math.round(v * 1000) / 1000;
 
+/** A file too large to read whole: nothing is known of its colours. */
+export const tooLargeScan = (kind: BrandScan['kind']): BrandScan => ({ v: BRAND_SCAN_VERSION, kind, colours: [], inks: [], skipped: 'TOO_LARGE' });
+
 export function imageBrandScan(bytes: Buffer, mimeType: string): BrandScan {
   try {
     const sample = mimeType === 'image/png' ? pngSample(bytes) : jpegSample(bytes);

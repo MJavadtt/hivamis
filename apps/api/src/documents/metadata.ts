@@ -9,9 +9,10 @@
  *
  * Anything malformed or unrecognised answers null — never a guess.
  */
-import { open, readFile } from 'node:fs/promises';
+import { open, readFile, stat } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
-import { imageBrandScan, pdfBrandScan, type BrandScan } from '../brand/scan.js';
+import { imageBrandScan, pdfBrandScan, tooLargeScan, type BrandScan } from '../brand/scan.js';
+import { fitsInMemory } from './storage.js';
 
 export type ColorSpace = 'RGB' | 'RGBA' | 'GRAYSCALE' | 'GRAYSCALE_ALPHA' | 'INDEXED' | 'CMYK' | 'YCCK';
 export interface FileMetadata {
@@ -182,14 +183,20 @@ export const FONT_TYPES = new Set(['font/ttf', 'font/otf', 'font/woff', 'font/wo
 
 export async function extractMetadata(path: string, mimeType: string): Promise<FileMetadata | null> {
   try {
+    // Colours and pages are read from the whole file; one too large to hold keeps what its headers say (ADR-124).
+    const whole = fitsInMemory((await stat(path)).size);
     if (mimeType === 'image/png' || mimeType === 'image/jpeg') {
+      if (!whole) {
+        const header = imageMetadata(await head(path, 256 * 1024));
+        return header ? { ...header, brand: tooLargeScan('image') } : null;
+      }
       const bytes = await readFile(path);
       const header = imageMetadata(bytes.subarray(0, 256 * 1024));
       return header ? { ...header, brand: imageBrandScan(bytes, mimeType) } : null;
     }
     if (mimeType.startsWith('image/')) return imageMetadata(await head(path, 256 * 1024));
     if (mimeType === 'video/mp4') { const moov = await readMoov(path); return moov ? mp4Metadata(moov) : null; }
-    if (mimeType === 'application/pdf') return pdfMetadata(await readFile(path), true);
+    if (mimeType === 'application/pdf') return whole ? pdfMetadata(await readFile(path), true) : { brand: tooLargeScan('pdf') };
     if (mimeType === 'font/ttf' || mimeType === 'font/otf') {
       const family = fontFamily(await head(path, 2 * 1024 * 1024));
       return family ? { fontFamily: family } : null;

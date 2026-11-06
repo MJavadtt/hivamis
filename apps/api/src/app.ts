@@ -122,8 +122,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     // never from anything the request says about itself.
     keyGenerator: (req) => rateKey(req.ip),
   });
+  // What a route reads whole into memory stops here; the routes that stream to disk lift it (ADR-124).
   await app.register(multipart, {
-    limits: { fileSize: env.MAX_UPLOAD_MB * 1024 * 1024, files: 1 },
+    limits: { fileSize: env.IN_MEMORY_FILE_MB * 1024 * 1024, files: 1 },
   });
   await app.register(fastifyStatic, {
     root: path.resolve(env.STORAGE_DIR),

@@ -16,6 +16,7 @@ import { env } from '../env.js';
 import { AppError, conflict, forbidden, notFound } from '../lib/errors.js';
 import { nextCode } from '../lib/codes.js';
 import { audit } from '../lib/audit.js';
+import { fitsInMemory } from '../documents/storage.js';
 import { notify } from '../mail/notify.js';
 import { clientMail } from '../mail/client.js';
 import { esc } from '../pdf/fmt.js';
@@ -86,6 +87,7 @@ export async function send(actor: Actor, contractId: string, input: { documentId
   if (!doc) throw new AppError(422, 'ESIGN_DOCUMENT', 'فایل باید از فایل‌های همین قرارداد باشد.');
   if (doc.supersededAt) throw new AppError(422, 'ESIGN_DOCUMENT_SUPERSEDED', `نسخهٔ تازه‌تری از «${doc.fileName}» بارگذاری شده است؛ آخرین نسخه را بفرستید.`);
   if (doc.mimeType !== 'application/pdf') throw new AppError(422, 'ESIGN_NOT_PDF', 'فقط فایل PDF قرارداد برای امضای الکترونیکی فرستاده می‌شود.');
+  if (!fitsInMemory(doc.sizeBytes)) throw new AppError(422, 'ESIGN_DOCUMENT_TOO_LARGE', `فایل «${doc.fileName}» برای امضای الکترونیکی بزرگ است؛ نسخهٔ سبک‌تری از PDF را بارگذاری کنید.`);
   const content = await readFile(path.join(storageRoot(), doc.storedName)).catch(() => null);
   if (!content) throw new AppError(422, 'ESIGN_DOCUMENT_MISSING', `فایل «${doc.fileName}» در بایگانی نیست.`);
   const digest = sha256(content);

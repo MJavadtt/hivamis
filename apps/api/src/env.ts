@@ -34,7 +34,11 @@ const envSchema = z.object({
    * set explicitly in the container so resolution never depends on a filesystem probe.
    */
   PDF_BROWSER_PATH: z.string().optional(),
-  MAX_UPLOAD_MB: z.coerce.number().int().default(25),
+  /**
+   * The largest file anything reads whole into memory: an Excel import, a voice note, the PDF and
+   * image readers (ADR-124). Attachments and the guide's videos stream to disk and have no limit.
+   */
+  IN_MEMORY_FILE_MB: z.coerce.number().int().default(25),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   AI_MODEL: z.string().default('claude-sonnet-4-5'),
   AI_ENABLED: z.string().transform((v) => v === 'true').default('false'),
@@ -69,6 +73,8 @@ const envSchema = z.object({
   WEBHOOK_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(8),
   /** Audit LOG-5: days a deleted document's file is kept before it is removed from disk. */
   FILE_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  /** ADR-124: free disk an upload may not take — the database is on the same disk, and stops on a full one. */
+  STORAGE_RESERVE_MB: z.coerce.number().int().min(0).default(1024),
   /** Audit PERF-5: days the assistant's tool results are kept with a conversation. */
   AI_HISTORY_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
   /**
@@ -205,8 +211,6 @@ const envSchema = z.object({
   /** How much the model reads at once, in tokens: prompt, tools, history and tool answers together. */
   OLLAMA_NUM_CTX: z.coerce.number().int().min(2048).max(262144).default(16384),
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
-  /** The guide's videos (Hivamis task 8): a screen recording is larger than a document, so it has its own limit. */
-  GUIDE_VIDEO_MAX_MB: z.coerce.number().int().min(1).max(2048).default(200),
   /**
    * Roadmap #50. On start, bring every organisation's reference data — roles, units, SLA policies,
    * the form catalogue — up to this version of the code. `off` leaves it to `cli reference:sync`.

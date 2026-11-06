@@ -4,6 +4,7 @@ import path from 'node:path';
 import { prisma } from '../db.js';
 import { env } from '../env.js';
 import { badRequest } from '../lib/errors.js';
+import { fitsInMemory } from '../documents/storage.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
 import { DOCUMENT_POLICIES, type DocumentKind } from './access.js';
 import { buildDocument } from './index.js';
@@ -109,6 +110,10 @@ export async function buildBundle(
     const target = path.join(storageRoot, doc.storedName);
     if (!target.startsWith(storageRoot + path.sep)) {
       notEmbedded.push({ title: doc.fileName, reason: 'مسیر فایل نامعتبر است' });
+      continue;
+    }
+    if (!fitsInMemory(doc.sizeBytes)) {
+      notEmbedded.push({ title: doc.fileName, reason: 'حجم فایل برای گنجاندن در PDF زیاد است' });
       continue;
     }
     let bytes: Buffer;

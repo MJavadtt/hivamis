@@ -1,4 +1,5 @@
 import { prisma } from '../db.js';
+import { fitsInMemory } from '../documents/storage.js';
 import { schemaForSubmission } from '../forms/versions.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
 import { DOCUMENT_POLICIES, type DocumentKind } from './access.js';
@@ -61,18 +62,21 @@ async function filesFor(
     take: 100,
   });
 
-  return docs.map((d) => ({
-    type: 'file' as const,
-    id: d.id,
-    title: d.fileName,
-    code: null,
-    mimeType: d.mimeType,
-    sizeBytes: d.sizeBytes,
-    embeddable: EMBEDDABLE_MIME.has(d.mimeType),
-    // Non-embeddable files are listed on the index page instead of being merged, so they
-    // start unticked to keep the default bundle to things that actually appear inline.
-    defaultSelected: EMBEDDABLE_MIME.has(d.mimeType),
-  }));
+  return docs.map((d) => {
+    const embeddable = EMBEDDABLE_MIME.has(d.mimeType) && fitsInMemory(d.sizeBytes);
+    return {
+      type: 'file' as const,
+      id: d.id,
+      title: d.fileName,
+      code: null,
+      mimeType: d.mimeType,
+      sizeBytes: d.sizeBytes,
+      embeddable,
+      // Non-embeddable files are listed on the index page instead of being merged, so they
+      // start unticked to keep the default bundle to things that actually appear inline.
+      defaultSelected: embeddable,
+    };
+  });
 }
 
 const rec = (

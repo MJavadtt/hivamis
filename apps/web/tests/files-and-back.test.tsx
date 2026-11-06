@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../src/components/ui';
 import { AuthProvider } from '../src/lib/auth';
-import { markSignedIn, setAccessToken } from '../src/lib/api';
+import { downloadFile, markSignedIn, setAccessToken } from '../src/lib/api';
 import { BackButton, parentOf } from '../src/components/BackButton';
 import { AttachButton, FileShelf, onRecord, targetOfPage, uploadFiles } from '../src/components/RecordFiles';
 import { PageHeader } from '../src/components/Shell';
@@ -60,6 +60,16 @@ describe('The way back', () => {
     fireEvent.click(screen.getByRole('button', { name: /بازگشت/ }));
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/'));
     expect(screen.queryByRole('button', { name: /بازگشت/ })).toBeNull();
+  });
+});
+
+describe('A file too large for the window', () => {
+  it('says what to do when the browser cannot keep it', async () => {
+    setAccessToken('t'); markSignedIn(true);
+    const res = new Response('x');
+    vi.spyOn(res, 'blob').mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', vi.fn(async () => res));
+    await expect(downloadFile('/documents/d/download', 'film.mov')).rejects.toThrow('پنجرهٔ ناشناس');
   });
 });
 

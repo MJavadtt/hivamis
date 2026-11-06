@@ -102,6 +102,11 @@ describe('A contract signed electronically', () => {
     expect((await post(`/contracts/${contracts.main}/signatures`, T.legal, body('main', { documentId: files.declined }))).body.error.code).toBe('ESIGN_DOCUMENT');
     const txt = expectOk(await upload(T.legal, { name: 'notes.txt', type: 'text/plain', content: 'متن' }, { contractId: contracts.main! }), 'txt').id;
     expect((await post(`/contracts/${contracts.main}/signatures`, T.legal, body('main', { documentId: txt }))).body.error.code).toBe('ESIGN_NOT_PDF');
+    // A file has no size limit, but signing reads it whole (ADR-124).
+    const held = env.IN_MEMORY_FILE_MB;
+    env.IN_MEMORY_FILE_MB = 0;
+    expect((await post(`/contracts/${contracts.main}/signatures`, T.legal, body('main'))).body.error.code).toBe('ESIGN_DOCUMENT_TOO_LARGE');
+    env.IN_MEMORY_FILE_MB = held;
     expect((await post(`/contracts/${contracts.main}/signatures`, T.legal, body('main', { agencyUserId: designerId }))).body.error.code).toBe('ESIGN_AGENCY_SIGNER');
     const stranger = (await prisma.contact.findFirstOrThrow({ where: { companyId: { not: companyId }, email: { not: null } } })).id;
     expect((await post(`/contracts/${contracts.main}/signatures`, T.legal, body('main', { clientContactId: stranger }))).body.error.code).toBe('ESIGN_CLIENT_SIGNER');

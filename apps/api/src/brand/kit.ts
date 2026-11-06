@@ -2,12 +2,13 @@
  * The two inputs of a brand check (roadmap #43): the client's kit, and what a file is made of.
  */
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import type { Tx } from '../db.js';
 import { env } from '../env.js';
 import type { FileMetadata } from '../documents/metadata.js';
-import { BRAND_SCANNABLE, BRAND_SCAN_VERSION, imageBrandScan, pdfBrandScan, type BrandScan } from './scan.js';
+import { fitsInMemory } from '../documents/storage.js';
+import { BRAND_SCANNABLE, BRAND_SCAN_VERSION, imageBrandScan, pdfBrandScan, tooLargeScan, type BrandScan } from './scan.js';
 import type { Kit } from './check.js';
 
 export async function kitOf(tx: Tx, companyId: string | null | undefined): Promise<Kit | null> {
@@ -28,6 +29,9 @@ export async function scanOf(doc: { storedName: string; mimeType: string; metada
   if (kept && kept.v >= BRAND_SCAN_VERSION) return kept;
   const root = path.resolve(env.STORAGE_DIR), target = path.join(root, doc.storedName);
   if (!target.startsWith(root + path.sep)) return null;
+  const size = await stat(target).then((s) => s.size, () => null);
+  if (size === null) return null;
+  if (!fitsInMemory(size)) return tooLargeScan(doc.mimeType === 'application/pdf' ? 'pdf' : 'image');
   const bytes = await readFile(target).catch(() => null);
   if (!bytes) return null;
   if (doc.mimeType !== 'application/pdf') return imageBrandScan(bytes, doc.mimeType);

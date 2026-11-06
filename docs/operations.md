@@ -112,7 +112,8 @@ come from `tenant:create`, as the installer does.
 | `REFRESH_TOKEN_TTL` | no | 7d | |
 | `STORAGE_DIR` | no | ./storage | Uploaded documents |
 | `EXTENSIONS_DIR` | no | unset | Modules that add guards and effects to the workflow engine (roadmap #47). Loaded at boot; a broken one stops the boot. See [Extensions](#extensions) |
-| `MAX_UPLOAD_MB` | no | 25 | |
+| `IN_MEMORY_FILE_MB` | no | 25 | The largest file read whole into memory: an Excel import, a voice note, the PDF and image readers. Not a limit on attachments, which have none (ADR-124). Replaces `MAX_UPLOAD_MB`, which is now ignored |
+| `STORAGE_RESERVE_MB` | no | 1024 | Free disk an upload may not take: the database is on the same disk and stops on a full one (ADR-124) |
 | `SEED_DEMO_DATA` | no | unset | `true` loads the fifteen demo accounts and demo records. Ignored entirely when `NODE_ENV=production`. Note Prisma auto-loads `apps/api/.env`, so a value there applies to seed runs. |
 | `ALLOW_DEMO_ACCOUNTS` | no | `false` | In production the API refuses to start while a demo account (`@hiva.local`) is active. `true` starts it anyway and logs that at `fatal` on every boot — for the time it takes to clear them, not to keep. See the readiness checklist, item 1. |
 | `MAIL_ENABLED` | no | `false` | Outbound email. Off by default; notifications stay in-app and nothing throws. Requires `SMTP_HOST` and `SMTP_FROM` to actually engage — the flag alone is not enough. |
@@ -169,7 +170,6 @@ come from `tenant:create`, as the installer does.
 | `IMAGE_URL` | no | `http://127.0.0.1:8080`; `http://imagegen:8080` in Compose | Where the picture server listens. Keep it on the internal network |
 | `IMAGE_MODEL` | no | `sd-1.5-ggml` | The picture model, by its LocalAI gallery name. Check its licence (below) |
 | `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
-| `GUIDE_VIDEO_MAX_MB` | no | 200 | Largest guide video (Hivamis task 8). Videos are kept in `STORAGE_DIR`, so back them up with it |
 | `REFERENCE_SYNC` | no | `on` | Roadmap #50: on start, bring every organisation's reference data — roles, units, SLA policies, the form catalogue — up to the code. `off` leaves it to `cli reference:sync` |
 | `TENANT_MODE` | no | `single` | Roadmap #50: `single`, one organisation; `multi`, several, each found by its host names. See [Several organisations](#several-organisations) |
 | `APP_VERSION` | no | the API package's version | Shown by `/health` and `status`, written into each reference sync. `hivamis upgrade` sets it from `git describe` |
@@ -380,6 +380,22 @@ refresh cookie is `Secure`, and a browser does not keep a Secure cookie from a p
 other than `localhost` — people sign in, and are signed out again at the next refresh.
 
 **Storage quota (optional).** An organisation's files can be capped, in megabytes: `infrastructure/hivamis tenant update --slug SLUG --quota-mb 20480` (or `--quota-mb none`). An upload that would pass it is refused with `413 STORAGE_QUOTA`, saying how much is used and that deleted documents' files are removed after `FILE_RETENTION_DAYS`. The organisation sees its usage on `GET /organization` (`storageUsedMb`, `storageQuotaMb`) but cannot change its own quota (audit LOG-5).
+
+**No limit on a file (ADR-124).** Attachments and guide videos may be any size. The Compose stack's nginx
+counts nothing on those two paths and streams them to the API. A proxy in front of `web` keeps its own limit
+until it is dropped too: in nginx, `client_max_body_size 0;` and `proxy_request_buffering off;`. A CDN's limit
+cannot always be dropped, so a large file may have to reach the server directly.
+
+The disk is now the limit. An upload stays out of `STORAGE_RESERVE_MB`: one that declares its size is refused
+with 507 `DISK_FULL` before it is read, and any other is stopped as it runs, leaving nothing behind. Watch the
+disk, and allow for `infrastructure/hivamis backup`, which archives `storage` on the same machine unless
+`HIVAMIS_BACKUP_DIR` says otherwise, so large files need room twice.
+
+What is read whole into memory keeps a limit, because one request could otherwise stop the API for everyone:
+a profile photo (10 MB), a meeting's recording (100 MB), an Excel import or a voice note (`IN_MEMORY_FILE_MB`).
+A stored file over `IN_MEMORY_FILE_MB` keeps what its headers say, without a PDF's page count or a brand
+check, stays out of a merged PDF bundle (the bundle's index names it), and cannot be sent for e-signature.
+Raise the setting only with the memory to match.
 
 **5. Backups scheduled *and* a restore rehearsed.** A backup that has never been restored is
 an assumption, not a backup:
@@ -695,8 +711,8 @@ for five minutes (`Cache-Control: private`), which is safe because a version's b
 
 The brand check (#43) reads each PNG, JPEG and PDF at upload, in the request: a PNG is inflated
 and un-filtered, a JPEG is read for its DC coefficients only, a PDF for its content streams. On a
-24-megapixel image that is 0.1–0.5 s of CPU; images over 60 megapixels are not read (reported as too
-large). The same hourly `documents:metadata` job reads files uploaded before, 50 at a time; raising
+24-megapixel image that is 0.1–0.5 s of CPU; images over 60 megapixels, and any file over
+`IN_MEMORY_FILE_MB`, are not read (reported as too large). The same hourly `documents:metadata` job reads files uploaded before, 50 at a time; raising
 `BRAND_SCAN_VERSION` in `src/brand/scan.ts` makes it read every file again.
 
 Brand typefaces are previewed in the browser from the file's bytes (`FontFace` with an
@@ -781,7 +797,7 @@ Texts to venues use the same provider as sign-in codes (`SMS_MODE`), with free-t
 `SMS_SENDER` to the line they should come from (Kavenegar uses the account's default line without
 it). In the sandbox, nothing is sent and the screen says so.
 
-Excel imports are limited to 5,000 rows and to `MAX_UPLOAD_MB`. An organisation whose administrator
+Excel imports are limited to 5,000 rows and to `IN_MEMORY_FILE_MB`. An organisation whose administrator
 already edited role permissions must grant the new `venue.*`, `site.*` and `rental.*` permissions to
 those roles by hand (Admin → Roles); the full-access roles hold them already.
 
@@ -1220,9 +1236,8 @@ administrator can add one screen recording per language. Open the page, click th
 
    Leave out `-an` to keep the narration. Three minutes at 1080p is usually 20 to 40 MB.
 
-A file over `GUIDE_VIDEO_MAX_MB` is refused. The Compose stack's nginx allows 210 MB on this one
-path and streams uploads straight to the API. Raise both together, along with any other proxy in
-front.
+A video may be any size. The Compose stack's nginx streams it straight to the API; any other proxy
+in front needs the same (ADR-124). Videos are kept in `STORAGE_DIR`, so back them up with it.
 
 **Playing.** A browser's video player cannot send the sign-in token, so the app asks for a link that
 plays that one video for three hours. The link is signed with `JWT_SECRET`, so changing the secret

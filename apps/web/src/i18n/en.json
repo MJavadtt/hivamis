@@ -4299,5 +4299,6 @@
   "پیش‌نویسی ندارید": "You have no drafts",
   "هر فرمی را که پر کنید و ثبت نکنید، این‌جا پیدا می‌کنید.": "Any form you fill in and do not save, you find here.",
   "دریافت {0}": "Download {0}",
-  "PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده.": "PDF, images, Word, Excel, PowerPoint, design files, video, audio and archives."
+  "PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده.": "PDF, images, Word, Excel, PowerPoint, design files, video, audio and archives.",
+  "دریافت فایل کامل نشد. اگر فایل بزرگ است و در پنجرهٔ ناشناس هستید، آن را در پنجرهٔ عادی دریافت کنید.": "The file did not finish arriving. If it is large and this is a private window, get it from a normal window."
 }

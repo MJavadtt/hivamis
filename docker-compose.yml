@@ -85,7 +85,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
       REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-7d}
-      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      IN_MEMORY_FILE_MB: ${IN_MEMORY_FILE_MB:-25}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_MODEL: ${AI_MODEL:-claude-sonnet-4-5}
@@ -130,7 +130,6 @@ services:
       TRANSCRIPTION_URL: ${TRANSCRIPTION_URL:-}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-Systran/faster-whisper-medium}
       TRANSCRIPTION_API_KEY: ${TRANSCRIPTION_API_KEY:-}
-      GUIDE_VIDEO_MAX_MB: ${GUIDE_VIDEO_MAX_MB:-200}
       # Roadmap #50: the address links are built on, one or several organisations, the version shown,
       # and whether start-up brings the reference data up to the code.
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
@@ -181,6 +180,7 @@ services:
       PUSH_SERVICE_HOSTS: ${PUSH_SERVICE_HOSTS:-fcm.googleapis.com,android.googleapis.com,push.services.mozilla.com,web.push.apple.com,notify.windows.com}
       FX_MAX_RATE_AGE_DAYS: ${FX_MAX_RATE_AGE_DAYS:-7}
       FILE_RETENTION_DAYS: ${FILE_RETENTION_DAYS:-90}
+      STORAGE_RESERVE_MB: ${STORAGE_RESERVE_MB:-1024}
       AI_HISTORY_RETENTION_DAYS: ${AI_HISTORY_RETENTION_DAYS:-180}
     extra_hosts:
       - 'host.docker.internal:host-gateway'

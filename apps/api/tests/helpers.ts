@@ -110,7 +110,7 @@ export function expectOk(res: { status: number; body: any }, context: string): a
  * server checks magic bytes, not the extension.
  */
 export async function upload(
-  token: string, file: { name: string; type: string; content: Buffer | string }, fields: Record<string, string> = {},
+  token: string, file: { name: string; type: string; content: Buffer | string }, fields: Record<string, string> = {}, url = '/documents',
 ) {
   const a = await app();
   const boundary = `----hiva${Math.random().toString(36).slice(2)}`;
@@ -122,7 +122,7 @@ export async function upload(
   parts.push(typeof file.content === 'string' ? Buffer.from(file.content) : file.content);
   parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
   const res = await a.inject({
-    method: 'POST', url: '/api/v1/documents',
+    method: 'POST', url: `/api/v1${url}`,
     headers: { authorization: `Bearer ${token}`, 'content-type': `multipart/form-data; boundary=${boundary}` },
     payload: Buffer.concat(parts),
   });

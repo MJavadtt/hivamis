@@ -862,7 +862,7 @@
   "تصمیم‌گیرنده": "Decision maker",
   "تصمیم‌گیری مدیریتی": "Management decision",
   "تصویر": "Image",
-  "تصویر بزرگ‌تر از آن است که رنگ‌هایش خوانده شود": "The image is too large for its colours to be read",
+  "فایل بزرگ‌تر از آن است که رنگ‌هایش خوانده شود": "The file is too large for its colours to be read",
   "تطابق با Brief": "Matches the brief",
   "تطابق با Scope": "Matches the scope",
   "تطابق با تصمیمات Kick-off": "Matches the kick-off decisions",
@@ -1007,8 +1007,6 @@
   "حالت باید preview، draft یا submit باشد": "The mode must be preview, draft or submit",
   "حاکمیت، ریسک و استثنا": "Governance, risk and waivers",
   "حداکثر": "maximum",
-  "حداکثر حجم مجاز {0} مگابایت است.": "The maximum allowed size is {0} MB.",
-  "حداکثر حجم ویدیو {0} مگابایت است.": "A video may be at most {0} MB.",
   "حداکثر ۲۰ تغییر در هر شبیه‌سازی": "At most 20 changes per simulation",
   "حداکثر ۲۰۰ نام واحد": "At most 200 unit names",
   "حداکثر ۲۰۰۰ ردیف در هر بار": "At most 2000 rows at a time",
@@ -3219,5 +3217,8 @@
   "این پیش‌نویس بزرگ‌تر از آن است که نگه داشته شود.": "This draft is too large to keep.",
   "پیش‌نویس‌های شما زیاد شده است؛ چندتا را حذف کنید.": "You have too many drafts; delete some.",
   "این نوع فایل پذیرفته نمی‌شود. PDF، عکس، Word، Excel، PowerPoint، فایل طراحی، ویدیو، صدا و فایل فشرده مجاز است.": "This kind of file isn't accepted. PDF, images, Word, Excel, PowerPoint, design files, video, audio and archives are.",
-  "محتوای فایل با نوعش نمی‌خواند؛ شاید خراب است یا پسوندش عوض شده.": "The file's content doesn't match its kind; it may be damaged, or its extension may have been changed."
+  "محتوای فایل با نوعش نمی‌خواند؛ شاید خراب است یا پسوندش عوض شده.": "The file's content doesn't match its kind; it may be damaged, or its extension may have been changed.",
+  "فضای دیسک سرور برای این فایل کافی نیست؛ با مدیر نصب هماهنگ کنید.": "The server's disk does not have room for this file; speak to whoever runs the installation.",
+  "حجم فایل برای گنجاندن در PDF زیاد است": "The file is too large to include in a PDF",
+  "فایل «{0}» برای امضای الکترونیکی بزرگ است؛ نسخهٔ سبک‌تری از PDF را بارگذاری کنید.": "«{0}» is too large for e-signature; upload a lighter PDF."
 }

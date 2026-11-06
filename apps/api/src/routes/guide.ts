@@ -8,7 +8,7 @@ import { env } from '../env.js';
 import { actorFrom } from '../lib/http.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
-import { writeUpload } from '../documents/storage.js';
+import { assertDiskFor, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
 
 /**
@@ -69,7 +69,8 @@ const guideRoutes: FastifyPluginAsync = async (app) => {
     const section = GUIDE.find((s) => s.id === sectionId)!;
     const title = (q.title ?? '').trim().slice(0, 120) || section.title[locale];
 
-    const file = await (req as any).file({ limits: { fileSize: env.GUIDE_VIDEO_MAX_MB * 1024 * 1024, files: 1 } });
+    await assertDiskFor(Number(req.headers['content-length']) || 0);
+    const file = await (req as any).file({ limits: { fileSize: Infinity } });
     if (!file) throw badRequest('NO_FILE', 'فایلی ارسال نشده است.');
     const mimeType = videoType(file.mimetype, file.filename);
     if (!mimeType) {
@@ -87,11 +88,7 @@ const guideRoutes: FastifyPluginAsync = async (app) => {
       if (headBytes < SIGNATURE_HEAD_BYTES) { head.push(chunk.subarray(0, SIGNATURE_HEAD_BYTES - headBytes)); headBytes += chunk.length; }
     });
     // A stream that breaks off leaves no half-written file behind (audit LOG-5).
-    await writeUpload(file.file, target);
-    if ((file.file as { truncated?: boolean }).truncated) {
-      await unlink(target).catch(() => undefined);
-      throw badRequest('FILE_TOO_LARGE', `حداکثر حجم ویدیو ${env.GUIDE_VIDEO_MAX_MB} مگابایت است.`);
-    }
+    await writeUpload(file.file, target).catch((e) => { reply.header('connection', 'close'); throw e; });
     if (!size || !signatureMatches(mimeType, Buffer.concat(head))) {
       await unlink(target).catch(() => undefined);
       throw badRequest('UNSUPPORTED_TYPE', 'محتوای فایل یک ویدیوی MP4 یا WebM نیست.');

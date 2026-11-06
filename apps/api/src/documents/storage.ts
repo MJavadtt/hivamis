@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
+import { statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
@@ -9,21 +9,45 @@ import { audit } from '../lib/audit.js';
 import { AppError } from '../lib/errors.js';
 
 /**
- * Files on disk (audit LOG-5): what an upload leaves when it fails, how much an organisation may keep,
- * and when a deleted document's file is finally removed.
+ * Files on disk (audit LOG-5, ADR-124): what an upload leaves when it fails, how much an organisation
+ * may keep, how much of the disk it may take, and when a deleted document's file is finally removed.
  */
 
-/** Writes an upload to `target`. A stream that breaks off — a client gone mid-upload — leaves nothing behind. */
+const MB = 1024 * 1024;
+/** How far an upload runs before it looks at the disk again: others may be filling it too. */
+const DISK_CHECK_BYTES = 64 * MB;
+
+const diskFull = () => new AppError(507, 'DISK_FULL', 'فضای دیسک سرور برای این فایل کافی نیست؛ با مدیر نصب هماهنگ کنید.');
+
+/**
+ * A file's only limit is the disk, and the database is on it too and stops when it is full, so an upload
+ * stays out of STORAGE_RESERVE_MB. Called before an upload is read, with the size it declares, and as it runs.
+ */
+export async function assertDiskFor(adding: number): Promise<void> {
+  const { bavail, bsize } = await statfs(path.resolve(env.STORAGE_DIR));
+  if (bavail * bsize - adding < env.STORAGE_RESERVE_MB * MB) throw diskFull();
+}
+
+/** Whether a stored file may be read whole: whatever does so holds it in the memory every request shares. */
+export const fitsInMemory = (bytes: number) => bytes <= env.IN_MEMORY_FILE_MB * MB;
+
+/** Writes an upload to `target`. A stream that breaks off, or a disk that runs out, leaves nothing behind. */
 export async function writeUpload(stream: Readable, target: string): Promise<void> {
+  let unchecked = 0;
+  stream.on('data', (chunk: Buffer) => {
+    unchecked += chunk.length;
+    if (unchecked < DISK_CHECK_BYTES) return;
+    unchecked = 0;
+    assertDiskFor(0).catch((e) => stream.destroy(e));
+  });
   try {
     await pipeline(stream, createWriteStream(target));
   } catch (e) {
     await unlink(target).catch(() => undefined);
-    throw e;
+    throw (e as NodeJS.ErrnoException).code === 'ENOSPC' ? diskFull() : e;
   }
 }
 
-const MB = 1024 * 1024;
 const fa = (v: number) => String(v).replace(/\d/g, (c) => '۰۱۲۳۴۵۶۷۸۹'[Number(c)]!);
 
 /** What an organisation's files take: every document whose file is still on disk, deleted or not. */

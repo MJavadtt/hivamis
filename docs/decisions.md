@@ -3785,4 +3785,48 @@ opaque blob the browser saved under a random name. The studio's own formats were
 
 **Limits.** A container is checked as a container: any ZIP passes as a `.docx`, any RIFF as a `.wav`, any
 ISO media file as a `.mov`. The size limit is unchanged at `MAX_UPLOAD_MB` (25 MB; nginx 32 MB), which is
-small for Photoshop files and video; raising it means both settings and the disk.
+small for Photoshop files and video; raising it means both settings and the disk. (ADR-124 removed it.)
+
+## ADR-124 — A file has no size limit; the disk does
+
+**Context.** The owner (2026-11-06), asked whether to raise the 25 MB limit: «سقف آپلود نداشته باشد». An
+attachment already streamed to disk, so the number itself was easy to remove. What was not: 25 MB was also
+what made several other things safe, none of which said so.
+
+**Decision.** Attachments (every record, chat included) and the guide's videos have no size limit.
+`POST /documents` and `POST /guide/videos` lift the multipart limit, and nginx counts nothing on those two
+paths and passes the body straight through. What the limit used to protect is now protected by name:
+
+- **The disk.** It is the real limit, and PostgreSQL shares it: a full disk stops everything, not just the
+  upload. An upload stays out of `STORAGE_RESERVE_MB` (1 GB): checked against `Content-Length` before a byte
+  is read, again every 64 MB as it runs (other uploads, or a body that declares nothing), and on `ENOSPC`.
+  The answer is 507 `DISK_FULL`, and nothing is left behind. An organisation's quota is checked the same way
+  before reading, so a file larger than the quota is not written first and removed after.
+- **Memory.** Whatever reads a file whole still needs a bound, or one request stops the API for everyone.
+  `MAX_UPLOAD_MB` becomes `IN_MEMORY_FILE_MB` (25 MB), the name of what it now is. It stays the multipart
+  default, so an Excel import or a voice note is refused above it, and `fitsInMemory` guards what reads
+  stored files: the PDF and image readers keep what the headers say and mark the brand scan `TOO_LARGE`, so
+  the hourly job does not read them again; a bundle leaves the file out and names it on its index; e-signature
+  refuses with `ESIGN_DOCUMENT_TOO_LARGE`, because the provider needs the whole PDF.
+- **The size column.** `sizeBytes` was an `INTEGER`, which ends at 2 GiB. It is now `DOUBLE PRECISION`, exact
+  to 8 PiB. `BIGINT` would be the usual choice, but Prisma returns a `bigint` that `JSON.stringify` refuses,
+  in some twenty reads and in audit rows, for no gain at any size a file can have.
+- **A refused upload must still be answered.** Once nginx stops holding the body, a refusal reaches the
+  sender mid-upload. A refused type drains the rest (`resume`); a refusal before `req.file()` is drained by
+  node; a stream stopped part-way closes the connection with its answer, since nothing reads what follows.
+
+**Alongside.** nginx's general limit goes from 32 MB to 110 MB, because a meeting's recording is allowed
+100 MB and was being stopped at 32.
+
+**Not changed.** A profile photo (10 MB), a meeting's recording (100 MB) and imports keep their limits: they
+are read whole into memory, and none is a file people need to keep at any size.
+
+**Checked** in Chromium through the real `nginx.conf` (1.27): a 3 GiB file uploaded in 14 s with the API at
+288 MB throughout, its size and SHA-256 exact, and came back in 15 s; a refused 300 MB file answered in under
+a second; 3 GiB with 500 MB of disk left was refused in 6 s; a body with no declared size was stopped after
+532 MB, with nothing left on disk.
+
+**Limits.** A download is held by the browser before it is saved. A normal Chrome window handled 3 GiB, but a
+private window holds it in memory and stops near 2 GiB, which now says so; Firefox and Safari were not tried.
+There is no progress bar, and closing the tab stops an upload, which cannot resume. A proxy in front of `web`
+keeps its own limit until it is dropped too.

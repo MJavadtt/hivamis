@@ -58,7 +58,7 @@ export function checkScan(scan: BrandScan, kit: Kit | null): BrandCheck {
   const notesFa: string[] = [];
   const out: BrandCheck = { kind: scan.kind, verdict: 'NOT_CHECKED', colours: [], fonts: [], spots: [], offShare: 0, notesFa };
   if (scan.skipped) {
-    notesFa.push(scan.skipped === 'TOO_LARGE' ? 'تصویر بزرگ‌تر از آن است که رنگ‌هایش خوانده شود' : 'محتوای فایل خوانده نشد');
+    notesFa.push(scan.skipped === 'TOO_LARGE' ? 'فایل بزرگ‌تر از آن است که رنگ‌هایش خوانده شود' : 'محتوای فایل خوانده نشد');
     return out;
   }
   const colours = kit?.colors ?? [];
