@@ -502,6 +502,10 @@ model Company {
   website        String?
   phone          String?
   address        String?
+  /// Where the address is, as the invoice form asks it (ADR-125).
+  province       String?
+  county         String?
+  city           String?
   /// The client's code in the organisation's own books (H1001 — the owner's sheet and Mizito, 2026-10-28).
   clientCode     String?
   email          String?
@@ -1287,43 +1291,52 @@ model Amendment {
  */
 
 model Invoice {
-  id                 String    @id @default(uuid())
+  id                 String         @id @default(uuid())
   organizationId     String
-  code               String    @unique
+  code               String         @unique
   kind               String
   number             String
   companyId          String
-  company            Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   projectId          String?
-  project            Project?  @relation(fields: [projectId], references: [id])
+  project            Project?       @relation(fields: [projectId], references: [id])
   contractId         String?
-  contract           Contract? @relation(fields: [contractId], references: [id])
+  contract           Contract?      @relation(fields: [contractId], references: [id])
+  /// ADR-125: the company it is issued in, which decides the form it is printed on.
+  sellerId           String?
+  seller             InvoiceSeller? @relation(fields: [sellerId], references: [id])
+  /// The seller's details as they stood when it was issued — a later move of address leaves it as printed.
+  sellerDetails      Json?
+  /// «مشخصات خریدار» as printed: the client's record, and what was typed over it.
+  buyer              Json?
+  /// «شرایط و نحوهٔ فروش»: CASH or CREDIT.
+  saleTerms          String?
   issueDate          DateTime
   dueDate            DateTime?
-  lines              Json      @default("[]")
-  subtotal           Decimal   @db.Decimal(20, 2)
-  taxPercent         Decimal   @default(0) @db.Decimal(5, 2)
-  taxAmount          Decimal   @default(0) @db.Decimal(20, 2)
-  total              Decimal   @db.Decimal(20, 2)
-  paidAmount         Decimal   @default(0) @db.Decimal(20, 2)
+  lines              Json           @default("[]")
+  subtotal           Decimal        @db.Decimal(20, 2)
+  taxPercent         Decimal        @default(0) @db.Decimal(5, 2)
+  taxAmount          Decimal        @default(0) @db.Decimal(20, 2)
+  total              Decimal        @db.Decimal(20, 2)
+  paidAmount         Decimal        @default(0) @db.Decimal(20, 2)
   /// Roadmap #28: the currency these figures were written in. The base columns above stay in the
   /// organisation's currency, so every report sums like with like; null originals mean "written in base".
-  currency           String    @default("IRR")
+  currency           String         @default("IRR")
   /// Base units per one unit of `currency`, as in force on the issue date — frozen with the invoice.
-  fxRate             Decimal   @default(1) @db.Decimal(24, 6)
+  fxRate             Decimal        @default(1) @db.Decimal(24, 6)
   /// The date of the rate used (the latest on or before the issue date).
   fxRateDate         DateTime?
-  originalSubtotal   Decimal?  @db.Decimal(20, 2)
-  originalTaxAmount  Decimal?  @db.Decimal(20, 2)
-  originalTotal      Decimal?  @db.Decimal(20, 2)
+  originalSubtotal   Decimal?       @db.Decimal(20, 2)
+  originalTaxAmount  Decimal?       @db.Decimal(20, 2)
+  originalTotal      Decimal?       @db.Decimal(20, 2)
   /// Settlement is counted in the invoice's own currency; paidAmount is that, at the invoice's rate.
-  originalPaidAmount Decimal?  @db.Decimal(20, 2)
-  state              String    @default("DRAFT")
+  originalPaidAmount Decimal?       @db.Decimal(20, 2)
+  state              String         @default("DRAFT")
   notes              String?
   cancelReason       String?
   createdById        String
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   payments                   Payment[]
   mediaOrders                MediaOrder[]
@@ -1337,6 +1350,40 @@ model Invoice {
   @@index([organizationId, state])
   @@index([companyId])
   @@map("invoices")
+}
+
+/**
+ * A company invoices are issued in (the owner, 2026-11-07; ADR-125): «هیوا» or «خط تیره», each with
+ * the printed form of its own. One row per form and organisation, made by the reference sync; what it
+ * prints is the system administrator's to correct.
+ */
+model InvoiceSeller {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// The form its invoices are printed on — a workbook in src/invoices/forms.
+  form           String
+  /// What the issuer picks it by: «هیوا».
+  shortName      String
+  legalName      String
+  economicCode   String?
+  nationalId     String?
+  province       String?
+  county         String?
+  city           String?
+  address        String?
+  postalCode     String?
+  phone          String?
+  bankName       String?
+  accountNumber  String?
+  iban           String?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  invoices Invoice[]
+
+  @@unique([organizationId, form])
+  @@map("invoice_sellers")
 }
 
 model Payment {

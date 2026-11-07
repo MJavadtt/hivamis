@@ -14,6 +14,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const ASSETS = [
   ['src/pdf/assets', 'dist/pdf/assets'],
+  // The owner's invoice forms (ADR-125): every invoice is written on one of them.
+  ['src/invoices/forms', 'dist/invoices/forms'],
 ];
 
 for (const [from, to] of ASSETS) {

@@ -36,6 +36,7 @@
     "fastify": "^5.12.5",
     "fastify-plugin": "^5.0.1",
     "jose": "^5.9.6",
+    "jszip": "^3.10.2",
     "nodemailer": "^10.0.10",
     "pdf-lib": "^1.17.1",
     "pg": "8.23.0",

@@ -309,6 +309,19 @@ accepted there (guard `invoice.taxCancellationFiled`).
 
 `GET /invoices` rows carry their latest submission (`taxSubmissions[0]`).
 
+### The companies invoices are issued in, and their forms (ADR-125)
+
+| Endpoint | Gate | Purpose |
+|---|---|---|
+| `GET /invoice-sellers` | `finance.read` | هیوا and خط تیره: what each one's form prints in «مشخصات فروشنده», and its bank |
+| `PUT /invoice-sellers/:id` | `finance.settle` | Correct them; an IBAN whose check digits fail is refused. Audited. Invoices issued from then on print it; an issued one keeps what it printed |
+| `GET /invoices/buyer/:companyId` | `finance.invoice` | «مشخصات خریدار» as the client's record has it |
+| `GET /invoices/:id/workbook` | `finance.read` | The invoice on its company's own Excel form. `INVOICE_NO_SELLER` (409) for one with no seller. Audited as `EXPORT` |
+
+`POST /invoices` and `PATCH /invoices/:id` take `sellerId`, `buyer` (as printed), `saleTerms`
+(`CASH`/`CREDIT`) and `fillCompany` (write what the buyer adds into the client's blank fields); a line takes
+`code`, `unit` and `discount`. `GET /pdf/invoice/:id` prints an invoice with a seller on its form, landscape.
+
 ## Export to the accounting package
 
 Roadmap #33. The general ledger stays in the organisation's accounting package; Hiva writes the

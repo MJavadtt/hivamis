@@ -64,6 +64,8 @@ export interface RenderOptions {
   headerRight?: string;
   landscape?: boolean;
   footerNote?: string;
+  /** A form printed as it is (an invoice on its company's own form, ADR-125): narrow margins, no running header or footer. */
+  bare?: boolean;
 }
 
 /**
@@ -132,6 +134,12 @@ async function renderPdfUnthrottled(bodyHtml: string, opts: RenderOptions = {}):
     const { regular, bold } = await fonts();
     await page.setContent(shell(bodyHtml, regular, bold), { waitUntil: 'load', timeout: 15_000 });
 
+    if (opts.bare) {
+      return await page.pdf({
+        format: 'A4', landscape: opts.landscape ?? false, printBackground: true,
+        margin: { top: '6mm', bottom: '6mm', left: '6mm', right: '6mm' },
+      });
+    }
     return await page.pdf({
       format: 'A4',
       landscape: opts.landscape ?? false,

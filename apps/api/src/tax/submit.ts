@@ -15,6 +15,7 @@ import { nextNumber } from '../lib/codes.js';
 import { configuredGateway, type TaxGateway } from './gateway.js';
 import { buildTaxInvoice, validateForTax, type Buyer, type Problem, type SellerProfile, type TaxSubject } from './invoice.js';
 import { taxIdFor } from './taxid.js';
+import { printedBuyer } from '../invoices/sellers.js';
 
 export const MAX_SEND_ATTEMPTS = 5;
 const LIVE_STATUSES = ['QUEUED', 'SENT', 'ACCEPTED'];
@@ -26,7 +27,8 @@ async function load(tx: Tx, organizationId: string, invoiceId: string) {
   });
   if (!invoice) throw notFound('فاکتور');
   const profile = await tx.taxProfile.findUnique({ where: { organizationId } });
-  return { invoice, profile: profile as SellerProfile | null, buyer: invoice.company as Buyer };
+  // The buyer as the invoice printed it (ADR-125), and the client's record where it printed nothing.
+  return { invoice, profile: profile as SellerProfile | null, buyer: printedBuyer(invoice.buyer, invoice.company) as Buyer };
 }
 
 /** What may be reported next, and against which accepted tax number. */

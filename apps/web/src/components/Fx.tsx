@@ -6,7 +6,8 @@ import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EntitySelect } from '../pages/Forms';
 import { JalaliDateInput } from './JalaliDateInput';
-import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, StatTile, Table, Td, Textarea, Th, Tr, useToast } from './ui';
+import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, StatTile, Table, Td, Textarea, Th, Tr, useToast } from './ui';
+import { DraftScope, useDraftState } from '../lib/drafts';
 import { formatCurrency, formatDate, formatNumber, localDateOnly, localDigits } from '../lib/format';
 import { loc, tr, trx } from '../i18n';
 
@@ -260,75 +261,201 @@ export function FxReport() {
 
 /* ── Issuing and receiving ─────────────────────────────────────────────── */
 
+/** A company invoices are issued in, and the form it prints them on (ADR-125). */
+export interface InvoiceSeller { id: string; form: string; shortName: string; legalName: string; economicCode: string | null; nationalId: string | null; province: string | null; county: string | null; city: string | null; address: string | null; postalCode: string | null; phone: string | null; bankName: string | null; accountNumber: string | null; iban: string | null }
+
+const BUYER_FIELDS = [
+  ['legalName', tr('نام شخص حقوقی')], ['economicCode', tr('شمارهٔ اقتصادی')], ['nationalId', tr('شناسهٔ ملی')], ['postalCode', tr('کد پستی ده‌رقمی')],
+  ['province', tr('استان')], ['county', tr('شهرستان')], ['city', tr('شهر')], ['phone', tr('تلفن / نمابر')], ['address', tr('نشانی')],
+] as const;
+type BuyerKey = (typeof BUYER_FIELDS)[number][0];
+type Buyer = Record<BuyerKey, string>;
+const EMPTY_BUYER = Object.fromEntries(BUYER_FIELDS.map(([k]) => [k, ''])) as Buyer;
+const asBuyer = (b: Partial<Record<BuyerKey, string | null>> | null | undefined): Buyer =>
+  Object.fromEntries(BUYER_FIELDS.map(([k]) => [k, b?.[k] ?? ''])) as Buyer;
+
+interface Line { code: string; description: string; quantity: string; unit: string; unitPrice: string; discount: string; passThrough?: boolean; mediaOrderId?: string }
+const NEW_LINE: Line = { code: '', description: '', quantity: '1', unit: '', unitPrice: '', discount: '' };
+const lineNet = (l: Line) => Number(l.quantity || 0) * Number(l.unitPrice || 0) - Number(l.discount || 0);
+
+/** «هیوا» or «خط تیره»: the first thing a new invoice asks, since it decides the form it prints on. */
+function SellerChoice({ sellers, value, onPick }: { sellers: InvoiceSeller[]; value: string; onPick: (id: string) => void }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label={tr('فروشنده')}>
+      {sellers.map((s) => (
+        <button key={s.id} type="button" role="radio" aria-checked={value === s.id} onClick={() => onPick(s.id)}
+          className={`rounded-xl px-4 py-4 text-right ring-1 transition ${value === s.id ? 'bg-brand-50 ring-2 ring-brand-500' : 'bg-surface ring-ink-200 hover:ring-brand-400'}`}>
+          <span className="block text-lg font-bold text-ink-900">{s.shortName}</span>
+          <span className="mt-1 block text-xs text-ink-500">{s.legalName}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Issuing an invoice — or editing one (the owner, 2026-10-30; ADR-110): a draft by whoever issues
  * invoices, any by the system administrator. The server recomputes the totals and says no where the
  * books need it — below what was received, posted to accounting, awaited by the tax system.
+ *
+ * ADR-125 (the owner, 2026-11-07): a new one asks first which company issues it, هیوا or خط تیره; the
+ * buyer is then read from the client's record and can be typed over; and it prints on that company's
+ * own form, in Excel or PDF.
  */
-export function NewInvoiceModal({ onClose, invoiceId }: { onClose: () => void; invoiceId?: string }) {
-  const [v, setV] = useState({ kind: 'INVOICE', companyId: '', projectId: '', number: '', issueDate: localDateOnly(new Date()), dueDate: '', currency: 'IRR', taxPercent: '10', notes: '' });
-  const [lines, setLines] = useState([{ description: '', quantity: '1', unitPrice: '' }]);
+export function NewInvoiceModal(props: { onClose: () => void; invoiceId?: string }) {
+  // The company chosen is kept with the rest of the dialog's draft — the dialog's, not the page's, so its
+  // notice says it was brought back and «حذف پیش‌نویس» forgets it with the rest.
+  const draftKey = props.invoiceId ? `invoice:${props.invoiceId}` : 'invoice:new';
+  return <DraftScope title={props.invoiceId ? tr('ویرایش سند مالی') : tr('صدور سند مالی')} draftKey={draftKey}><InvoiceDialog {...props} draftKey={draftKey} /></DraftScope>;
+}
+
+function InvoiceDialog({ onClose, invoiceId, draftKey }: { onClose: () => void; invoiceId?: string; draftKey: string }) {
+  const [v, setV] = useState({ kind: 'INVOICE', companyId: '', projectId: '', number: '', issueDate: localDateOnly(new Date()), dueDate: '', currency: 'IRR', taxPercent: '10', saleTerms: '', notes: '' });
+  const [lines, setLines] = useState<Line[]>([{ ...NEW_LINE }]);
+  const [buyer, setBuyer] = useState<Buyer>(EMPTY_BUYER);
+  // Sent only when it says something new: an edit that leaves the buyer alone does not report it again.
+  const [buyerTouched, setBuyerTouched] = useState(false);
+  const [fillCompany, setFillCompany] = useState(true);
+  const [picked, setPicked] = useDraftState<string>(tr('فروشنده'), '');
+  const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const qc = useQueryClient();
   const { data: was } = useQuery<any>({ queryKey: [`/invoices/${invoiceId}`], queryFn: () => apiGet(`/invoices/${invoiceId}`), enabled: !!invoiceId });
+  const { data: sellerList } = useQuery<InvoiceSeller[]>({ queryKey: ['/invoice-sellers'], queryFn: () => apiGet('/invoice-sellers') });
+  const sellers = Array.isArray(sellerList) ? sellerList : sellerList === undefined ? undefined : [];
+  const sellerId = picked || was?.sellerId || '';
+  const seller = sellers?.find((s) => s.id === sellerId);
   // The invoice as it stands, once: in its own currency, as its lines were written.
   useEffect(() => {
     if (!was) return;
     setV({
       kind: was.kind, companyId: was.companyId, projectId: was.projectId ?? '', number: was.number, issueDate: String(was.issueDate).slice(0, 10),
-      dueDate: was.dueDate ? String(was.dueDate).slice(0, 10) : '', currency: was.currency, taxPercent: String(Number(was.taxPercent)), notes: was.notes ?? '',
+      dueDate: was.dueDate ? String(was.dueDate).slice(0, 10) : '', currency: was.currency, taxPercent: String(Number(was.taxPercent)), saleTerms: was.saleTerms ?? '', notes: was.notes ?? '',
     });
-    setLines((was.lines as { description: string; quantity: number; unitPrice: number }[]).map((l) => ({ description: l.description, quantity: String(l.quantity), unitPrice: String(l.unitPrice) })));
+    setLines((was.lines as { code?: string; description: string; quantity: number; unit?: string; unitPrice: number; discount?: number; passThrough?: boolean; mediaOrderId?: string }[]).map((l) => ({
+      code: l.code ?? '', description: l.description, quantity: String(l.quantity), unit: l.unit ?? '', unitPrice: String(l.unitPrice), discount: l.discount ? String(l.discount) : '',
+      // A media invoice's marks (#31) go back as they came: the line bills a vendor's media, not the agency's work.
+      ...(l.passThrough !== undefined ? { passThrough: l.passThrough } : {}), ...(l.mediaOrderId ? { mediaOrderId: l.mediaOrderId } : {}),
+    })));
+    if (was.buyer) setBuyer(asBuyer(was.buyer));
+    else if (was.companyId) void apiGet<Buyer>(`/invoices/buyer/${was.companyId}`).then((b) => setBuyer(asBuyer(b))).catch(() => undefined);
   }, [was]);
-  const subtotal = lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
+  /** A client chosen: its record is the buyer, to be completed or typed over. */
+  const pickCompany = (companyId: string) => {
+    setV((x) => ({ ...x, companyId }));
+    setBuyerTouched(true);
+    if (!companyId) { setBuyer(EMPTY_BUYER); return; }
+    void apiGet<Buyer>(`/invoices/buyer/${companyId}`).then((b) => setBuyer(asBuyer(b))).catch(() => undefined);
+  };
+  const subtotal = lines.reduce((s, l) => s + lineNet(l), 0);
   const total = subtotal * (1 + Number(v.taxPercent || 0) / 100);
-  const valid = v.companyId && v.number.trim() && lines.every((l) => l.description.trim() && Number(l.unitPrice) >= 0 && l.unitPrice !== '');
+  const overDiscount = lines.some((l) => lineNet(l) < 0);
+  const valid = v.companyId && v.number.trim() && !overDiscount && lines.every((l) => l.description.trim() && Number(l.unitPrice) >= 0 && l.unitPrice !== '');
   const save = async () => {
     setBusy(true);
     const body = {
       kind: v.kind, companyId: v.companyId, number: v.number.trim(), issueDate: v.issueDate, currency: v.currency, taxPercent: Number(v.taxPercent || 0),
-      lines: lines.map((l) => ({ description: l.description.trim(), quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) })),
+      ...(sellerId ? { sellerId } : {}),
+      lines: lines.map((l) => ({
+        description: l.description.trim(), quantity: Number(l.quantity), unitPrice: Number(l.unitPrice),
+        ...(l.code.trim() ? { code: l.code.trim() } : {}), ...(l.unit.trim() ? { unit: l.unit.trim() } : {}), ...(Number(l.discount) > 0 ? { discount: Number(l.discount) } : {}),
+        ...(l.passThrough !== undefined ? { passThrough: l.passThrough } : {}), ...(l.mediaOrderId ? { mediaOrderId: l.mediaOrderId } : {}),
+      })),
+      ...(!invoiceId || buyerTouched ? { buyer, fillCompany } : {}),
     };
     try {
       if (invoiceId) {
-        const after = await apiPatch<{ taxCorrectionDue?: boolean }>(`/invoices/${invoiceId}`, { ...body, projectId: v.projectId || null, dueDate: v.dueDate || null, notes: v.notes.trim() || null });
+        const after = await apiPatch<{ taxCorrectionDue?: boolean }>(`/invoices/${invoiceId}`, { ...body, projectId: v.projectId || null, dueDate: v.dueDate || null, saleTerms: v.saleTerms || null, notes: v.notes.trim() || null });
         toast(after.taxCorrectionDue ? tr('سند مالی ویرایش شد. این سند در سامانهٔ مؤدیان پذیرفته شده بود؛ «اصلاحی» آن را بفرستید.') : tr('سند مالی ویرایش شد.'));
       } else {
-        await apiPost('/invoices', { ...body, projectId: v.projectId || undefined, dueDate: v.dueDate || undefined, notes: v.notes.trim() || undefined });
-        toast(tr('سند مالی صادر شد.'));
+        await apiPost('/invoices', { ...body, projectId: v.projectId || undefined, dueDate: v.dueDate || undefined, saleTerms: v.saleTerms || undefined, notes: v.notes.trim() || undefined });
+        toast(tr('سند مالی صادر شد. فایل Excel و PDF آن را از ردیفش در فهرست بگیرید.'));
       }
       await qc.invalidateQueries(); onClose();
     } catch (e: any) { toast(e?.message ?? tr('صدور ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };
+  const setLine = (i: number, k: keyof Line, value: string) => setLines(lines.map((x, j) => (j === i ? { ...x, [k]: value } : x)));
+  const asking = !invoiceId && (!sellerId || choosing);
+
   return (
-    <Modal open wide title={invoiceId ? tr('ویرایش سند مالی {0}', was?.number ?? '') : tr('صدور سند مالی')} onClose={onClose}
-      footer={<><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!valid || (!!invoiceId && !was)} onClick={() => void save()}>{invoiceId ? tr('ذخیره') : tr('صدور')}</Button></>}>
-      {was?.accountingExportId && <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">{tr('این سند به خروجی حسابداری رفته است: مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود.')}</p>}
+    <Modal open wide draftKey={draftKey} title={invoiceId ? tr('ویرایش سند مالی {0}', was?.number ?? '') : tr('صدور سند مالی')} onClose={onClose}
+      footer={asking
+        ? <Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button>
+        : <><Button variant="ghost" onClick={onClose}>{tr('انصراف')}</Button><Button variant="primary" loading={busy} disabled={!valid || (!!invoiceId && !was)} onClick={() => void save()}>{invoiceId ? tr('ذخیره') : tr('صدور')}</Button></>}>
+      {asking ? (
+        <div data-testid="seller-choice">
+          <p className="mb-3 text-sm font-bold text-ink-800">{tr('این سند به نام کدام شرکت صادر شود؟')}</p>
+          {!sellers ? <p className="text-sm text-ink-500">{tr('در حال بارگذاری…')}</p>
+            : sellers.length ? <SellerChoice sellers={sellers} value={sellerId} onPick={(id) => { setPicked(id); setChoosing(false); }} />
+              : <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">{tr('هیچ شرکتی برای صدور سند تعریف نشده است. با مدیر سیستم تماس بگیرید.')}</p>}
+          <p className="mt-3 text-xs text-ink-500">{tr('سند روی فرم همان شرکت چاپ می‌شود: Excel و PDF.')}</p>
+        </div>
+      ) : (<>
+      {was?.accountingExportId && <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">{tr('این سند به خروجی حسابداری رفته است: مبلغ، مشتری، فروشنده، نوع و تاریخش دیگر عوض نمی‌شود.')}</p>}
+      {invoiceId && !sellerId ? (
+        <section aria-label={tr('فروشنده')} className="mb-4 rounded-lg bg-amber-50 px-3 py-3">
+          <p className="mb-2 text-xs text-amber-900">{tr('این سند پیش از فرم‌های شرکت صادر شده است. برای گرفتن Excel و PDF با فرم شرکت، فروشنده را برگزینید.')}</p>
+          {sellers && <SellerChoice sellers={sellers} value={sellerId} onPick={setPicked} />}
+        </section>
+      ) : (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg bg-ink-50 px-3 py-2" data-testid="seller-picked">
+          <span className="text-sm"><span className="text-ink-500">{tr('فروشنده:')}</span>{' '}<strong>{seller?.shortName ?? '—'}</strong>{seller && <span className="text-xs text-ink-500"> — {seller.legalName}</span>}</span>
+          <Button size="sm" variant="ghost" onClick={() => setChoosing(true)} disabled={!!invoiceId && !!was?.accountingExportId}>{tr('تغییر فروشنده')}</Button>
+        </div>
+      )}
+      {invoiceId && choosing && sellers && <div className="mb-4"><SellerChoice sellers={sellers} value={sellerId} onPick={(id) => { setPicked(id); setChoosing(false); }} /></div>}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={tr('نوع')}><Select value={v.kind} onChange={(e) => setV({ ...v, kind: e.target.value })} aria-label={tr('نوع')}><option value="INVOICE">{tr('فاکتور')}</option><option value="PROFORMA">{tr('پیش‌فاکتور')}</option></Select></Field>
         <Field label={tr('شماره')} required><Input value={v.number} onChange={(e) => setV({ ...v, number: e.target.value })} className="ltr" aria-label={tr('شماره')} /></Field>
-        <Field label={tr('مشتری')} required><EntitySelect entity="company" value={v.companyId} onChange={(x) => setV({ ...v, companyId: x })} /></Field>
+        <Field label={tr('مشتری')} required><EntitySelect entity="company" value={v.companyId} onChange={pickCompany} /></Field>
         <Field label={tr('پروژه')}><EntitySelect entity="project" value={v.projectId} onChange={(x) => setV({ ...v, projectId: x })} /></Field>
         <Field label={tr('تاریخ صدور')} required><JalaliDateInput mode="date" value={v.issueDate} onChange={(d) => setV({ ...v, issueDate: d || v.issueDate })} /></Field>
         <Field label={tr('سررسید')}><JalaliDateInput mode="date" value={v.dueDate || null} onChange={(d) => setV({ ...v, dueDate: d })} /></Field>
         <Field label={tr('ارز')} hint={tr('قیمت ردیف‌ها به همین ارز است')}><CurrencySelect value={v.currency} onChange={(c) => setV({ ...v, currency: c })} /></Field>
         <Field label={tr('مالیات (٪)')}><Input type="number" value={v.taxPercent} onChange={(e) => setV({ ...v, taxPercent: e.target.value })} className="ltr" aria-label={tr('مالیات')} /></Field>
       </div>
-      <div className="mt-4 space-y-2">
+      {v.companyId && (
+        <section aria-label={tr('مشخصات خریدار')} className="mt-4 rounded-lg ring-1 ring-ink-200 px-3 py-3">
+          <p className="mb-2 text-sm font-bold text-ink-800">{tr('مشخصات خریدار')}</p>
+          <p className="mb-3 text-xs text-ink-500">{tr('از پروندهٔ مشتری خوانده شد؛ هر چه را لازم است کامل یا اصلاح کنید.')}</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {BUYER_FIELDS.map(([k, label]) => (
+              <div key={k} className={k === 'address' ? 'sm:col-span-3' : k === 'legalName' ? 'sm:col-span-2' : ''}>
+                <Field label={label}><Input value={buyer[k]} onChange={(e) => { setBuyer({ ...buyer, [k]: e.target.value }); setBuyerTouched(true); }}
+                  className={['economicCode', 'nationalId', 'postalCode', 'phone'].includes(k) ? 'ltr' : ''} /></Field>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3"><Checkbox label={tr('جاهای خالیِ پروندهٔ مشتری هم با همین‌ها پر شود')} checked={fillCompany} onChange={(e) => setFillCompany(e.target.checked)} /></div>
+        </section>
+      )}
+      <section aria-label={tr('مشخصات کالا یا خدمات')} className="mt-4 space-y-2">
+        <p className="text-sm font-bold text-ink-800">{tr('مشخصات کالا یا خدمات')}</p>
         {lines.map((l, i) => (
-          <div key={i} className="grid grid-cols-[1fr_5rem_8rem_auto] gap-2">
-            <Input placeholder={tr('شرح')} value={l.description} aria-label={tr('شرح')} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
-            <Input type="number" value={l.quantity} aria-label={tr('تعداد')} className="ltr" onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
-            <Input type="number" placeholder={tr('قیمت واحد')} value={l.unitPrice} aria-label={tr('قیمت واحد')} className="ltr" onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, unitPrice: e.target.value } : x)))} />
+          <div key={i} className="grid grid-cols-2 gap-2 rounded-lg bg-ink-50/60 p-2 sm:grid-cols-[5rem_1fr_4.5rem_5rem_8rem_7rem_auto] sm:bg-transparent sm:p-0">
+            <Input placeholder={tr('کد کالا')} value={l.code} aria-label={tr('کد کالا')} className="ltr" onChange={(e) => setLine(i, 'code', e.target.value)} />
+            <Input placeholder={tr('شرح')} value={l.description} aria-label={tr('شرح')} className="col-span-2 sm:col-span-1" onChange={(e) => setLine(i, 'description', e.target.value)} />
+            <Input type="number" value={l.quantity} aria-label={tr('تعداد')} className="ltr" onChange={(e) => setLine(i, 'quantity', e.target.value)} />
+            <Input placeholder={tr('واحد')} value={l.unit} aria-label={tr('واحد')} onChange={(e) => setLine(i, 'unit', e.target.value)} />
+            <Input type="number" placeholder={tr('قیمت واحد')} value={l.unitPrice} aria-label={tr('قیمت واحد')} className="ltr" onChange={(e) => setLine(i, 'unitPrice', e.target.value)} />
+            <Input type="number" placeholder={tr('تخفیف')} value={l.discount} aria-label={tr('تخفیف')} className="ltr" onChange={(e) => setLine(i, 'discount', e.target.value)} />
             <Button size="sm" variant="ghost" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>{tr('حذف')}</Button>
+            {l.passThrough && <span className="col-span-2 text-xs text-ink-500 sm:col-span-7">{tr('هزینهٔ عبوری رسانه: در درآمد آژانس شمرده نمی‌شود.')}</span>}
           </div>
         ))}
-        <Button size="sm" variant="ghost" onClick={() => setLines([...lines, { description: '', quantity: '1', unitPrice: '' }])}>{tr('ردیف تازه')}</Button>
+        {overDiscount && <p className="text-xs text-rose-700">{tr('تخفیف یک ردیف از مبلغ کل آن بیشتر است.')}</p>}
+        <Button size="sm" variant="ghost" onClick={() => setLines([...lines, { ...NEW_LINE }])}>{tr('ردیف تازه')}</Button>
+      </section>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field label={tr('شرایط و نحوهٔ فروش')}><Select value={v.saleTerms} onChange={(e) => setV({ ...v, saleTerms: e.target.value })} aria-label={tr('شرایط و نحوهٔ فروش')}>
+          <option value="">{tr('— مشخص نشده —')}</option><option value="CASH">{tr('نقدی')}</option><option value="CREDIT">{tr('غیر نقدی')}</option>
+        </Select></Field>
       </div>
-      <div className="mt-4"><Field label={tr('یادداشت')}><Textarea value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} aria-label={tr('یادداشت')} /></Field></div>
+      <div className="mt-4"><Field label={tr('یادداشت')} hint={tr('در بخش «توضیحات» فرم چاپ می‌شود.')}><Textarea value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} aria-label={tr('یادداشت')} /></Field></div>
       <p className="mt-3 text-sm text-ink-700">{tr('جمع با مالیات:')}{' '}<strong>{money(total, v.currency)}</strong></p>
       <div className="mt-2"><FxPreview currency={v.currency} amount={total} on={v.issueDate} /></div>
+      </>)}
     </Modal>
   );
 }

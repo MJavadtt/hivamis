@@ -315,6 +315,13 @@ export const CLIENT_APPROVAL_EVENT_LABELS: Record<string, string> = {
 export const INVOICE_KINDS = ['PROFORMA', 'INVOICE'] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
+/** The printed forms an invoice is issued on, one for each company that issues them (the owner, 2026-11-07; ADR-125). */
+export const INVOICE_FORMS = ['hiva', 'khat-tireh'] as const;
+export type InvoiceForm = (typeof INVOICE_FORMS)[number];
+/** «شرایط و نحوهٔ فروش» on the form: نقدی or غیر نقدی. */
+export const SALE_TERMS = ['CASH', 'CREDIT'] as const;
+export type SaleTerms = (typeof SALE_TERMS)[number];
+
 export const INVOICE_STATES = ['DRAFT', 'ISSUED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
 export type InvoiceState = (typeof INVOICE_STATES)[number];
 

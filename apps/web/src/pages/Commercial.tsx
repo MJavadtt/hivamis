@@ -5,6 +5,7 @@ import { apiGet } from '../lib/api';
 import { useAuth, useSystemAdmin } from '../lib/auth';
 import { Amount, FxRates, FxReport, NewInvoiceModal, NewPaymentModal, PAYMENT_METHODS, money } from '../components/Fx';
 import { InvoiceTax, MoadianTab, TaxBadge } from '../components/Moadian';
+import { InvoiceDownloads, InvoiceSellers } from '../components/InvoiceSellers';
 import { AccountingTab } from '../components/AccountingExport';
 import { ESignCard } from '../components/ESign';
 import { AttachButton, onRecord } from '../components/RecordFiles';
@@ -181,13 +182,14 @@ export function Finance() {
           </div>
         } />
       <div className="mx-3 mt-3 rounded-xl bg-surface px-2 shadow-sm ring-1 ring-edge sm:mx-5 lg:mx-0 [&>[role=tablist]]:border-b-0">
-        <Tabs tabs={[{ key: 'docs', label: tr('اسناد و تراکنش‌ها') }, { key: 'moadian', label: tr('سامانهٔ مؤدیان') }, { key: 'accounting', label: tr('خروجی حسابداری') }, { key: 'rates', label: tr('نرخ ارز') }, { key: 'fx', label: tr('اثر نرخ ارز') }]} active={tab} onChange={setTab} />
+        <Tabs tabs={[{ key: 'docs', label: tr('اسناد و تراکنش‌ها') }, { key: 'sellers', label: tr('فروشندگان') }, { key: 'moadian', label: tr('سامانهٔ مؤدیان') }, { key: 'accounting', label: tr('خروجی حسابداری') }, { key: 'rates', label: tr('نرخ ارز') }, { key: 'fx', label: tr('اثر نرخ ارز') }]} active={tab} onChange={setTab} />
       </div>
       {issuing && <NewInvoiceModal onClose={() => setIssuing(false)} />}
       {editing && <NewInvoiceModal invoiceId={editing} onClose={() => setEditing(null)} />}
       {receiving && <NewPaymentModal onClose={() => setReceiving(false)} />}
       {taxFor && <InvoiceTax invoiceId={taxFor} onClose={() => setTaxFor(null)} />}
       <PageBody className="space-y-5">
+        {tab === 'sellers' && <InvoiceSellers />}
         {tab === 'moadian' && <MoadianTab />}
         {tab === 'accounting' && <AccountingTab />}
         {tab === 'rates' && <FxRates />}
@@ -211,7 +213,8 @@ export function Finance() {
                     {invoices.items.map((i: any) => (
                       <Tr key={i.id}>
                         <Td className="ltr text-xs whitespace-nowrap">{i.number}</Td>
-                        <Td><Badge tone="neutral">{i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')}</Badge></Td>
+                        <Td><Badge tone="neutral">{i.kind === 'PROFORMA' ? tr('پیش‌فاکتور') : tr('فاکتور')}</Badge>
+                          {i.seller && <span className="mt-1 block whitespace-nowrap text-xs text-ink-500" title={tr('فروشنده')}>{i.seller.shortName}</span>}</Td>
                         <Td className="text-xs">{i.company?.legalName}</Td>
                         <Td className="text-xs">{i.project?.name ?? '—'}</Td>
                         <Td className="text-xs">{formatDate(i.issueDate)}</Td>
@@ -222,7 +225,8 @@ export function Finance() {
                         <Td>{i.kind === 'INVOICE' && i.state !== 'DRAFT' && (
                           <button type="button" onClick={() => setTaxFor(i.id)} aria-label={tr('مؤدیان {0}', i.number)}><TaxBadge submission={i.taxSubmissions?.[0]} /></button>
                         )}</Td>
-                        <Td><div className="flex items-center gap-1">
+                        <Td><div className="flex flex-wrap items-center gap-1">
+                          <InvoiceDownloads invoice={i} />
                           <AttachButton target={onRecord('invoice', i.id)} title={i.number} />
                           {mayEdit(i) && <Button size="sm" variant="ghost" aria-label={tr('ویرایش سند {0}', i.number)} title={tr('ویرایش')} onClick={() => setEditing(i.id)}><IconPencil className="size-4" /></Button>}
                         </div></Td>

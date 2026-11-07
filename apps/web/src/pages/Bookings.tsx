@@ -55,7 +55,7 @@ export default function Bookings() {
   const [scope, setScope] = useState<'mine' | 'approve' | 'all'>('mine');
   const [editing, setEditing] = useState(false);
   const columns: Column<BookingRow>[] = [
-    { key: 'code', header: tr('کد'), render: (b) => <span className="ltr font-mono text-xs">{b.code}</span> },
+    { key: 'code', header: tr('کد'), render: (b) => <span className="ltr whitespace-nowrap font-mono text-xs">{b.code}</span> },
     { key: 'title', header: tr('عنوان'), render: (b) => <span className="font-medium text-ink-800">{b.title}</span> },
     { key: 'when', header: tr('زمان'), render: (b) => <span className="text-xs">{span(b)}</span> },
     { key: 'where', header: tr('مکان'), render: (b) => b.room?.name ?? b.placeNote ?? '—' },

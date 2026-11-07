@@ -25,6 +25,8 @@ const of = (verdict: Verdict, keys: string[]) => Object.fromEntries(keys.map((k)
 export const REVIEWED: Record<string, Verdict> = {
   ...of('REFERENCE', [
     "auth/grants.ts#grantSnapshot#roleGrant#1",
+    // ADR-125: one per printed form — two.
+    "routes/commercial.ts#GET /invoice-sellers#invoiceSeller#1",
     // Audit F-3: the roles organisations made — a handful each.
     "auth/roles.ts#customRoleCatalogue#role#1",
     "auth/grants.ts#grantsOf#roleGrant#1",

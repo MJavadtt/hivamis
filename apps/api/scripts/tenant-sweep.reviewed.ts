@@ -66,6 +66,9 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/brand.ts#GET /documents/:id/brand-check",
     "routes/brand.ts#PUT /companies/:id/brand",
     "routes/commercial.ts#GET /projects/:id/finance",
+    // ADR-125: the seller, and the client the invoice fills, were found in the caller's organisation first.
+    "invoices/sellers.ts#fillCompanyBlanks",
+    "routes/commercial.ts#PUT /invoice-sellers/:id",
     "routes/commercial.ts#PATCH /invoices/:id",
     "routes/commercial.ts#POST /contracts/:id/amendments",
     "routes/commercial.ts#POST /payments",

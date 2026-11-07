@@ -9,7 +9,7 @@ import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { BRAND_ROLES, isViewableImage, legalHoldSchema, type BrandRole } from '@hiva/contracts';
 import { extractMetadata } from '../documents/metadata.js';
 import { SIGNATURE_HEAD_BYTES, signatureMatches } from '../lib/file-signature.js';
-import { assertDiskFor, assertStorageFor, writeUpload } from '../documents/storage.js';
+import { assertDiskFor, assertStorageFor, assertStoredFile, writeUpload } from '../documents/storage.js';
 import { audit } from '../lib/audit.js';
 import { FINANCIAL_FILE_KINDS, SITE_FILE_KINDS } from '../sites/access.js';
 import { isFileRecord, mayReadFile, mayReadRecord, recordInOrganization } from '../documents/records.js';
@@ -327,6 +327,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !(await mayReadFile(actor, doc))) throw notFound('سند');
+    await assertStoredFile(doc, storageRoot);
 
     await audit({
       organizationId: actor.organizationId, actorId: actor.id, action: 'FILE_DOWNLOAD',
@@ -361,6 +362,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc || doc.deletedAt || doc.organizationId !== actor.organizationId || doc.chatConversationId || !(await mayReadFile(actor, doc))) throw notFound('سند');
     if (!PREVIEWABLE(doc.mimeType)) throw new AppError(422, 'PREVIEW_UNSUPPORTED', 'این نوع فایل پیش‌نمایش ندارد؛ آن را دریافت کنید.');
+    await assertStoredFile(doc, storageRoot);
     const seen = await prisma.auditEvent.findFirst({
       where: { actorId: actor.id, action: 'FILE_VIEW', entityType: 'document', entityId: id, createdAt: { gte: new Date(Date.now() - 3_600_000) } },
       select: { id: true },

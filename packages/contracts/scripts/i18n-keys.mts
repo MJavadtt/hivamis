@@ -22,6 +22,8 @@ const SKIP = [
   /\/api\/src\/pdf\//, /\/api\/src\/mail\//, /\/api\/src\/ai\//, /\/api\/src\/ask\/model\.ts$/,
   // Documents: the approval certificate and accounting vouchers keep the language they were issued in.
   /\/api\/src\/approvals\/certificate\.ts$/, /\/api\/src\/accounting\/vouchers\.ts$/,
+  // The invoice forms (ADR-125): what the owner's own Excel forms print, and the companies' details on them.
+  /\/api\/src\/invoices\/forms\.ts$/, /\/api\/src\/invoices\/workbook\.ts$/,
 ];
 /** Email and certificate markup is a document, not interface text. */
 const MARKUP = /<(div|p|ul|li|b|a|code|br|table|tr|td|h\d)[\s>/]/i;

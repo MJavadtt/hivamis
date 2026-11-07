@@ -1,4 +1,7 @@
 import type { FormDef } from '@hiva/contracts';
+import { printable } from '../invoices/sellers.js';
+import { sheetHtml } from '../invoices/sheet-html.js';
+import { invoiceWorkbook } from '../invoices/workbook.js';
 import { prisma } from '../db.js';
 import { schemaForSubmission } from '../forms/versions.js';
 import { notFound } from '../lib/errors.js';
@@ -13,6 +16,8 @@ export interface BuiltDocument {
   code: string;
   titleFa: string;
   redaction: RedactionContext;
+  /** A form printed as it is — an invoice on its company's own form (ADR-125): landscape, no running header. */
+  bare?: boolean;
 }
 
 const S = (v: unknown) => (v == null ? undefined : String(v));
@@ -273,13 +278,21 @@ async function buildContract(id: string, orgId: string, user: AccessTokenClaims)
 async function buildInvoice(id: string, orgId: string, user: AccessTokenClaims): Promise<BuiltDocument> {
   const inv = await prisma.invoice.findFirst({ where: { id, organizationId: orgId },
     include: {
-      company: { select: { legalName: true, nationalId: true, economicCode: true, address: true } },
+      company: { select: { legalName: true, nationalId: true, economicCode: true, postalCode: true, province: true, county: true, city: true, address: true, phone: true } },
       project: { select: { code: true, name: true } },
       payments: { orderBy: { occurredAt: 'asc' } },
+      seller: { select: { form: true } },
     },
   });
   if (!inv || inv.organizationId !== orgId) throw notFound('سند مالی');
   const red = redactionFor(user);
+
+  // ADR-125: an invoice issued in هیوا or خط تیره prints on that company's own form, drawn from the
+  // same workbook its Excel download is. One from before has no seller, and keeps the general layout.
+  if (inv.seller && inv.sellerDetails) {
+    const { xlsx, lastRow } = await invoiceWorkbook(printable({ ...inv, seller: inv.seller }));
+    return { html: await sheetHtml(xlsx, lastRow), code: inv.number, titleFa: stateFa(inv.kind), redaction: red, bare: true };
+  }
 
   const lines = (inv.lines ?? []) as { description: string; quantity: number; unitPrice: number }[];
 

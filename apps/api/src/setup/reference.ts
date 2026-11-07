@@ -4,6 +4,7 @@ import {
   DEPARTMENT_LABELS, DEPARTMENT_CODES, EXECUTION_DEPARTMENTS, SLA_POLICIES,
 } from '@hiva/contracts';
 import { publishDefinition } from '../forms/versions.js';
+import { syncInvoiceSellers } from '../invoices/sellers.js';
 
 /**
  * The reference data, brought up to the code (roadmap #50): permissions and roles for the whole
@@ -27,6 +28,8 @@ export interface OrganizationSync {
   slaKept: number;
   formsChanged: number;
   formsKept: number;
+  /** ADR-125: the companies its invoices are issued in, made once. */
+  sellersAdded: number;
 }
 
 export interface ReferenceSync {
@@ -66,7 +69,7 @@ export async function syncPlatform(db: Db): Promise<{ permissions: number; roles
 
 /** One organisation's units, SLA policies and forms. */
 export async function syncOrganization(db: Db, organizationId: string): Promise<OrganizationSync> {
-  const out: OrganizationSync = { organizationId, departmentsAdded: 0, slaAdded: 0, slaUpdated: 0, slaKept: 0, formsChanged: 0, formsKept: 0 };
+  const out: OrganizationSync = { organizationId, departmentsAdded: 0, slaAdded: 0, slaUpdated: 0, slaKept: 0, formsChanged: 0, formsKept: 0, sellersAdded: 0 };
 
   let order = 0;
   for (const code of DEPARTMENT_CODES) {
@@ -112,6 +115,8 @@ export async function syncOrganization(db: Db, organizationId: string): Promise<
     if (changed) out.formsChanged++;
     if (skippedCustomised) out.formsKept++;
   }
+
+  out.sellersAdded = await syncInvoiceSellers(db, organizationId);
   return out;
 }
 

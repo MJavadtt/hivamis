@@ -27,7 +27,7 @@ if (env.REFERENCE_SYNC === 'on') {
   await syncReference(prisma, { trigger: 'startup', appVersion: APP_VERSION })
     .then((s) => app.log.info({
       version: APP_VERSION, ms: Date.now() - started, recorded: s.recorded,
-      organizations: s.organizations.map((o) => ({ id: o.organizationId, formsChanged: o.formsChanged, formsKept: o.formsKept, slaAdded: o.slaAdded, slaUpdated: o.slaUpdated, departmentsAdded: o.departmentsAdded })),
+      organizations: s.organizations.map((o) => ({ id: o.organizationId, formsChanged: o.formsChanged, formsKept: o.formsKept, slaAdded: o.slaAdded, slaUpdated: o.slaUpdated, departmentsAdded: o.departmentsAdded, sellersAdded: o.sellersAdded })),
     }, 'reference data in step with the code'))
     .catch((err) => app.log.error({ err }, 'reference sync failed — serving on the reference data already present'));
 }

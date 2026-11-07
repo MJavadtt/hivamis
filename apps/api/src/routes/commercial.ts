@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { Prisma } from '@prisma/client';
 import {
   createContractSchema, createAmendmentSchema, createInvoiceSchema,
-  createPaymentSchema, paginationSchema, updateInvoiceSchema,
+  createPaymentSchema, paginationSchema, updateInvoiceSchema, updateInvoiceSellerSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { registerCrud } from '../lib/crud.js';
@@ -13,6 +14,25 @@ import { baseCurrency, convert, convertMany, currencyFa, D, rateFor, settledEpsi
 import { money, sumOf, toMoney, type Money } from '../lib/money.js';
 import { assertOwnReferences } from '../lib/scope.js';
 import { isSystemAdmin } from '../auth/grants.js';
+import { buyerOf, cleanBuyer, fillCompanyBlanks, printable, sameBuyer, sellerDetailsOf, syncInvoiceSellers } from '../invoices/sellers.js';
+import { invoiceWorkbook } from '../invoices/workbook.js';
+
+/** What a line comes to after its discount (ADR-125); the invoice's taxable amount is their sum. */
+const netOf = (lines: { quantity: number; unitPrice: number; discount?: number }[]) =>
+  lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice).sub(l.discount ?? 0)), D(0));
+/**
+ * A line may name the media order it bills (#31): only one of the caller's organisation, and — on an
+ * invoice that already bills orders — one of its own, so an edit cannot move an order to another invoice.
+ */
+async function assertMediaLines(organizationId: string, lines: { mediaOrderId?: string }[], invoiceId?: string) {
+  const ids = [...new Set(lines.map((l) => l.mediaOrderId).filter((x): x is string => !!x))];
+  if (!ids.length) return;
+  const found = await prisma.mediaOrder.count({ where: { id: { in: ids }, organizationId, ...(invoiceId ? { OR: [{ clientInvoiceId: invoiceId }, { clientInvoiceId: null }] } : {}) } });
+  if (found !== ids.length) throw badRequest('INVOICE_MEDIA_ORDER', 'سفارش رسانه‌ای که ردیف نام می‌برد از این سازمان یا این صورت‌حساب نیست.');
+}
+
+/** The client's fields the invoice form prints. */
+const BUYER_SELECT = { legalName: true, nationalId: true, economicCode: true, postalCode: true, province: true, county: true, city: true, address: true, phone: true } as const;
 
 const commercialRoutes: FastifyPluginAsync = async (app) => {
   /* ── Contracts ───────────────────────────────────────────────────────── */
@@ -102,11 +122,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
   }, async (req) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
-    const { state, kind, companyId, projectId } = req.query as Record<string, string | undefined>;
+    const { state, kind, companyId, projectId, sellerId } = req.query as Record<string, string | undefined>;
     const where = {
       organizationId: actor.organizationId,
       ...(state ? { state } : {}), ...(kind ? { kind } : {}),
-      ...(companyId ? { companyId } : {}), ...(projectId ? { projectId } : {}),
+      ...(companyId ? { companyId } : {}), ...(projectId ? { projectId } : {}), ...(sellerId ? { sellerId } : {}),
     };
     const [items, total] = await Promise.all([
       prisma.invoice.findMany({
@@ -114,6 +134,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
         include: {
           company: { select: { id: true, legalName: true } },
           project: { select: { id: true, code: true, name: true } },
+          seller: { select: { id: true, shortName: true, form: true } },
           // Where it stands with سامانهٔ مؤدیان (#32): the latest report only.
           taxSubmissions: { select: { subject: true, status: true, taxId: true }, orderBy: { createdAt: 'desc' }, take: 1 },
         },
@@ -131,10 +152,85 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const { id } = req.params as { id: string };
     const invoice = await prisma.invoice.findFirst({ where: { id, organizationId: actor.organizationId },
-      include: { company: true, project: true, contract: true, payments: true },
+      include: { company: true, project: true, contract: true, payments: true, seller: { select: { id: true, shortName: true, form: true } } },
     });
     if (!invoice) throw notFound('سند مالی');
     return invoice;
+  });
+
+  /**
+   * The companies invoices are issued in (ADR-125): «هیوا» and «خط تیره», each printed on its own
+   * form. Their details are what that form prints in «مشخصات فروشنده»; an invoice keeps them as they
+   * stood when it was issued.
+   */
+  app.get('/invoice-sellers', {
+    preHandler: [app.authenticate, app.requirePermissions('finance.read')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    // Made by the reference sync — and here, where it is needed, if the sync was switched off
+    // (REFERENCE_SYNC=off): without them no invoice can be issued at all.
+    await syncInvoiceSellers(prisma, actor.organizationId);
+    return prisma.invoiceSeller.findMany({ where: { organizationId: actor.organizationId }, orderBy: { form: 'asc' } });
+  });
+
+  app.put('/invoice-sellers/:id', {
+    preHandler: [app.authenticate, app.requirePermissions('finance.settle')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const input = parse(updateInvoiceSellerSchema, req.body);
+    const before = await prisma.invoiceSeller.findFirst({ where: { id, organizationId: actor.organizationId } });
+    if (!before) throw notFound('فروشنده');
+    // What was sent changes, a field sent empty (null) is cleared, and what was not sent is left as it was.
+    const data = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+    const after = await prisma.invoiceSeller.update({ where: { id }, data: { ...data, updatedById: actor.id } });
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'invoiceSeller', entityId: id,
+      before, after, ipAddress: actor.ipAddress, requestId: actor.requestId,
+    });
+    return after;
+  });
+
+  /** «مشخصات خریدار» as the client's record has it — what a new invoice starts from. */
+  app.get('/invoices/buyer/:companyId', {
+    preHandler: [app.authenticate, app.requirePermissions('finance.invoice')],
+  }, async (req) => {
+    const actor = actorFrom(req);
+    const { companyId } = req.params as { companyId: string };
+    const company = await prisma.company.findFirst({ where: { id: companyId, organizationId: actor.organizationId }, select: BUYER_SELECT });
+    if (!company) throw notFound('مشتری');
+    return buyerOf(company);
+  });
+
+  /** The invoice on its company's own Excel form (ADR-125). Exporting is a read, and is audited as one. */
+  app.get('/invoices/:id/workbook', {
+    preHandler: [app.authenticate, app.requirePermissions('finance.read')],
+  }, async (req, reply) => {
+    const actor = actorFrom(req);
+    const { id } = req.params as { id: string };
+    const inv = await prisma.invoice.findFirst({
+      where: { id, organizationId: actor.organizationId },
+      include: { seller: { select: { form: true } }, company: { select: BUYER_SELECT } },
+    });
+    if (!inv) throw notFound('سند مالی');
+    if (!inv.seller || !inv.sellerDetails) {
+      throw new AppError(409, 'INVOICE_NO_SELLER', 'این سند هنوز فروشنده ندارد: ویرایشش کنید و «هیوا» یا «خط تیره» را برگزینید.');
+    }
+    const { xlsx } = await invoiceWorkbook(printable({ ...inv, seller: inv.seller }));
+    await audit({
+      organizationId: actor.organizationId, actorId: actor.id, action: 'EXPORT', entityType: 'invoice', entityId: id,
+      after: { format: 'xlsx', code: inv.number, form: inv.seller.form }, reason: 'full disclosure',
+      ipAddress: actor.ipAddress, userAgent: req.headers['user-agent'] ?? null, requestId: actor.requestId,
+    });
+    const pretty = `${inv.kind === 'PROFORMA' ? 'پیش‌فاکتور' : 'فاکتور'} ${inv.number}.xlsx`;
+    const safe = `invoice-${inv.number}`.replace(/[^\w.-]+/g, '_').slice(0, 80);
+    return reply
+      .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      .header('Content-Length', xlsx.length)
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', 'no-store')
+      .header('Content-Disposition', `attachment; filename="${safe}.xlsx"; filename*=UTF-8''${encodeURIComponent(pretty)}`)
+      .send(xlsx);
   });
 
   app.post('/invoices', {
@@ -144,32 +240,42 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const input = parse(createInvoiceSchema, req.body);
     // Every id the request names must be the caller's organisation's (audit SEC-12).
     await assertOwnReferences('invoice', input, actor.organizationId);
+    await assertMediaLines(actor.organizationId, input.lines);
     // Totals are computed server-side; a client-supplied total is never trusted. Lines are in the
     // invoice's currency; the base totals use the rate in force on the issue date (roadmap #28).
-    const subtotal = input.lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice)), D(0));
+    const subtotal = netOf(input.lines);
     const taxAmount = subtotal.mul(input.taxPercent).div(100);
     const fx = await convertMany(prisma, actor.organizationId, input.currency, { subtotal, taxAmount }, input.issueDate);
+    // ADR-125: the company it is issued in, as it stands today, and the buyer as typed over the client's record.
+    const seller = input.sellerId ? await prisma.invoiceSeller.findFirst({ where: { id: input.sellerId, organizationId: actor.organizationId } }) : null;
+    const buyer = cleanBuyer(input.buyer);
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        organizationId: actor.organizationId,
-        code: await nextCode(prisma, 'invoice'),
-        kind: input.kind, number: input.number, companyId: input.companyId,
-        projectId: input.projectId ?? null, contractId: input.contractId ?? null,
-        issueDate: input.issueDate, dueDate: input.dueDate ?? null,
-        lines: input.lines as object, subtotal: fx.base.subtotal, taxPercent: input.taxPercent,
-        taxAmount: fx.base.taxAmount, total: fx.base.subtotal.add(fx.base.taxAmount), notes: input.notes ?? null,
-        currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate,
-        originalSubtotal: fx.original?.subtotal ?? null, originalTaxAmount: fx.original?.taxAmount ?? null,
-        originalTotal: fx.original ? fx.original.subtotal.add(fx.original.taxAmount) : null,
-        originalPaidAmount: fx.original ? 0 : null,
-        createdById: actor.id,
-      },
-    });
-    await audit({
-      organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE',
-      entityType: 'invoice', entityId: invoice.id, after: invoice,
-      ipAddress: actor.ipAddress, requestId: actor.requestId,
+    const invoice = await prisma.$transaction(async (tx) => {
+      const made = await tx.invoice.create({
+        data: {
+          organizationId: actor.organizationId,
+          code: await nextCode(tx, 'invoice'),
+          kind: input.kind, number: input.number, companyId: input.companyId,
+          sellerId: seller?.id ?? null, sellerDetails: seller ? (sellerDetailsOf(seller) as object) : Prisma.DbNull,
+          buyer: buyer ?? Prisma.DbNull, saleTerms: input.saleTerms ?? null,
+          projectId: input.projectId ?? null, contractId: input.contractId ?? null,
+          issueDate: input.issueDate, dueDate: input.dueDate ?? null,
+          lines: input.lines as object, subtotal: fx.base.subtotal, taxPercent: input.taxPercent,
+          taxAmount: fx.base.taxAmount, total: fx.base.subtotal.add(fx.base.taxAmount), notes: input.notes ?? null,
+          currency: fx.currency, fxRate: fx.fxRate, fxRateDate: fx.fxRateDate,
+          originalSubtotal: fx.original?.subtotal ?? null, originalTaxAmount: fx.original?.taxAmount ?? null,
+          originalTotal: fx.original ? fx.original.subtotal.add(fx.original.taxAmount) : null,
+          originalPaidAmount: fx.original ? 0 : null,
+          createdById: actor.id,
+        },
+      });
+      await audit({
+        organizationId: actor.organizationId, actorId: actor.id, action: 'CREATE',
+        entityType: 'invoice', entityId: made.id, after: made,
+        ipAddress: actor.ipAddress, requestId: actor.requestId,
+      }, tx);
+      if (input.fillCompany) await fillCompanyBlanks(tx, actor, input.companyId, buyer, input.number);
+      return made;
     });
     return reply.code(201).send(invoice);
   });
@@ -189,6 +295,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const { id } = req.params as { id: string };
     const input = parse(updateInvoiceSchema, req.body);
     await assertOwnReferences('invoice', input, actor.organizationId);
+    if (input.lines) await assertMediaLines(actor.organizationId, input.lines, id);
     return prisma.$transaction(async (tx) => {
       const before = await tx.invoice.findFirst({ where: { id, organizationId: actor.organizationId }, include: { taxSubmissions: { select: { subject: true, status: true } } } });
       if (!before) throw notFound('سند مالی');
@@ -201,25 +308,36 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
       const sent: Record<string, unknown> = { ...input, issueDate: input.issueDate?.toISOString(), dueDate: input.dueDate === undefined ? undefined : input.dueDate?.toISOString() ?? null };
       const changes = (k: keyof typeof input) => sent[k] !== undefined && JSON.stringify(sent[k]) !== JSON.stringify(held[k]);
       const amounts = (['lines', 'taxPercent', 'currency', 'issueDate'] as const).some(changes);
-      const reported = amounts || (['companyId', 'number', 'kind'] as const).some(changes);
+      // ADR-125: the company it is issued in, and the buyer printed on it, are what the tax system is told too.
+      const sellerChanged = input.sellerId !== undefined && input.sellerId !== was.sellerId;
+      const buyer = input.buyer === undefined ? undefined : cleanBuyer(input.buyer);
+      const buyerChanged = buyer !== undefined && !sameBuyer(buyer, was.buyer);
+      const reported = amounts || sellerChanged || buyerChanged || (['companyId', 'number', 'kind'] as const).some(changes);
       if (reported && taxSubmissions.some((s) => ['QUEUED', 'SENT'].includes(s.status))) {
         throw new AppError(409, 'INVOICE_TAX_IN_FLIGHT', 'گزارش این سند به سامانهٔ مؤدیان در جریان است؛ پس از پاسخ سامانه ویرایشش کنید.');
       }
-      if (was.accountingExportId && (amounts || (['companyId', 'kind'] as const).some(changes))) {
-        throw new AppError(409, 'INVOICE_POSTED', 'این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.');
+      if (was.accountingExportId && (amounts || sellerChanged || (['companyId', 'kind'] as const).some(changes))) {
+        throw new AppError(409, 'INVOICE_POSTED', 'این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، فروشنده، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.');
       }
       const data: Record<string, unknown> = {};
-      for (const k of ['kind', 'number', 'companyId', 'projectId', 'contractId', 'dueDate', 'notes'] as const) if (input[k] !== undefined) data[k] = input[k];
+      for (const k of ['kind', 'number', 'companyId', 'projectId', 'contractId', 'dueDate', 'notes', 'saleTerms'] as const) if (input[k] !== undefined) data[k] = input[k];
+      // A draft follows its company's details as they are corrected; an issued invoice keeps what it printed.
+      if (input.sellerId !== undefined && (sellerChanged || was.state === 'DRAFT')) {
+        const seller = await tx.invoiceSeller.findFirst({ where: { id: input.sellerId, organizationId: actor.organizationId } });
+        data.sellerId = input.sellerId;
+        data.sellerDetails = seller ? sellerDetailsOf(seller) : Prisma.DbNull;
+      }
+      if (buyerChanged) data.buyer = buyer ?? Prisma.DbNull;
       if (amounts) {
         const currency = input.currency ?? was.currency;
         const paid = D(was.paidAmount);
         if (currency !== was.currency && paid.gt(0)) {
           throw new AppError(409, 'INVOICE_CURRENCY_PAID', 'برای این سند دریافتی ثبت شده است؛ ارزش دیگر عوض نمی‌شود.');
         }
-        const lines = input.lines ?? (was.lines as { description: string; quantity: number; unitPrice: number }[]);
+        const lines = input.lines ?? (was.lines as { description: string; quantity: number; unitPrice: number; discount?: number }[]);
         const taxPercent = input.taxPercent ?? Number(was.taxPercent);
         const issueDate = input.issueDate ?? was.issueDate;
-        const subtotal = lines.reduce((s, l) => D(s).add(D(l.quantity).mul(l.unitPrice)), D(0));
+        const subtotal = netOf(lines);
         const taxAmount = subtotal.mul(taxPercent).div(100);
         const fx = await convertMany(tx, actor.organizationId, currency, { subtotal, taxAmount }, issueDate);
         const total = fx.base.subtotal.add(fx.base.taxAmount);
@@ -244,6 +362,7 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
         organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'invoice', entityId: id,
         before: was, after, ipAddress: actor.ipAddress, requestId: actor.requestId,
       }, tx);
+      if (input.fillCompany) await fillCompanyBlanks(tx, actor, after.companyId, buyer ?? cleanBuyer(was.buyer as never), after.number);
       // Accepted by the tax system and changed since: what was reported needs its correction («اصلاحی»).
       const accepted = taxSubmissions.filter((s) => s.status === 'ACCEPTED');
       const taxCorrectionDue = reported && accepted.length > 0 && !accepted.some((s) => s.subject === 'CANCELLATION');

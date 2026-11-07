@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -52,6 +52,19 @@ describe('A file has no size limit (ADR-124)', () => {
     expect(back.statusCode).toBe(200);
     expect(back.rawPayload.equals(content)).toBe(true);
   }, 60_000);
+
+  it('says so, in Persian, when a file is gone from the disk — or was purged — rather than «Route not found»', async () => {
+    const res = expectOk(await upload(token, { name: 'گم‌شده.pdf', type: 'application/pdf', content: tinyPdf() }, fields), 'upload');
+    const fetch = (what: string) => (async () => (await app()).inject({ method: 'GET', url: `/api/v1/documents/${res.id}/${what}`, headers: { authorization: `Bearer ${token}` } }))();
+    unlinkSync(path.join(path.resolve(env.STORAGE_DIR), res.storedName));
+    for (const what of ['download', 'preview']) {
+      const gone = await fetch(what);
+      expect(gone.statusCode).toBe(404);
+      expect(gone.json().error).toMatchObject({ code: 'FILE_MISSING', message: expect.stringContaining('روی سرور پیدا نشد') });
+    }
+    await prisma.document.update({ where: { id: res.id }, data: { purgedAt: new Date() } });
+    expect((await fetch('download')).json().error.code).toBe('FILE_PURGED');
+  });
 
   it('takes a guide video past the limit that stood', async () => {
     const webm = padded(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), 30);

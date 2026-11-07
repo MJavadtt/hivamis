@@ -74,7 +74,7 @@ export async function buildBundle(
   parts.push({
     title: main.titleFa,
     code: main.code,
-    bytes: await renderPdf(main.html, { headerRight: main.code }),
+    bytes: await renderPdf(main.html, { headerRight: main.code, landscape: main.bare, bare: main.bare }),
   });
   included.push({ kind: mainKind, id: mainId, title: `${main.titleFa} — ${main.code}` });
 
@@ -91,7 +91,7 @@ export async function buildBundle(
     parts.push({
       title: doc.titleFa,
       code: doc.code,
-      bytes: await renderPdf(doc.html, { headerRight: doc.code, landscape: policy.landscape }),
+      bytes: await renderPdf(doc.html, { headerRight: doc.code, landscape: doc.bare || policy.landscape, bare: doc.bare }),
     });
     included.push({ kind: item.kind, id: item.id, title: `${doc.titleFa} — ${doc.code}` });
   }

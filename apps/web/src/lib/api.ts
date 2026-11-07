@@ -303,7 +303,9 @@ export async function apiBlob(path: string): Promise<Blob> {
 
 /** The name the server gave the file: percent-encoded, so a Persian name survives the header. */
 function suggestedName(res: Response, fallback: string): string {
-  const named = /filename="([^"]+)"/i.exec(res.headers.get('content-disposition') ?? '')?.[1];
+  // The name in full (RFC 5987, «فاکتور F-12.xlsx») before the plain one a server sends old browsers.
+  const cd = res.headers.get('content-disposition') ?? '';
+  const named = /filename\*=UTF-8''([^;]+)/i.exec(cd)?.[1] ?? /filename="([^"]+)"/i.exec(cd)?.[1];
   try { return named ? decodeURIComponent(named) : fallback; } catch { return named!; }
 }
 

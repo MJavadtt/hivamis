@@ -14,6 +14,7 @@ import { hasPermission } from '../auth/plugin.js';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { hashPassword } from '../auth/password.js';
 import { audit } from '../lib/audit.js';
+import { fa } from '../pdf/fmt.js';
 import { deactivateUser, endSessions } from '../auth/session.js';
 import { storageUsed } from '../documents/storage.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
@@ -575,7 +576,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       const result = await prisma.$transaction(async (tx) => {
         const r = await setRoleGrant(tx, { organizationId: actor.organizationId, roleCode: code, permissions: input.permissions, note: input.note, actorId: actor.id, mayGrantOversight: mayGrantOversight(actor) });
         // The rules a transition is judged by changed: a new version of the permissions set (roadmap #4).
-        await registerRuleSets(tx, undefined, `دسترسی نقش «${role.nameFa}»: ${r.added.length} داده، ${r.removed.length} گرفته${input.note ? ` — ${input.note}` : ''}`);
+        await registerRuleSets(tx, undefined, `دسترسی نقش «${role.nameFa}»: ${fa(r.added.length)} داده، ${fa(r.removed.length)} گرفته${input.note ? ` — ${input.note}` : ''}`);
         await audit({
           organizationId: actor.organizationId, actorId: actor.id, action: 'UPDATE', entityType: 'role', entityId: code,
           before: { removed: r.removed }, after: { added: r.added, permissions: r.row.permissions }, reason: input.note ?? null,

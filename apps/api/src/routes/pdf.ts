@@ -53,8 +53,9 @@ const pdfRoutes: FastifyPluginAsync = async (app) => {
     const footer = `${doc.titleFa} — استخراج توسط ${exporter?.fullName ?? '—'} در ${dateTime(new Date())}`;
     const pdf = await renderPdf(doc.html, {
       headerRight: doc.code,
-      landscape: policy.landscape,
+      landscape: doc.bare || policy.landscape,
       footerNote: footer,
+      bare: doc.bare,
     });
 
     await audit({

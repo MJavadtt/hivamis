@@ -128,7 +128,7 @@ function VoucherTable({ preview }: { preview: Preview }) {
           {preview.vouchers.map((v) => v.lines.map((l, i) => (
             <Tr key={`${v.kind}-${v.sourceId}-${i}`}>
               <Td className="text-[12.5px]">{i === 0 ? formatDate(v.date) : ''}</Td>
-              <Td className="text-[12.5px]">{i === 0 ? <><Badge tone={v.kind === 'REVERSAL' ? 'warning' : 'neutral'}>{KIND_FA[v.kind]}</Badge> <span className="ltr">{v.reference}</span><span className="block text-ink-500">{v.description}</span></> : ''}</Td>
+              <Td className="text-[12.5px]">{i === 0 ? <><Badge tone={v.kind === 'REVERSAL' ? 'warning' : 'neutral'}>{KIND_FA[v.kind]}</Badge> <span className="ltr whitespace-nowrap">{v.reference}</span><span className="block text-ink-500">{v.description}</span></> : ''}</Td>
               <Td className="text-[12.5px]">{trx(ACCOUNT_LABELS[l.account])} <span className="ltr text-ink-400">{preview.accounts[l.account] ?? tr('؟')}</span></Td>
               <Td className="ltr text-[12.5px]">{l.detail ?? ''}</Td>
               <Td className="text-[12.5px]">{l.debit ? rial(l.debit) : ''}</Td>

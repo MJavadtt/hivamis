@@ -79,6 +79,24 @@ describe('From booking to reconciliation', () => {
     expect((await post(`/projects/${projectId}/media-billing`, T.finance, { orderIds: [id], number: 'M-2', issueDate: new Date().toISOString() })).body.error.details.problems[0]).toContain('پیش‌تر صورت‌حساب');
   });
 
+  it('keeps its lines pass-through and commission when finance edits it — and no line may claim another invoice\'s order', async () => {
+    const inv = await prisma.invoice.findFirstOrThrow({ where: { number: 'M-1' } });
+    const lines = inv.lines as { description: string; quantity: number; unitPrice: number; passThrough: boolean; mediaOrderId: string }[];
+    // As the invoice dialog sends it: every line back, one description reworded.
+    const edited = lines.map((l, i) => (i === 1 ? { ...l, description: `${l.description} — اصلاح‌شده` } : l));
+    const after = expectOk(await patch(`/invoices/${inv.id}`, T.finance, { lines: edited }), 'edit');
+    expect(after.lines).toEqual([
+      expect.objectContaining({ passThrough: true, mediaOrderId: lines[0]!.mediaOrderId }),
+      expect.objectContaining({ passThrough: false, description: expect.stringContaining('اصلاح‌شده') }),
+    ]);
+    expect(Number(after.total)).toBe(1_200_000_000);
+    const other = expectOk(await order(T.media), 'another order');
+    await prisma.mediaOrder.update({ where: { id: other.id }, data: { clientInvoiceId: (await prisma.invoice.findFirstOrThrow({ where: { NOT: { id: inv.id } } })).id } });
+    const claim = await patch(`/invoices/${inv.id}`, T.finance, { lines: [{ ...edited[0]!, mediaOrderId: other.id }, edited[1]] });
+    expect(claim.body.error.code).toBe('INVOICE_MEDIA_ORDER');
+    await prisma.mediaOrder.update({ where: { id: other.id }, data: { clientInvoiceId: null } });
+  });
+
   it('confirms delivery with its proof, and earns the commission then — not the pass-through', async () => {
     expect((await move('mediaOrder', id, 'confirm_delivery', T.media)).status).toBe(400);    // proof is required
     expectOk(await move('mediaOrder', id, 'confirm_delivery', T.media, 'گواهی پخش ۲۰ نوبت از رسانه دریافت شد'), 'aired');

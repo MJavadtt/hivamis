@@ -425,6 +425,13 @@ it. Then the project's next button gives the go-ahead.
 
 - **Invoices and payments** — issue proformas and invoices; totals are computed server-side.
   Recording a receipt rolls the invoice to partially paid or paid automatically.
+- **Hiva or Khat-e Tireh** — a new invoice asks first which company issues it. The buyer is then read
+  from the client's record; complete or correct it on the invoice, and tick the box to also fill what
+  the client's record lacks. Each line takes its item code, unit and discount, and the terms of sale
+  are cash or credit. From the invoice's row, **Excel** gives that company's own form filled in, and
+  **PDF** the same form as one page. **مالی ← فروشندگان** holds what each company's form prints —
+  name, identifiers, address, bank — for the financial manager to correct; an invoice already issued
+  keeps what it printed.
 - **Settlement** — settling a project computes invoiced, received and balance, and ticks the
   financial condition on the closure checklist.
 - **Project financials** — Project 360 → Financial shows budget vs actual cost vs revenue, margin,

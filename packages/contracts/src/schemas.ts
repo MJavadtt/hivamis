@@ -3,9 +3,10 @@ import {
   DEPARTMENT_CODES, DELIVERABLE_KINDS, ROLE_CODES, PRIORITY_LEVELS, SEVERITY_LEVELS, CURRENCIES, MEDIA_CHANNELS, MEDIA_PRICING_MODELS,
   AUTHORIZATION_BASES, QC_LEVELS, QC_RESULTS, REVISION_REASONS,
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
-  BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS,
+  BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS, SALE_TERMS,
 } from './enums.js';
 import { DIRECT_CHANNELS, LEAD_REFERRER_KINDS, LEAD_SOURCE_KINDS, normalizeIranMobile } from './crm.js';
+import { latinDigits } from './i18n.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
 
@@ -151,6 +152,10 @@ export const createCompanySchema = z.object({
   website: z.string().trim().max(200).optional(),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(500).optional(),
+  /** Where the address is, as the invoice form asks it (ADR-125). */
+  province: z.string().trim().max(60).optional(),
+  county: z.string().trim().max(60).optional(),
+  city: z.string().trim().max(60).optional(),
   /** The client's code in the organisation's own books, e.g. H1001 (2026-10-28). */
   clientCode: z.string().trim().max(40).optional(),
   email: z.string().trim().email().max(200).optional(),
@@ -511,8 +516,54 @@ export const createAmendmentSchema = z.object({
   durationDeltaDays: z.coerce.number().int().default(0),
 });
 
+/** A bank's IBAN («شبا»): IR and 24 digits whose ISO 13616 check (mod 97) holds — one digit wrong fails it. */
+export function isValidIban(value: string): boolean {
+  const s = latinDigits(value).replace(/[\s-]/g, '').toUpperCase();
+  if (!/^IR\d{24}$/.test(s)) return false;
+  const moved = s.slice(4) + '1827' + s.slice(2, 4); // I=18, R=27
+  let rest = 0;
+  for (const ch of moved) rest = (rest * 10 + Number(ch)) % 97;
+  return rest === 1;
+}
+
+const optionalText = (max: number) => z.string().trim().max(max).nullish();
+/** Digits as typed, Persian or Latin, kept in Latin. */
+const digitsText = (max: number) => z.string().trim().max(max).transform((v) => latinDigits(v)).nullish();
+
+/** «مشخصات خریدار» as printed: read from the client's record, and what was typed over it (ADR-125). */
+export const invoiceBuyerSchema = z.object({
+  legalName: optionalText(200),
+  economicCode: digitsText(40),
+  nationalId: digitsText(40),
+  postalCode: digitsText(20),
+  province: optionalText(60),
+  county: optionalText(60),
+  city: optionalText(60),
+  address: optionalText(500),
+  phone: optionalText(80),
+});
+export type InvoiceBuyer = z.infer<typeof invoiceBuyerSchema>;
+
+/** One row of «مشخصات کالا یا خدمات»; the discount is an amount, in the line's currency, at most the row's total. */
+export const invoiceLineSchema = z.object({
+  code: z.string().trim().max(40).optional(),
+  description: z.string().trim().min(1).max(400),
+  quantity: z.coerce.number().min(0),
+  unit: z.string().trim().max(40).optional(),
+  unitPrice: z.coerce.number().min(0),
+  discount: z.coerce.number().min(0).optional(),
+  /**
+   * A media intermediary invoice's line (#31): media billed on a vendor's behalf, and the order it bills.
+   * Kept through an edit — dropped, the media's cost was counted as the agency's revenue.
+   */
+  passThrough: z.boolean().optional(),
+  mediaOrderId: idSchema.optional(),
+}).refine((l) => (l.discount ?? 0) <= l.quantity * l.unitPrice, { message: 'تخفیف یک ردیف از مبلغ کل آن بیشتر است', path: ['discount'] });
+
 export const createInvoiceSchema = z.object({
   kind: z.enum(INVOICE_KINDS),
+  /** The company it is issued in, and the form it is printed on (ADR-125). */
+  sellerId: idSchema.optional(),
   companyId: idSchema,
   projectId: idSchema.optional(),
   contractId: idSchema.optional(),
@@ -522,11 +573,11 @@ export const createInvoiceSchema = z.object({
   /** Line prices are in this currency; the base totals use the rate in force on issueDate. */
   currency: z.enum(CURRENCIES).optional(),
   taxPercent: z.coerce.number().min(0).max(100).default(0),
-  lines: z.array(z.object({
-    description: z.string().trim().min(1).max(400),
-    quantity: z.coerce.number().min(0),
-    unitPrice: z.coerce.number().min(0),
-  })).min(1),
+  lines: z.array(invoiceLineSchema).min(1),
+  buyer: invoiceBuyerSchema.optional(),
+  saleTerms: z.enum(SALE_TERMS).optional(),
+  /** Writes what the buyer's fields add to the client's record — only where it is still blank. */
+  fillCompany: z.boolean().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -536,7 +587,25 @@ export const createInvoiceSchema = z.object({
  */
 export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
   projectId: idSchema.nullish(), contractId: idSchema.nullish(), dueDate: z.coerce.date().nullish(),
-  notes: z.string().trim().max(2000).nullish(),
+  notes: z.string().trim().max(2000).nullish(), saleTerms: z.enum(SALE_TERMS).nullish(),
+});
+
+/** A company invoices are issued in (ADR-125): what its form prints in «مشخصات فروشنده», and its bank. */
+export const updateInvoiceSellerSchema = z.object({
+  shortName: z.string().trim().min(1).max(40),
+  legalName: z.string().trim().min(2).max(200),
+  economicCode: digitsText(20),
+  nationalId: digitsText(20),
+  province: optionalText(60),
+  county: optionalText(60),
+  city: optionalText(60),
+  address: optionalText(500),
+  postalCode: digitsText(20),
+  phone: optionalText(80),
+  bankName: optionalText(80),
+  accountNumber: digitsText(40),
+  iban: z.string().trim().max(40).transform((v) => latinDigits(v).replace(/[\s-]/g, '').toUpperCase()).nullish()
+    .refine((v) => !v || isValidIban(v), 'شمارهٔ شبا درست نیست: IR و ۲۴ رقم، که رقم کنترلی‌اش بخواند'),
 });
 
 export const createPaymentSchema = z.object({

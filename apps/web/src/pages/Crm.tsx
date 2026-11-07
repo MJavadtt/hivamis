@@ -24,6 +24,8 @@ import { BrandLibraryCard } from '../components/BrandLibrary';
 import { pair, tr, trx } from '../i18n';
 import { SuggestedForms } from '../components/SuggestedForms';
 
+/** A contact's kind in words — the list showed MEETING as the API spells it (screen sweep, 2026-11-07). */
+const ACTIVITY_KINDS: Record<string, string> = { CALL: tr('تماس'), MEETING: tr('جلسه'), EMAIL: tr('ایمیل'), VISIT: tr('بازدید'), NOTE: tr('یادداشت') };
 
 /* ── Leads ─────────────────────────────────────────────────────────────── */
 
@@ -425,6 +427,8 @@ export function CompanyDetail() {
                   <DescRow label={tr('تلفن')}><span className="ltr">{c.phone ?? '—'}</span></DescRow>
                   {c.email && <DescRow label={tr('ایمیل')}><span className="ltr">{c.email}</span></DescRow>}
                   <DescRow label={tr('وب‌سایت')}><span className="ltr">{c.website ?? '—'}</span></DescRow>
+                  {c.postalCode && <DescRow label={tr('کد پستی')}><span className="ltr">{c.postalCode}</span></DescRow>}
+                  {(c.province || c.county || c.city) && <DescRow label={tr('استان / شهرستان / شهر')}>{[c.province, c.county, c.city].map((x: string | null) => x || '—').join(' / ')}</DescRow>}
                   {c.address && <DescRow label={tr('آدرس')}>{c.address}</DescRow>}
                   <DescRow label={tr('مالک اکانت')}>{c.accountOwner?.fullName ?? '—'}</DescRow>
                   <DescRow label={tr('مالک فروش')}>{c.salesOwner?.fullName ?? '—'}</DescRow>
@@ -576,7 +580,7 @@ export function CompanyDetail() {
                   {data.activities.map((a: any) => (
                     <li key={a.id} className="px-4 py-3">
                       <div className="flex items-center justify-between gap-2">
-                        <Badge tone="neutral">{a.kind}</Badge>
+                        <Badge tone="neutral">{ACTIVITY_KINDS[a.kind] ?? a.kind}</Badge>
                         <span className="flex items-center gap-1 text-xs text-ink-400">{formatRelative(a.occurredAt)}<AttachButton target={onRecord('activity', a.id)} title={a.summary.slice(0, 40)} /></span>
                       </div>
                       <p className="mt-1 text-sm text-ink-700">{a.summary}</p>

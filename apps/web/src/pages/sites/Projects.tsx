@@ -283,7 +283,7 @@ function Lifecycle({ state }: { state: string }) {
     <ol aria-label={tr('مراحل پروژه')} className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-surface p-2 ring-1 ring-edge">
       {state === 'CANCELLED' ? <li className="px-2 text-sm font-semibold text-rose-700">{tr('این پروژه لغو شده است؛ سوابقش می‌ماند.')}</li> : STATES.map((s, i) => (
         <li key={s} aria-current={i === at ? 'step' : undefined}
-          className={cx('whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold', i < at ? 'bg-emerald-50 text-emerald-800' : i === at ? 'bg-brand-600 text-white' : 'text-ink-400')}>
+          className={cx('whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold', i < at ? 'bg-emerald-50 text-emerald-800' : i === at ? 'bg-brand-100 text-brand-800 ring-1 ring-brand-500' : 'text-ink-400')}>
           {localDigits(i + 1)}. {trx(stateLabelFa(s))}
         </li>
       ))}

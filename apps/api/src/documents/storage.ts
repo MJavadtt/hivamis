@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { statfs, unlink } from 'node:fs/promises';
+import { stat, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
@@ -26,6 +26,18 @@ const diskFull = () => new AppError(507, 'DISK_FULL', 'فضای دیسک سرو�
 export async function assertDiskFor(adding: number): Promise<void> {
   const { bavail, bsize } = await statfs(path.resolve(env.STORAGE_DIR));
   if (bavail * bsize - adding < env.STORAGE_RESERVE_MB * MB) throw diskFull();
+}
+
+/**
+ * A file about to be sent is on disk, or the answer says why not. Without this the static handler
+ * answered a missing file with Fastify's «Route GET:… not found», in English, as if the address were wrong:
+ * a file purged after its retention (FILE_RETENTION_DAYS), or a database restored without its files.
+ */
+export async function assertStoredFile(doc: { storedName: string; purgedAt?: Date | null }, root: string): Promise<void> {
+  if (doc.purgedAt) throw new AppError(410, 'FILE_PURGED', 'فایل این سند پس از حذف، در پایان دورهٔ نگهداری پاک شده است.');
+  const target = path.join(root, doc.storedName);
+  const there = target.startsWith(root + path.sep) && (await stat(target).then((s) => s.isFile(), () => false));
+  if (!there) throw new AppError(404, 'FILE_MISSING', 'فایل این سند روی سرور پیدا نشد؛ با مدیر نصب هماهنگ کنید.');
 }
 
 /** Whether a stored file may be read whole: whatever does so holds it in the memory every request shares. */

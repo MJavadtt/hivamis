@@ -3220,5 +3220,14 @@
   "محتوای فایل با نوعش نمی‌خواند؛ شاید خراب است یا پسوندش عوض شده.": "The file's content doesn't match its kind; it may be damaged, or its extension may have been changed.",
   "فضای دیسک سرور برای این فایل کافی نیست؛ با مدیر نصب هماهنگ کنید.": "The server's disk does not have room for this file; speak to whoever runs the installation.",
   "حجم فایل برای گنجاندن در PDF زیاد است": "The file is too large to include in a PDF",
-  "فایل «{0}» برای امضای الکترونیکی بزرگ است؛ نسخهٔ سبک‌تری از PDF را بارگذاری کنید.": "«{0}» is too large for e-signature; upload a lighter PDF."
+  "فایل «{0}» برای امضای الکترونیکی بزرگ است؛ نسخهٔ سبک‌تری از PDF را بارگذاری کنید.": "«{0}» is too large for e-signature; upload a lighter PDF.",
+  "فروشنده": "Seller",
+  "این سند هنوز فروشنده ندارد: ویرایشش کنید و «هیوا» یا «خط تیره» را برگزینید.": "This invoice has no seller yet: edit it and choose «Hiva» or «Khat-e Tireh».",
+  "این سند به خروجی حسابداری رفته است؛ مبلغ، مشتری، فروشنده، نوع و تاریخش دیگر عوض نمی‌شود — آن را باطل کنید و سند تازه صادر کنید.": "This invoice is in the accounting export; its amount, client, seller, type and date can no longer change — cancel it and issue a new one.",
+  "این فاکتور به نام «{0}» صادر شده، ولی مشخصات مؤدیِ ثبت‌شده در «سامانهٔ مؤدیان» مال شرکت دیگری است؛ فاکتورِ این شرکت از اینجا گزارش نمی‌شود": "This invoice was issued in «{0}», but the taxpayer profile under «Moadian» belongs to the other company; this company's invoices are not reported from here",
+  "تخفیف یک ردیف از مبلغ کل آن بیشتر است": "A line's discount is more than its total",
+  "شمارهٔ شبا درست نیست: IR و ۲۴ رقم، که رقم کنترلی‌اش بخواند": "The IBAN is not valid: IR and 24 digits, whose check digits hold",
+  "سفارش رسانه‌ای که ردیف نام می‌برد از این سازمان یا این صورت‌حساب نیست.": "The media order a line names is not of this organisation or this invoice.",
+  "فایل این سند پس از حذف، در پایان دورهٔ نگهداری پاک شده است.": "This document's file was removed at the end of its retention period, after it was deleted.",
+  "فایل این سند روی سرور پیدا نشد؛ با مدیر نصب هماهنگ کنید.": "This document's file was not found on the server; contact your installation's administrator."
 }

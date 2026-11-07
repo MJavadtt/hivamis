@@ -3830,3 +3830,106 @@ a second; 3 GiB with 500 MB of disk left was refused in 6 s; a body with no decl
 private window holds it in memory and stops near 2 GiB, which now says so; Firefox and Safari were not tried.
 There is no progress bar, and closing the tab stops an upload, which cannot resume. A proxy in front of `web`
 keeps its own limit until it is dropped too.
+
+
+## ADR-125 — Invoices are issued in هیوا or خط تیره, on that company's own form
+
+**Context.** The owner (2026-11-07), with two workbooks, «فاکتور هیوا.xlsx» and «فاکتور خط تیره.xlsx»:
+"For the company's invoices, the user first chooses Hiva or Khat-e Tireh, then the data is entered or read
+from the client's data, then the invoice comes out in this same format." The two are the official Iranian
+sales-invoice layout, each with its company's details, fonts and borders; an invoice had no seller at all,
+its lines no goods code, unit or discount, and its PDF was the system's general layout.
+
+**Decision.**
+- **A seller per form.** `InvoiceSeller` holds a company invoices are issued in, one per form and
+  organisation, made by the reference sync from what the owner's files printed and never touched by it
+  again: its details are finance's (`PUT /invoice-sellers/:id`, `finance.settle`, audited) to correct. An
+  invoice names its seller and keeps `sellerDetails` as they stood when it was issued; a draft follows a
+  correction, an issued invoice keeps what it printed.
+- **The seller first.** A new invoice opens on the choice of company and shows nothing else until it is
+  made. The buyer is then read from the client (`GET /invoices/buyer/:companyId`) and can be completed or
+  typed over; it is kept on the invoice as printed (`buyer`). With «fill the client's blanks» on, what it
+  adds goes back to the client's record — only into fields still blank there, audited as the client's
+  change. A client gains `province`, `county` and `city`, which the form asks for.
+- **The lines the form has.** A line gains its goods code, unit and discount; the discount comes off before
+  the tax, as the form computes (7 − 8), and may not exceed its line. The tax system is told it (`dis`,
+  `tdis`), and a 13-digit goods code is the line's service code.
+- **The owner's own workbook is the output.** `src/invoices/forms/*.xlsx` are the owner's files, emptied
+  where an invoice is written: every border, font, drawing and print setting as they made them. The server
+  edits the sheet's XML in those cells and nowhere else: digits into their boxes, the amounts as live
+  formulas with their values beside them, rows added below the last line row for a longer invoice with
+  everything beneath — merges, drawings, the print area — moved down. A wrapped text grows its row, since
+  Excel cannot fit a merged cell itself.
+- **The PDF is drawn from that workbook,** cell by cell, so the two say the same thing in the same place. It
+  is set in the bundled Vazirmatn, since a server has none of the owner's fonts; a value too long for its
+  cell wraps rather than being cut; numbers keep Excel's left-to-right order in Persian digits; and a form a
+  little taller than the page is shrunk onto one, as Excel's fit-to-page would. It prints with no running
+  header or footer: it is the company's document, and the export is in the audit trail.
+- **Two taxpayers, one profile.** The taxpayer profile is one company's. An invoice of the other is refused
+  with a problem naming it (`tins`) rather than reported under this one's number.
+
+**What the owner's files were changed in, and why.** The sheet is named «فاکتور», not after the last client
+it was used for; the author, the Canon driver settings, the calculation cache and a desktop path are gone,
+and the strings no cell used any more were emptied; the fixed «*» box beside «نقدی» is gone and the sale
+terms are marked `[*]` in the text, since the invoice decides which applies; the one line row of خط تیره has
+a thin bottom edge, so it repeats cleanly (the totals row draws the thick one); text cells wrap; the number
+goes in the header's empty cell; خط تیره's page is set to A4.
+
+**Found in the owner's data, and reported to them.** The IBAN خط تیره's file printed fails its check digits;
+the one beside it, from the account number printed in the same line, passes and is used. Both national IDs
+fail the standard check digit, which all eleven of the clients' IDs on file pass. Both companies show the
+same postal code, though one is in Qeshm and one in Tehran. خط تیره's address says «خیابن». None of these
+was changed beyond the IBAN.
+
+**Alongside, found while testing.** Editing a media intermediary invoice (#31, ADR-110) dropped its lines'
+`passThrough` and `mediaOrderId`, since the line schema did not carry them: from the next save on, the
+media's cost counted as the agency's revenue, in revenue recognition and in the accounting vouchers. A line
+now keeps both through an edit; a `mediaOrderId` must be one of the organisation's orders and, on an edit,
+one this invoice bills or none yet (`INVOICE_MEDIA_ORDER`).
+
+**Limits.** Accounting export does not yet separate the two companies' books. The PDF is not in the owner's
+fonts. An invoice from before has no seller: its Excel is refused until one is chosen, and its PDF keeps
+the general layout.
+
+
+## ADR-126 — What testing the whole project as every user found (2026-11-07)
+
+**Context.** The owner, after ADR-125: test the whole project from the view of every user, engineer and
+stakeholder, again and again, until it works without a flaw. Each round: the type check, every API and web
+test, the tenant and unbounded-read scans; every page as each of the twelve roles on a desktop and a phone
+(`scripts/screen-sweep.ts`); every page each role is shown, for a part the server refuses it
+(`scripts/visibility-audit.ts`); contrast in light and dark (`scripts/contrast-audit.ts`); and the invoice
+journey end to end in Chromium — all on the test copy, never on the owner's data.
+
+**Found and fixed.**
+- **Media pass-through was lost on an edit** (#31): see ADR-125. The costliest: revenue and the accounting
+  export counted a vendor's media as the agency's income from the next save of a media invoice.
+- **A file gone from the disk answered «Route GET:… not found»** in English, as if the address were wrong —
+  a file purged after its retention, or a database restored without its files. Download and preview now
+  answer `FILE_PURGED` (410) or `FILE_MISSING` (404), in Persian.
+- **A stack with the reference sync off had no invoice sellers,** so issuing stopped at its first step; they
+  are made where they are read, and an empty list says so.
+- **The company chosen was kept in the page's draft, not the dialog's,** so the dialog did not say a draft
+  was brought back and «حذف پیش‌نویس» left it.
+- **A download took the plain name a server sends old browsers** (`invoice-F-12.xlsx`) rather than the full
+  one (`filename*`, «فاکتور F-12.xlsx»).
+- **A refused field said only that something was wrong:** the sellers' form now says what (a wrong IBAN).
+- **A seller saved with fewer fields cleared the rest;** what is not sent is now left as it was.
+- **On a phone, booking and voucher codes broke over two lines;** they stay whole.
+- **The invoice list ran wider than its card at 1440 px;** the seller sits under the type, Excel and PDF
+  beside the row's other actions.
+- **«MEETING» on a client's communications tab,** as the API spells it; now in words.
+- **A role's access note in the rule versions carried Latin digits** among Persian words; now Persian.
+- **The current step of a rental project read 2.78:1 in the dark** (white on the lifted violet); it is
+  drawn as the other step bars are, 8.1:1 light and 10.1:1 dark.
+
+**Clean.** The visibility audit found no part of any screen the server refuses to any of the twelve roles.
+API 930/930, web 466/466.
+
+**Seen and left, as data, not the app:** five test leads named «سرنخ 1…5»; on the test copy, a brand image
+whose file is not on its disk (the page shows an empty frame, no error); stored texts — a sent SMS, a brief's
+answers — shown as they were written.
+
+**Not covered:** Firefox and Safari; the owner's server; the client portal's own pages beyond what the
+sweeps open; and the Excel output opened in Excel itself (it was read back with openpyxl and exceljs, and
+the forms were previewed by Quick Look).

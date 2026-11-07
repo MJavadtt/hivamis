@@ -212,7 +212,7 @@ without a model.
 | Delivery | `projects`, `execution_authorizations`, `milestones`, `raci_assignments`, `work_orders`, `tasks`, `deliverables` |
 | Quality | `qc_reviews`, `revisions` |
 | Governance | `change_requests`, `risks`, `issues`, `decisions`, `meetings`, `status_reports` |
-| Legal & finance | `contracts`, `amendments`, `invoices`, `payments`, `settlements` |
+| Legal & finance | `contracts`, `amendments`, `invoices`, `invoice_sellers`, `payments`, `settlements` |
 | Resources | `suppliers`, `supplier_evaluations`, `outsource_requests`, `allocations` |
 | Closure | `closure_checklists`, `feedbacks`, `lessons_learned` |
 | Engines | `form_definitions`, `form_submissions`, `form_approvals`, `sla_policies`, `sla_clocks` |
