@@ -4,6 +4,7 @@ import {
   scopeReviewSchema, commercialImpactSchema, paginationSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { badRequest, forbidden, notFound, GovernanceError } from '../lib/errors.js';
@@ -28,12 +29,12 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { level, verdict, deliverableId, proposalId, projectId } = req.query as Record<string, string | undefined>;
-    const where = {
+    const where = narrowed('qcReview', await reachFor(req, actor), {
       organizationId: actor.organizationId,
       ...(level ? { level } : {}), ...(verdict ? { verdict } : {}),
       ...(deliverableId ? { deliverableId } : {}), ...(proposalId ? { proposalId } : {}),
       ...(projectId ? { deliverable: { projectId } } : {}),
-    };
+    });
     const [items, total] = await Promise.all([
       prisma.qcReview.findMany({
         where,
@@ -292,10 +293,12 @@ const qualityRoutes: FastifyPluginAsync = async (app) => {
     };
     // The lists capped, oldest first (audit PERF-4); the counts counted, so they stay true when a list is cut.
     const org = actor.organizationId;
-    const unitWhere = { organizationId: org, state: 'SUBMITTED' };
-    const accountWhere = { organizationId: org, state: 'IN_QC' };
-    const finalWhere = { organizationId: org, state: 'FINAL_QC' };
-    const revisionWhere = { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] } };
+    // ADR-127: the queue of what this person sees.
+    const reach = await reachFor(req, actor);
+    const unitWhere = narrowed('deliverable', reach, { organizationId: org, state: 'SUBMITTED' });
+    const accountWhere = narrowed('deliverable', reach, { organizationId: org, state: 'IN_QC' });
+    const finalWhere = narrowed('proposal', reach, { organizationId: org, state: 'FINAL_QC' });
+    const revisionWhere = narrowed('revision', reach, { organizationId: org, state: { notIn: ['APPROVED', 'REJECTED'] } });
     const [awaitingUnit, awaitingAccount, awaitingFinal, openRevisions, counted] = await Promise.all([
       prisma.deliverable.findMany({
         where: unitWhere, include: { project: { select: { id: true, code: true, name: true } }, qcReviews: unitReview },

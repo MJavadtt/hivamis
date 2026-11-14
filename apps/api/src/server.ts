@@ -7,6 +7,7 @@ import { demoAccountGate } from './lib/demo-accounts.js';
 import { shutdownPdfEngine } from './pdf/renderer.js';
 import { syncReference } from './setup/reference.js';
 import { APP_VERSION } from './version.js';
+import { warmUp } from './ai/ollama.js';
 
 const app = await buildApp();
 
@@ -56,6 +57,7 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 try {
   await app.listen({ port: env.PORT, host: env.HOST });
   app.log.info(`Hivamis API listening on http://${env.HOST}:${env.PORT}`);
+  if (env.CHAT_MODE === 'ollama' && env.NODE_ENV !== 'test') void warmUp(app.log);
 } catch (err) {
   app.log.error({ err }, 'failed to start server');
   process.exit(1);

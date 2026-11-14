@@ -15,6 +15,7 @@ import { formatRelative, localDigits } from '../lib/format';
 import { AssigneePicker } from './AssigneePicker';
 import { EditRecordButton, QuickCreateButton, RECORD_KINDS } from './QuickCreate';
 import { flow, loc, tr, trx } from '../i18n';
+import { StepBackBar } from './StepBack';
 
 /* ── Workflow action bar ───────────────────────────────────────────────── */
 
@@ -66,7 +67,8 @@ export function WorkflowActions({
     preflight?.transitions?.find((t) => t.action === action)?.checks ?? [];
   const blocked = (transitions ?? []).filter((t) => checksFor(t.action).some((c) => !c.ok));
 
-  if (!transitions?.length && (!systemAdmin || minimal)) return null;
+  // The way back stays on a record's own page even when no move forward is the caller's (ADR-128).
+  if (!transitions?.length && (!systemAdmin || minimal)) return minimal ? null : <StepBackBar entity={entity} id={id} onDone={onDone} />;
 
   const prompt = PAYLOAD_PROMPTS[`${entity}.${pending?.action ?? ''}`];
   const run = async (t: Transition, why?: string) => {
@@ -139,6 +141,7 @@ export function WorkflowActions({
         {/* Every part of the record, the system administrator's to change (the owner's instruction, 2026-10-30). */}
         {!minimal && RECORD_KINDS.some((k) => k.key === entity) && <EditRecordButton path={RECORD_KINDS.find((k) => k.key === entity)!.path} id={id} />}
       </div>
+      {!minimal && <StepBackBar entity={entity} id={id} onDone={onDone} />}
 
       {!minimal && blocked.length > 0 && (
         <div className="mt-2 space-y-2" data-testid="preflight">

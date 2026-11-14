@@ -182,6 +182,11 @@ export const PERMISSIONS = {
   'portal.manage': 'مدیریت پورتال مشتری',
   // Brand library (roadmap #42)
   'brand.manage': 'مدیریت کتابخانهٔ برند مشتری',
+  // Whose records a person sees (the owner, 2026-11-14; ADR-127). Without one of these, a person sees
+  // the records they own, are assigned to or made — and what hangs off them.
+  'record.see_unit': 'دیدن پرونده‌های همکاران واحد خود',
+  'record.see_commercial': 'دیدن همهٔ مشتریان، پروژه‌ها، قراردادها و فاکتورها (کار مالی و حقوقی)',
+  'record.see_all': 'دیدن پرونده‌های همهٔ همکاران',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -194,8 +199,14 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
  * never delegated and never put on an API key, and each use is recorded with its reason.
  */
 export const OVERSIGHT_PERMISSIONS: readonly Permission[] = ['chat.oversight'];
-/** What a full-access role holds: everything but oversight, which is always someone's explicit grant. */
-export const FULL_ACCESS_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p));
+/**
+ * How far a person sees others' records (ADR-127). Not part of «everything»: a full-access role sees
+ * the whole organisation only if it is one of SEE_ALL_ROLES; the account manager, who heads a unit,
+ * sees that unit.
+ */
+export const RECORD_SCOPE_PERMISSIONS: readonly Permission[] = ['record.see_unit', 'record.see_commercial', 'record.see_all'];
+/** What a full-access role holds: everything but oversight, which is always someone's explicit grant, and how far it sees. */
+export const FULL_ACCESS_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p) && !RECORD_SCOPE_PERMISSIONS.includes(p));
 /** The role whose holders alone may give an oversight permission. */
 export const OVERSIGHT_GRANTOR_ROLE = 'SUPER_ADMIN';
 
@@ -314,6 +325,11 @@ export const NON_KEY_PERMISSIONS: Permission[] = [
  * exception (waiver) remains the way past one.
  */
 export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY', 'ACCOUNT_MANAGER'];
+/** «مدیران بالاتر»: who sees every colleague's records whatever is granted (the owner, 2026-11-14; ADR-127). */
+export const SEE_ALL_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY'];
+/** What each full-access role holds: everything, and as far as it sees. */
+const fullAccessFor = (role: RoleCode): Permission[] =>
+  [...FULL_ACCESS_PERMISSIONS, ...(SEE_ALL_ROLES.includes(role) ? ['record.see_all' as const] : ['record.see_unit' as const])];
 
 /**
  * Every other role's permissions are what the organisation's system administrator grants. These are
@@ -323,25 +339,25 @@ export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DE
 const EVERYONE: Permission[] = ['ai.chat', 'ai.write', 'ai.image', 'chat.use', 'meeting.book'];
 
 export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
-  SUPER_ADMIN: FULL_ACCESS_PERMISSIONS,
-  CEO: FULL_ACCESS_PERMISSIONS,
-  DEPUTY: FULL_ACCESS_PERMISSIONS,
+  SUPER_ADMIN: fullAccessFor('SUPER_ADMIN'),
+  CEO: fullAccessFor('CEO'),
+  DEPUTY: fullAccessFor('DEPUTY'),
   SALES_MANAGER: [
-    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', 'meeting.approve', ...EVERYONE,
+    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE,
   ],
   SALES_REP: [...SALES_CORE, ...EVERYONE],
-  ACCOUNT_MANAGER: FULL_ACCESS_PERMISSIONS,
+  ACCOUNT_MANAGER: fullAccessFor('ACCOUNT_MANAGER'),
   ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'proposal.unit_approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', ...EVERYONE],
+  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'proposal.unit_approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', 'record.see_all', ...EVERYONE],
   PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', 'rental.approve', ...EVERYONE],
-  FINANCE_SPECIALIST: [...FINANCE_CORE, ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', 'rental.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
+  FINANCE_SPECIALIST: [...FINANCE_CORE, 'record.see_commercial', ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', 'site.contract.approve', ...EVERYONE],
-  LEGAL_SPECIALIST: [...LEGAL_CORE, ...EVERYONE],
+  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', 'site.contract.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
+  LEGAL_SPECIALIST: [...LEGAL_CORE, 'record.see_commercial', ...EVERYONE],
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };
 
@@ -357,7 +373,7 @@ export function effectiveRoleMap(granted: Partial<Record<string, readonly string
   const known = (ps: readonly string[]) => ps.filter((p): p is Permission => p in PERMISSIONS);
   for (const role of Object.keys(ROLE_PERMISSIONS) as RoleCode[]) {
     out[role] = FULL_ACCESS_ROLES.includes(role)
-      ? FULL_ACCESS_PERMISSIONS
+      ? fullAccessFor(role)
       : (granted[role] ? known(granted[role]!) : ROLE_PERMISSIONS[role]);
   }
   // An organisation's own roles (audit F-3) hold exactly what they were granted — there is no default.
@@ -408,5 +424,6 @@ export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }
   { key: 'rules', fa: 'قوانین سازمان', en: "Organisation's rules" },
   { key: 'portal', fa: 'پورتال مشتری', en: 'Client portal' },
   { key: 'brand', fa: 'کتابخانهٔ برند', en: 'Brand library' },
+  { key: 'record', fa: 'دیدن پرونده‌های دیگران', en: "Seeing others' records" },
 ];
 export const permissionGroup = (p: string) => p.split('.')[0]!;

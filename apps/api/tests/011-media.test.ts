@@ -49,9 +49,8 @@ describe('The money in a media order', () => {
     expect(o.code).toMatch(/^MO-/);
     expect(o.state).toBe('DRAFT');
     expect([Number(o.clientAmount), Number(o.netAmount), Number(o.agencyRevenue)]).toEqual([1_000_000_000, 850_000_000, 150_000_000]);
-    const refused = await move('mediaOrder', o.id, 'book', T.designer);
-    expect(refused.status).toBe(422);
-    expect(refused.body.error.message).toContain('واحد رسانه');
+    // A unit role outside the media unit does not even see the order (ADR-127).
+    expect((await move('mediaOrder', o.id, 'book', T.designer)).status).toBe(404);
   });
 });
 

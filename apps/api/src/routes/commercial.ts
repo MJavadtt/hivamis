@@ -5,6 +5,7 @@ import {
   createPaymentSchema, paginationSchema, updateInvoiceSchema, updateInvoiceSellerSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { AppError, badRequest, notFound } from '../lib/errors.js';
@@ -123,11 +124,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { state, kind, companyId, projectId, sellerId } = req.query as Record<string, string | undefined>;
-    const where = {
+    const where = narrowed('invoice', await reachFor(req, actor), {
       organizationId: actor.organizationId,
       ...(state ? { state } : {}), ...(kind ? { kind } : {}),
       ...(companyId ? { companyId } : {}), ...(projectId ? { projectId } : {}), ...(sellerId ? { sellerId } : {}),
-    };
+    });
     const [items, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -377,11 +378,11 @@ const commercialRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { direction, projectId, invoiceId } = req.query as Record<string, string | undefined>;
-    const where = {
+    const where = narrowed('payment', await reachFor(req, actor), {
       organizationId: actor.organizationId,
       ...(direction ? { direction } : {}), ...(projectId ? { projectId } : {}),
       ...(invoiceId ? { invoiceId } : {}),
-    };
+    });
     const [items, total] = await Promise.all([
       prisma.payment.findMany({
         where, include: { invoice: { select: { id: true, number: true, total: true } } },

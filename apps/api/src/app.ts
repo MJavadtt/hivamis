@@ -1,4 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { guardRecordRoutes, setReadPermissions } from './auth/visibility.js';
+import { WORKFLOW_READ_PERMISSION } from '@hiva/contracts';
+import { DOCUMENT_POLICIES } from './pdf/access.js';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -191,6 +194,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.get('/health/live', async () => ({ status: 'alive' }));
 
   await app.register(async (api) => {
+    // ADR-127: a record out of the caller's reach is as absent as one that does not exist.
+    setReadPermissions({ entity: (e) => WORKFLOW_READ_PERMISSION[e], kind: (k) => (DOCUMENT_POLICIES as Record<string, { permissions: readonly string[] }>)[k]?.permissions });
+    guardRecordRoutes(api);
     await api.register(authRoutes);
     await api.register(workflowRoutes);
     await api.register(crmRoutes);

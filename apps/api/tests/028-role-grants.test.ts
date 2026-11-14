@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ALL_PERMISSIONS, OVERSIGHT_PERMISSIONS, ROLE_PERMISSIONS } from '@hiva/contracts';
+import { ALL_PERMISSIONS, OVERSIGHT_PERMISSIONS, ROLE_PERMISSIONS, RECORD_SCOPE_PERMISSIONS } from '@hiva/contracts';
 import { call, closeApp, expectOk, get, login, put, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { forgetGrants } from '../src/auth/grants.js';
@@ -26,10 +26,13 @@ describe('Who may do what', () => {
   afterAll(async () => { await closeApp(); });
 
   it('gives the managing director, deputy, system administrator and account manager the whole system — but oversight', async () => {
-    for (const email of ['ceo', 'deputy', 'admin', 'account.manager']) {
+    // Every permission but oversight, and how far each sees others' records (ADR-127): the managing
+    // director, deputy and system administrator everyone's; the account manager, who heads a unit, that unit's.
+    const everything = ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p) && !RECORD_SCOPE_PERMISSIONS.includes(p));
+    for (const [email, scope] of [['ceo', 'record.see_all'], ['deputy', 'record.see_all'], ['admin', 'record.see_all'], ['account.manager', 'record.see_unit']] as const) {
       const me = expectOk(await get('/auth/me', await login(`${email}@hiva.local`)), email);
       // Reading others' conversations is nobody's by default (audit F-5).
-      expect([...me.permissions].sort(), email).toEqual(ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p)).sort());
+      expect([...me.permissions].sort(), email).toEqual([...everything, scope].sort());
     }
     const roles = expectOk(await get('/roles', T.sales), 'roles');
     expect(roles.filter((r: any) => r.fullAccess).map((r: any) => r.code).sort()).toEqual(['ACCOUNT_MANAGER', 'CEO', 'DEPUTY', 'SUPER_ADMIN']);

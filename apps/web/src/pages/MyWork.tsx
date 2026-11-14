@@ -7,6 +7,7 @@ import { apiGet } from '../lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { PageBody, PageHeader } from '../components/Shell';
 import { WorkCard } from '../components/WorkCard';
+import { StepBackInbox } from '../components/StepBack';
 import { Button, Card, EmptyState, ErrorBlock, LoadingBlock } from '../components/ui';
 import { localDigits } from '../lib/format';
 import { fallbackInterval, useLiveStatus } from '../lib/live';
@@ -89,6 +90,7 @@ export default function MyWork() {
               ))}
             </div>
 
+            {!forId && <StepBackInbox />}
             <div data-tour="work-list" className="space-y-6" data-testid="my-work">
               {!all.length ? (
                 <Card><EmptyState title={tr('کاری در صف شما نیست')} description={tr('هر کاری که به شما سپرده شود، یا منتظر تصمیم شما باشد، همین‌جا می‌آید.')} /></Card>

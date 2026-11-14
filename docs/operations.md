@@ -163,13 +163,15 @@ come from `tenant:create`, as the installer does.
 | `CHAT_MODE` | no | `ollama` | The chat assistant (Hivamis task 5): `ollama`, a model served by Ollama, or `off`. See [The chat assistant](#the-chat-assistant-local-model) |
 | `OLLAMA_URL` | no | `http://127.0.0.1:11434`; `http://ollama:11434` in Compose | Where Ollama listens. Keep it on the server or the internal network; what people ask is sent there |
 | `OLLAMA_MODEL` | no | `qwen3:8b`; in Compose, chosen by the installer for the machine (ADR-097) | A model that supports tool calling and writes Persian |
-| `OLLAMA_NUM_CTX` | no | `16384`; the installer sets 32768 for `qwen3:30b` | How much the model reads at once, in tokens: prompt, tools, history and tool answers. Too few, and the model loses its tools |
+| `OLLAMA_NUM_CTX` | no | `16384`; the installer sets 32768 for the 30b | How much the model reads at once, in tokens: prompt, tools, history and tool answers. Too few, and the model loses its tools |
 | `COMPOSE_PROFILES` | no (Compose) | `ai` | The model's service: `ai` on the CPU, `ai-gpu` on NVIDIA GPUs, empty for none (audit F-1) |
-| `OLLAMA_KEEP_ALIVE` | no (Compose) | `30m` | How long the model stays loaded after the last question |
+| `OLLAMA_KEEP_ALIVE` | no | `30m` | How long the model stays loaded after the last question: `30m`, `24h`, or `-1` for always (an office server). The API also loads the model as it starts (ADR-129) |
+| `OLLAMA_NUM_PARALLEL` | no (Compose) | 1; the installer sets it with `CHAT_CONCURRENCY` | How many answers Ollama writes together. Keep it equal to `CHAT_CONCURRENCY` |
 | `IMAGE_MODE` | no | `off` | Pictures with the assistant (audit F-2): `local`, a self-hosted LocalAI server, or `off`. See [Pictures](#pictures) |
 | `IMAGE_URL` | no | `http://127.0.0.1:8080`; `http://imagegen:8080` in Compose | Where the picture server listens. Keep it on the internal network |
 | `IMAGE_MODEL` | no | `sd-1.5-ggml` | The picture model, by its LocalAI gallery name. Check its licence (below) |
-| `CHAT_CONCURRENCY` | no | 1 | How many answers are written at once. Further questions wait their turn and are told their place |
+| `CHAT_CONCURRENCY` | no | 1; the installer sets 4 on a CPU of 48 GB with the 30b (ADR-129) | How many answers are written at once. Further questions wait their turn and are told their place |
+| `PUBLIC_HOST` | no | — | The name colleagues outside the office use (ADR-129); set by `hivamis remote HOST`, with the `https` profile. See [Reached from outside the office](#reached-from-outside-the-office) |
 | `REFERENCE_SYNC` | no | `on` | Roadmap #50: on start, bring every organisation's reference data — roles, units, SLA policies, the form catalogue — up to the code. `off` leaves it to `cli reference:sync` |
 | `TENANT_MODE` | no | `single` | Roadmap #50: `single`, one organisation; `multi`, several, each found by its host names. See [Several organisations](#several-organisations) |
 | `APP_VERSION` | no | the API package's version | Shown by `/health` and `status`, written into each reference sync. `hivamis upgrade` sets it from `git describe` |
@@ -309,6 +311,40 @@ so a server reached at `http://its-address` keeps people signed in. But over pla
 and the session travel in the clear, and browsers withhold service workers and notices on the phone.
 Run it with a domain: `install --domain hivamis.example.com`, a certificate in front of port 8080 (a
 reverse proxy or the host's own nginx with Let's Encrypt), and `X-Forwarded-Proto` passed through.
+
+## Reached from outside the office
+
+Colleagues who work elsewhere reach the server through the office router (the owner's choice,
+2026-11-14; ADR-129). What is on the internet is HTTPS only:
+
+```bash
+infrastructure/hivamis remote crm.example.ir
+```
+
+1. It sets `PUBLIC_HOST`, `PUBLIC_APP_URL=https://crm.example.ir`, keeps the office's own address in
+   `CORS_ORIGIN`, adds the `https` profile, and starts `proxy` (Caddy) on ports 80 and 443.
+2. On the router, forward TCP 80 and 443 (and UDP 443) to the server's office address.
+3. At the domain's DNS, an A record for the name, pointing at the office's fixed public address.
+   Without a fixed address, a dynamic DNS name does the same.
+4. Caddy fetches the certificate from Let's Encrypt and renews it by itself:
+   `docker compose logs -f proxy` shows it arrive.
+
+- `/api` goes straight to the API in one hop, so `TRUST_PROXY=1` still reads the client's own
+  address (Caddy ignores an `X-Forwarded-For` a client sends) and the login limits count each person.
+- Port 8080 stays the office's way in, unchanged. Inside the office the name works too when the
+  router sends its own public address back in (NAT loopback); otherwise use the office address.
+- Only 80 and 443 are forwarded: never 8080, 5432 or the SSH port.
+- `infrastructure/hivamis remote off` takes it away; `remote` alone says how it stands.
+
+## A fresh start that keeps the colleagues
+
+`infrastructure/hivamis reset --keep-people --admin EMAIL` (ADR-130) deletes everything the work made
+— clients and their people, leads, deals, briefs, proposals, projects, tasks, contracts, invoices,
+payments, files, the venues database, chats, notifications and the assistant's conversations — and
+keeps every colleague as they are (roles, unit, position, photo, sign-ins), what the organisation is,
+the suppliers and their evaluations, the marketers and referring companies, the two invoice sellers,
+and the history. It says what it will delete, asks for `RESET`, backs up, then begins. No password
+changes and nobody is signed out.
 
 ## A clean start for an organisation
 
@@ -953,16 +989,18 @@ The stack carries the model server as the `ollama` service:
   the internet, and it runs only when asked.
 
 The installer sizes the model to the machine and writes the choice to `.env` (ADR-097). It uses the
-GPU's memory when an NVIDIA GPU is present, and the machine's memory otherwise. `qwen3:30b` is a
+GPU's memory when an NVIDIA GPU is present, and the machine's memory otherwise. The 30b is a
 mixture of experts: 30B parameters with about 3B at work for each word, so it is stronger than the
-dense 14b and several times faster.
+dense 14b and several times faster. Its instruct build, `qwen3:30b-a3b-instruct-2507-q4_K_M`, answers at once;
+plain `qwen3:30b` thinks before every answer whatever it is asked, and on a CPU that thinking was most
+of the wait (ADR-129).
 
 | On | Memory | `OLLAMA_MODEL` | `OLLAMA_NUM_CTX` | Download |
 | --- | --- | --- | --- | --- |
-| GPU | 20 GB or more | `qwen3:30b` | 32768 | ~19 GB |
+| GPU | 20 GB or more | `qwen3:30b-a3b-instruct-2507-q4_K_M` | 32768 | ~18 GB |
 | GPU | 10–19 GB | `qwen3:14b` | 16384 | ~9 GB |
 | GPU | 6–9 GB | `qwen3:8b` | 8192 | ~5 GB |
-| CPU | 32 GB or more | `qwen3:30b` | 32768 | ~19 GB |
+| CPU | 32 GB or more | `qwen3:30b-a3b-instruct-2507-q4_K_M` | 32768 | ~18 GB |
 | CPU | 12–31 GB | `qwen3:8b` | 16384 | ~5 GB |
 | CPU | under 12 GB | `qwen3:4b` | 8192 | ~2.5 GB |
 
@@ -1039,8 +1077,16 @@ application, its database and a browser:
 - The model ran fully on the GPU. The time went to writing the answer, at a few words a second,
   because memory was short.
 
-`qwen3:8b` answers roughly twice as fast with somewhat weaker Persian. On a server with a GPU and
-spare memory, raise `CHAT_CONCURRENCY` along with Ollama's own `OLLAMA_NUM_PARALLEL`.
+`qwen3:8b` answers roughly twice as fast with somewhat weaker Persian.
+
+**Several people at once (ADR-129).** `CHAT_CONCURRENCY` answers are written together, and Ollama's
+`OLLAMA_NUM_PARALLEL` must match it. Each one keeps its own working memory beside the model — about
+2 GB at 32K tokens for the 30b, with `OLLAMA_KV_CACHE_TYPE=q8_0` and flash attention, which the
+compose file sets. The installer gives the 30b on a CPU 4 slots from 48 GB, 2 from 40, 1 below.
+On the owner's server (2 × Xeon E5-2660 v3, 62 GB, no GPU) the instruct 30b writes about 15
+tokens a second for one person; four at once share the processor, so each is slower than one alone,
+but nobody waits for the others to finish. Keep it loaded all day with `OLLAMA_KEEP_ALIVE=-1`: a cold
+load took 39 s there.
 
 **What is kept.** Conversations are in `ai_conversations` and `ai_messages`, and are visible only to
 their owner. Deleting a user deletes theirs. The AI governance log (`ai_interactions`, capability

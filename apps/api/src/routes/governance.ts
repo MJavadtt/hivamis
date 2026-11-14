@@ -4,6 +4,7 @@ import {
   createStatusReportSchema, createFeedbackSchema, createLessonLearnedSchema, paginationSchema,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { buildClientStatusReport, clientAddressFor, sendClientStatusReport } from '../reports/client-status.js';
 import { registerCrud } from '../lib/crud.js';
@@ -64,10 +65,10 @@ const governanceRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { projectId, companyId, kind } = req.query as Record<string, string | undefined>;
-    const where = {
+    const where = narrowed('meeting', await reachFor(req, actor), {
       organizationId: actor.organizationId,
       ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}), ...(kind ? { kind } : {}),
-    };
+    });
     const [items, total] = await Promise.all([
       prisma.meeting.findMany({
         where, include: { project: { select: { id: true, code: true, name: true } } },

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  WORKFLOWS, WORKFLOW_READ_PERMISSION, isWorkflowEntity, transitionSchema,
+  WORKFLOWS, WORKFLOW_READ_PERMISSION, decideStepBackSchema, isWorkflowEntity, stepBackSchema, transitionSchema,
 } from '@hiva/contracts';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -8,6 +8,15 @@ import { actorFrom, parse } from '../lib/http.js';
 import { assertVisible } from '../bookings/access.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { allowedFor, delegate, forceState, transition, workflowFor, preflight } from '../workflow/engine.js';
+import { decideStepBack, listStepBacks, stepBack, stepBackInfo, withdrawStepBack, type StepActor } from '../workflow/step-back.js';
+
+const stepActor = (req: Parameters<typeof actorFrom>[0]): StepActor => {
+  const a = actorFrom(req);
+  return {
+    id: a.id, organizationId: a.organizationId, departmentCode: a.departmentCode, permissions: a.permissions, roles: a.roles,
+    delegatedRoles: a.delegatedRoles, ipAddress: a.ipAddress, userAgent: a.userAgent, requestId: a.requestId,
+  };
+};
 
 /**
  * A booking is read by those it concerns (audit F-9, finding 3): to anyone else, its moves, history
@@ -67,6 +76,43 @@ const workflowRoutes: FastifyPluginAsync = async (app) => {
         ipAddress: actor.ipAddress, userAgent: actor.userAgent, requestId: actor.requestId,
       },
     });
+  });
+
+  /**
+   * Back one step to correct a mistake (the owner, 2026-11-14; ADR-128): a manager over the record takes
+   * it back at once; anyone else asks their unit's manager. Read permission on the record is enough to
+   * ask — whoever works on it may have got it wrong.
+   */
+  app.get('/workflow/:entity/:id/step-back', { preHandler: [app.authenticate] }, async (req) => {
+    const { entity, id } = req.params as { entity: string; id: string };
+    requireEntity(entity);
+    await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    return stepBackInfo(stepActor(req), entity, id);
+  });
+
+  app.post('/workflow/:entity/:id/step-back', { preHandler: [app.authenticate, app.idempotent] }, async (req) => {
+    const { entity, id } = req.params as { entity: string; id: string };
+    requireEntity(entity);
+    await app.requirePermissions(WORKFLOW_READ_PERMISSION[entity]!)(req);
+    const { reason } = parse(stepBackSchema, req.body);
+    return stepBack(stepActor(req), entity, id, reason);
+  });
+
+  /** Requests waiting on the caller (`?which=awaiting`, the default) or their own (`?which=mine`). */
+  app.get('/step-backs', { preHandler: [app.authenticate] }, async (req) => {
+    const { which } = req.query as { which?: string };
+    return listStepBacks(stepActor(req), which === 'mine' ? 'mine' : 'awaiting');
+  });
+
+  app.post('/step-backs/:requestId/decide', { preHandler: [app.authenticate] }, async (req) => {
+    const { requestId } = req.params as { requestId: string };
+    const { approve, note } = parse(decideStepBackSchema, req.body);
+    return decideStepBack(stepActor(req), requestId, approve, note);
+  });
+
+  app.post('/step-backs/:requestId/withdraw', { preHandler: [app.authenticate] }, async (req) => {
+    const { requestId } = req.params as { requestId: string };
+    return withdrawStepBack(stepActor(req), requestId);
   });
 
   /** Any state, straight — the system administrator's alone (engine.ts, forceState). */

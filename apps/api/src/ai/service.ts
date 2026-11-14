@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { canSee, reachOf, type VisibleModel } from '../auth/visibility.js';
 import { prisma } from '../db.js';
 import { aiEnabled, env } from '../env.js';
 import { forbidden, notFound } from '../lib/errors.js';
@@ -62,6 +63,12 @@ function getClient(): Anthropic | null {
   return client;
 }
 
+/** The record each analysis reads. */
+const ENTITY_OF: Partial<Record<AiCapability, VisibleModel>> = {
+  BRIEF_ANALYSIS: 'brief', PROJECT_SUMMARY: 'project', RISK_DETECTION: 'project', STATUS_REPORT_DRAFT: 'project',
+  NEXT_BEST_ACTION: 'project', CHANGE_IMPACT_ANALYSIS: 'changeRequest', QC_COMPARISON: 'deliverable', CUSTOMER_HEALTH: 'company',
+};
+
 export async function runAi(
   capability: AiCapability,
   entityId: string | undefined,
@@ -75,6 +82,10 @@ export async function runAi(
   if (!actor.permissions.includes(required)) {
     throw forbidden(`این تحلیل نیازمند دسترسی «${required}» است.`);
   }
+
+  // ADR-127: an analysis of a record the caller does not see is as absent as the record.
+  const model = ENTITY_OF[capability];
+  if (model && entityId && !(await canSee(model, await reachOf(actor), entityId))) throw notFound('رکورد');
 
   const started = Date.now();
   const context = await gatherContext(capability, entityId, actor);

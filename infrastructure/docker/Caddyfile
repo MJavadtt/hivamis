@@ -1,0 +1,24 @@
+# The way in from outside the office (the owner, 2026-11-14; ADR-129): «بیرون از فضای شرکت کسی
+# نمی‌تواند به سرور متصل بشود … این موضوع استفاده از پروژه را برای همکاران دورکار غیر ممکن می‌کند».
+#
+# HTTPS for PUBLIC_HOST on ports 80 and 443, which the office router forwards to this machine. Caddy
+# fetches the certificate from Let's Encrypt and renews it by itself; port 80 answers the challenge
+# and sends everything else to https. Passwords and sessions never cross the internet in the clear.
+#
+# /api goes straight to the API, as the web container's nginx sends it inside the office: one hop,
+# so TRUST_PROXY=1 reads the client's own address from X-Forwarded-For (Caddy sets it, and ignores
+# one a client sends). Everything else is the web container, with its own security headers.
+{
+	# No admin endpoint: nothing on the network may reconfigure the proxy.
+	admin off
+}
+
+{$PUBLIC_HOST} {
+	header Strict-Transport-Security "max-age=31536000"
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+	handle {
+		reverse_proxy web:80
+	}
+}

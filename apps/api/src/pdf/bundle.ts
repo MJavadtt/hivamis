@@ -8,6 +8,8 @@ import { fitsInMemory } from '../documents/storage.js';
 import type { AccessTokenClaims } from '../auth/tokens.js';
 import { DOCUMENT_POLICIES, type DocumentKind } from './access.js';
 import { buildDocument } from './index.js';
+import { canSee, pdfKindModel, reachOf } from '../auth/visibility.js';
+import { mayReadFile } from '../documents/records.js';
 import { renderPdf } from './renderer.js';
 import { docHeader, section } from './sections.js';
 import { dateTime, esc, num, table } from './fmt.js';
@@ -79,13 +81,15 @@ export async function buildBundle(
   included.push({ kind: mainKind, id: mainId, title: `${main.titleFa} — ${main.code}` });
 
   // 2. Selected records, each re-authorised and rendered with its own redaction.
+  const reader = { id: user.sub, organizationId: orgId, departmentCode: user.departmentCode, permissions: user.permissions, roles: user.roles, delegatedRoles: user.delegatedRoles, delegated: user.delegated ?? {} };
+  const reach = await reachOf(reader);
   for (const item of req.items) {
     const policy = DOCUMENT_POLICIES[item.kind];
     if (!policy) continue;
-    if (!policy.permissions.every((p) => user.permissions.includes(p))) {
-      // Silently skipped: naming it would disclose that the record exists.
-      continue;
-    }
+    // Silently skipped, as one the caller may not read or does not see (ADR-127): naming it would disclose that the record exists.
+    if (!policy.permissions.every((p) => user.permissions.includes(p))) continue;
+    const model = pdfKindModel(item.kind);
+    if (model && !(await canSee(model, reach, item.id))) continue;
     const doc = await buildDocument(item.kind, item.id, orgId, user);
     doc.redaction.withheld.forEach((w) => withheld.add(w));
     parts.push({
@@ -97,11 +101,14 @@ export async function buildBundle(
   }
 
   // 3. Uploaded files.
-  const files = req.fileIds.length && user.permissions.includes('document.read')
+  const offered = req.fileIds.length && user.permissions.includes('document.read')
     ? await prisma.document.findMany({
         where: { id: { in: [...req.fileIds] }, organizationId: orgId, deletedAt: null, chatConversationId: null },
       })
     : [];
+  // Each file as it is read on its own: its record's permission, and whether its record is seen.
+  const readable = await Promise.all(offered.map((d) => mayReadFile(reader, d)));
+  const files = offered.filter((_, i) => readable[i]);
 
   const storageRoot = path.resolve(env.STORAGE_DIR);
 

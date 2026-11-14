@@ -66,6 +66,13 @@ export const REVIEWED: Record<string, Verdict> = {
     "routes/brand.ts#GET /documents/:id/brand-check",
     "routes/brand.ts#PUT /companies/:id/brand",
     "routes/commercial.ts#GET /projects/:id/finance",
+    // ADR-128: a step back reads the record it found in the caller's organisation, its transitions and its request by that record's id.
+    "workflow/step-back.ts#previousState",
+    "workflow/step-back.ts#assertMayStepBack",
+    "workflow/step-back.ts#approverFor",
+    "workflow/step-back.ts#decideStepBack",
+    "workflow/step-back.ts#withdrawStepBack",
+    "workflow/step-back.ts#listStepBacks",
     // ADR-125: the seller, and the client the invoice fills, were found in the caller's organisation first.
     "invoices/sellers.ts#fillCompanyBlanks",
     "routes/commercial.ts#PUT /invoice-sellers/:id",
@@ -422,6 +429,8 @@ export const REVIEWED: Record<string, Verdict> = {
   // helpers whose every caller passes such a person; and the token's own session and administrator.
   ...of('EARLIER', ["auth/acting.ts#startActing", "routes/admin.ts#POST /users/:id/activate", "routes/admin.ts#POST /users/:id/password", "setup/reset.ts#resetOrganization"]),
   ...of('CALLER', ["auth/overrides.ts#overridesOf", "auth/overrides.ts#setOverrides", "auth/remove-user.ts#removeUser"]),
+  // ADR-130: the fresh start's rows are found by organizationWhere(model, organizationId), built by freshWhere.
+  ...of('LIST', ["setup/reset.ts#freshStartKeepingPeople"]),
   ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
   // ADR-103: venues, deployment projects and rentals. Lists build their where-object (with the caller's
   // organisation) above the query; every change finds its record in the organisation first, then works

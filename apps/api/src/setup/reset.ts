@@ -139,3 +139,110 @@ export async function resetOrganization(organizationId: string, keepAdminEmail: 
   }
   return { organization: plan.organization.slug, kept: plan.admin.email, deleted, peopleRemoved: removed, peopleDeleted: gone, filesRemoved, passwordSet: !!passwordHash };
 }
+
+/**
+ * A fresh start that keeps the colleagues (the owner, 2026-11-14; ADR-130): «کاربران (همکاران) را
+ * نگه‌دار، تمام اطلاعات مربوط به مشتریان و پروژه‌ها را پاک کن، باید همه چیز را کاربران از اول خودشان
+ * وارد کنند».
+ *
+ * Every person stays as they are — their roles, unit, position, team, photo, sign-ins and sessions,
+ * leave and delegations — and so does what the organisation is (KEEP) and its history. Besides, the
+ * lists the owner chose to keep: suppliers and their evaluations, marketers and referring companies,
+ * and the two companies invoices are issued in. Everything the work made is deleted: clients and
+ * their people, leads, deals, briefs, proposals, projects, tasks, contracts, invoices, payments,
+ * files, the venues database, chats, notifications and the assistant's conversations.
+ */
+export const KEEP_PEOPLE = new Set([
+  ...KEEP,
+  // The colleagues and what is theirs rather than the work's.
+  'Session', 'UserLeave', 'Delegation', 'MessengerLink', 'PushSubscription', 'AccountActivation', 'SignupRequest', 'SignInFailure', 'SiteSavedView',
+  // Integrations, set up once for the installation.
+  'ApiKey', 'WebhookSubscription',
+  // The owner's choice (2026-11-14).
+  'Supplier', 'SupplierEvaluation', 'LeadReferrer', 'InvoiceSeller',
+]);
+
+/** Every model a fresh start that keeps the colleagues empties. */
+export const WIPED_KEEPING_PEOPLE: readonly string[] = Prisma.dmmf.datamodel.models.map((m) => m.name).filter((m) => !KEEP_PEOPLE.has(m));
+
+/** Each model's rows to delete: a person's photo is a file too, and stays with them. */
+async function freshWhere(organizationId: string) {
+  const avatars = (await prisma.user.findMany({ where: { organizationId, avatarDocumentId: { not: null } }, select: { avatarDocumentId: true } }))
+    .map((u) => u.avatarDocumentId!);
+  return (m: string): Record<string, unknown> | null => {
+    const where = organizationWhere(m, organizationId);
+    if (!where || m !== 'Document' || !avatars.length) return where;
+    return { AND: [where, { id: { notIn: avatars } }] };
+  };
+}
+
+export interface FreshStartPlan {
+  organization: { id: string; name: string; slug: string | null };
+  by: { id: string; email: string; fullName: string };
+  /** Rows each model loses. */
+  records: Record<string, number>;
+  /** The people who stay — all of them. */
+  people: number;
+  kept: Record<string, number>;
+}
+
+export async function planFreshStart(organizationId: string, byEmail: string): Promise<FreshStartPlan> {
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { id: true, name: true, slug: true } });
+  const by = await adminOf(organizationId, byEmail);
+  const whereOf = await freshWhere(organizationId);
+  const records: Record<string, number> = {};
+  for (const m of WIPED_KEEPING_PEOPLE) {
+    const where = whereOf(m);
+    if (!where) continue;
+    const n = await delegate(prisma, m).count({ where });
+    if (n) records[m] = n;
+  }
+  const kept: Record<string, number> = {};
+  for (const m of ['Supplier', 'LeadReferrer', 'InvoiceSeller', 'Department', 'AuditEvent']) kept[m] = await delegate(prisma, m).count({ where: organizationWhere(m, organizationId) });
+  const people = await prisma.user.count({ where: { organizationId, deletedAt: null } });
+  return { organization, by: { id: by.id, email: by.email, fullName: by.fullName }, records, people, kept };
+}
+
+export async function freshStartKeepingPeople(organizationId: string, byEmail: string) {
+  const plan = await planFreshStart(organizationId, byEmail);
+  const whereOf = await freshWhere(organizationId);
+  const files = await prisma.document.findMany({ where: whereOf('Document') as Prisma.DocumentWhereInput, select: { storedName: true } });
+  const deleted: Record<string, number> = {};
+
+  await prisma.$transaction(async (tx) => {
+    // As the clean start does: children before parents, found by trying, each try its own savepoint.
+    let left = WIPED_KEEPING_PEOPLE.filter((m) => whereOf(m));
+    for (let pass = 0; left.length; pass++) {
+      const waiting: string[] = [];
+      const why: string[] = [];
+      for (const m of left) {
+        await tx.$executeRawUnsafe('SAVEPOINT hiva_fresh');
+        try {
+          const { count } = await delegate(tx, m).deleteMany({ where: whereOf(m) });
+          if (count) deleted[m] = (deleted[m] ?? 0) + count;
+          await tx.$executeRawUnsafe('RELEASE SAVEPOINT hiva_fresh');
+        } catch (e) {
+          await tx.$executeRawUnsafe('ROLLBACK TO SAVEPOINT hiva_fresh');
+          waiting.push(m);
+          why.push(`${m}: ${(e as Error).message.split('\n').filter(Boolean).pop()}`);
+        }
+      }
+      if (waiting.length === left.length || pass > 40) throw new Error(`a fresh start could not empty: ${why.join(' | ')}`);
+      left = waiting;
+    }
+    await audit({
+      organizationId, actorId: plan.by.id, action: 'ORGANIZATION_FRESH_START', entityType: 'organization', entityId: organizationId,
+      after: { by: plan.by.email, records: deleted, peopleKept: plan.people, kept: plan.kept },
+      reason: 'a fresh start from the command line: every client and project record deleted, the colleagues and the history kept (the owner, 2026-11-14)',
+    }, tx);
+  }, { timeout: 15 * 60_000, maxWait: 60_000 });
+
+  forgetStanding();
+  const root = path.resolve(env.STORAGE_DIR);
+  let filesRemoved = 0;
+  for (const f of files) {
+    const target = path.join(root, f.storedName);
+    if (target.startsWith(root + path.sep) && await unlink(target).then(() => true, () => false)) filesRemoved++;
+  }
+  return { organization: plan.organization.slug, by: plan.by.email, deleted, peopleKept: plan.people, kept: plan.kept, filesRemoved };
+}

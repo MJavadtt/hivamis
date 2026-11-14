@@ -1393,3 +1393,8 @@ export const saveDraftSchema = z.object({
   path: z.string().trim().min(1).max(300).regex(/^\//),
   fields: z.record(z.string().max(500), z.object({ label: z.string().max(300), value: z.unknown(), base: z.unknown().optional() })),
 });
+
+/** Back one step to correct a mistake (ADR-128): what was wrong, in a sentence. */
+export const stepBackSchema = z.object({ reason: z.string().trim().min(5).max(2000) });
+/** A manager's answer to a request to go back a step. */
+export const decideStepBackSchema = z.object({ approve: z.boolean(), note: z.string().trim().max(2000).optional() });

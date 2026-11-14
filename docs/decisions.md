@@ -3933,3 +3933,83 @@ answers — shown as they were written.
 **Not covered:** Firefox and Safari; the owner's server; the client portal's own pages beyond what the
 sweeps open; and the Excel output opened in Excel itself (it was read back with openpyxl and exceljs, and
 the forms were previewed by Quick Look).
+
+## ADR-127 — Each person sees their own records; a unit's manager their unit's; the managers above, everyone's
+
+**Context.** The owner (2026-11-14): «هر کاربر باید وظایف، پروژه‌ها و موارد مربوط به خودش را صرفاً دسترسی
+داشته باشد، مدیر هر بخش برای تمام نفرات بخش خودش و مدیران بالاتر برای همه را». Until now a permission
+such as `crm.lead.read` opened every lead of the organisation.
+
+**Decision.** A permission still says *what kind* of record a person may read; a new reach says *which*
+(`src/auth/visibility.ts`).
+- `record.see_all` — the system administrator, the CEO, the deputy and the PMO manager: everything.
+- `record.see_unit` — a unit's manager (and the account, sales, finance and legal managers): the records
+  of everyone in the units they manage (`Department.managerId`) or belong to.
+- `record.see_commercial` — finance and legal: every client, project, contract, invoice and payment, as
+  their work needs; not the creative unit's tasks.
+- Everyone else: what names them — owner, assignee, creator, RACI, allocation, work order, approver.
+  The hand-offs the process makes stay open: a submitted brief to whoever reviews briefs, an unowned
+  lead to whoever may take leads, a proposal or deliverable to the units its work orders name.
+
+Lists, detail pages, search, files, PDF bundles and the assistant all read through the same rule. A
+record out of reach answers 404, as one that does not exist; a caller without the permission at all
+still gets the 403 that names it. The three reach permissions sit in their own group in the role
+editor, so an organisation can widen a role.
+
+## ADR-128 — Back one step to correct a mistake: with the manager's approval, or at once for a manager
+
+**Context.** The owner (2026-11-14): «کاربران درصورت اشتباه در هر مرحله باید بتوانند با تأیید مدیر خود به
+مرحلهٔ قبلی برگردند و ویرایش انجام بدهند، مدیران نیاز به تأیید کسی ندارند».
+
+**Decision** (`src/workflow/step-back.ts`, table `step_back_requests`).
+- The step before is the state the record last arrived from by a move that was not itself a step
+  back — so going back twice goes back two steps.
+- A manager over the record (its unit's, or one who sees everyone's) takes it back at once.
+- Anyone who may read the record may ask. The request goes to their unit's manager (the CEO or deputy
+  when the unit has none), who is notified and decides from the record's page or «کارهای من».
+- Approved, the record goes back and its history gains a `step_back` transition naming who asked and
+  who approved. A request the record has moved past lapses instead of jumping it back.
+- Not for an invoice in the accounting export or reported to the taxpayer system: that one is
+  corrected by a correction or cancellation, as the law asks.
+
+## ADR-129 — The assistant for several people at once, and the way in from outside the office
+
+**Context.** The owner (2026-11-14): the model is slow; several people must use it at once and get the
+fastest answer; and colleagues outside the office cannot reach the server at all. Asked how, the owner
+chose a port opened on the office router.
+
+**Decision — the model.** `qwen3:30b` thinks before every answer whatever the request says, and on the
+server's CPUs that hidden thinking was most of the wait. Its instruct build,
+`qwen3:30b-a3b-instruct-2507-q4_K_M`, answers at once with the same strength; the installer now picks
+it. Measured on the server: 14.7 tokens a second written, 39 s to load cold. So the API loads the model
+as it starts, `OLLAMA_KEEP_ALIVE` is a setting the API sends too (`-1`: always loaded), and
+`CHAT_CONCURRENCY` with Ollama's `OLLAMA_NUM_PARALLEL` lets several answers be written together — 4 on a
+CPU of 48 GB — with the KV cache in q8_0 so the slots fit. The system prompt and tools stay first and
+unchanged, the page's context last, so each slot reuses what it already read.
+
+**Decision — the way in.** An optional `proxy` service (Caddy, profile `https`) on ports 80 and 443,
+with a Let's Encrypt certificate it renews itself, for the name in `PUBLIC_HOST`. `/api` goes to the API
+in one hop, so `TRUST_PROXY=1` keeps counting each client's own address; the rest goes to the web
+container. `hivamis remote HOST` sets it up; the router and the DNS record are the owner's. Port 8080
+stays the office's way in.
+
+**Not done here.** The domain name and the office's fixed public address are the owner's to provide;
+until then the proxy is off on the server.
+
+## ADR-130 — A fresh start that keeps the colleagues
+
+**Context.** The owner (2026-11-14): «کاربران (همکاران) را نگه‌دار، تمام اطلاعات مربوط به مشتریان و
+پروژه‌ها را پاک کن، باید همه چیز را کاربران از اول خودشان وارد کنند»; asked what else stays: the
+suppliers, and the marketers and referring companies.
+
+**Decision.** `org:reset --keep-people --as EMAIL` (and `hivamis reset --keep-people --admin EMAIL`):
+- kept — every person as they are (roles, unit, position, team, photo, sign-ins, sessions, leave,
+  delegations), what the organisation is (as ADR-100 keeps it), suppliers and their evaluations,
+  lead referrers, the invoice sellers, integrations, and the history (audit trail, transitions,
+  counters);
+- deleted — everything else the organisation holds: clients, contacts, leads, deals, briefs,
+  proposals, projects, tasks, contracts, invoices, payments, files, the venues database, chats,
+  notifications, the assistant's conversations.
+
+It says what it will delete, asks for `RESET`, backs up first, and writes `ORGANIZATION_FRESH_START`
+to the audit trail.

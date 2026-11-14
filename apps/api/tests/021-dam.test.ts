@@ -114,7 +114,15 @@ describe('Versions of a file, and a client’s brand library', () => {
     legalId = (await prisma.user.findFirstOrThrow({ where: { email: 'legal@hiva.local' } })).id;
     const project = await prisma.project.findFirstOrThrow({ where: { deletedAt: null } });
     deliverableId = (await prisma.deliverable.create({ data: { organizationId: org, code: await nextCode(prisma, 'deliverable'), projectId: project.id, name: 'پوستر پاییز', departmentCode: 'CR', state: 'IN_QC' } })).id;
-    companyId = (await prisma.company.create({ data: { organizationId: org, legalName: 'شرکت برند آزمون', accountOwnerId: owner.id } })).id;
+    // The designer works on it: a task of theirs under it (ADR-127 — they see what they work on).
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
+    await prisma.task.create({ data: { organizationId: org, code: await nextCode(prisma, 'task'), projectId: project.id, deliverableId, title: 'طراحی پوستر', departmentCode: 'CR', priority: 'NORMAL', state: 'IN_PROGRESS', sourceType: 'ORDER_FORM', sourceRef: 'test', createdById: designer.id, assigneeId: designer.id } });
+    // Sales holds this client's sale, so they read its library too (ADR-127).
+    const seller = await prisma.user.findFirstOrThrow({ where: { email: 'sales@hiva.local' } });
+    companyId = (await prisma.company.create({ data: { organizationId: org, legalName: 'شرکت برند آزمون', accountOwnerId: owner.id, salesOwnerId: seller.id } })).id;
+    // The designer designs for this client: a task of theirs on one of its projects (ADR-127).
+    const brandProject = await prisma.project.create({ data: { organizationId: org, code: await nextCode(prisma, 'project'), name: 'کمپین برند آزمون', companyId, accountOwnerId: owner.id, state: 'ACTIVE' } });
+    await prisma.task.create({ data: { organizationId: org, code: await nextCode(prisma, 'task'), projectId: brandProject.id, title: 'طراحی برای مشتری', departmentCode: 'CR', priority: 'NORMAL', state: 'IN_PROGRESS', sourceType: 'ORDER_FORM', sourceRef: 'test', createdById: designer.id, assigneeId: designer.id } });
     contactId = (await createContact({ companyId, fullName: 'مریم احمدی', email: 'maryam@brand.example' })).id;
     contractId = (await prisma.contract.create({
       data: { organizationId: org, code: await nextCode(prisma, 'contract'), companyId, title: 'قرارداد نسخه‌ها', contractValue: 1_000_000_000, startDate: new Date(), endDate: new Date(Date.now() + 90 * 86_400_000), state: 'PENDING_SIGNATURE', createdById: owner.id },

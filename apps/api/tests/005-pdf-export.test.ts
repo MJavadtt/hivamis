@@ -53,7 +53,8 @@ beforeAll(async () => {
     prisma.invoice.findFirst(),
     prisma.company.findFirst(),
     prisma.formSubmission.findFirst(),
-    prisma.workOrder.findFirst(),
+    // The creative unit's own order: its manager exports it (ADR-127).
+    prisma.workOrder.findFirst({ where: { targetDepartmentCode: 'CR' } }),
   ]);
 
   ids = {

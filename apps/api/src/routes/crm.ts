@@ -6,6 +6,7 @@ import {
   DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, SALES_DEPARTMENT, normalizeIranMobile,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { registerCrud } from '../lib/crud.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { AppError, forbidden, notFound, badRequest } from '../lib/errors.js';
@@ -268,12 +269,12 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { companyId, opportunityId, projectId } = req.query as Record<string, string | undefined>;
-    const where = {
+    const where = narrowed('activity', await reachFor(req, actor), {
       organizationId: actor.organizationId,
       ...(companyId ? { companyId } : {}),
       ...(opportunityId ? { opportunityId } : {}),
       ...(projectId ? { projectId } : {}),
-    };
+    });
     const [items, total] = await Promise.all([
       prisma.activity.findMany({
         where, orderBy: { occurredAt: 'desc' },

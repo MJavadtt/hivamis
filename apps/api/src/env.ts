@@ -212,6 +212,12 @@ const envSchema = z.object({
   OLLAMA_NUM_CTX: z.coerce.number().int().min(2048).max(262144).default(16384),
   CHAT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
   /**
+   * How long the model stays in memory after an answer: a duration ("30m", "24h") or seconds, and a
+   * negative number for always. Loading a large model on a CPU takes most of a minute, so a server
+   * the office uses all day keeps it loaded (`-1`); the API also loads it as it starts (2026-11-14).
+   */
+  OLLAMA_KEEP_ALIVE: z.string().trim().default('30m'),
+  /**
    * Roadmap #50. On start, bring every organisation's reference data — roles, units, SLA policies,
    * the form catalogue — up to this version of the code. `off` leaves it to `cli reference:sync`.
    */

@@ -11,6 +11,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { nextCode } from './codes.js';
 import { assertOwnReferences, hasOrganizationColumn } from './scope.js';
 import { isSystemAdmin } from '../auth/grants.js';
+import { isVisibleModel, narrowed, reachFor } from '../auth/visibility.js';
 
 export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   /** URL segment, e.g. "projects". */
@@ -71,19 +72,24 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
     : opts.scope ?? (() => {
         throw new Error(`registerCrud: "${opts.model}" has no organizationId and no scope; it would serve every organisation's rows`);
       })();
+  // ADR-127: of the organisation's records, the ones this person sees — every read and write below.
+  const visible = isVisibleModel(opts.model) ? opts.model : null;
+  const inReach = async (req: FastifyRequest, where: Record<string, unknown>) =>
+    (visible ? narrowed(visible, await reachFor(req, actorFrom(req)), where) : where);
 
   app.get(`/${opts.path}`, { preHandler: [app.authenticate, app.requirePermissions(opts.permissions.read)] },
     async (req) => {
       const actor = actorFrom(req);
       const q = parse(paginationSchema, req.query);
-      const where: Record<string, unknown> = {
+      const own: Record<string, unknown> = {
         ...(opts.filter?.(req) ?? {}),
         ...(opts.softDelete ? { deletedAt: null } : {}),
         ...tenant(actor.organizationId),
       };
       if (q.q && opts.searchable?.length) {
-        where.OR = opts.searchable.map((f) => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
+        own.OR = opts.searchable.map((f) => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
       }
+      const where = await inReach(req, own);
 
       const [items, total] = await Promise.all([
         model().findMany({
@@ -113,14 +119,14 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
    * in the predicate. A record belonging to another organisation returns 404 rather than 403:
    * a 403 would confirm the id exists, which is itself the thing tenancy withholds.
    */
-  const findScoped = async (id: string, organizationId: string, include?: unknown) =>
-    model().findFirst({ where: { id, ...tenant(organizationId) }, ...(include ? { include } : {}) });
+  const findScoped = async (req: FastifyRequest, id: string, organizationId: string, include?: unknown) =>
+    model().findFirst({ where: await inReach(req, { id, ...tenant(organizationId) }), ...(include ? { include } : {}) });
 
   app.get(`/${opts.path}/:id`, { preHandler: [app.authenticate, app.requirePermissions(opts.permissions.read)] },
     async (req) => {
       const actor = actorFrom(req);
       const { id } = req.params as { id: string };
-      const record = await findScoped(id, actor.organizationId, opts.detailInclude);
+      const record = await findScoped(req, id, actor.organizationId, opts.detailInclude);
       if (!record || (opts.softDelete && record.deletedAt)) throw notFound();
       return opts.workflowEntity
         ? { ...record, availableTransitions: allowedFor(opts.workflowEntity, record.state, actor.permissions) }
@@ -156,7 +162,7 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       const actor = actorFrom(req);
       const { id } = req.params as { id: string };
       const input = parse(isSystemAdmin(actor) ? adminEdit : opts.updateSchema, req.body);
-      const before = await findScoped(id, actor.organizationId);
+      const before = await findScoped(req, id, actor.organizationId);
       if (!before) throw notFound();
       // `state` is owned exclusively by the workflow engine.
       const { state: _ignored, ...safe } = input as Record<string, unknown>;
@@ -176,7 +182,7 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       async (req, reply) => {
         const actor = actorFrom(req);
         const { id } = req.params as { id: string };
-        const before = await findScoped(id, actor.organizationId);
+        const before = await findScoped(req, id, actor.organizationId);
         if (!before) throw notFound();
         if (opts.softDelete) await model().update({ where: { id }, data: { deletedAt: new Date() } });
         else await model().delete({ where: { id } });

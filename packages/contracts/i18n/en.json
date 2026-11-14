@@ -3229,5 +3229,22 @@
   "شمارهٔ شبا درست نیست: IR و ۲۴ رقم، که رقم کنترلی‌اش بخواند": "The IBAN is not valid: IR and 24 digits, whose check digits hold",
   "سفارش رسانه‌ای که ردیف نام می‌برد از این سازمان یا این صورت‌حساب نیست.": "The media order a line names is not of this organisation or this invoice.",
   "فایل این سند پس از حذف، در پایان دورهٔ نگهداری پاک شده است.": "This document's file was removed at the end of its retention period, after it was deleted.",
-  "فایل این سند روی سرور پیدا نشد؛ با مدیر نصب هماهنگ کنید.": "This document's file was not found on the server; contact your installation's administrator."
+  "فایل این سند روی سرور پیدا نشد؛ با مدیر نصب هماهنگ کنید.": "This document's file was not found on the server; contact your installation's administrator.",
+  "دیدن پرونده‌های همکاران واحد خود": "See the records of colleagues in one's own unit",
+  "دیدن همهٔ مشتریان، پروژه‌ها، قراردادها و فاکتورها (کار مالی و حقوقی)": "See every client, project, contract and invoice (finance and legal work)",
+  "دیدن پرونده‌های همهٔ همکاران": "See every colleague's records",
+  "دیدن پرونده‌های دیگران": "Seeing others' records",
+  "این سند به خروجی حسابداری رفته است و به مرحلهٔ قبل برنمی‌گردد؛ آن را باطل کنید و سند تازه صادر کنید.": "This document has gone to the accounting export and cannot go back a step; void it and issue a new one.",
+  "این فاکتور به سامانهٔ مؤدیان گزارش شده است و به مرحلهٔ قبل برنمی‌گردد؛ اصلاحی یا ابطالی آن را بفرستید.": "This invoice has been reported to the taxpayer system and cannot go back a step; send its correction or cancellation.",
+  "این رکورد از «{0}» جلو رفته است؛ دوباره ببینید از کجا باید برگردد.": "This record has moved on from “{0}”; look again at where it should go back from.",
+  "بنویسید چه چیزی اشتباه بود (دست‌کم پنج حرف).": "Write what was wrong (at least five characters).",
+  "این رکورد مرحلهٔ قبلی ندارد.": "This record has no previous stage.",
+  "مدیر مستقیم برگرداند": "Taken back by a manager directly",
+  "درخواست برگشت این رکورد پیش‌تر فرستاده شده و منتظر تأیید است.": "A request to take this record back has already been sent and is awaiting approval.",
+  "درخواست برگشت {0} {1} به «{2}»": "Request to take {0} {1} back to “{2}”",
+  "درخواست": "Request",
+  "دربارهٔ این درخواست پیش‌تر تصمیم گرفته شده است.": "This request has already been decided.",
+  "تصمیم دربارهٔ این درخواست با مدیر درخواست‌دهنده است.": "Deciding this request is for the requester's manager.",
+  "درخواست برگشت به مرحلهٔ قبل پذیرفته نشد": "The request to go back a stage was not accepted",
+  "به «{0}» برگشت؛ اکنون ویرایشش کنید": "Back at “{0}”; edit it now"
 }

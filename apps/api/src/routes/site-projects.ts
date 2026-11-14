@@ -6,6 +6,7 @@ import {
   SITE_TERM_FIELDS, siteContractDecisionSchema, siteContractSchema, siteProjectCreateSchema, siteProjectListSchema, siteProjectUpdateSchema,
 } from '@hiva/contracts';
 import { prisma, type Tx } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { actorFrom, orderBy, page, parse } from '../lib/http.js';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors.js';
 import { audit } from '../lib/audit.js';
@@ -56,7 +57,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
   app.get('/site-projects', read, async (req) => {
     const actor = actorFrom(req);
     const q = parse(siteProjectListSchema, req.query);
-    const where: Prisma.SiteProjectWhereInput = {
+    const own: Prisma.SiteProjectWhereInput = {
       organizationId: actor.organizationId, archivedAt: null,
       ...(q.state ? { state: q.state } : {}), ...(q.open === 'true' ? { state: { notIn: TERMINAL } } : {}),
       ...(q.venueId ? { venueId: q.venueId } : {}), ...(q.projectId ? { projectId: q.projectId } : {}),
@@ -67,6 +68,7 @@ const siteProjectRoutes: FastifyPluginAsync = async (app) => {
         { venue: { name: { contains: q.q, mode: 'insensitive' } } },
       ] } : {}),
     };
+    const where = narrowed('siteProject', await reachFor(req, actor), own as Record<string, unknown>) as Prisma.SiteProjectWhereInput;
     const [items, total] = await Promise.all([
       prisma.siteProject.findMany({
         where, orderBy: orderBy(q.sort, q.order, ['name', 'code', 'state', 'contractStart', 'contractEnd', 'installPlannedAt', 'createdAt', 'updatedAt'], 'updatedAt'),

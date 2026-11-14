@@ -27,6 +27,8 @@ export const REVIEWED: Record<string, Verdict> = {
     "auth/grants.ts#grantSnapshot#roleGrant#1",
     // ADR-125: one per printed form — two.
     "routes/commercial.ts#GET /invoice-sellers#invoiceSeller#1",
+    // ADR-127: the units a person manages — one, or a few.
+    "auth/visibility.ts#reachOf#department#1",
     // Audit F-3: the roles organisations made — a handful each.
     "auth/roles.ts#customRoleCatalogue#role#1",
     "auth/grants.ts#grantsOf#roleGrant#1",
@@ -296,6 +298,9 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('IDS', ["auth/overrides.ts#overridesOf#userPermissionOverride#1"]),
   ...of('PEOPLE', ["setup/reset.ts#adminOf#user#1", "setup/reset.ts#resetOrganization#user#1"]),
   ...of('RESET', ["setup/reset.ts#resetOrganization#document#1"]),
+  // ADR-130: the people's photos, kept; and the files a fresh start is about to delete.
+  ...of('PEOPLE', ["setup/reset.ts#freshWhere#user#1"]),
+  ...of('RESET', ["setup/reset.ts#freshStartKeepingPeople#document#1"]),
   // ADR-103: one deployment project's own ledger and closure, ids from a page or a bounded request,
   // the organisation's own lists, and the organisations the daily reminder run goes through.
   ...of('CHILDREN', [
@@ -320,4 +325,6 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('MOVE', ["onboarding/migration.ts#linksOf#importLink#1"]),
   // The owner's answer (2026-10-30): everyone a move brought in who never had a password — at most the headcount.
   ...of('PEOPLE', ["onboarding/passwords.ts#waitingForPassword#user#1"]),
+  // ADR-127: the people of the units a person manages.
+  ...of('PEOPLE', ["auth/visibility.ts#reachOf#user#1"]),
 };

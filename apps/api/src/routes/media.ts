@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { billMediaSchema, createMediaOrderSchema, MEDIA_CHANNEL_LABELS, paginationSchema, vendorInvoiceSchema, type MediaChannel } from '@hiva/contracts';
 import { Prisma } from '@prisma/client';
 import { prisma, type Tx } from '../db.js';
+import { narrowed, reachFor } from '../auth/visibility.js';
 import { actorFrom, page, parse } from '../lib/http.js';
 import { audit } from '../lib/audit.js';
 import { nextCode } from '../lib/codes.js';
@@ -60,7 +61,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     const actor = actorFrom(req);
     const q = parse(paginationSchema, req.query);
     const { projectId, state, supplierId } = req.query as Record<string, string | undefined>;
-    const where = { organizationId: actor.organizationId, ...(projectId ? { projectId } : {}), ...(state ? { state } : {}), ...(supplierId ? { supplierId } : {}) };
+    const where = narrowed('mediaOrder', await reachFor(req, actor), { organizationId: actor.organizationId, ...(projectId ? { projectId } : {}), ...(state ? { state } : {}), ...(supplierId ? { supplierId } : {}) });
     const [items, total] = await Promise.all([
       prisma.mediaOrder.findMany({ where, include, orderBy: { flightStart: 'desc' }, skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
       prisma.mediaOrder.count({ where }),

@@ -420,7 +420,11 @@ model User {
   team     Team?   @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
   teamsLed Team[]  @relation("TeamLead")
 
-  drafts UserDraft[]
+  drafts             UserDraft[]
+  /// ADR-128: a step back asked for, the approver it waits on, and the one decided.
+  stepBacksRequested StepBackRequest[] @relation("StepBackRequested")
+  stepBacksToApprove StepBackRequest[] @relation("StepBackApprover")
+  stepBacksDecided   StepBackRequest[] @relation("StepBackDecided")
 
   @@unique([organizationId, email])
   @@index([organizationId, departmentId])
@@ -4294,4 +4298,38 @@ model UserDraft {
   @@unique([userId, key])
   @@index([organizationId])
   @@map("user_drafts")
+}
+
+/**
+ * A request to take a record back one step to correct it (the owner, 2026-11-14; ADR-128): asked for
+ * by whoever works on it, with a reason, and decided by their unit's manager. A manager over the
+ * record takes it back without asking; this is the record of those who must ask.
+ */
+model StepBackRequest {
+  id             String    @id @default(uuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  /// The state it was in when asked, and the one it goes back to.
+  fromState      String
+  toState        String
+  reason         String
+  requestedById  String
+  requestedBy    User      @relation("StepBackRequested", fields: [requestedById], references: [id])
+  /// The requester's unit manager; null when the unit has none, and then a senior manager decides.
+  approverId     String?
+  approver       User?     @relation("StepBackApprover", fields: [approverId], references: [id])
+  /// PENDING, APPROVED, REJECTED, WITHDRAWN, or LAPSED (the record moved on before it was decided).
+  state          String    @default("PENDING")
+  decidedById    String?
+  decidedBy      User?     @relation("StepBackDecided", fields: [decidedById], references: [id])
+  decidedAt      DateTime?
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, state])
+  @@index([entityType, entityId])
+  @@index([approverId, state])
+  @@map("step_back_requests")
 }

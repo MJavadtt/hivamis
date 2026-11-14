@@ -745,8 +745,8 @@ describe('Time logging and cost accuracy', () => {
     expect(listed.entries[0].user.id).toBe(designer.id);
     expect(listed.entries.find((e: any) => e.note === 'وایرفریم')).toBeTruthy();
 
-    // Only the assignee, or task.write; only sane numbers.
-    expect((await post(`/tasks/${task.id}/time`, T.sales, { hours: 1 })).status).toBe(403);
+    // Only the assignee, or task.write; only sane numbers. Sales does not even see the task (ADR-127).
+    expect((await post(`/tasks/${task.id}/time`, T.sales, { hours: 1 })).status).toBe(404);
     expect((await post(`/tasks/${task.id}/time`, T.designer, { hours: 0 })).status).toBe(400);
     expect((await post(`/tasks/${task.id}/time`, T.designer, { hours: 30 })).status).toBe(400);
     expectOk(await call('DELETE', `/tasks/${task.id}/time/${a.entry.id}`, { token: T.designer }), 'delete');
@@ -1603,6 +1603,7 @@ describe('The estimation assistant', () => {
   let seq = 0;
   /** A media unit member: the person who actually declares a media order's cost. */
   let M = '';
+  let MID = '';
   async function mediaMember() {
     if (M) return M;
     const role = await prisma.role.findUniqueOrThrow({ where: { code: 'UNIT_MEMBER' } });
@@ -1613,6 +1614,7 @@ describe('The estimation assistant', () => {
       organizationId: template.organizationId, departmentId: dept.id, email, fullName: 'کارشناس رسانه',
       passwordHash: template.passwordHash, roles: { create: { roleId: role.id } },
     } });
+    MID = (await prisma.user.findFirstOrThrow({ where: { email } })).id;
     M = await login(email);
     return M;
   }
@@ -1635,6 +1637,15 @@ describe('The estimation assistant', () => {
       ownerId: pmo.id, budget: input.budget, state: input.state ?? 'COMPLETED',
       acceptedAt: accepted, submittedAt: submitted,
     } });
+    // The order being priced is the member's: they hold its task (ADR-127 — they see what they work on).
+    if (wo.state === 'ACCEPTED') {
+      await mediaMember();
+      await prisma.task.create({ data: {
+        organizationId: org.id, projectId: project.id, workOrderId: wo.id, code: `TSK-EST-OWN-${Date.now()}-${seq}`,
+        title: input.title, departmentCode: DEPT, priority: 'NORMAL', state: 'IN_PROGRESS',
+        sourceType: 'ORDER_FORM', sourceRef: wo.code, createdById: pmo.id, assigneeId: MID,
+      } });
+    }
     if (input.declared) {
       await prisma.costDeclaration.create({ data: {
         organizationId: org.id, workOrderId: wo.id, departmentCode: DEPT,
@@ -1737,8 +1748,8 @@ describe('The estimation assistant', () => {
 
     // Other orders' costs are pricing data: no pricing permission, no comparison.
     expect((await get(`/work-orders/${lonely.id}/estimate`, T.pmo)).status).toBe(403);
-    // And a unit sees its own history, not another unit's: a Creative member on a Legal order.
-    expect((await get(`/work-orders/${lonely.id}/estimate`, T.designer)).body.error.message).toContain('واحد دیگر');
+    // And a unit sees its own history, not another unit's: a Creative member does not even see a Legal order (ADR-127).
+    expect((await get(`/work-orders/${lonely.id}/estimate`, T.designer)).status).toBe(404);
     // Those who set prices see every unit.
     expect((await get(`/work-orders/${lonely.id}/estimate`, T.accountManager)).status).toBe(200);
   });
@@ -3145,7 +3156,7 @@ describe('Catalogue sizes the documentation quotes', () => {
    * whatever prose quotes it.
    */
   it('matches the figures in README and docs/', () => {
-    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(134);
+    expect(ALL_PERMISSIONS, 'permissions').toHaveLength(137);
     expect(ROLE_CODES, 'roles').toHaveLength(16);
     expect(ALL_FORMS, 'Doc_H forms').toHaveLength(130);
     expect(SLA_POLICIES, 'SLA policies').toHaveLength(31);

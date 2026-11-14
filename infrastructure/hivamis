@@ -7,9 +7,13 @@
 #   infrastructure/hivamis status
 #   infrastructure/hivamis model [pull [NAME] | auto]   the assistant's model: show it, fetch one, or
 #                                  choose again for this machine (GPU or not, its memory) and switch to it
+#   infrastructure/hivamis remote [HOST | off]       the way in from outside the office: HTTPS for HOST on
+#                                  ports 80 and 443, a certificate fetched and renewed by itself (ADR-129)
 #   infrastructure/hivamis backup
 #   infrastructure/hivamis reset --admin EMAIL [--slug SLUG] [--yes]   a clean start: every person and record but
 #                                  that system administrator, the history kept; a backup first, a new password asked
+#   infrastructure/hivamis reset --keep-people --admin EMAIL [--yes]   a fresh start that keeps every colleague: clients,
+#                                  projects and all they made deleted, people, suppliers, referrers and history kept
 #   infrastructure/hivamis restore --db FILE.dump [--storage FILE.tar.gz] --yes
 #   infrastructure/hivamis upgrade [--pull] [--no-backup]
 #   infrastructure/hivamis tenant list | create … | update …     (the API's own commands)
@@ -94,16 +98,30 @@ memory_gb() {
 gpu_flag() { if has_gpu; then echo 1; else echo 0; fi; }
 
 # The model for the memory it runs in, leaving room for the database and the API beside it.
-# qwen3:30b is a mixture of experts: 30B parameters with about 3B at work for each word, so it is
+# The 30b is a mixture of experts: 30B parameters with about 3B at work for each word, so it is
 # both stronger than the dense 14b and several times faster — on a GPU of 20 GB (about 19 GB), or on
 # a CPU with 32 GB of memory. The owner's report (2026-10-23): 14b was slow and missed its tools.
+# Its instruct-2507 build (2026-11-14): qwen3:30b thinks before every answer whatever it is asked,
+# and on a CPU that thinking was most of the wait; the instruct build answers at once.
+MODEL_30B=qwen3:30b-a3b-instruct-2507-q4_K_M
 model_for() {
   local gb="$1" gpu="${2:-0}"
   if [ "$gpu" = 1 ]; then
-    if [ "$gb" -ge 20 ]; then echo qwen3:30b; elif [ "$gb" -ge 10 ]; then echo qwen3:14b; elif [ "$gb" -ge 6 ]; then echo qwen3:8b; else echo qwen3:4b; fi
+    if [ "$gb" -ge 20 ]; then echo "$MODEL_30B"; elif [ "$gb" -ge 10 ]; then echo qwen3:14b; elif [ "$gb" -ge 6 ]; then echo qwen3:8b; else echo qwen3:4b; fi
   else
-    if [ "$gb" -ge 32 ]; then echo qwen3:30b; elif [ "$gb" -ge 12 ]; then echo qwen3:8b; else echo qwen3:4b; fi
+    if [ "$gb" -ge 32 ]; then echo "$MODEL_30B"; elif [ "$gb" -ge 12 ]; then echo qwen3:8b; else echo qwen3:4b; fi
   fi
+}
+
+# How many answers are written at once (the owner, 2026-11-14: several people at once). Each one
+# keeps its own working memory beside the model — about 2 GB at 32K for the 30b with q8_0 — so
+# the slots come from what the model leaves free.
+parallel_for() {
+  local model="$1" gb="${2:-0}"
+  case "$model" in
+    *:30b*|*:32b*) if [ "$gb" -ge 48 ]; then echo 4; elif [ "$gb" -ge 40 ]; then echo 2; else echo 1; fi ;;
+    *) if [ "$gb" -ge 24 ]; then echo 4; elif [ "$gb" -ge 16 ]; then echo 2; else echo 1; fi ;;
+  esac
 }
 
 # How much the model reads at once, in tokens. The prompt, the tools, a page's forms and five rounds
@@ -192,11 +210,14 @@ cmd_model() {
         say "→ OLLAMA_MODEL: $model → $2"
         env_set OLLAMA_MODEL "$2"
         env_set OLLAMA_NUM_CTX "$(ctx_for "$2" "$(memory_gb)")"
+        env_set CHAT_CONCURRENCY "$(parallel_for "$2" "$(memory_gb)")"
+        env_set OLLAMA_NUM_PARALLEL "$(parallel_for "$2" "$(memory_gb)")"
         model="$2"
       fi
       pull_model "$model"
-      # A new model is the API's to use only once it restarts with the new setting.
-      if [ -n "${2:-}" ]; then compose up -d api; fi
+      # A new model is the API's to use only once it restarts with the new setting — and the model's
+      # server, once it starts with as many slots.
+      if [ -n "${2:-}" ]; then compose up -d "$(model_service)" api; fi
       ;;
     auto)
       # Chooses again for this machine as it is now — a GPU made reachable since the install, more
@@ -217,6 +238,8 @@ cmd_model() {
       env_set CHAT_MODE ollama
       env_set OLLAMA_MODEL "$want"
       env_set OLLAMA_NUM_CTX "$(ctx_for "$want" "$gb")"
+      env_set CHAT_CONCURRENCY "$(parallel_for "$want" "$gb")"
+      env_set OLLAMA_NUM_PARALLEL "$(parallel_for "$want" "$gb")"
       # The model's other service, if it ran, steps aside for this one.
       if [ "$now" = ai-gpu ]; then compose rm -sf ollama; else compose rm -sf ollama-gpu; fi
       compose up -d
@@ -372,6 +395,8 @@ cmd_install() {
       -e "s|^CHAT_MODE=.*|CHAT_MODE=$chat|" \
       -e "s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=${model:-qwen3:8b}|" \
       -e "s|^OLLAMA_NUM_CTX=.*|OLLAMA_NUM_CTX=$(ctx_for "${model:-qwen3:8b}" "${gb:-0}")|" \
+      -e "s|^CHAT_CONCURRENCY=.*|CHAT_CONCURRENCY=$(parallel_for "${model:-qwen3:8b}" "${gb:-0}")|" \
+      -e "s|^OLLAMA_NUM_PARALLEL=.*|OLLAMA_NUM_PARALLEL=$(parallel_for "${model:-qwen3:8b}" "${gb:-0}")|" \
       -e "s|^IMAGE_MODE=.*|IMAGE_MODE=$image_mode|" \
       -e "s|^IMAGE_MODEL=.*|IMAGE_MODEL=$image_model|" \
       -e "s|^TRANSCRIPTION_URL=.*|TRANSCRIPTION_URL=$transcription_url|" \
@@ -405,17 +430,34 @@ cmd_status() { compose ps; cli status; }
 # everything up, and only then begins. The password reaches the API on standard input — never on a
 # command line, where `ps` and the shell's history would keep it.
 cmd_reset() {
-  local admin="" slug="" yes=0 answer="" pw="" again=""
+  local admin="" slug="" yes=0 answer="" pw="" again="" people=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --admin) admin="$2"; shift 2 ;;
       --slug) slug="$2"; shift 2 ;;
+      --keep-people) people=1; shift ;;
       --yes) yes=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
   [ -n "$admin" ] || die "reset needs --admin EMAIL: the system administrator who stays"
   [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  # The owner (2026-11-14; ADR-130): every colleague stays, and everything the work made goes.
+  if [ "$people" = 1 ]; then
+    say "→ what a fresh start deletes (every colleague, the suppliers, the referrers, the invoice sellers and the history stay)"
+    cli org:reset --keep-people --as "$admin" ${slug:+--slug "$slug"}
+    if [ "$yes" != 1 ]; then
+      [ -t 0 ] || die "confirm at a terminal, or add --yes"
+      read -r -p "Everything listed above is deleted. Type RESET to go on: " answer
+      [ "$answer" = RESET ] || die "nothing was changed"
+    fi
+    say "→ a backup first"
+    cmd_backup
+    say "→ the fresh start"
+    cli org:reset --keep-people --as "$admin" ${slug:+--slug "$slug"} --yes
+    say "✓ a fresh start: every colleague signs in as before, and enters the work anew"
+    return 0
+  fi
   say "→ what a clean start deletes (and keeps $admin, the settings and the history)"
   cli org:reset --keep-admin "$admin" ${slug:+--slug "$slug"}
   if [ "$yes" != 1 ]; then
@@ -441,6 +483,53 @@ cmd_reset() {
     cli org:reset --keep-admin "$admin" ${slug:+--slug "$slug"} --yes
   fi
   say "✓ a clean start: sign in as $admin"
+}
+
+# The way in from outside the office (the owner, 2026-11-14; ADR-129). HOST is the name colleagues
+# type — a domain whose DNS points at the office's public address — and the router forwards ports
+# 80 and 443 to this machine. The office keeps its own address (port 8080) beside it.
+cmd_remote() {
+  [ -f "$ENV_FILE" ] || [ "$DRY" = 1 ] || die "$ENV_FILE not found — install first"
+  local host="${1:-}" profiles origins url lan hp hs
+  profiles="$(env_get COMPOSE_PROFILES | tr ',' '\n' | grep -vx -e https -e '' | paste -sd, - || true)"
+  case "$host" in
+    "")
+      host="$(env_get PUBLIC_HOST)"
+      if [ -n "$host" ] && env_get COMPOSE_PROFILES | tr ',' '\n' | grep -qx https; then
+        hp="$(env_get HTTP_PORT)"; hs="$(env_get HTTPS_PORT)"
+        say "from outside the office: https://$host (ports ${hp:-80} and ${hs:-443})"
+        compose ps proxy
+      else
+        say "from outside the office: off — turn it on with: infrastructure/hivamis remote HOST"
+      fi
+      return 0 ;;
+    off)
+      env_set COMPOSE_PROFILES "$profiles"
+      compose rm -sf proxy
+      # Links and the allowed origins go back to the office's own address.
+      origins="$(env_get CORS_ORIGIN | tr ',' '\n' | grep -v '^https://' | paste -sd, - || true)"
+      lan="${origins%%,*}"
+      if [ -n "$lan" ]; then env_set CORS_ORIGIN "$origins"; env_set PUBLIC_APP_URL "$lan"; fi
+      compose up -d api
+      say "✓ from outside the office: off"
+      return 0 ;;
+  esac
+  host="$(printf '%s' "$host" | tr 'A-Z' 'a-z')"
+  case "$host" in
+    *[!a-z0-9.-]*|.*|*.|*..*|"") die "remote HOST: a name like crm.example.ir, without https:// or a port" ;;
+  esac
+  url="https://$host"
+  # The office's address stays allowed beside the new one, so neither way in is refused.
+  origins="$(env_get CORS_ORIGIN | tr ',' '\n' | grep -vx -e "$url" -e '' | paste -sd, - || true)"
+  env_set PUBLIC_HOST "$host"
+  env_set PUBLIC_APP_URL "$url"
+  env_set CORS_ORIGIN "$url${origins:+,$origins}"
+  env_set COMPOSE_PROFILES "${profiles:+$profiles,}https"
+  compose up -d proxy api
+  say "✓ $url is served here, over HTTPS. To reach it from outside the office:"
+  say "  1. the router: forward TCP ports 80 and 443 (and UDP 443) to this machine's office address"
+  say "  2. DNS: an A record for $host pointing at the office's public, fixed address"
+  say "  3. then the certificate arrives by itself; to watch: docker compose logs -f proxy"
 }
 
 cmd_backup() {
@@ -619,6 +708,7 @@ case "${1:-help}" in
   install) shift; cmd_install "$@" ;;
   status) shift; cmd_status ;;
   model) shift; cmd_model "$@" ;;
+  remote) shift; cmd_remote "$@" ;;
   reset) shift; cmd_reset "$@" ;;
   backup) shift; cmd_backup ;;
   restore) shift; cmd_restore "$@" ;;
@@ -626,5 +716,5 @@ case "${1:-help}" in
   tenant) shift; cmd_tenant "$@" ;;
   import-mizito) shift; cmd_import_mizito "$@" ;;
   passwords) shift; cmd_passwords "$@" ;;
-  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 esac

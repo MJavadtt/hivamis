@@ -38,6 +38,9 @@ describe('Annotating a deliverable, and the revision it becomes', () => {
     const project = await prisma.project.findFirstOrThrow({ where: { deletedAt: null } });
     const mk = async (name: string) => (await prisma.deliverable.create({ data: { organizationId: org, code: await nextCode(prisma, 'deliverable'), projectId: project.id, name, departmentCode: 'CR', state: 'IN_QC' } })).id;
     deliverableId = await mk('کمپین پاییز');
+    // The designer works on it: a task of theirs under it (ADR-127 — they see what they work on).
+    const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });
+    await prisma.task.create({ data: { organizationId: org, code: await nextCode(prisma, 'task'), projectId: project.id, deliverableId, title: 'طراحی', departmentCode: 'CR', priority: 'NORMAL', state: 'IN_PROGRESS', sourceType: 'ORDER_FORM', sourceRef: 'test', createdById: designer.id, assigneeId: designer.id } });
     otherId = await mk('خروجی دیگر');
     const up = async (key: string, name: string, type: string, content: Buffer | string, d = deliverableId) => {
       f[key] = expectOk(await upload(T.creative, { name, type, content }, { deliverableId: d }), key).id;

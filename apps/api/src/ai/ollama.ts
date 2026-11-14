@@ -8,6 +8,30 @@ import { env } from '../env.js';
 
 export const ollama = { url: env.OLLAMA_URL.replace(/\/$/, ''), model: env.OLLAMA_MODEL };
 
+/** "-1" or "3600" as the number Ollama reads as seconds (negative: always); "30m" as it is. */
+export const keepAlive = (v: string): string | number => (/^-?\d+$/.test(v) ? Number(v) : v);
+
+/**
+ * Loads the model as the API starts, so the first question of the day does not wait the minute a
+ * CPU takes to read 18 GB from disk (the owner, 2026-11-14: «این مدل کند است»). Best effort: a
+ * model that is not there yet, or a server that is down, is logged and the API starts all the same.
+ */
+export async function warmUp(log: { info: (o: object, m: string) => void; warn: (o: object, m: string) => void }): Promise<void> {
+  const started = Date.now();
+  try {
+    const res = await fetch(`${ollama.url}/api/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: ollama.model, keep_alive: keepAlive(env.OLLAMA_KEEP_ALIVE) }),
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+    await res.text();
+    if (res.ok) log.info({ model: ollama.model, ms: Date.now() - started }, 'assistant model loaded');
+    else log.warn({ model: ollama.model, status: res.status }, 'assistant model not loaded');
+  } catch (err) {
+    log.warn({ model: ollama.model, err: String(err) }, 'assistant model not loaded');
+  }
+}
+
 export interface ToolCall { function: { name: string; arguments: Record<string, unknown> } }
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -78,7 +102,7 @@ export async function* chat(messages: ChatMessage[], tools: ToolSpec[], signal: 
       // 8192 was too few: the prompt, the tools, a page's forms and five rounds of tool answers ran
       // past it, and the model lost its tools from the front (the owner's report, 2026-10-23).
       options: { temperature: 0.3, num_ctx: env.OLLAMA_NUM_CTX },
-      keep_alive: '30m',
+      keep_alive: keepAlive(env.OLLAMA_KEEP_ALIVE),
     }),
   });
   if (!res.ok || !res.body) throw new Error(`ollama ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);

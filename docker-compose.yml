@@ -29,6 +29,13 @@ x-ollama: &ollama
   restart: unless-stopped
   environment:
     OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    # Several people at once (the owner, 2026-11-14): as many answers written together as the API
+    # lets through (CHAT_CONCURRENCY), one model in memory, and its working memory halved (q8_0 needs
+    # flash attention) so the extra slots fit beside it.
+    OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+    OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+    OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+    OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}
   volumes:
     - ollama-models:/root/.ollama
   # On the internal network only: no port on the host, and no way out — nothing said to the model
@@ -121,6 +128,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-16384}
       CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
       # Pictures (audit F-2): off until the `image` profile is added and IMAGE_MODE=local.
       IMAGE_MODE: ${IMAGE_MODE:-off}
       IMAGE_URL: ${IMAGE_URL:-http://imagegen:8080}
@@ -201,6 +209,28 @@ services:
       - api
     ports:
       - '${WEB_PORT:-8080}:80'
+
+  # The way in from outside the office (ADR-129): HTTPS for PUBLIC_HOST, with a certificate Caddy
+  # fetches and renews itself. Off until `hivamis remote HOST` adds the `https` profile; the office
+  # router then forwards ports 80 and 443 here. Port 8080 stays the office's own way in.
+  proxy:
+    image: caddy:2.10.0-alpine
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+      - '${HTTPS_PORT:-443}:443/udp'
+    volumes:
+      - ./infrastructure/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Its certificates and its account with Let's Encrypt, kept so a restart asks for nothing.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
 
   ollama:
     <<: *ollama
@@ -292,3 +322,5 @@ volumes:
   ollama-models:
   image-models:
   speech-models:
+  caddy-data:
+  caddy-config:

@@ -11,6 +11,7 @@ import path from 'node:path';
  */
 
 const ROOT = path.resolve(__dirname, '../../..');
+const M30 = 'qwen3:30b-a3b-instruct-2507-q4_K_M';
 const run = promisify(execFile);
 const compose = readFileSync(path.join(ROOT, 'docker-compose.yml'), 'utf8');
 /** One service's block of docker-compose.yml, to its next sibling. */
@@ -29,6 +30,7 @@ async function install(extra: string[], machine: { gb: number; gpu: boolean }) {
     const val = (k: string) => new RegExp(`^${k}=(.*)$`, 'm').exec(written)?.[1];
     return {
       out: r.stdout, err: r.stderr, profiles: val('COMPOSE_PROFILES'), chat: val('CHAT_MODE'), model: val('OLLAMA_MODEL'), ctx: val('OLLAMA_NUM_CTX'), image: val('IMAGE_MODE'), imageModel: val('IMAGE_MODEL'),
+      slots: val('CHAT_CONCURRENCY'), parallel: val('OLLAMA_NUM_PARALLEL'),
       transcription: val('TRANSCRIPTION_URL'), speechModel: val('TRANSCRIPTION_MODEL'),
     };
   } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -55,16 +57,27 @@ describe('The model inside the installation (audit F-1)', () => {
   });
 
   // The owner's report (2026-10-23): 14b was slow and missed its tools. 30b is a mixture of experts —
-  // stronger, and faster for the 3B of it at work on each word.
-  it('sizes the model to the memory it runs in: 30b on a CPU from 32 GB, 8b from 12, 4b below', async () => {
-    for (const [gb, model, ctx] of [[64, 'qwen3:30b', '32768'], [32, 'qwen3:30b', '32768'], [31, 'qwen3:8b', '16384'], [12, 'qwen3:8b', '16384'], [11, 'qwen3:4b', '8192'], [6, 'qwen3:4b', '8192']] as const) {
+  // stronger, and faster for the 3B of it at work on each word. And (2026-11-14) its instruct build,
+  // which answers without thinking first, for as many people at once as the memory holds.
+  it('sizes the model to the memory it runs in: 30b on a CPU from 32 GB, 8b from 12, 4b below — and how many answer at once', async () => {
+    for (const [gb, model, ctx, slots] of [
+      [64, M30, '32768', '4'], [48, M30, '32768', '4'], [40, M30, '32768', '2'], [32, M30, '32768', '1'],
+      [31, 'qwen3:8b', '16384', '4'], [16, 'qwen3:8b', '16384', '2'], [12, 'qwen3:8b', '16384', '1'], [11, 'qwen3:4b', '8192', '1'], [6, 'qwen3:4b', '8192', '1'],
+    ] as const) {
       const r = await install([], { gb, gpu: false });
-      expect([gb, r.model, r.ctx, r.profiles, r.chat]).toEqual([gb, model, ctx, 'ai', 'ollama']);
+      expect([gb, r.model, r.ctx, r.profiles, r.chat, r.slots, r.parallel]).toEqual([gb, model, ctx, 'ai', 'ollama', slots, slots]);
     }
   }, 60_000);
 
+  it('keeps the slots, the model in memory and its working memory as settings of the model\'s server', () => {
+    const shared = /^x-ollama: &ollama\n([\s\S]*?)\n\n/m.exec(compose)![1]!;
+    for (const line of ['OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}', 'OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}', 'OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}', 'OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}']) expect(shared).toContain(line);
+    expect(service('api')).toContain('CHAT_CONCURRENCY: ${CHAT_CONCURRENCY:-1}');
+    expect(service('api')).toContain('OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}');
+  });
+
   it('on a GPU: 30b from 20 GB, 14b from 10, 8b from 6, and 32K of context for 30b', async () => {
-    for (const [gb, model, ctx] of [[48, 'qwen3:30b', '32768'], [24, 'qwen3:30b', '32768'], [20, 'qwen3:30b', '32768'], [19, 'qwen3:14b', '16384'], [10, 'qwen3:14b', '8192'], [8, 'qwen3:8b', '8192'], [4, 'qwen3:4b', '8192']] as const) {
+    for (const [gb, model, ctx] of [[48, M30, '32768'], [24, M30, '32768'], [20, M30, '32768'], [19, 'qwen3:14b', '16384'], [10, 'qwen3:14b', '8192'], [8, 'qwen3:8b', '8192'], [4, 'qwen3:4b', '8192']] as const) {
       const r = await install([], { gb, gpu: true });
       expect([gb, r.model, r.ctx, r.profiles]).toEqual([gb, model, ctx, 'ai-gpu']);
     }
@@ -79,12 +92,12 @@ describe('The model inside the installation (audit F-1)', () => {
       const r = await run('bash', [path.join(ROOT, 'infrastructure/hivamis'), 'model', 'auto'], { env });
       const at = (t: string) => { const i = r.stdout.indexOf(t); expect(i, t).toBeGreaterThan(-1); return i; };
       at('s|^COMPOSE_PROFILES=.*|COMPOSE_PROFILES=ai-gpu,image|');
-      at('s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=qwen3:30b|');
+      at(`s|^OLLAMA_MODEL=.*|OLLAMA_MODEL=${M30}|`);
       at('s|^OLLAMA_NUM_CTX=.*|OLLAMA_NUM_CTX=32768|');
       // The CPU's model service steps aside, the GPU's comes up, the model arrives, then the API.
       expect(at('rm -sf ollama')).toBeLessThan(at('up -d\n'));
-      expect(at('ollama-pull qwen3:30b')).toBeLessThan(at('up -d api'));
-      expect(r.stderr).toContain('qwen3:30b on the GPU (24 GB detected), reading 32768 tokens at once');
+      expect(at(`ollama-pull ${M30}`)).toBeLessThan(at('up -d api'));
+      expect(r.stderr).toContain(`${M30} on the GPU (24 GB detected), reading 32768 tokens at once`);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 

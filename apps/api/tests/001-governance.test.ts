@@ -312,8 +312,9 @@ describe('Preflight — "why can’t I?" before the click', () => {
     const sendBack = asAccount.transitions.find((t: any) => t.action === 'return_incomplete');
     expect(sendBack).toMatchObject({ ready: true, requiresReason: true, checks: [] });
 
-    const asDesigner = expectOk(await get(`/workflow/brief/${brief.id}/preflight`, tokens.designer), 'designer');
-    const cannot = asDesigner.transitions.find((t: any) => t.action === 'approve');
+    // Sales, who wrote the brief, reads it but may not approve it (ADR-127: a designer does not see it at all).
+    const asSales = expectOk(await get(`/workflow/brief/${brief.id}/preflight`, tokens.sales), 'sales');
+    const cannot = asSales.transitions.find((t: any) => t.action === 'approve');
     expect(cannot).toMatchObject({ permitted: false, permission: 'brief.approve', ready: false });
   });
 
@@ -568,7 +569,7 @@ describe('Process mining and conformance', () => {
     const conv = expectOk(await post(`/leads/${lead.id}/convert`, tokens.sales, {}), 'convert');
     const opportunityId = conv.opportunity?.id ?? conv.opportunityId ?? conv.id;
     expectOk(await move('opportunity', opportunityId, 'qualify', tokens.sales), 'oq');
-    expectOk(await move('opportunity', opportunityId, 'request_brief', tokens.accountManager), 'rb');
+    expectOk(await move('opportunity', opportunityId, 'request_brief', tokens.sales), 'rb');
     const brief = expectOk(await post('/briefs', tokens.sales, { opportunityId, title: 'بریف حلقه', businessObjective: 'x' }), 'brief');
     expectOk(await move('brief', brief.id, 'submit', tokens.sales), 'submit');
     expectOk(await move('brief', brief.id, 'start_review', tokens.account), 'review');

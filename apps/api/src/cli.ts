@@ -14,6 +14,10 @@
  *                          a clean start: every person and record but that system administrator, the
  *                          history kept (src/setup/reset.ts). Without --yes, says what it would delete.
  *                          The new password, if any, comes on standard input — never on the command line.
+ *   org:reset              --keep-people --as EMAIL [--slug s] [--yes]
+ *                          a fresh start that keeps every colleague (ADR-130): every client and project
+ *                          record deleted, the people, the suppliers, the referrers, the invoice sellers and
+ *                          the history kept, done as that system administrator. Without --yes, what it would delete.
  *   import:mizito          --mizito FILE [--sheet FILE] [--extra FILE] --as EMAIL [--slug s] [--commit]
  *                          a move from Mizito and the client sheet (src/onboarding/mizito.ts), as that system
  *                          administrator: without --commit, what it would make; with it, made. Run again, it
@@ -30,7 +34,7 @@ import { deactivateDemoAccounts } from './lib/demo-accounts.js';
 import { syncReference } from './setup/reference.js';
 import { listOrganizations, provisionOrganization, systemStatus, updateOrganization } from './setup/tenant.js';
 import { APP_VERSION } from './version.js';
-import { planReset, resetOrganization } from './setup/reset.js';
+import { freshStartKeepingPeople, planFreshStart, planReset, resetOrganization } from './setup/reset.js';
 import { runMigration } from './onboarding/migration.js';
 import { fromMizito } from './onboarding/mizito.js';
 import { issueTemporaryPasswords, waitingForPassword } from './onboarding/passwords.js';
@@ -127,6 +131,11 @@ export async function run(argv: string[]): Promise<unknown> {
       return deactivateDemoAccounts();
     case 'org:reset': {
       const organizationId = await organizationFor(one(flags, 'slug'));
+      if (flags['keep-people']) {
+        const by = need(flags, 'as');
+        if (!flags.yes) return { dryRun: true, ...(await planFreshStart(organizationId, by)) };
+        return freshStartKeepingPeople(organizationId, by);
+      }
       const email = need(flags, 'keep-admin');
       if (!flags.yes) return { dryRun: true, ...(await planReset(organizationId, email)) };
       const password = flags['password-stdin'] ? await readStdin() : undefined;
