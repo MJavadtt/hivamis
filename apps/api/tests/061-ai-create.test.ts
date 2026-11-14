@@ -5,7 +5,7 @@ import { ROLE_PERMISSIONS } from '@hiva/contracts';
 import { app, closeApp, expectOk, get, login, post, put } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
-import { ollama } from '../src/ai/ollama.js';
+import { keepAlive, ollama, warmUp } from '../src/ai/ollama.js';
 import { imageServer } from '../src/ai/image.js';
 
 /**
@@ -81,6 +81,20 @@ describe('Writing and pictures with the assistant (audit F-2)', () => {
     // The log keeps that it was done, not what was said.
     const log = await prisma.aiInteraction.findFirst({ where: { capability: 'WRITE' }, orderBy: { createdAt: 'desc' } });
     expect(log).toMatchObject({ promptSummary: 'write — brief', succeeded: true, tokensOut: 9 });
+  });
+
+  // The owner (2026-11-14; ADR-129): «این مدل کند است». Loaded as the API starts, with the context the
+  // chat asks for — loaded with another, the first question would wait for it to load again.
+  it('is loaded as the API starts, as the chat will use it, and kept as long as the setting says', async () => {
+    asked.length = 0;
+    const logged: string[] = [];
+    await warmUp({ info: (_o, m) => logged.push(m), warn: (_o, m) => logged.push(m) });
+    const load = asked.find((a) => a.url === '/api/generate')!.body;
+    expect(load).toEqual({ model: 'qwen3:8b', keep_alive: keepAlive(env.OLLAMA_KEEP_ALIVE), options: { num_ctx: env.OLLAMA_NUM_CTX } });
+    expect(logged).toHaveLength(1);
+    await stream(sales, { kind: 'email', instruction: 'shorter', text: 'hello', locale: 'en' });
+    expect(asked.find((a) => a.url === '/api/chat')!.body.options.num_ctx).toBe(load.options.num_ctx);
+    expect([keepAlive('-1'), keepAlive('3600'), keepAlive('30m'), keepAlive('24h')]).toEqual([-1, 3600, '30m', '24h']);
   });
 
   it('rewrites what is already in the field, in the language asked', async () => {

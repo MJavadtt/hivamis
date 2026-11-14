@@ -21,7 +21,8 @@ export async function warmUp(log: { info: (o: object, m: string) => void; warn: 
   try {
     const res = await fetch(`${ollama.url}/api/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: ollama.model, keep_alive: keepAlive(env.OLLAMA_KEEP_ALIVE) }),
+      // With the context the chat asks for: loaded with any other, the first question would load it again.
+      body: JSON.stringify({ model: ollama.model, keep_alive: keepAlive(env.OLLAMA_KEEP_ALIVE), options: { num_ctx: env.OLLAMA_NUM_CTX } }),
       signal: AbortSignal.timeout(10 * 60_000),
     });
     await res.text();
