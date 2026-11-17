@@ -82,10 +82,11 @@ describe('The sweep', () => {
     const before = await prisma.session.count({ where: { userId: user.id } });
     const [a, b] = await Promise.all([1, 2].map(() => refreshWith(token)));
     // One rotation wins. Before, both did, and the account gained two sessions from one token.
-    expect([a.status, b.status].sort()).toEqual([200, 401]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(before + 1);
-    // The second presentation is the replay it is.
-    expect(await prisma.auditEvent.count({ where: { actorId: user.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(1);
-    expect(await prisma.session.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
+    // In the same moment it is another tab of the same browser (ADR-131): told to try again, and
+    // nobody is signed out — the session the first one made stays live.
+    expect(await prisma.auditEvent.count({ where: { actorId: user.id, action: 'REFRESH_TOKEN_REUSE' } })).toBe(0);
+    expect(await prisma.session.count({ where: { userId: user.id, revokedAt: null } })).toBe(1);
   });
 });

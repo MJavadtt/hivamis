@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { formDocCodes } from '../forms/doc-code.js';
 import {
   formDecisionSchema, submitFormSchema, paginationSchema, updateRoutingSchema, updateApprovalChainSchema,
   updateFormSchemaSchema, createFormDefinitionSchema, updateFormDefinitionSchema,
@@ -34,12 +35,14 @@ const formRoutes: FastifyPluginAsync = async (app) => {
       },
       orderBy: { no: 'asc' },
     });
+    const docCodes = await formDocCodes(actor.organizationId);
     return {
       categories: Object.entries(FORM_CATEGORY_LABELS).map(([key, labelFa]) => ({
         key, labelFa, count: definitions.filter((d) => d.category === key).length,
       })),
       definitions: definitions.map((d) => ({
         ...d,
+        docCode: docCodes.get(d.id) ?? null,
         canSubmit:
           d.senderDepts.length === 0 ||
           (actor.departmentCode ? d.senderDepts.includes(actor.departmentCode) : false) ||
@@ -57,7 +60,7 @@ const formRoutes: FastifyPluginAsync = async (app) => {
     const def = await prisma.formDefinition.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code } } });
     if (!def) throw notFound('تعریف فرم');
     const sla = def.slaCode ? await prisma.slaPolicy.findUnique({ where: { organizationId_code: { organizationId: actor.organizationId, code: def.slaCode } } }) : null;
-    return { ...def, sla, canSubmit: maySubmitForm(def.senderDepts, actor.departmentCode, actor.roles) };
+    return { ...def, sla, docCode: (await formDocCodes(actor.organizationId)).get(def.id) ?? null, canSubmit: maySubmitForm(def.senderDepts, actor.departmentCode, actor.roles) };
   });
 
   /**

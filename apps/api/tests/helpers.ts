@@ -187,3 +187,9 @@ export async function createContact(data: Omit<Prisma.ContactUncheckedCreateInpu
   const { organizationId } = await prisma.company.findUniqueOrThrow({ where: { id: data.companyId }, select: { organizationId: true } });
   return prisma.contact.create({ data: { ...data, organizationId } });
 }
+
+/**
+ * As if the last renewals were a while ago: a token presented again within seconds of its trade is
+ * another tab of the same browser (409, try again); only later is it a copy someone kept (ADR-131).
+ */
+export const ageRotations = () => prisma.session.updateMany({ where: { revokedReason: 'ROTATED' }, data: { revokedAt: new Date(Date.now() - 60_000) } });

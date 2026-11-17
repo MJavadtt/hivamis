@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
-import { app, call, closeApp, expectOk, get, login, patch, post, refreshCookieOf, refreshWith, signIn } from './helpers.js';
+import { app, call, closeApp, expectOk, get, login, patch, post, refreshCookieOf, refreshWith, signIn, ageRotations } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { google } from '../src/auth/google.js';
 import { MAX_ATTEMPTS } from '../src/auth/otp.js';
@@ -259,6 +259,9 @@ describe('A page for every person', () => {
     const first = await signIn('designer@hiva.local');
     const rotated = await refreshWith(first.refresh);
     expect(rotated.status).toBe(200);
+    // In the same moment it is another tab: told to try again, and nothing ends.
+    expect((await refreshWith(first.refresh)).status).toBe(409);
+    await ageRotations();
     expect((await refreshWith(first.refresh)).status).toBe(401);
     expect((await refreshWith(rotated.refresh!)).status).toBe(401);
     const designer = await prisma.user.findFirstOrThrow({ where: { email: 'designer@hiva.local' } });

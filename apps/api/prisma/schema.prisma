@@ -208,6 +208,8 @@ model Department {
   tagColor          String?
   /// The organisation renamed the unit (list 3, item 6): an upgrade keeps its names.
   namesOwned        Boolean      @default(false)
+  /// «حرف اختصاری واحد» (ADR-133): the two letters a document's code begins with — QA, FA, SA.
+  shortCode         String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -216,6 +218,7 @@ model Department {
   teams     Team[]
 
   @@unique([organizationId, code])
+  @@unique([organizationId, shortCode])
   @@map("departments")
 }
 

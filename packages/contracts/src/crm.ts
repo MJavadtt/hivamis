@@ -70,6 +70,32 @@ export function normalizeIranMobile(raw: string | null | undefined): string | nu
   return /^09\d{9}$/.test(d) ? d : null;
 }
 
+/**
+ * A phone number a client is reached at — mobile or landline (the owner, 2026-11-16: «امکان اضافه
+ * کردن شماره ثابت وجود ندارد»). A mobile in its one form, 09xxxxxxxxx; a landline with its area
+ * code, 0 + ten digits (02188776655), or as the office dials it without one (eight digits), or a
+ * short national number (four or five digits). Typed any way: Persian digits, spaces, dashes,
+ * brackets, +98. Null when it is none of these.
+ */
+export function normalizeIranPhone(raw: string | null | undefined): string | null {
+  const mobile = normalizeIranMobile(raw);
+  if (mobile) return mobile;
+  if (!raw) return null;
+  let d = '';
+  for (const ch of String(raw)) {
+    const p = PERSIAN_DIGITS.indexOf(ch), a = ARABIC_DIGITS.indexOf(ch);
+    if (p >= 0) d += String(p);
+    else if (a >= 0) d += String(a);
+    else if (/[0-9+]/.test(ch)) d += ch;
+    else if (!/[\s\-().‌]/.test(ch)) return null;
+  }
+  if (d.startsWith('+98')) d = `0${d.slice(3)}`;
+  else if (d.startsWith('0098')) d = `0${d.slice(4)}`;
+  else if (d.startsWith('98') && d.length === 12) d = `0${d.slice(2)}`;
+  if (/^0[1-8]\d{9}$/.test(d) || /^[1-9]\d{7}$/.test(d) || /^[1-9]\d{3,4}$/.test(d)) return d;
+  return null;
+}
+
 /** "Sales team — Elham Karimi", "Direct contact — Exhibition": a lead's source as one phrase. */
 export function leadSourceFa(lead: {
   source: string; sourceChannel?: string | null;

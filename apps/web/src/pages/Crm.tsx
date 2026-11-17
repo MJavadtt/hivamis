@@ -16,7 +16,7 @@ import {
   Modal, Select, StateBadge, StatTile, Table, Tabs, Td, Textarea, Th, Tr, IconPlus,
 } from '../components/ui';
 import { exactCurrency, formatCurrency, formatDate, formatRelative, localDigits } from '../lib/format';
-import { LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, leadSourceFa, normalizeIranMobile } from '@hiva/contracts';
+import { LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, leadSourceFa, normalizeIranPhone } from '@hiva/contracts';
 import { ApiError } from '../lib/api';
 import { LeadSourcePicker, sourceComplete, type LeadSourceValue } from '../components/LeadSource';
 import { PortalUsersCard } from '../components/PortalAdmin';
@@ -46,7 +46,7 @@ export function LeadsList() {
       <PageBody>
         <EntityList<any>
           path="/leads"
-          searchPlaceholder={tr('جستجو در نام سرنخ، شرکت یا تلفن همراه…')}
+          searchPlaceholder={tr('جستجو در نام سرنخ، شرکت یا تلفن…')}
           filters={[{
             key: 'state', label: tr('وضعیت'),
             options: [
@@ -62,7 +62,7 @@ export function LeadsList() {
           columns={[
             { key: 'name', header: tr('سرنخ'), render: (r) => (<><p className="font-medium text-ink-800">{r.name}</p><Code>{r.code}</Code></>) },
             { key: 'company', header: tr('شرکت'), render: (r) => <span className="text-xs">{r.companyName}</span> },
-            { key: 'phone', header: tr('تلفن همراه'), render: (r) => <span className="ltr text-xs">{r.phone ?? '—'}</span> },
+            { key: 'phone', header: tr('تلفن'), render: (r) => <span className="ltr text-xs">{r.phone ?? '—'}</span> },
             { key: 'source', header: tr('منبع ورودی'), render: (r) => <Badge tone="neutral">{trx(leadSourceFa(r))}</Badge> },
             { key: 'value', header: tr('ارزش تخمینی'), render: (r) => <span className="text-xs" title={exactCurrency(r.estimatedValue)}>{formatCurrency(r.estimatedValue)}</span> },
             { key: 'owner', header: tr('مالک'), render: (r) => <span className="text-xs">{r.owner?.fullName ?? '—'}</span> },
@@ -110,7 +110,7 @@ function LeadModal({ onClose }: { onClose: () => void }) {
   const create = useAction((body: unknown) => apiPost('/leads', body), tr('سرنخ ثبت شد.'));
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const mobile = normalizeIranMobile(form.phone);
+  const mobile = normalizeIranPhone(form.phone);
   const [asked, setAsked] = useState<string | null>(null);
   useEffect(() => {
     if (!mobile) return;
@@ -153,8 +153,8 @@ function LeadModal({ onClose }: { onClose: () => void }) {
         <Field label={tr('نام سرنخ')} required><Input value={form.name ?? ''} onChange={(e) => set('name', e.target.value)} /></Field>
         <Field label={tr('نام شرکت')} required><Input value={form.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} /></Field>
         <Field label={tr('نام تماس')}><Input value={form.contactName ?? ''} onChange={(e) => set('contactName', e.target.value)} /></Field>
-        <Field label={tr('تلفن همراه')} required
-          error={form.phone && !mobile ? tr('شمارهٔ همراه معتبر نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷') : undefined}
+        <Field label={tr('تلفن (همراه یا ثابت)')} required
+          error={form.phone && !mobile ? tr('شمارهٔ تلفن معتبر نیست — همراه مانند ۰۹۱۲۱۲۳۴۵۶۷ یا ثابت با کد شهر مانند ۰۲۱۸۸۷۷۶۶۵۵') : undefined}
           hint={mobile && mobile !== form.phone ? tr('ثبت می‌شود: {0}', mobile) : undefined}>
           <Input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} className="ltr" inputMode="tel" placeholder="09xx xxx xxxx" />
         </Field>

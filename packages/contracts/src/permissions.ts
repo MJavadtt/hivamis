@@ -187,6 +187,9 @@ export const PERMISSIONS = {
   'record.see_unit': 'دیدن پرونده‌های همکاران واحد خود',
   'record.see_commercial': 'دیدن همهٔ مشتریان، پروژه‌ها، قراردادها و فاکتورها (کار مالی و حقوقی)',
   'record.see_all': 'دیدن پرونده‌های همهٔ همکاران',
+  // The owner (2026-11-16; ADR-132): «امکان حذف کامل سرنخ، مشتری و… وجود ندارد». A manager's, over the
+  // records they see; what is deleted goes with everything that hangs off it, and the history says so.
+  'record.delete': 'حذف کامل رکوردها (سرنخ، مشتری، پروژه و…) با هرچه به آن‌ها وابسته است',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -343,20 +346,20 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   CEO: fullAccessFor('CEO'),
   DEPUTY: fullAccessFor('DEPUTY'),
   SALES_MANAGER: [
-    ...SALES_CORE, 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE,
+    ...SALES_CORE, 'record.delete', 'crm.company.write', 'report.executive', 'form.approve', 'traffic.read', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE,
   ],
   SALES_REP: [...SALES_CORE, ...EVERYONE],
   ACCOUNT_MANAGER: fullAccessFor('ACCOUNT_MANAGER'),
   ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
-  UNIT_MANAGER: [...UNIT_CORE, 'form.approve', 'proposal.unit_approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE],
+  UNIT_MANAGER: [...UNIT_CORE, 'record.delete', 'form.approve', 'proposal.unit_approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
-  PMO_MANAGER: [...PMO_CORE, 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', 'record.see_all', ...EVERYONE],
+  PMO_MANAGER: [...PMO_CORE, 'record.delete', 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', 'record.see_all', ...EVERYONE],
   PMO_SPECIALIST: [...PMO_CORE, ...EVERYONE],
-  FINANCE_MANAGER: [...FINANCE_CORE, 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', 'rental.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
+  FINANCE_MANAGER: [...FINANCE_CORE, 'record.delete', 'finance.settle', 'form.approve', 'report.executive', 'chat.channel.create', 'meeting.approve', 'rental.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
   FINANCE_SPECIALIST: [...FINANCE_CORE, 'record.see_commercial', ...EVERYONE],
   // Doc_H RACI step 26 («امضای قرارداد»): Responsible = Sales/Legal, Accountable = Management.
   // Legal records the signature; management still owns approval via `contract.approve`.
-  LEGAL_MANAGER: [...LEGAL_CORE, 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', 'site.contract.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
+  LEGAL_MANAGER: [...LEGAL_CORE, 'record.delete', 'contract.approve', 'contract.sign', 'form.approve', 'chat.channel.create', 'meeting.approve', 'site.contract.approve', 'record.see_unit', 'record.see_commercial', ...EVERYONE],
   LEGAL_SPECIALIST: [...LEGAL_CORE, 'record.see_commercial', ...EVERYONE],
   VIEWER: [...READ_ONLY, ...EVERYONE],
 };

@@ -4013,3 +4013,58 @@ suppliers, and the marketers and referring companies.
 
 It says what it will delete, asks for `RESET`, backs up first, and writes `ORGANIZATION_FRESH_START`
 to the audit trail.
+
+## ADR-131 — More people at once: each signed-in person is counted as themselves
+
+**Context.** The owner (2026-11-16): «با افزایش تعداد کاربران، سیستم و سرور از کار می‌افتد». The server
+itself was idle (load 0.0, no restarts, no memory kills). Its logs showed what people met: every
+colleague reaches it through the office router, so all of them arrived from one address and shared
+one budget of 300 requests a minute; and a session reloaded a few times in a minute ran past ten
+renewals and was refused for the rest of it — 44 refusals in a row for one person in the logs.
+Over plain http browsers give tabs no lock to take turns renewing with, so two tabs renewing in the
+same moment looked like a stolen token and signed the person out everywhere.
+
+**Decision.**
+- The general limit counts a signed-in person by their verified token (`user:<id>`); what has no
+  valid token stays the address's. A made-up token buys no bucket of its own.
+- Renewals have their own budget, `REFRESH_RATE_LIMIT_MAX` (60 a minute per session); sign-in
+  attempts per address rise to 30 (`LOGIN_RATE_LIMIT_MAX`), as an office is one address.
+- A rotated token presented again within ten seconds of its trade is another tab: `409 REFRESH_RACE`,
+  the page tries once more with the cookie it now has, and nothing ends. Later it is still treated
+  as theft and every session ends.
+
+## ADR-132 — Deleting a record for good
+
+**Context.** The owner (2026-11-16): «امکان حذف کامل سرنخ، مشتری و… وجود ندارد».
+
+**Decision.** `record.delete` (managers by default) deletes a record with everything that hangs off
+it: `GET /records/:kind/:id/deletion` says what first, `DELETE /records/:kind/:id` does it. What hangs
+off it is read from the schema — required relations and cascades, children first — plus what names it
+by kind and id, and its files (deleted from the disk after the commit). Only records the person sees
+(ADR-127). Refused when it would take a person, a unit or the history, or an invoice that reached the
+accounting export or the taxpayer system. The audit trail and workflow transitions stay, and the
+deletion is written there with what it took and why. «حذف کامل» sits beside «ویرایش» on every record.
+
+## ADR-133 — Units the organisation adds and deletes, landlines, and the coding instruction
+
+**Context.** The owner (2026-11-16): units and teams could not be added or deleted; only mobile numbers
+were accepted; and the units' coding follows the attached instruction QA-WI-001/00 — a nine-character
+document code, unit-type-serial/revision (`QA-FR-007/01`), with a two-letter code per unit.
+
+**Decision.**
+- Each unit has `shortCode`, its two letters by the instruction: management MA, sales SA, account AC,
+  strategy QC, idea & execution IC (Creative's new name), media MD, digital marketing PM, finance FA;
+  legal and operations, absent from the table, keep LG and OP. The instruction's other units —
+  VP, QA, IT, HR, CO and the warehouse (ST) — were made once for each organisation.
+- The administrator adds a unit (name and two letters), deletes one of the organisation's own once
+  nobody is in it, and deletes a team outright. The ten process units stay, as work is routed to them;
+  their names, codes and managers are the organisation's.
+- Every form shows its document code: its owner unit's letters, FR, its serial among that unit's
+  forms, and its revision (`SA-FR-001/00`). `documentCode()` and the type table are in the contracts.
+- A client's phone is a mobile or a landline (`normalizeIranPhone`): `02188776655`, eight digits
+  without the area code, or a four- or five-digit national number. Colleagues' own numbers, which
+  receive codes by SMS, stay mobile.
+
+**And simpler to use.** The sidebar keeps the everyday pages; the occasional ones (drafts, colleagues,
+changes, traffic, suppliers, overview, memory, rules, booking administration, onboarding) are under
+«بیشتر», open when one of them is on screen or the person opens it.

@@ -12,7 +12,7 @@ import { tr, trx } from '../i18n';
 import { UnitTag } from '../components/UnitTag';
 
 const UNITS = [
-  { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
+  { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('ایده و اجرا') },
   { value: 'ME', label: tr('رسانه') }, { value: 'DM', label: tr('دیجیتال مارکتینگ') },
 ];
 const KINDS = [

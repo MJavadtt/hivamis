@@ -1,4 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react';
+import { DeleteRecordButton, deletableKind } from './DeleteRecord';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -344,9 +345,13 @@ export function EditRecordButton({ path, id, compact }: { path: string; id: stri
   const systemAdmin = useSystemAdmin();
   const [open, setOpen] = useState(false);
   const kind = RECORD_KINDS.find((k) => k.path === path);
-  if (!systemAdmin || !kind) return null;
+  // «حذف کامل» sits wherever «ویرایش» does, for whoever may delete (ADR-132) — the administrator or not.
+  const removable = deletableKind(path);
+  const remove = removable ? <DeleteRecordButton kind={removable} id={id} compact={compact} /> : null;
+  if (!systemAdmin || !kind) return remove;
   return (
-    <span onClick={(e) => e.stopPropagation()}>
+    <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1">
+      {remove}
       {compact
         ? <Button size="sm" variant="ghost" aria-label={tr('ویرایش {0}', kind.label)} title={tr('ویرایش {0}', kind.label)} data-testid="edit-record" onClick={() => setOpen(true)}><IconPencil className="size-4" /></Button>
         : <Button size="sm" data-testid="edit-record" onClick={() => setOpen(true)}><IconPencil className="size-4" />{tr('ویرایش')}</Button>}

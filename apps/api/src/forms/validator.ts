@@ -1,4 +1,4 @@
-import { normalizeIranMobile, type FieldDef } from '@hiva/contracts';
+import { normalizeIranPhone, type FieldDef } from '@hiva/contracts';
 import { badRequest } from '../lib/errors.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,8 +63,8 @@ function checkField(field: FieldDef, raw: unknown, prefix: string, issues: Issue
     }
     case 'mobile': {
       // One written form, 09xxxxxxxxx, whatever digits or prefix it was typed with (Hivamis task 2).
-      const n = normalizeIranMobile(String(raw));
-      if (!n) issues.push({ path, message: `«${field.labelFa}» شمارهٔ همراه معتبری نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷` });
+      const n = normalizeIranPhone(String(raw));
+      if (!n) issues.push({ path, message: `«${field.labelFa}» شمارهٔ تلفن معتبری نیست — همراه مانند ۰۹۱۲۱۲۳۴۵۶۷ یا ثابت با کد شهر مانند ۰۲۱۸۸۷۷۶۶۵۵` });
       return n;
     }
     case 'attachment':

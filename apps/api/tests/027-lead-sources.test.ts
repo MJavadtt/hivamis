@@ -32,12 +32,14 @@ describe('Registering a lead', () => {
   });
   afterAll(async () => { await closeApp(); });
 
-  it('needs a mobile number, and keeps it in one form', async () => {
+  it('needs a phone number — mobile or landline (2026-11-16) — and keeps it in one form', async () => {
     const none = await post('/leads', T.sales, { name: 'بی‌شماره', companyName: 'شرکت', source: 'DIRECT', sourceChannel: 'PHONE' });
     expect(none.status).toBe(400);
-    const landline = await post('/leads', T.sales, base({ phone: '021-88776655', source: 'DIRECT', sourceChannel: 'PHONE' }));
-    expect(landline.status).toBe(400);
-    expect(JSON.stringify(landline.body)).toContain('شمارهٔ همراه معتبر نیست');
+    const landline = expectOk(await post('/leads', T.sales, base({ phone: '021-88776655', source: 'DIRECT', sourceChannel: 'PHONE' })), 'landline');
+    expect(landline.phone).toBe('02188776655');
+    const wrong = await post('/leads', T.sales, base({ phone: '123', source: 'DIRECT', sourceChannel: 'PHONE' }));
+    expect(wrong.status).toBe(400);
+    expect(JSON.stringify(wrong.body)).toContain('شمارهٔ تلفن معتبر نیست');
     const lead = expectOk(await post('/leads', T.sales, base({ phone: '+98 935 777 0011', source: 'DIRECT', sourceChannel: 'EXHIBITION' })), 'lead');
     expect(lead).toMatchObject({ phone: '09357770011', source: 'DIRECT', sourceChannel: 'EXHIBITION', sourceUserId: null, sourceReferrerId: null });
   });

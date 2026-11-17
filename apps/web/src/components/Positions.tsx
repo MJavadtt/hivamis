@@ -4,6 +4,7 @@ import { DEPARTMENT_CODES, DEPARTMENT_LABELS } from '@hiva/contracts';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { localDigits } from '../lib/format';
 import { loc, pair, tr } from '../i18n';
+import { useUnits } from './UnitTag';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Table, Td, Th, Tr, useToast } from './ui';
 
 /**
@@ -51,6 +52,7 @@ function PositionForm({ position, roles, onClose, onSaved }: { position?: Positi
   const [nameFa, setNameFa] = useState(position?.nameFa ?? '');
   const [nameEn, setNameEn] = useState(position?.nameEn ?? '');
   const [unit, setUnit] = useState(position?.departmentCode ?? '');
+  const { data: units } = useUnits();
   const [defaults, setDefaults] = useState<string[]>(position?.defaultRoleCodes ?? []);
   const [busy, setBusy] = useState(false);
   const save = async (extra: Record<string, unknown> = {}) => {
@@ -74,7 +76,7 @@ function PositionForm({ position, roles, onClose, onSaved }: { position?: Positi
         <Field label={tr('واحد')}>
           <Select value={unit} onChange={(e) => setUnit(e.target.value)}>
             <option value="">—</option>
-            {DEPARTMENT_CODES.map((c) => <option key={c} value={c}>{pair(DEPARTMENT_LABELS[c])}</option>)}
+            {(units?.length ? units : DEPARTMENT_CODES.map((c) => ({ code: c as string, nameFa: DEPARTMENT_LABELS[c].fa, nameEn: DEPARTMENT_LABELS[c].en }))).map((u) => <option key={u.code} value={u.code}>{loc(u, 'name')}</option>)}
           </Select>
         </Field>
         <fieldset>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD, directLead, refreshWith, signIn } from './helpers.js';
+import { app, call, closeApp, get, login, move, post, patch, expectOk, DEV_PASSWORD, directLead, refreshWith, signIn, ageRotations } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { findActiveDemoAccounts } from '../src/lib/demo-accounts.js';
 import { env, parseTrustProxy, trustProxy } from '../src/env.js';
@@ -73,6 +73,7 @@ describe('Authentication', () => {
     const refreshed = await refreshWith(first.refresh);
     expect(refreshed.status).toBe(200);
     expect(refreshed.refresh).not.toBe(first.refresh);
+    await ageRotations();
     const replay = await refreshWith(first.refresh);
     expect(replay.status).toBe(401);
     // Audit SEC-3: the access tokens of the account stop with its sessions, not fifteen minutes later.
@@ -458,6 +459,7 @@ describe('Session lifecycle', () => {
     const first = await refresh(stolen);
     expect(first.status).toBe(200);
 
+    await ageRotations();
     const replay = await refresh(stolen);
     expect(replay.status).toBe(401);
 

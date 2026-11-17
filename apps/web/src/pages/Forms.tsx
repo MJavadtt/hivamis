@@ -52,6 +52,8 @@ export interface FormDefinition {
   category: string; module: string; senderDepts: string[]; receiverDepts: string[];
   approverRoles: string[]; slaCode: string | null; binding: string | null;
   nextProcessFa: string | null; schema: FieldDef[]; canSubmit: boolean; version?: number;
+  /** The form's document code by the coding instruction: unit-FR-serial/revision (ADR-133). */
+  docCode?: string | null;
   /** Conditional approvers, evaluated against what is typed (roadmap #17). */
   routing?: RoutingRule[];
   /** Ordered approval stages with quorum (roadmap #18). */
@@ -127,7 +129,7 @@ function Catalogue() {
   const visible = useMemo(() => {
     const t = term.trim();
     return (data?.definitions ?? []).filter(
-      (d) => (!category || d.category === category) && (!t || d.nameFa.includes(t) || d.code.includes(t.toUpperCase())),
+      (d) => (!category || d.category === category) && (!t || d.nameFa.includes(t) || d.code.includes(t.toUpperCase()) || !!d.docCode?.includes(t.toUpperCase())),
     );
   }, [data, category, term]);
 
@@ -165,8 +167,8 @@ function Catalogue() {
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-ink-800">{t(def, "name")}</p>
-              <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[12.5px] text-ink-500 nums">
-                {localDigits(def.no)}
+              <span className="ltr shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[12px] text-ink-600" title={tr('کد سند')} data-testid="doc-code">
+                {def.docCode ?? localDigits(def.no)}
               </span>
             </div>
             <p className="mt-2 text-[12.5px] leading-5 text-ink-500">{tr('از')}{' '}<span className="text-ink-700">{deptNames(def.senderDepts)}</span>{tr('{0}به', ' ')}{' '}<span className="text-ink-700">{deptNames(def.receiverDepts)}</span>
@@ -446,8 +448,8 @@ export function FormField({ field, value, onChange, error, writeKind }: {
       );
     case 'mobile':
       return (
-        <Field label={t(field, "label")} {...common} hint={common.hint ?? tr('مانند ۰۹۱۲۱۲۳۴۵۶۷')}>
-          <Input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" inputMode="tel" placeholder="09xx xxx xxxx" />
+        <Field label={t(field, "label")} {...common} hint={common.hint ?? tr('همراه یا ثابت با کد شهر — مانند ۰۹۱۲۱۲۳۴۵۶۷ یا ۰۲۱۸۸۷۷۶۶۵۵')}>
+          <Input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className="ltr" inputMode="tel" placeholder="09xx… / 021…" />
         </Field>
       );
     case 'attachment':

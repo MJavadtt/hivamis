@@ -41,6 +41,11 @@ interface NavItem {
   permission?: string;
   /** Or any one of these — a page whose parts are each someone's (Hivamis task 6). */
   anyOf?: string[];
+  /**
+   * Opened now and then rather than every day: kept under «بیشتر», closed until asked for, so the
+   * sidebar shows what a person works in (the owner, 2026-11-16: simpler, smoother).
+   */
+  more?: boolean;
 }
 
 interface NavGroup { label: string; items: NavItem[] }
@@ -58,11 +63,11 @@ const NAV: NavGroup[] = [
     items: [
       { to: '/', label: tr('میز کار من'), icon: IconDashboard },
       { to: '/my-work', label: tr('کارهای من'), icon: IconCheckCircle },
-      { to: '/drafts', label: tr('پیش‌نویس‌های من'), icon: IconFile },
+      { to: '/drafts', label: tr('پیش‌نویس‌های من'), icon: IconFile, more: true },
       { to: '/tasks', label: tr('وظایف'), icon: IconCheckCircle, permission: 'task.read' },
       { to: '/forms', label: tr('فرم‌ها'), icon: IconFile, permission: 'form.read' },
       // No permission of its own: every colleague's page is open to everyone signed in (Hivamis task 4).
-      { to: '/people', label: tr('همکاران'), icon: IconUsers },
+      { to: '/people', label: tr('همکاران'), icon: IconUsers, more: true },
       { to: '/chat', label: tr('گفت‌وگو'), icon: IconChat, permission: 'chat.use' },
       { to: '/bookings', label: tr('رزرو جلسه'), icon: IconClock, permission: 'meeting.book' },
       { to: '/reception', label: tr('پذیرش'), icon: IconUsers, permission: 'reception.checkin' },
@@ -92,9 +97,9 @@ const NAV: NavGroup[] = [
       { to: '/projects', label: tr('پروژه‌ها'), icon: IconLayers, permission: 'project.read' },
       { to: '/work-orders', label: tr('سفارش‌های کار'), icon: IconClipboard, permission: 'workorder.read' },
       { to: '/qc', label: tr('کنترل کیفیت'), icon: IconShield, permission: 'qc.read' },
-      { to: '/changes', label: tr('درخواست‌های تغییر'), icon: IconAlert, permission: 'change.read' },
-      { to: '/traffic', label: tr('ترافیک و ظرفیت'), icon: IconTraffic, permission: 'traffic.read' },
-      { to: '/suppliers', label: tr('تأمین‌کنندگان'), icon: IconUsers, permission: 'supplier.read' },
+      { to: '/changes', label: tr('درخواست‌های تغییر'), icon: IconAlert, more: true, permission: 'change.read' },
+      { to: '/traffic', label: tr('ترافیک و ظرفیت'), icon: IconTraffic, more: true, permission: 'traffic.read' },
+      { to: '/suppliers', label: tr('تأمین‌کنندگان'), icon: IconUsers, more: true, permission: 'supplier.read' },
     ],
   },
   {
@@ -118,15 +123,15 @@ const NAV: NavGroup[] = [
   {
     label: tr('تحلیل و مدیریت'),
     items: [
-      { to: '/overview', label: tr('نمای آماری من'), icon: IconChart },
+      { to: '/overview', label: tr('نمای آماری من'), icon: IconChart, more: true },
       { to: '/reports', label: tr('گزارش‌ها'), icon: IconChart, permission: 'report.read' },
       // No permission of its own: memory only ever searches what the caller may already read.
-      { to: '/memory', label: tr('حافظهٔ سازمان'), icon: IconSearch },
+      { to: '/memory', label: tr('حافظهٔ سازمان'), icon: IconSearch, more: true },
       { to: '/ai', label: tr('دستیار هوشمند'), icon: IconSpark, permission: 'ai.use' },
       // No permission of its own: the rules are for everyone they bind to read (roadmap #47).
-      { to: '/rules', label: tr('قوانین سازمان'), icon: IconShield },
-      { to: '/bookings/admin', label: tr('مدیریت رزرو'), icon: IconClock, anyOf: ['resource.manage', 'meeting.view_all'] },
-      { to: '/onboarding', label: tr('راه‌اندازی سازمان'), icon: IconClipboard, permission: 'admin.settings' },
+      { to: '/rules', label: tr('قوانین سازمان'), icon: IconShield, more: true },
+      { to: '/bookings/admin', label: tr('مدیریت رزرو'), icon: IconClock, more: true, anyOf: ['resource.manage', 'meeting.view_all'] },
+      { to: '/onboarding', label: tr('راه‌اندازی سازمان'), icon: IconClipboard, more: true, permission: 'admin.settings' },
       { to: '/admin', label: tr('مدیریت سیستم'), icon: IconSettings, anyOf: ADMIN_PERMISSIONS },
     ],
   },
@@ -135,6 +140,8 @@ const NAV: NavGroup[] = [
 export function Shell({ children }: { children: ReactNode }) {
   const { user, signOut, can, canAny, offline } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem('hiva.nav.more') === '1'; } catch { return false; } });
+  const toggleMore = () => setMoreOpen((v) => { try { localStorage.setItem('hiva.nav.more', v ? '0' : '1'); } catch { /* a private window: not remembered */ } return !v; });
   // The kit's sidebar folds to a rail of icons (Hivamis task 3); remembered per viewer.
   const [rail, setRail] = useState(() => { try { return localStorage.getItem('hiva.sidebar') === 'rail'; } catch { return false; } });
   const toggleRail = () => setRail((r) => {
@@ -185,9 +192,16 @@ export function Shell({ children }: { children: ReactNode }) {
   });
   const counts: Record<string, number> = { '/my-work': work?.items?.length ?? 0, '/forms': work?.counts?.formApproval ?? 0, '/chat': chat?.total ?? 0 };
 
-  const visibleGroups = NAV
-    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }))
-    .filter((g) => g.items.length > 0);
+  const allowed = NAV
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(i.permission)) && (!i.anyOf || canAny(...i.anyOf))) }));
+  // The everyday pages in their groups; the occasional ones together under «بیشتر», open when one of
+  // them is the page on screen or the person opened it (remembered on this device).
+  const moreItems = allowed.flatMap((g) => g.items.filter((i) => i.more));
+  const onMorePage = moreItems.some((i) => location.pathname === i.to || location.pathname.startsWith(`${i.to}/`));
+  const visibleGroups = [
+    ...allowed.map((g) => ({ ...g, items: g.items.filter((i) => !i.more) })).filter((g) => g.items.length > 0),
+    ...(moreItems.length && (moreOpen || onMorePage || compact) ? [{ label: tr('بیشتر'), items: moreItems }] : []),
+  ];
 
   return (
     // Glass panels float over the pastel light: on a desktop the sidebar and the top bar stand off the
@@ -273,6 +287,13 @@ export function Shell({ children }: { children: ReactNode }) {
               </ul>
             </div>
           ))}
+          {!compact && moreItems.length > 0 && !onMorePage && (
+            <button type="button" onClick={toggleMore} aria-expanded={moreOpen} data-testid="nav-more"
+              className="flex h-8 w-full items-center gap-3 rounded-lg px-3 text-[13.5px] font-semibold text-ink-500 hover:bg-surface hover:text-ink-900">
+              <svg aria-hidden viewBox="0 0 24 24" className={cx('size-[18px] shrink-0 transition-transform', moreOpen && 'rotate-180')} fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span>{moreOpen ? tr('کمتر') : tr('بیشتر ({0})', localDigits(moreItems.length))}</span>
+            </button>
+          )}
         </nav>
 
         <div className={cx('shrink-0 space-y-1 border-t border-ink-200/70', compact ? 'p-2' : 'p-3')}>

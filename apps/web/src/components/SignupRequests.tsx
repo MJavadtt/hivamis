@@ -5,8 +5,8 @@ import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime } from '../lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from './ui';
-import { UnitTag } from './UnitTag';
-import { pair, tr } from '../i18n';
+import { UnitTag, useUnits } from './UnitTag';
+import { loc, tr } from '../i18n';
 import { roleName, useRoleCodes } from '../lib/roles';
 
 /**
@@ -88,6 +88,7 @@ function Approve({ request, onClose }: { request: Request; onClose: () => void }
   const qc = useQueryClient();
   const toast = useToast();
   const [unit, setUnit] = useState<string>(request.departmentCode ?? '');
+  const { data: units } = useUnits();
   const [roles, setRoles] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState('');
   const [busy, setBusy] = useState(false);
@@ -115,7 +116,7 @@ function Approve({ request, onClose }: { request: Request; onClose: () => void }
         <Field label={tr('واحد')} required>
           <Select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={tr('واحد')}>
             <option value="">{tr('— انتخاب کنید —')}</option>
-            {DEPARTMENT_CODES.map((c) => <option key={c} value={c}>{pair(DEPARTMENT_LABELS[c as DepartmentCode])}</option>)}
+            {(units?.length ? units : DEPARTMENT_CODES.map((c) => ({ code: c as string, nameFa: DEPARTMENT_LABELS[c as DepartmentCode].fa, nameEn: DEPARTMENT_LABELS[c as DepartmentCode].en }))).map((u) => <option key={u.code} value={u.code}>{loc(u, 'name')}</option>)}
           </Select>
         </Field>
         <Field label={tr('نقش‌ها')} required hint={tr('دسترسی هر نقش همان است که در «نقش‌ها و دسترسی‌ها» داده‌اید.')}>

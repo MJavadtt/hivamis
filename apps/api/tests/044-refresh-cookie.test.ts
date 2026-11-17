@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { call, closeApp, get, refreshCookieOf, refreshWith, signIn } from './helpers.js';
+import { ageRotations, call, closeApp, get, refreshCookieOf, refreshWith, signIn } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { env } from '../src/env.js';
 import { createTicket } from '../src/auth/google.js';
@@ -88,7 +88,8 @@ describe('The refresh token’s cookie (audit SEC-4)', () => {
   it('is cleared when it can never work again, and at sign-out', async () => {
     const s = await signIn('finance@hiva.local');
     const next = await refreshWith(s.refresh);
-    // The rotated-away token presented again: refused, and the browser told to forget it.
+    // The rotated-away token presented again, later: refused, and the browser told to forget it.
+    await ageRotations();
     const replay = await refreshWith(s.refresh);
     expect(replay.status).toBe(401);
     expect(cookieLine(replay)).toMatch(/Expires=Thu, 01 Jan 1970|Max-Age=0/);
@@ -116,7 +117,8 @@ describe('The refresh token’s cookie (audit SEC-4)', () => {
     const cookie = refreshCookieOf(traded)!;
     expect(cookie).toBeTruthy();
     expect((await refreshWith(cookie)).status).toBe(200);
-    // Spent: a second trade is the replay it is.
+    // Spent: a second trade, later, is the replay it is.
+    await ageRotations();
     const again = await call('POST', '/auth/refresh/legacy', { payload: { refreshToken: legacy }, headers: { 'x-hiva-refresh': '1' } });
     expect(again.status).toBe(401);
   });

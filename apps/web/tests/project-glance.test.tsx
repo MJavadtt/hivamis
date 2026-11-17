@@ -52,6 +52,6 @@ describe('A project at a glance', () => {
     expect(card.textContent).toContain('نیازمند توجه');
     expect(card.textContent).toContain('مسئول پروژه: رضا شریفی');
     expect(within(screen.getByTestId('glance-doing')).getByRole('link', { name: 'طراحی بنر' }).getAttribute('href')).toBe('/tasks/t-run');
-    expect(screen.getByTestId('glance-owners').textContent).toContain('خلاقیت / گرافیک / تولید: سپیده آذر');
+    expect(screen.getByTestId('glance-owners').textContent).toContain('ایده و اجرا: سپیده آذر');
   });
 });

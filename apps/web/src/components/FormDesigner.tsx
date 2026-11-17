@@ -37,7 +37,7 @@ const TYPES: { value: string; labelFa: string }[] = [
   { value: 'multiselect', labelFa: tr('انتخاب چند') }, { value: 'checkbox', labelFa: tr('تیک') },
   { value: 'user', labelFa: tr('کاربر') }, { value: 'department', labelFa: tr('واحد') },
   { value: 'entityRef', labelFa: tr('ارجاع به رکورد') }, { value: 'attachment', labelFa: tr('پیوست') },
-  { value: 'mobile', labelFa: tr('تلفن همراه') },
+  { value: 'mobile', labelFa: tr('تلفن (همراه یا ثابت)') },
 ];
 const typeFa = (t: string) => trx(TYPES.find((x) => x.value === t)?.labelFa ?? t);
 const deptFa = (c: string) => pair(DEPARTMENT_LABELS[c as keyof typeof DEPARTMENT_LABELS]) || c;

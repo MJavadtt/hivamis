@@ -78,9 +78,9 @@ describe('Registering a lead', () => {
     const sent = mount(<LeadsList />);
     const { dialog, fill, save } = await openForm();
     fill('نام سرنخ', 'کمپین پاییز'); fill('نام شرکت', 'شرکت نمونه');
-    fill('تلفن همراه', '۰۲۱۸۸');
-    expect(within(dialog).getByText('شمارهٔ همراه معتبر نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷')).toBeTruthy();
-    fill('تلفن همراه', '+98 935 777 0011');
+    fill('تلفن', '۰۲۱۸۸');
+    expect(within(dialog).getByText('شمارهٔ تلفن معتبر نیست — همراه مانند ۰۹۱۲۱۲۳۴۵۶۷ یا ثابت با کد شهر مانند ۰۲۱۸۸۷۷۶۶۵۵')).toBeTruthy();
+    fill('تلفن', '+98 935 777 0011');
     expect(within(dialog).getByText('ثبت می‌شود: 09357770011')).toBeTruthy();
     expect(save().disabled).toBe(true);
 
@@ -100,7 +100,7 @@ describe('Registering a lead', () => {
     });
     const { dialog, fill, save } = await openForm();
     fill('نام سرنخ', 'تکراری'); fill('نام شرکت', 'شرکت');
-    fill('تلفن همراه', '09352201000');
+    fill('تلفن', '09352201000');
     fireEvent.click(await within(dialog).findByRole('button', { name: 'تیم فروش' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'نیما فروزان' }));
     const warning = await within(dialog).findByTestId('lead-duplicate');
@@ -116,7 +116,7 @@ describe('Registering a lead', () => {
   it('names a partner from the list, or a new one by typing it', async () => {
     const sent = mount(<LeadsList />);
     const { dialog, fill, save } = await openForm();
-    fill('نام سرنخ', 'از همکار'); fill('نام شرکت', 'شرکت'); fill('تلفن همراه', '09121234567');
+    fill('نام سرنخ', 'از همکار'); fill('نام شرکت', 'شرکت'); fill('تلفن', '09121234567');
     fireEvent.click(await within(dialog).findByRole('button', { name: 'شرکت‌های همکار' }));
     fireEvent.change(within(dialog).getByLabelText('نام شرکت همکار'), { target: { value: 'آژانس رویداد کیش' } });
     expect(within(dialog).getByText(/«آژانس رویداد کیش» در فهرست نیست و با ثبت سرنخ به شرکت‌های همکار افزوده می‌شود/)).toBeTruthy();

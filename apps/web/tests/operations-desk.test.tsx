@@ -71,7 +71,7 @@ describe('The operations desk', () => {
     mount();
     const load = await screen.findByTestId('unit-load');
     const row = (unit: string) => [...load.querySelectorAll('tbody tr')].find((r) => r.textContent?.startsWith(unit))!;
-    expect([...row('خلاقیت / گرافیک / تولید').querySelectorAll('td')].slice(1).map((c) => c.textContent)).toEqual(['۰', '۱', '۱']);
+    expect([...row('ایده و اجرا').querySelectorAll('td')].slice(1).map((c) => c.textContent)).toEqual(['۰', '۱', '۱']);
     const proposal = screen.getByTestId('ops-proposal');
     expect(within(proposal).getByRole('link').getAttribute('href')).toBe('/account/journey/b-1');
     expect(proposal.textContent).toContain('خروجی‌ها رسیده است؛ یکپارچه کنید و به قیمت‌گذاری بفرستید.');

@@ -100,7 +100,7 @@ export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
  */
 function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
-    const run = async (): Promise<RefreshOutcome> => {
+    const run = async (again = false): Promise<RefreshOutcome> => {
       // Read inside the lock: a tab that went first may have traded it already.
       const legacy = store.get(LEGACY_KEY);
       let res: Response;
@@ -117,7 +117,9 @@ function refreshOnce(): Promise<RefreshOutcome> {
       }
       // A server restarting, a proxy with nothing behind it, the rate limit: the session may well be
       // fine. Only the server saying no ends it.
-      if (res.status >= 500 || res.status === 429) return 'unreachable';
+      // Another tab renewed in this very moment: the cookie is already the new one; once more.
+      if (res.status === 409 && !again) { await new Promise((r) => setTimeout(r, 400)); return run(true); }
+      if (res.status >= 500 || res.status === 429 || res.status === 409) return 'unreachable';
       // The old token has had its one trade, whichever way it went.
       if (legacy) store.set(LEGACY_KEY, null);
       if (!res.ok) { markSignedIn(false); return 'rejected'; }
@@ -133,7 +135,7 @@ function refreshOnce(): Promise<RefreshOutcome> {
     };
     try {
       const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-      return locks ? await locks.request('hiva.refresh', run) : await run();
+      return locks ? await locks.request('hiva.refresh', () => run()) : await run();
     } catch {
       return 'unreachable';
     } finally {

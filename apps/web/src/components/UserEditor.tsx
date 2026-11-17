@@ -115,9 +115,9 @@ function Details({ user, onClose, onSaved }: { user: EditableUser; onClose: () =
         </Field>
         <Field label={tr('واحد')}>
           <Select value={unit} onChange={(e) => { setUnit(e.target.value); setTeamId(''); }} aria-label={tr('واحد')}>
-            {DEPARTMENT_CODES.map((c) => {
+            {(units?.length ? units.map((u) => u.code) : [...DEPARTMENT_CODES]).map((c) => {
               const named = units?.find((u) => u.code === c);
-              return <option key={c} value={c}>{named ? loc(named, 'name') : pair(DEPARTMENT_LABELS[c as DepartmentCode])}</option>;
+              return <option key={c} value={c}>{named ? loc(named, 'name') : pair(DEPARTMENT_LABELS[c as DepartmentCode]) || c}</option>;
             })}
           </Select>
         </Field>
@@ -388,9 +388,9 @@ export function NewUser({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           <PasswordInput label={tr('رمز عبور')} value={password} onChange={setPassword} />
           <Field label={tr('واحد')}>
             <Select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label={tr('واحد')}>
-              {DEPARTMENT_CODES.map((c) => {
+              {(units?.length ? units.map((u) => u.code) : [...DEPARTMENT_CODES]).map((c) => {
                 const named = units?.find((u) => u.code === c);
-                return <option key={c} value={c}>{named ? loc(named, 'name') : pair(DEPARTMENT_LABELS[c as DepartmentCode])}</option>;
+                return <option key={c} value={c}>{named ? loc(named, 'name') : pair(DEPARTMENT_LABELS[c as DepartmentCode]) || c}</option>;
               })}
             </Select>
           </Field>

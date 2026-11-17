@@ -119,8 +119,14 @@ const envSchema = z.object({
   JOBS_ENABLED: z.string().transform((v) => v === 'true').default('true'),
   /** Requests per minute per user/IP across the API. */
   RATE_LIMIT_MAX: z.coerce.number().int().default(300),
-  /** Login attempts per minute per IP — deliberately tight to slow credential stuffing. */
-  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().default(10),
+  /**
+   * Sign-in attempts per minute per address. An office is one address behind its router, and its
+   * people sign in at the same hour, so this is the office's budget; wrong passwords are slowed
+   * per account and network elsewhere (audit SEC-10).
+   */
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().default(30),
+  /** Renewals per minute for one session: every page opened or reloaded spends one. */
+  REFRESH_RATE_LIMIT_MAX: z.coerce.number().int().default(60),
   /**
    * Which proxies may set X-Forwarded-For. Defaults to `false` so a misconfigured deployment
    * fails closed: with no trusted proxy, req.ip is the socket address and a forged header

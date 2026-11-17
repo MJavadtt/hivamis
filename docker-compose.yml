@@ -100,7 +100,8 @@ services:
       # Audit SEC-8: production refuses to start with demo accounts active; this starts it anyway, loudly.
       ALLOW_DEMO_ACCOUNTS: ${ALLOW_DEMO_ACCOUNTS:-false}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
-      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+      LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-30}
+      REFRESH_RATE_LIMIT_MAX: ${REFRESH_RATE_LIMIT_MAX:-60}
       # Chromium ships in the image; pinned so the renderer never probes the filesystem.
       PDF_BROWSER_PATH: ${PDF_BROWSER_PATH:-/usr/bin/chromium}
       # The `web` nginx container is the only proxy in front of the API in this stack, so

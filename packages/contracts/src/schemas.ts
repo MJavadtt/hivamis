@@ -5,7 +5,7 @@ import {
   SCOPE_VERDICTS, INVOICE_KINDS, SUPPLIER_KINDS, RACI_ROLES, ACCOUNT_KEYS, ACCOUNTING_FIELDS, CLIENT_APPROVAL_SUBJECTS,
   BRAND_COLOR_ROLES, CUSTOM_RULE_KINDS, SALE_TERMS,
 } from './enums.js';
-import { DIRECT_CHANNELS, LEAD_REFERRER_KINDS, LEAD_SOURCE_KINDS, normalizeIranMobile } from './crm.js';
+import { DIRECT_CHANNELS, LEAD_REFERRER_KINDS, LEAD_SOURCE_KINDS, normalizeIranMobile, normalizeIranPhone } from './crm.js';
 import { latinDigits } from './i18n.js';
 
 /* ── shared primitives ─────────────────────────────────────────────────────── */
@@ -25,6 +25,16 @@ export const iranMobileSchema = z.string().trim().max(40).transform((v, ctx) => 
   const n = normalizeIranMobile(v);
   if (!n) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'شمارهٔ همراه معتبر نیست — مانند ۰۹۱۲۱۲۳۴۵۶۷' });
+    return z.NEVER;
+  }
+  return n;
+});
+
+/** A client's phone, mobile or landline, however typed (2026-11-16). */
+export const iranPhoneSchema = z.string().trim().max(40).transform((v, ctx) => {
+  const n = normalizeIranPhone(v);
+  if (!n) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'شمارهٔ تلفن معتبر نیست — همراه مانند ۰۹۱۲۱۲۳۴۵۶۷ یا ثابت با کد شهر مانند ۰۲۱۸۸۷۷۶۶۵۵' });
     return z.NEVER;
   }
   return n;
@@ -55,6 +65,8 @@ export const changePasswordSchema = z.object({
  * A role's code: one the code defines, or one an organisation made (audit F-3), which is always
  * `C_` and eight letters or digits. Whether it is a role in the organisation is the server's to check.
  */
+/** A unit a person or a position belongs to: a process unit, or one the organisation made (ADR-133). The server checks it exists. */
+const unitCode = z.string().trim().min(1).max(8);
 export const CUSTOM_ROLE_CODE = /^C_[A-Z0-9]{8}$/;
 export const roleCodeSchema = z.union([z.enum(ROLE_CODES), z.string().regex(CUSTOM_ROLE_CODE)]);
 
@@ -62,7 +74,7 @@ export const createUserSchema = z.object({
   email: z.string().email().max(160),
   fullName: z.string().trim().min(2).max(120),
   password: z.string().min(12).max(200),
-  departmentCode: z.enum(DEPARTMENT_CODES),
+  departmentCode: unitCode,
   roleCodes: z.array(roleCodeSchema).min(1),
   /** Audit F-3: the position from the organisation's catalogue; jobTitle stays as the fallback. */
   positionId: z.string().uuid().nullish(),
@@ -109,11 +121,19 @@ export const unitUpdateSchema = z.object({
   nameFa: z.string().trim().min(2, 'نام واحد را بنویسید').max(60).nullish(),
   nameEn: z.string().trim().min(2).max(60).nullish(),
   managerId: z.string().uuid().nullish(),
+  shortCode: z.string().trim().regex(/^[A-Za-z]{2}$/, 'حرف اختصاری واحد دو حرف لاتین است — مانند QA').transform((v) => v.toUpperCase()).optional(),
+});
+
+/** A unit the organisation adds (ADR-133): its two-letter code and its name. */
+export const createUnitSchema = z.object({
+  shortCode: z.string().trim().regex(/^[A-Za-z]{2}$/, 'حرف اختصاری واحد دو حرف لاتین است — مانند QA').transform((v) => v.toUpperCase()),
+  nameFa: z.string().trim().min(2, 'نام واحد را بنویسید').max(60),
+  nameEn: z.string().trim().max(60).default(''),
 });
 
 /** A team within a unit — Creative's «طراحی» and «ویدئو» — with its lead and colour. */
 export const teamSchema = z.object({
-  departmentCode: z.enum(DEPARTMENT_CODES),
+  departmentCode: z.string().trim().min(1).max(8),
   nameFa: z.string().trim().min(2, 'نام تیم را بنویسید').max(60),
   nameEn: z.string().trim().max(60).default(''),
   leadId: z.string().uuid().nullish(),
@@ -135,7 +155,7 @@ export const updateRoleSchema = createRoleSchema.omit({ copyFrom: true }).partia
 export const createPositionSchema = z.object({
   nameFa: z.string().trim().min(2, 'عنوان سمت را بنویسید').max(120),
   nameEn: z.string().trim().max(120).default(''),
-  departmentCode: z.enum(DEPARTMENT_CODES).nullish(),
+  departmentCode: unitCode.nullish(),
   defaultRoleCodes: z.array(roleCodeSchema).max(8).default([]),
 });
 export const updatePositionSchema = createPositionSchema.partial().extend({ archived: z.boolean().optional() });
@@ -181,7 +201,7 @@ const leadFields = z.object({
   companyName: z.string().trim().min(2).max(200),
   contactName: z.string().trim().max(120).optional(),
   /** «تلفن همراه»: required, one written form, and how a repeated lead is recognised. */
-  phone: iranMobileSchema,
+  phone: iranPhoneSchema,
   email: z.string().email().max(160).optional().or(z.literal('')),
   /** Where it came from, in two steps: the kind, then exactly who or what (see crm.ts). */
   source: z.enum(LEAD_SOURCE_KINDS),

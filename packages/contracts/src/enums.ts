@@ -13,14 +13,57 @@ export const DEPARTMENT_LABELS: Record<DepartmentCode, { fa: string; en: string 
   S: { fa: 'فروش', en: 'Sales' },
   A: { fa: 'اکانت', en: 'Account' },
   ST: { fa: 'استراتژی', en: 'Strategy' },
-  CR: { fa: 'خلاقیت / گرافیک / تولید', en: 'Creativity / Graphic / Production' },
+  CR: { fa: 'ایده و اجرا', en: 'Idea & Execution' },
   ME: { fa: 'رسانه', en: 'Media' },
   DM: { fa: 'دیجیتال مارکتینگ', en: 'Digital Marketing' },
   FI: { fa: 'مالی', en: 'Finance' },
   LG: { fa: 'حقوقی و قراردادها', en: 'Legal / Contracts' },
   OP: { fa: 'عملیات / PMO', en: 'Operations / PMO' },
-  M: { fa: 'مدیریت', en: 'Management' },
+  M: { fa: 'مدیریت عامل', en: 'Management' },
 };
+
+/**
+ * The owner's coding instruction, QA-WI-001/00 (2026-11-16; ADR-133): every unit has a two-letter
+ * code — «حرف اختصاری واحد صاحب مدرک» — which a document's code begins with. These are the ten
+ * process units' codes by that table; the organisation may change them, and add units of its own.
+ * A unit's `code` (S, CR, …) is what the process routes by and never changes; this is what people read.
+ */
+export const UNIT_SHORT_CODES: Record<DepartmentCode, string> = {
+  M: 'MA', S: 'SA', A: 'AC', ST: 'QC', CR: 'IC', ME: 'MD', DM: 'PM', FI: 'FA', LG: 'LG', OP: 'OP',
+};
+
+/** The units of the instruction's table that the process has no station for: made once for each organisation. */
+export const EXTRA_UNITS: readonly { shortCode: string; fa: string; en: string }[] = [
+  { shortCode: 'VP', fa: 'نماینده مدیریت', en: 'Management Representative' },
+  { shortCode: 'QA', fa: 'تضمین کیفیت', en: 'Quality Assurance' },
+  { shortCode: 'IT', fa: 'انفورماتیک', en: 'IT' },
+  { shortCode: 'HR', fa: 'منابع انسانی', en: 'Human Resources' },
+  { shortCode: 'CO', fa: 'بازرگانی', en: 'Commerce' },
+  { shortCode: 'ST', fa: 'انبار', en: 'Warehouse' },
+];
+
+/** A unit the organisation made itself: its internal code is its short code behind a mark the process never uses. */
+export const customUnitCode = (shortCode: string) => `X${shortCode.toUpperCase()}`;
+export const isProcessUnit = (code: string): code is DepartmentCode => (DEPARTMENT_CODES as readonly string[]).includes(code);
+
+/** «حرف اختصاری نوع مدرک», by the same instruction. */
+export const DOCUMENT_TYPES = {
+  MN: { fa: 'نظامنامه', en: 'Manual' }, PL: { fa: 'خط‌مشی', en: 'Policy' }, PR: { fa: 'روش اجرایی', en: 'Procedure' },
+  WI: { fa: 'دستورالعمل', en: 'Work instruction' }, SI: { fa: 'استاندارد داخلی', en: 'Internal standard' },
+  SE: { fa: 'استاندارد خارجی', en: 'External standard' }, BP: { fa: 'طرح تجاری', en: 'Business plan' },
+  FR: { fa: 'فرم', en: 'Form' }, LW: { fa: 'آیین‌نامه', en: 'Bylaw' }, CT: { fa: 'قرارداد', en: 'Contract' },
+  FD: { fa: 'فرآیند', en: 'Process' }, CH: { fa: 'نمودار – چارت', en: 'Chart' }, ET: { fa: 'سایر', en: 'Other' },
+  CL: { fa: 'چک‌لیست', en: 'Checklist' },
+} as const;
+export type DocumentTypeCode = keyof typeof DOCUMENT_TYPES;
+
+/**
+ * A document's nine-character code: unit, kind, serial 1–999, revision 0–99 — `QA-FR-007/01` is
+ * revision one of the quality unit's seventh form.
+ */
+export function documentCode(unit: string, type: DocumentTypeCode, serial: number, revision = 0): string {
+  return `${unit.toUpperCase()}-${type}-${String(Math.min(999, Math.max(1, serial))).padStart(3, '0')}/${String(Math.min(99, Math.max(0, revision))).padStart(2, '0')}`;
+}
 
 /**
  * Each unit's tag colour until the organisation's system administrator chooses another (Hivamis

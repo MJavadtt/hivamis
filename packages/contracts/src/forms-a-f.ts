@@ -16,7 +16,7 @@ export const FORMS_A_F: readonly FormDef[] = [
       f.text('name', 'نام سرنخ', 'Lead name', true),
       f.text('companyName', 'نام شرکت', 'Company name', true),
       f.text('contactName', 'نام تماس', 'Contact name'),
-      f.mobile('phone', 'تلفن همراه', 'Mobile', true),
+      f.mobile('phone', 'تلفن (همراه یا ثابت)', 'Phone (mobile or landline)', true),
       f.text('email', 'ایمیل', 'Email'),
       // Hivamis task 2: where it came from, in two steps — the kind, then exactly who or what.
       f.sel('source', 'منبع ورودی', 'Source', LEAD_SOURCE_KINDS.map((k) => ({ value: k, labelFa: LEAD_SOURCE_LABELS[k].fa })), true),

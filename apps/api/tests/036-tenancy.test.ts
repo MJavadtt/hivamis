@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ALL_FORMS, DEPARTMENT_CODES, SLA_POLICIES } from '@hiva/contracts';
+import { ALL_FORMS, DEPARTMENT_CODES, EXTRA_UNITS, SLA_POLICIES } from '@hiva/contracts';
 import { app, call, closeApp, expectOk, get, login, DEV_PASSWORD, refreshCookieOf, refreshWith } from './helpers.js';
 import { prisma } from '../src/db.js';
 import { tenancy } from '../src/lib/tenant.js';
@@ -50,7 +50,7 @@ describe('Organisations on one installation', () => {
     second = await provisionOrganization({ name: 'آژانس نمونه', slug: 'nemooneh', hosts: [HOST.toUpperCase()], admin: { email: 'Boss@Nemooneh.IR', fullName: 'پرستو نمونه' } });
     const id = second.organization.id;
     expect(second.organization).toMatchObject({ slug: 'nemooneh', hosts: [HOST] });
-    expect(await prisma.department.count({ where: { organizationId: id } })).toBe(DEPARTMENT_CODES.length);
+    expect(await prisma.department.count({ where: { organizationId: id } })).toBe(DEPARTMENT_CODES.length + EXTRA_UNITS.length);
     expect(await prisma.slaPolicy.count({ where: { organizationId: id } })).toBe(SLA_POLICIES.length);
     expect(await prisma.formDefinition.count({ where: { organizationId: id } })).toBe(ALL_FORMS.length);
     // The same codes as the first organisation's, each its own row — before #50 they were unique across the installation.

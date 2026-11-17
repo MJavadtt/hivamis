@@ -431,6 +431,8 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('CALLER', ["auth/overrides.ts#overridesOf", "auth/overrides.ts#setOverrides", "auth/remove-user.ts#removeUser"]),
   // ADR-130: the fresh start's rows are found by organizationWhere(model, organizationId), built by freshWhere.
   ...of('LIST', ["setup/reset.ts#freshStartKeepingPeople"]),
+  // ADR-132: a deletion reads what hangs off a record it found in the caller's organisation, by that record's ids.
+  ...of('EARLIER', ["lib/purge.ts#walk", "routes/units.ts#DELETE /departments/:code", "routes/units.ts#DELETE /teams/:id"]),
   ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
   // ADR-103: venues, deployment projects and rentals. Lists build their where-object (with the caller's
   // organisation) above the query; every change finds its record in the organisation first, then works

@@ -4,7 +4,7 @@
  */
 import { Prisma } from '@prisma/client';
 import {
-  DIRECT_CHANNELS, LEAD_SOURCE_LABELS, LEGACY_LEAD_SOURCES, SALES_DEPARTMENT, leadSourceIssues, normalizeIranMobile,
+  DIRECT_CHANNELS, LEAD_SOURCE_LABELS, LEGACY_LEAD_SOURCES, SALES_DEPARTMENT, leadSourceIssues, normalizeIranPhone,
   type DirectChannel, type LeadSourceKind,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
@@ -99,7 +99,7 @@ export interface Duplicates {
  * had a single form is still found.
  */
 export async function findDuplicates(organizationId: string, phone: string, excludeLeadId?: string): Promise<Duplicates> {
-  const mobile = normalizeIranMobile(phone);
+  const mobile = normalizeIranPhone(phone);
   if (!mobile) return { leads: [], contacts: [] };
   const tail = mobile.slice(-10);
   const digits = (col: Prisma.Sql) => Prisma.sql`right(regexp_replace(translate(${col}, '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'), '[^0-9]', '', 'g'), 10)`;
@@ -128,5 +128,5 @@ export async function refuseDuplicate(organizationId: string, phone: string, con
     ...found.leads.map((l) => `سرنخ ${l.code} «${l.name}»${l.owner ? ` (${l.owner})` : ''}`),
     ...found.contacts.map((c) => `مخاطب «${c.fullName}» از ${c.company}`),
   ].join('، ');
-  throw new AppError(409, 'DUPLICATE_LEAD', `این شمارهٔ همراه پیش‌تر ثبت شده است: ${who}. اگر سرنخ تازه‌ای است، «ثبت با وجود تکرار» را بزنید.`, found);
+  throw new AppError(409, 'DUPLICATE_LEAD', `این شماره پیش‌تر ثبت شده است: ${who}. اگر سرنخ تازه‌ای است، «ثبت با وجود تکرار» را بزنید.`, found);
 }

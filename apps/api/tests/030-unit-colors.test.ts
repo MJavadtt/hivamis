@@ -14,7 +14,8 @@ describe("Each unit's tag colour", () => {
 
   it('shows every unit in its default colour until one is chosen', async () => {
     const units = expectOk(await get('/departments', sales), 'units');
-    for (const u of units) {
+    // The process units; the organisation's own (ADR-133) start in the neutral colour.
+    for (const u of units.filter((x: { custom: boolean }) => !x.custom)) {
       expect(u.tagColor, u.code).toBeNull();
       expect(u.color, u.code).toBe(DEFAULT_UNIT_COLORS[u.code as keyof typeof DEFAULT_UNIT_COLORS]);
     }

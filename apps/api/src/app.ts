@@ -17,6 +17,7 @@ import { AppError } from './lib/errors.js';
 import { localizeError, requestLocale } from './lib/i18n.js';
 import { LOG_REDACT } from './lib/log.js';
 import { rateKey, requestContext } from './lib/request-context.js';
+import { verifyAccessToken } from './auth/tokens.js';
 import { pdfEngineHealthyCached } from './pdf/renderer.js';
 import authPlugin from './auth/plugin.js';
 import idempotencyPlugin from './lib/idempotency.js';
@@ -36,6 +37,7 @@ import aiRoutes from './routes/ai.js';
 import searchRoutes from './routes/search.js';
 import pdfRoutes from './routes/pdf.js';
 import historyRoutes from './routes/history.js';
+import recordsRoutes from './routes/records.js';
 import myWorkRoutes from './routes/my-work.js';
 import memoryRoutes from './routes/memory.js';
 import securityRoutes from './routes/security.js';
@@ -123,7 +125,21 @@ export async function buildApp(): Promise<FastifyInstance> {
     // req.user is not populated here. The one exception is the assistant's own in-process reads,
     // counted against the person they are for (audit PERF-1) — known from the request's context,
     // never from anything the request says about itself.
-    keyGenerator: (req) => rateKey(req.ip),
+    //
+    // And a signed-in person is counted as themselves (the owner, 2026-11-16: «با افزایش تعداد
+    // کاربران، سیستم از کار می‌افتد»): everyone behind the office router arrives from one address
+    // and shared one budget, so a handful of people at work used it up for all. The token is
+    // verified here — a made-up one buys no bucket of its own — and what has none stays the address's.
+    keyGenerator: async (req) => {
+      const agent = rateKey(req.ip);
+      if (agent !== req.ip) return agent;
+      const bearer = req.headers.authorization;
+      if (bearer?.startsWith('Bearer ')) {
+        const claims = await verifyAccessToken(bearer.slice(7)).catch(() => null);
+        if (claims?.sub) return `user:${claims.sub}`;
+      }
+      return req.ip;
+    },
   });
   // What a route reads whole into memory stops here; the routes that stream to disk lift it (ADR-124).
   await app.register(multipart, {
@@ -213,6 +229,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(searchRoutes);
     await api.register(pdfRoutes);
     await api.register(historyRoutes);
+    await api.register(recordsRoutes);
     await api.register(myWorkRoutes);
     await api.register(delegationRoutes);
     await api.register(waiverRoutes);

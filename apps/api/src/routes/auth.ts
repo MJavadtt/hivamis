@@ -22,6 +22,8 @@ import { actingFor, endActing } from '../auth/acting.js';
 /** Kept here for the messenger, which imported it from this module before it moved (Hivamis task 4). */
 export { claimsFor };
 
+const ROTATION_GRACE_MS = 10_000;
+
 const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/auth/login', {
     config: { rateLimit: { max: env.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
@@ -122,6 +124,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       }).catch(() => undefined);
       return unauthorized('نشست نامعتبر است. دوباره وارد شوید.');
     };
+    // Two tabs of one browser renewing in the same moment: the second presents what the first has
+    // just traded. Over plain http browsers give tabs no lock to take turns with, so this happened
+    // to honest people and signed them out everywhere. Within a few seconds of the trade it is
+    // answered «try again» — the browser's cookie is already the new one — and nothing is issued.
+    const justRotated = () => new AppError(409, 'REFRESH_RACE', 'نشست در همین لحظه تازه شد؛ دوباره تلاش کنید.');
+    if (session.revokedAt && session.revokedReason === 'ROTATED' && Date.now() - session.revokedAt.getTime() < ROTATION_GRACE_MS) throw justRotated();
     if (session.revokedAt) throw await reused();
 
     if (session.expiresAt < new Date()) {
@@ -156,7 +164,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         },
       });
     });
-    if (!rotated) throw await reused();
+    if (!rotated) throw justRotated();
     return { accessToken: await signAccessToken({ ...claims, sid: rotated.id }), refreshToken: next.token };
   }
 

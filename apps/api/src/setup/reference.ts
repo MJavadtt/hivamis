@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   ALL_FORMS, ALL_PERMISSIONS, PERMISSIONS, ROLE_CODES, ROLE_LABELS, ROLE_PERMISSIONS,
-  DEPARTMENT_LABELS, DEPARTMENT_CODES, EXECUTION_DEPARTMENTS, SLA_POLICIES,
+  DEPARTMENT_LABELS, DEPARTMENT_CODES, EXECUTION_DEPARTMENTS, EXTRA_UNITS, SLA_POLICIES, UNIT_SHORT_CODES, customUnitCode,
 } from '@hiva/contracts';
 import { publishDefinition } from '../forms/versions.js';
 import { syncInvoiceSellers } from '../invoices/sellers.js';
@@ -81,12 +81,20 @@ export async function syncOrganization(db: Db, organizationId: string): Promise<
       await db.department.create({
         data: {
           organizationId, code, nameFa: DEPARTMENT_LABELS[code].fa, nameEn: DEPARTMENT_LABELS[code].en,
-          isExecutionalUnit: EXECUTION_DEPARTMENTS.includes(code), sortOrder: order,
+          isExecutionalUnit: EXECUTION_DEPARTMENTS.includes(code), sortOrder: order, shortCode: UNIT_SHORT_CODES[code],
         },
       });
       out.departmentsAdded++;
     }
     order++;
+  }
+  // A new organisation also begins with the coding instruction's other units (ADR-133); an existing
+  // one got them once, by migration, and what it deleted since stays deleted.
+  if (out.departmentsAdded === DEPARTMENT_CODES.length) {
+    let extra = 100;
+    for (const u of EXTRA_UNITS) {
+      await db.department.create({ data: { organizationId, code: customUnitCode(u.shortCode), shortCode: u.shortCode, nameFa: u.fa, nameEn: u.en, namesOwned: true, sortOrder: extra++ } });
+    }
   }
 
   for (const policy of SLA_POLICIES) {

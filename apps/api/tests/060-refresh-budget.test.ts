@@ -38,8 +38,8 @@ describe('Renewing a session (audit UI-V)', () => {
 
   it('still limits one session that renews too often — and leaves it working', async () => {
     let { refresh } = await signIn('creative@hiva.local');
-    const was = env.LOGIN_RATE_LIMIT_MAX;
-    (env as { LOGIN_RATE_LIMIT_MAX: number }).LOGIN_RATE_LIMIT_MAX = LIMIT;
+    const was = env.REFRESH_RATE_LIMIT_MAX;
+    (env as { REFRESH_RATE_LIMIT_MAX: number }).REFRESH_RATE_LIMIT_MAX = LIMIT;
     try {
       for (let i = 0; i < LIMIT; i++) {
         const r = await renew(refresh);
@@ -54,7 +54,7 @@ describe('Renewing a session (audit UI-V)', () => {
       expect(refreshCookieOf(refused)).toBeUndefined();
       expect(await prisma.session.findUniqueOrThrow({ where: { refreshTokenHash: hashToken(refresh) } })).toMatchObject({ revokedAt: null });
     } finally {
-      (env as { LOGIN_RATE_LIMIT_MAX: number }).LOGIN_RATE_LIMIT_MAX = was;
+      (env as { REFRESH_RATE_LIMIT_MAX: number }).REFRESH_RATE_LIMIT_MAX = was;
     }
   });
 });

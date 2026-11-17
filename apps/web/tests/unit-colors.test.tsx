@@ -12,7 +12,7 @@ import { UnitColors } from '../src/components/UnitColors';
  * the unit appears on every screen — legible whatever the colour.
  */
 const UNITS = [
-  { id: 'd1', code: 'CR', nameFa: 'خلاقیت / گرافیک / تولید', nameEn: 'Creativity', tagColor: '#ffeb3b', color: '#ffeb3b' },
+  { id: 'd1', code: 'CR', nameFa: 'ایده و اجرا', nameEn: 'Creativity', tagColor: '#ffeb3b', color: '#ffeb3b' },
   { id: 'd2', code: 'ME', nameFa: 'رسانه', nameEn: 'Media', tagColor: null, color: DEFAULT_UNIT_COLORS.ME },
 ];
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -40,11 +40,11 @@ const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i
 describe('A unit’s tag', () => {
   it('shows the unit in the colour chosen for it, with text that reads on it', async () => {
     mount(<UnitTag code="CR" />);
-    const tag = await screen.findByText('خلاقیت / گرافیک / تولید');
+    const tag = await screen.findByText('ایده و اجرا');
     const box = tag.closest('[data-unit]') as HTMLElement;
     await waitFor(() => expect(box.style.backgroundColor).toBe(rgb('#ffeb3b')));
     expect(box.style.color).toBe(rgb(textOn('#ffeb3b')));
-    expect(box.title).toBe('خلاقیت / گرافیک / تولید (CR)');
+    expect(box.title).toBe('ایده و اجرا (CR)');
   });
 
   it('shows a unit in its default colour before the list arrives, and a dash for no unit', () => {

@@ -29,7 +29,7 @@ import { PersonLink } from './People';
 import { SuggestedForms } from '../components/SuggestedForms';
 
 const UNITS = [
-  { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('خلاقیت / گرافیک / تولید') },
+  { value: 'ST', label: tr('استراتژی') }, { value: 'CR', label: tr('ایده و اجرا') },
   { value: 'ME', label: tr('رسانه') }, { value: 'DM', label: tr('دیجیتال مارکتینگ') },
 ];
 

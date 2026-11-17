@@ -20,6 +20,9 @@ export interface Unit {
   managerId?: string | null;
   manager?: { id: string; fullName: string } | null;
   namesOwned?: boolean;
+  /** «حرف اختصاری واحد» (ADR-133), and whether the organisation made the unit itself. */
+  shortCode?: string | null;
+  custom?: boolean;
   _count?: { users: number };
 }
 

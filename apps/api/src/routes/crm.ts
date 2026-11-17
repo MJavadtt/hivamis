@@ -3,7 +3,7 @@ import {
   convertLeadSchema, createActivitySchema, createCompanySchema, createContactSchema, createLeadSchema,
   createOpportunitySchema, updateCompanySchema, updateContactSchema, updateLeadSchema,
   updateOpportunitySchema, paginationSchema, createLeadReferrerSchema, updateLeadReferrerSchema,
-  DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, SALES_DEPARTMENT, normalizeIranMobile,
+  DIRECT_CHANNELS, DIRECT_CHANNEL_LABELS, LEAD_SOURCE_KINDS, LEAD_SOURCE_LABELS, SALES_DEPARTMENT, normalizeIranPhone,
 } from '@hiva/contracts';
 import { prisma } from '../db.js';
 import { narrowed, reachFor } from '../auth/visibility.js';
@@ -101,7 +101,7 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
   app.get('/leads/duplicates', { preHandler: [app.authenticate, app.requirePermissions('crm.lead.read')] }, async (req) => {
     const actor = actorFrom(req);
     const { phone, exclude } = req.query as { phone?: string; exclude?: string };
-    const normalized = normalizeIranMobile(phone);
+    const normalized = normalizeIranPhone(phone);
     return { phone: normalized, ...(normalized ? await findDuplicates(actor.organizationId, normalized, exclude) : { leads: [], contacts: [] }) };
   });
 

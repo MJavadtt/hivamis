@@ -20,7 +20,7 @@ import { storageUsed } from '../documents/storage.js';
 import { pauseSla, resumeSla, loadCalendar, resetCalendarCache } from '../sla/engine.js';
 import { predictClocks } from '../sla/predict.js';
 import { businessHoursBetween } from '../lib/business-calendar.js';
-import { SLA_PAUSE_KINDS, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
+import { SLA_PAUSE_KINDS, isProcessUnit, unitColor, unitColorSchema, updateOrganizationSchema, updateSlaPolicySchema, type SlaPauseKind } from '@hiva/contracts';
 import { teamInUnit } from '../lib/teams.js';
 import { overridesOf, setOverrides, applyOverrides } from '../auth/overrides.js';
 import { hasHistory, removeUser } from '../auth/remove-user.js';
@@ -365,7 +365,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
       select: { id: true, fullName: true },
     })).map((m) => [m.id, m]));
     // `color` is what every screen shows the unit in; `tagColor` is the administrator's choice, if any.
-    return units.map((u) => ({ ...u, color: unitColor(u.code, u.tagColor), manager: u.managerId ? managers.get(u.managerId) ?? null : null }));
+    return units.map((u) => ({ ...u, custom: !isProcessUnit(u.code), color: unitColor(u.code, u.tagColor), manager: u.managerId ? managers.get(u.managerId) ?? null : null }));
   });
 
   /**

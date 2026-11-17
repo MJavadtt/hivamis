@@ -140,7 +140,7 @@ describe('A customer’s journey', () => {
     });
     const brief = await screen.findByTestId('new-brief');
     fireEvent.change(within(brief).getByLabelText('هدف کسب‌وکار'), { target: { value: 'معرفی کارت تازه' } });
-    fireEvent.click(within(brief).getByRole('checkbox', { name: 'خلاقیت / گرافیک / تولید' }));
+    fireEvent.click(within(brief).getByRole('checkbox', { name: 'ایده و اجرا' }));
     fireEvent.click(within(brief).getByRole('button', { name: 'ذخیرهٔ بریف' }));
     await waitFor(() => expect(posts(sent, '/briefs')).toHaveLength(1));
     expect(posts(sent, '/briefs')[0]!.body).toMatchObject({ opportunityId: 'o-1', title: 'بریف — بانک آینده‌سازان', businessObjective: 'معرفی کارت تازه', unitsNeeded: ['CR'] });

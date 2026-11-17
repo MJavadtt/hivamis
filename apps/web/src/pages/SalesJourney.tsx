@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DEPARTMENT_LABELS, DEPARTMENT_CODES, normalizeIranMobile, type DepartmentCode } from '@hiva/contracts';
+import { DEPARTMENT_LABELS, DEPARTMENT_CODES, normalizeIranPhone, type DepartmentCode } from '@hiva/contracts';
 import { ApiError, apiGet, apiPost, type Page } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useDraftState } from '../lib/drafts';
@@ -60,7 +60,7 @@ export function NewCustomer() {
   const existing = same.data?.items.find((c) => [c.legalName, c.brandName].some((n) => n?.trim() === name.trim()));
 
   const first = contacts[0]!;
-  const mobile = normalizeIranMobile(first.phone);
+  const mobile = normalizeIranPhone(first.phone);
   // The main contact's mobile is checked while it is typed, as on the lead form.
   const [asked, setAsked] = useState<string | null>(null);
   useEffect(() => {
@@ -100,7 +100,7 @@ export function NewCustomer() {
         if (i < made.current.contacts) continue;
         await apiPost('/contacts', {
           companyId: made.current.companyId, fullName: c.fullName.trim(), jobTitle: c.jobTitle.trim() || undefined,
-          phone: normalizeIranMobile(c.phone) ?? (c.phone.trim() || undefined), email: c.email.trim() || undefined, isPrimary: i === 0,
+          phone: normalizeIranPhone(c.phone) ?? (c.phone.trim() || undefined), email: c.email.trim() || undefined, isPrimary: i === 0,
         });
         made.current.contacts = i + 1;
       }
@@ -140,20 +140,20 @@ export function NewCustomer() {
           </div>
         </StepSection>
 
-        <StepSection n={2} tour="contacts" title={tr('مخاطب‌ها')} hint={tr('کسانی که با آن‌ها در تماسید. نفر اول مخاطب اصلی است و شمارهٔ همراهش لازم است.')}>
+        <StepSection n={2} tour="contacts" title={tr('مخاطب‌ها')} hint={tr('کسانی که با آن‌ها در تماسید. نفر اول مخاطب اصلی است و شماره‌اش — همراه یا ثابت — لازم است.')}>
           <div className="space-y-3">
             {contacts.map((c, i) => (
               <div key={i} className="grid gap-2 rounded-lg bg-ink-50/60 p-3 sm:grid-cols-4" data-testid="contact-row">
                 <Input value={c.fullName} onChange={(e) => setContact(i, { fullName: e.target.value })} placeholder={tr('نام و نام خانوادگی')} aria-label={tr('نام مخاطب {0}', localDigits(i + 1))} />
                 <Input value={c.jobTitle} onChange={(e) => setContact(i, { jobTitle: e.target.value })} placeholder={tr('سمت')} aria-label={tr('سمت مخاطب {0}', localDigits(i + 1))} />
-                <Input value={c.phone} onChange={(e) => setContact(i, { phone: e.target.value })} placeholder={i === 0 ? tr('همراه — ۰۹۱۲…') : tr('تلفن')} className="ltr" inputMode="tel" aria-label={tr('تلفن مخاطب {0}', localDigits(i + 1))} />
+                <Input value={c.phone} onChange={(e) => setContact(i, { phone: e.target.value })} placeholder={i === 0 ? tr('همراه یا ثابت — ۰۹۱۲… / ۰۲۱…') : tr('تلفن')} className="ltr" inputMode="tel" aria-label={tr('تلفن مخاطب {0}', localDigits(i + 1))} />
                 <div className="flex gap-2">
                   <Input value={c.email} onChange={(e) => setContact(i, { email: e.target.value })} placeholder={tr('ایمیل')} className="ltr" aria-label={tr('ایمیل مخاطب {0}', localDigits(i + 1))} />
                   {i > 0 && <Button size="sm" variant="ghost" onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))} aria-label={tr('حذف مخاطب {0}', localDigits(i + 1))}>{tr('حذف')}</Button>}
                 </div>
               </div>
             ))}
-            {first.phone.trim() && !mobile && <p className="text-xs text-rose-700">{tr('شمارهٔ همراه مخاطب اصلی درست نیست؛ مثلاً ۰۹۱۲۳۴۵۶۷۸۹.')}</p>}
+            {first.phone.trim() && !mobile && <p className="text-xs text-rose-700">{tr('شمارهٔ مخاطب اصلی درست نیست؛ همراه مثل ۰۹۱۲۳۴۵۶۷۸۹ یا ثابت با کد شهر مثل ۰۲۱۸۸۷۷۶۶۵۵.')}</p>}
             <Button size="sm" variant="secondary" onClick={() => setContacts((cs) => [...cs, blankContact()])}>{tr('+ مخاطب دیگر')}</Button>
           </div>
         </StepSection>
@@ -164,7 +164,7 @@ export function NewCustomer() {
 
         {repeated && dup && (
           <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200" role="alert" data-testid="lead-duplicate">
-            <p className="font-medium">{tr('شمارهٔ همراه مخاطب اصلی پیش‌تر ثبت شده است:')}</p>
+            <p className="font-medium">{tr('شمارهٔ مخاطب اصلی پیش‌تر ثبت شده است:')}</p>
             <ul className="mt-1 space-y-0.5">
               {dup.leads.map((l) => <li key={l.id}>{tr('سرنخ')}{' '}<span className="ltr whitespace-nowrap">{l.code}</span> «{l.name}» — {l.companyName}{l.owner ? tr(' (مالک: {0})', l.owner) : ''}</li>)}
               {dup.contacts.map((c) => <li key={c.id}>{tr('مخاطب «{0}» از', c.fullName)}{' '}<Link to={`/sales/journey/${c.companyId}`} className="underline">{c.company}</Link></li>)}
@@ -305,7 +305,7 @@ function AddContact({ companyId, onDone }: { companyId: string; onDone: () => vo
   const save = async () => {
     setBusy(true);
     try {
-      await apiPost('/contacts', { companyId, fullName: c.fullName.trim(), jobTitle: c.jobTitle.trim() || undefined, phone: normalizeIranMobile(c.phone) ?? (c.phone.trim() || undefined), email: c.email.trim() || undefined });
+      await apiPost('/contacts', { companyId, fullName: c.fullName.trim(), jobTitle: c.jobTitle.trim() || undefined, phone: normalizeIranPhone(c.phone) ?? (c.phone.trim() || undefined), email: c.email.trim() || undefined });
       toast(tr('مخاطب ثبت شد.')); setC(blankContact()); setOpen(false); onDone();
     } catch (e: any) { toast(e?.message ?? tr('ثبت ناموفق بود.'), 'danger'); } finally { setBusy(false); }
   };

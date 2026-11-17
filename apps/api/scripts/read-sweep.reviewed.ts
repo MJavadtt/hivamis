@@ -301,6 +301,9 @@ export const REVIEWED: Record<string, Verdict> = {
   // ADR-130: the people's photos, kept; and the files a fresh start is about to delete.
   ...of('PEOPLE', ["setup/reset.ts#freshWhere#user#1"]),
   ...of('RESET', ["setup/reset.ts#freshStartKeepingPeople#document#1"]),
+  // ADR-132/133: the organisation's units, to name its forms' document codes; and the files of the rows a deletion takes.
+  ...of('REFERENCE', ["forms/doc-code.ts#formDocCodes#department#1"]),
+  ...of('IDS', ["lib/purge.ts#walk#document#1"]),
   // ADR-103: one deployment project's own ledger and closure, ids from a page or a bounded request,
   // the organisation's own lists, and the organisations the daily reminder run goes through.
   ...of('CHILDREN', [
