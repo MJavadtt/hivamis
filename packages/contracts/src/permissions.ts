@@ -184,6 +184,10 @@ export const PERMISSIONS = {
   'brand.manage': 'مدیریت کتابخانهٔ برند مشتری',
   // Whose records a person sees (the owner, 2026-11-14; ADR-127). Without one of these, a person sees
   // the records they own, are assigned to or made — and what hangs off them.
+  // Metro advertising (the owner, 2026-11-17; ADR-135).
+  'metro.read': 'دیدن مترو: خطوط، قطارها، فضاها، رزروها و گزارش‌ها',
+  'metro.write': 'ثبت و ویرایش خطوط، ایستگاه‌ها، قطارها، واگن‌ها و فضاهای تبلیغاتی مترو',
+  'metro.book': 'ثبت و ویرایش رزرو، مبلغ و پرداخت فضاهای مترو',
   'record.see_unit': 'دیدن پرونده‌های همکاران واحد خود',
   'record.see_commercial': 'دیدن همهٔ مشتریان، پروژه‌ها، قراردادها و فاکتورها (کار مالی و حقوقی)',
   'record.see_all': 'دیدن پرونده‌های همهٔ همکاران',
@@ -222,7 +226,7 @@ const READ_ONLY: Permission[] = [
   'workorder.read', 'task.read', 'deliverable.read', 'qc.read', 'revision.read',
   'change.read', 'contract.read', 'traffic.read', 'resource.read', 'supplier.read',
   'governance.read', 'meeting.read', 'document.read', 'form.read', 'report.read',
-  'venue.read', 'site.read',
+  'venue.read', 'site.read', 'metro.read',
 ];
 
 const SALES_CORE: Permission[] = [
@@ -238,7 +242,7 @@ const SALES_CORE: Permission[] = [
   'project.read', 'task.read', 'document.read', 'document.write',
   'form.read', 'form.submit', 'meeting.read', 'meeting.write', 'report.read', 'ai.use',
   // Which places a client's campaign could go is part of the pitch.
-  'venue.read',
+  'venue.read', 'metro.read', 'metro.book',
 ];
 
 const ACCOUNT_CORE: Permission[] = [
@@ -265,7 +269,7 @@ const ACCOUNT_CORE: Permission[] = [
   // The client's brand is kept by Account and by the units that design to it.
   'brand.manage',
   // A client's campaign placed in venues is run by Account with Operations (ADR-103).
-  'venue.read', 'site.read', 'site.write',
+  'venue.read', 'site.read', 'site.write', 'metro.read', 'metro.book',
 ];
 
 const UNIT_CORE: Permission[] = [
@@ -283,7 +287,7 @@ const UNIT_CORE: Permission[] = [
   'traffic.read', 'resource.read',
   'meeting.read', 'meeting.write',
   'document.read', 'document.write', 'form.read', 'form.submit', 'report.read', 'ai.use',
-  'venue.read',
+  'venue.read', 'metro.read',
 ];
 
 const FINANCE_CORE: Permission[] = [
@@ -292,7 +296,7 @@ const FINANCE_CORE: Permission[] = [
   'finance.budget', 'finance.rates', 'pricing.read', 'pricing.set_price',
   'document.write', 'form.submit', 'ai.use',
   // What is owed and paid for the space (ADR-103).
-  'rental.read', 'rental.manage',
+  'rental.read', 'rental.manage', 'metro.read',
 ];
 
 const LEGAL_CORE: Permission[] = [
@@ -308,7 +312,7 @@ const PMO_CORE: Permission[] = [
   'governance.write', 'meeting.write',
   'document.write', 'form.submit', 'customer_success.write', 'ai.use',
   // Operations finds the places, negotiates, installs and staffs them (ADR-103); it reads the rent, Finance pays it.
-  'venue.write', 'site.write', 'rental.read',
+  'venue.write', 'site.write', 'rental.read', 'metro.read', 'metro.write', 'metro.book',
 ];
 
 /**
@@ -435,6 +439,7 @@ export const PERMISSION_GROUPS: readonly { key: string; fa: string; en: string }
   { key: 'rules', fa: 'قوانین سازمان', en: "Organisation's rules" },
   { key: 'portal', fa: 'پورتال مشتری', en: 'Client portal' },
   { key: 'brand', fa: 'کتابخانهٔ برند', en: 'Brand library' },
+  { key: 'metro', fa: 'تبلیغات مترو', en: 'Metro advertising' },
   { key: 'record', fa: 'دیدن پرونده‌های دیگران', en: "Seeing others' records" },
 ];
 export const permissionGroup = (p: string) => p.split('.')[0]!;

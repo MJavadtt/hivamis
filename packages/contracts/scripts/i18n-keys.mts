@@ -24,6 +24,8 @@ const SKIP = [
   /\/api\/src\/approvals\/certificate\.ts$/, /\/api\/src\/accounting\/vouchers\.ts$/,
   // The invoice forms (ADR-125): what the owner's own Excel forms print, and the companies' details on them.
   /\/api\/src\/invoices\/forms\.ts$/, /\/api\/src\/invoices\/workbook\.ts$/,
+  // The metro's starting stations (ADR-135): records the organisation edits, each with an English-name field.
+  /\/contracts\/src\/metro-catalogue\.ts$/,
 ];
 /** Email and certificate markup is a document, not interface text. */
 const MARKUP = /<(div|p|ul|li|b|a|code|br|table|tr|td|h\d)[\s>/]/i;

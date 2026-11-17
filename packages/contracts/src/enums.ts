@@ -202,6 +202,8 @@ export const isViewableImage = (mime: string) => /^image\/(png|jpeg|gif|webp|bmp
 export const FILE_RECORD_TYPES = [
   'lead', 'opportunity', 'activity', 'brief', 'workOrder', 'task', 'changeRequest', 'revision',
   'risk', 'issue', 'decision', 'statusReport', 'meeting', 'invoice', 'supplier', 'outsourceRequest', 'mediaOrder', 'booking',
+  // Metro advertising (ADR-135): every part of it carries notes, photos and files.
+  'metroLine', 'metroStation', 'metroTrain', 'metroWagon', 'metroSpace', 'metroBooking',
 ] as const;
 export type FileRecordType = (typeof FILE_RECORD_TYPES)[number];
 

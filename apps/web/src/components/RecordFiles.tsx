@@ -254,6 +254,9 @@ const RECORD_PAGES: [RegExp, (id: string) => FileTarget][] = [
   // A venue and a deployment project (ADR-134): their notes, beside the files their own pages keep.
   [/^\/sites\/venues\/([^/]+)$/, column('venueId')],
   [/^\/sites\/projects\/([^/]+)$/, column('siteProjectId')],
+  // Metro advertising (ADR-135): a line's and a booking's notes, photos and files.
+  [/^\/metro\/lines\/([^/]+)$/, record('metroLine')],
+  [/^\/metro\/bookings\/([^/]+)$/, record('metroBooking')],
 ];
 
 export function targetOfPage(pathname: string | undefined): FileTarget | null {

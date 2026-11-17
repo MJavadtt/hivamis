@@ -264,6 +264,37 @@ export const GUIDE: GuideSection[] = [
         '“Check in” under the guest\'s name; the organiser hears of it in the app, on the phone and in the messenger.')),
     ],
   },
+  // ADR-135: metro advertising.
+  {
+    id: 'metro', route: '^/metro(/lines/[^/]+)?$', path: '/metro', permission: 'metro.read', manual: 'Metro advertising — «تبلیغات مترو»',
+    title: t('تبلیغات مترو', 'Metro advertising'),
+    summary: t('خطوط و ایستگاه‌های مترو تهران و کرج، قطارها و واگن‌ها، و فضاهای بدنه، کتیبه و دستگیرهٔ هر واگن.',
+      'The Tehran and Karaj metro\'s lines and stations, trains and wagons, and each wagon\'s body, panel and handle spaces.'),
+    keywords: 'مترو خط ایستگاه قطار واگن بدنه کتیبه دستگیره metro line station train wagon body panel handle',
+    steps: [
+      step(undefined, t('خط و قطار', 'Lines and trains'), t('روی هر خط بزنید؛ قطار را با شمارهٔ واگن‌هایش بسازید و هر واگن با بدنه، کتیبه‌ها و دستگیره‌هایش ساخته می‌شود. هر بخش ویرایش و حذف می‌شود و یادداشت و عکس می‌گیرد.',
+        'Open a line; make a train with its number of wagons, and each wagon is made with its body, panels and handles. Every part is edited, deleted, and takes notes and photos.')),
+    ],
+  },
+  {
+    id: 'metro-bookings', route: '^/metro/bookings(/[^/]+)?$', path: '/metro/bookings', permission: 'metro.read', manual: 'Metro advertising — «تبلیغات مترو»',
+    title: t('رزروهای مترو', 'Metro bookings'),
+    summary: t('رزرو فضاها برای مشتری در بازه‌ای از روزها، با مبلغ، پرداخت‌ها و یادآوری پایان.',
+      'Spaces booked for a client over days, with the amount, payments and a reminder before the end.'),
+    keywords: 'رزرو مترو مبلغ پرداخت مانده metro booking amount payment balance',
+    steps: [
+      step(undefined, t('فضای آزاد', 'Free spaces'), t('تاریخ‌ها و خط را برگزینید؛ فقط آنچه در آن روزها آزاد است گرفتنی است و مبلغ از قیمت ماهانهٔ فضاها پیشنهاد می‌شود.',
+        'Choose the dates and the line; only what is free on those days can be taken, and the amount is suggested from the spaces\' monthly prices.')),
+    ],
+  },
+  {
+    id: 'metro-reports', route: '^/metro/reports$', path: '/metro/reports', permission: 'metro.read', manual: 'Metro advertising — «تبلیغات مترو»',
+    title: t('گزارش‌های مترو', 'Metro reports'),
+    summary: t('اشغال فضاها و مبلغ رزروها در یک بازه، بر پایهٔ خط و نوع فضا، با خروجی CSV.',
+      'Space occupancy and bookings\' amounts over a period, by line and kind, with a CSV export.'),
+    keywords: 'گزارش مترو اشغال درآمد metro report occupancy revenue csv',
+    steps: [step(undefined, t('بازه', 'The period'), t('بازه و خط را برگزینید؛ «خروجی CSV» رزروهای بازه را برای اکسل می‌دهد.', 'Choose the period and the line; «CSV export» gives the period\'s bookings for Excel.'))],
+  },
   // ADR-103: venues, deployment projects and rentals.
   {
     id: 'sites', route: '^/sites$', path: '/sites', anyOf: ['venue.read', 'site.read', 'rental.read'], manual: 'Venues and rentals — «مکان‌ها و اجاره‌داری»',

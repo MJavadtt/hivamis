@@ -58,6 +58,10 @@ const SiteReminders = lazy(() => import('./pages/sites/Messages'));
 const SiteReports = lazy(() => import('./pages/sites/Reports'));
 const SiteExcel = lazy(() => import('./pages/sites/Excel'));
 const SiteSettings = lazy(() => import('./pages/sites/Settings'));
+const MetroHome = lazy(() => import('./pages/metro/Home'));
+const MetroLine = lazy(() => import('./pages/metro/Line'));
+const MetroBookings = lazy(() => import('./pages/metro/Bookings'));
+const MetroReports = lazy(() => import('./pages/metro/Reports'));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -169,6 +173,11 @@ export default function App() {
         <Route path="/bookings/:id" element={<Guarded permission="meeting.book" element={<BookingPage />} />} />
         <Route path="/reception" element={<Guarded permission="reception.checkin" element={<Reception />} />} />
         <Route path="/sites" element={<Guarded anyOf={['venue.read', 'site.read', 'rental.read']} element={<SitesHome />} />} />
+        <Route path="/metro" element={<Guarded permission="metro.read" element={<MetroHome />} />} />
+        <Route path="/metro/lines/:id" element={<Guarded permission="metro.read" element={<MetroLine />} />} />
+        <Route path="/metro/bookings" element={<Guarded permission="metro.read" element={<MetroBookings />} />} />
+        <Route path="/metro/bookings/:id" element={<Guarded permission="metro.read" element={<MetroBookings />} />} />
+        <Route path="/metro/reports" element={<Guarded permission="metro.read" element={<MetroReports />} />} />
         <Route path="/sites/venues" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />
         <Route path="/sites/venues/:id" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />
         <Route path="/sites/projects" element={<Guarded permission="site.read" element={<SiteProjects />} />} />

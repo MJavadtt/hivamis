@@ -113,6 +113,15 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    // Metro advertising (the owner, 2026-11-17; ADR-135).
+    label: tr('تبلیغات مترو'),
+    items: [
+      { to: '/metro', label: tr('داشبورد مترو'), icon: IconDashboard, permission: 'metro.read' },
+      { to: '/metro/bookings', label: tr('رزروهای مترو'), icon: IconClock, permission: 'metro.read' },
+      { to: '/metro/reports', label: tr('گزارش‌های مترو'), icon: IconChart, permission: 'metro.read' },
+    ],
+  },
+  {
     label: tr('تجاری و مالی'),
     items: [
       { to: '/commercial', label: tr('میز قرارداد و مالی'), icon: IconCheckCircle, anyOf: ['contract.draft', 'contract.legal_review', 'contract.approve', 'contract.sign', 'finance.invoice', 'finance.proforma', 'project.authorize'] },

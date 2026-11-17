@@ -4095,3 +4095,36 @@ their own — on every record page's header and every paperclip, venues and depl
 **Decision — form files.** The attachment field uploads as files are chosen; when the form is saved,
 the writer's own unfiled files named in it are filed on the submission (`documents.submissionId`), and
 the decision dialog shows the form's notes and files.
+
+## ADR-135 — Metro advertising: lines, trains, wagons and their spaces; bookings, money, reminders, reports
+
+**Context.** The owner (2026-11-17): a module for the metro like venues and rentals, with the stations of
+Tehran and Karaj from the operator's map they sent; everything in it added, removed and edited — data,
+pictures, reports; the metro's ad spaces are the body, the panels (کتیبه) and the handles; a line has
+trains and a train has wagons, all editable; and in the end a database of bookings with amounts,
+notices, reports and attachments.
+
+**Decision.**
+- **Inventory** (`metro_lines`, `metro_stations`, `metro_trains`, `metro_wagons`, `metro_ad_spaces`):
+  a line has stations (ordered, a branch named, interchange, under construction) and trains; a train
+  has numbered wagons; a wagon carries spaces of three kinds, each with a quantity — one body, eight
+  panels, forty handles by default — a size and a monthly price per unit. A train is made with its
+  wagons in one step, each with the spaces asked for; every part is added, edited and deleted, and
+  carries notes, photos and files (records.ts, ADR-134).
+- **The map.** The seven lines and their 170 stations (Line 5 to Karaj and Golshahr; the airport and
+  Mehrabad branches) are laid down once per organisation by the reference sync, marked in
+  `metro_settings`; deleted afterwards, they stay deleted. The catalogue is data
+  (`metro-catalogue.ts`), not interface text.
+- **Bookings** (`metro_bookings`, `metro_booking_items`, `metro_payments`): a client (a company or a
+  name), a project, dates, the units of each space; HOLD → CONFIRMED → ACTIVE → ENDED, or CANCELLED with
+  a reason. Over any shared day, holds, confirmed and running bookings may not take more of a space
+  than it has (`assertFree`, under an advisory lock); the amount is suggested from the monthly prices by
+  the day and may be changed; payments give the balance. A space, wagon, train or line a live booking
+  holds is not deleted.
+- **Notices.** A new booking and each move are told to whoever books metro spaces and to its owner; the
+  daily `metro:remind` starts and ends bookings by their dates, tells of one ending within the
+  organisation's days (7) once, and of a hold left past its days (3) once.
+- **Reports.** Occupancy in unit-days by line and kind, money billed, received and outstanding, by
+  state and client, and the period's bookings as a CSV Excel opens in Persian.
+- **Permissions.** `metro.read`, `metro.write` (inventory), `metro.book` (bookings and payments);
+  operations write, account and sales book, units and finance read.

@@ -436,6 +436,21 @@ export const REVIEWED: Record<string, Verdict> = {
   // ADR-134: a record's notes, after assertMayNote found the record in the caller's organisation; a note
   // taken back is checked against its author's organisation first.
   ...of('EARLIER', ["routes/notes.ts#GET /notes", "routes/notes.ts#DELETE /notes/:id"]),
+  // ADR-135, the metro: every route finds its row in the caller's organisation first (own(), loadBooking(), the
+  // line upserted for it), then works on that row's id and its children's.
+  ...of('EARLIER', [
+    'metro/catalogue.ts#ensureMetroCatalogue', 'routes/metro.ts#DELETE /metro/bookings/:id', 'routes/metro.ts#DELETE /metro/lines/:id',
+    'routes/metro.ts#DELETE /metro/payments/:id', 'routes/metro.ts#DELETE /metro/spaces/:id', 'routes/metro.ts#DELETE /metro/stations/:id',
+    'routes/metro.ts#DELETE /metro/trains/:id', 'routes/metro.ts#DELETE /metro/wagons/:id', 'routes/metro.ts#GET /metro/overview',
+    'routes/metro.ts#PATCH /metro/bookings/:id', 'routes/metro.ts#PATCH /metro/lines/:id', 'routes/metro.ts#PATCH /metro/spaces/:id',
+    'routes/metro.ts#PATCH /metro/stations/:id', 'routes/metro.ts#PATCH /metro/trains/:id', 'routes/metro.ts#PATCH /metro/wagons/:id',
+    'routes/metro.ts#POST /metro/bookings/:id/state', 'routes/metro.ts#POST /metro/lines/:id/stations', 'routes/metro.ts#POST /metro/lines/:id/trains',
+    'routes/metro.ts#POST /metro/trains/:id/wagons',
+  ]),
+  ...of('LIST', ['routes/metro.ts#GET /metro/bookings']),
+  ...of('CALLER', ['routes/metro.ts#assertNoLiveBooking']),
+  ...of('NAMES', ['routes/metro.ts#shape']),
+  ...of('SYSTEM', ['metro/reminders.ts#runMetroReminders']),
   ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
   // ADR-103: venues, deployment projects and rentals. Lists build their where-object (with the caller's
   // organisation) above the query; every change finds its record in the organisation first, then works

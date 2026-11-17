@@ -304,6 +304,9 @@ export const REVIEWED: Record<string, Verdict> = {
   // ADR-132/133: the organisation's units, to name its forms' document codes; and the files of the rows a deletion takes.
   ...of('REFERENCE', ["forms/doc-code.ts#formDocCodes#department#1"]),
   ...of('IDS', ["lib/purge.ts#walk#document#1", "routes/notes.ts#GET /notes#document#1"]),
+  // ADR-135, the metro: an organisation's lines are a handful; the spaces and people read are the ids in hand.
+  ...of('REFERENCE', ['routes/metro.ts#GET /metro/lines#metroLine#1', 'routes/metro.ts#GET /metro/overview#metroLine#1', 'routes/metro.ts#report#metroLine#1']),
+  ...of('IDS', ['metro/bookings.ts#assertFree#metroAdSpace#1', 'routes/metro.ts#GET /metro/overview#metroAdSpace#1', 'routes/metro.ts#PATCH /metro/bookings/:id#metroAdSpace#1', 'routes/metro.ts#shape#user#1']),
   // ADR-103: one deployment project's own ledger and closure, ids from a page or a bounded request,
   // the organisation's own lists, and the organisations the daily reminder run goes through.
   ...of('CHILDREN', [

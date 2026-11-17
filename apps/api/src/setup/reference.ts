@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { ensureMetroCatalogue } from '../metro/catalogue.js';
 import {
   ALL_FORMS, ALL_PERMISSIONS, PERMISSIONS, ROLE_CODES, ROLE_LABELS, ROLE_PERMISSIONS,
   DEPARTMENT_LABELS, DEPARTMENT_CODES, EXECUTION_DEPARTMENTS, EXTRA_UNITS, SLA_POLICIES, UNIT_SHORT_CODES, customUnitCode,
@@ -125,6 +126,8 @@ export async function syncOrganization(db: Db, organizationId: string): Promise<
   }
 
   out.sellersAdded = await syncInvoiceSellers(db, organizationId);
+  // The metro's lines and stations, once (ADR-135); after that they are the organisation's.
+  await ensureMetroCatalogue(organizationId, db);
   return out;
 }
 

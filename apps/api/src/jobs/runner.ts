@@ -19,6 +19,7 @@ import { backfillMetadata } from '../documents/backfill.js';
 import { getTransport } from '../mail/transport.js';
 import { runWeekly } from '../reports/client-status.js';
 import { runReminders } from '../sites/reminders.js';
+import { runMetroReminders } from '../metro/reminders.js';
 import { followUpMessages } from '../sites/messages.js';
 
 /**
@@ -41,7 +42,7 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.start();
 
   // pg-boss v10 requires a queue to exist before work() or schedule() references it.
-  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata', 'documents:purge', 'ai:prune', 'sites:remind', 'sites:messages']) {
+  for (const queue of ['sla:tick', 'digest:overdue', 'mail:send', 'report:client-weekly', 'memory:index', 'security:scan', 'webhooks:dispatch', 'moadian:run', 'esign:run', 'messenger:send', 'push:send', 'documents:metadata', 'documents:purge', 'ai:prune', 'sites:remind', 'sites:messages', 'metro:remind']) {
     await boss.createQueue(queue).catch(() => undefined);
   }
 
@@ -179,6 +180,10 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
     if (result.sent || result.sms || result.smsFailed) logger.info({ ...result }, 'site reminders');
   });
 
+  await boss.work('metro:remind', async () => {
+    const result = await runMetroReminders();
+    if (result.started || result.ended || result.ending || result.holds) logger.info({ ...result }, 'metro reminders');
+  });
   await boss.work('sites:messages', async () => {
     // Texts to the venues that failed, tried again; and what the provider says became of the sent ones.
     const result = await followUpMessages();
@@ -201,7 +206,8 @@ export async function startJobs(logger: FastifyBaseLogger): Promise<PgBoss | nul
   await boss.schedule('ai:prune', '45 3 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('sites:remind', '30 8 * * *', {}, { tz: 'Asia/Tehran' });
   await boss.schedule('sites:messages', '*/10 * * * *', {}, { tz: 'Asia/Tehran' });
-  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly, sites:remind daily 08:30, sites:messages every 10m)');
+  await boss.schedule('metro:remind', '45 8 * * *', {}, { tz: 'Asia/Tehran' });
+  logger.info('background jobs started (sla:tick every 5m, digest:overdue daily 08:00, report:client-weekly Sat 09:00, memory:index hourly, security:scan every 15m, webhooks:dispatch every minute, moadian:run every 10m, esign:run every 10m, messenger:send every minute, push:send every minute, documents:metadata hourly, sites:remind daily 08:30, sites:messages every 10m, metro:remind daily 08:45)');
   return boss;
 }
 

@@ -19,3 +19,4 @@ export * from './offline.js';
 export * from './bookings.js';
 export * from './brand.js';
 export * from './sites.js';
+export * from './metro.js';

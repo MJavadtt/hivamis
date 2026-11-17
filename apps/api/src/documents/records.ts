@@ -32,6 +32,13 @@ const RECORDS: Record<FileRecordType, { model: string; read: Permission }> = {
   outsourceRequest: { model: 'outsourceRequest', read: 'supplier.read' },
   mediaOrder: { model: 'mediaOrder', read: 'pricing.read' },
   booking: { model: 'booking', read: 'meeting.book' },
+  // Metro advertising (ADR-135): every part of it, read with the module.
+  metroLine: { model: 'metroLine', read: 'metro.read' },
+  metroStation: { model: 'metroStation', read: 'metro.read' },
+  metroTrain: { model: 'metroTrain', read: 'metro.read' },
+  metroWagon: { model: 'metroWagon', read: 'metro.read' },
+  metroSpace: { model: 'metroAdSpace', read: 'metro.read' },
+  metroBooking: { model: 'metroBooking', read: 'metro.read' },
 };
 
 export const isFileRecord = (type: string | null): type is FileRecordType => (FILE_RECORD_TYPES as readonly (string | null)[]).includes(type);

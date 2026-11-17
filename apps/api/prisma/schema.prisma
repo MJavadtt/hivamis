@@ -546,6 +546,8 @@ model Company {
   /// ADR-103: placements made for the client, who approves them as the employer.
   siteProjects SiteProject[]
 
+  metroBookings MetroBooking[]
+
   @@unique([id, organizationId])
   @@unique([organizationId, clientCode])
   @@index([organizationId])
@@ -910,6 +912,8 @@ model Project {
   bookings     Booking[]
   /// ADR-103: the campaign's placements in venues.
   siteProjects SiteProject[]
+
+  metroBookings MetroBooking[]
 
   @@unique([organizationId, legacyRef])
   @@index([organizationId, state])
@@ -2034,21 +2038,21 @@ model Document {
 }
 
 model Comment {
-  id         String   @id @default(uuid())
-  entityType String
-  entityId   String
-  projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  taskId     String?
-  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  body       String
-  mentions   String[] @default([])
+  id          String   @id @default(uuid())
+  entityType  String
+  entityId    String
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  body        String
+  mentions    String[] @default([])
   /// Files that came with the note (ADR-134): a note may be a file's word, or stand alone.
   documentIds String[] @default([])
-  authorId   String
-  author     User     @relation(fields: [authorId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@map("comments")
@@ -4337,4 +4341,171 @@ model StepBackRequest {
   @@index([entityType, entityId])
   @@index([approverId, state])
   @@map("step_back_requests")
+}
+
+/// ── Metro advertising (the owner, 2026-11-17; ADR-135) ─────────────────────────────────────────
+/// A line, its stations, its trains of wagons, and the spaces a wagon carries: body, panels, handles.
+model MetroLine {
+  id             String         @id @default(uuid())
+  organizationId String
+  number         Int
+  nameFa         String
+  nameEn         String         @default("")
+  /// TEHRAN | KARAJ
+  city           String         @default("TEHRAN")
+  color          String         @default("#64748b")
+  notes          String?
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  stations       MetroStation[]
+  trains         MetroTrain[]
+
+  @@unique([organizationId, number])
+  @@map("metro_lines")
+}
+
+model MetroStation {
+  id                String    @id @default(uuid())
+  organizationId    String
+  lineId            String
+  line              MetroLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  nameFa            String
+  nameEn            String    @default("")
+  order             Int       @default(0)
+  /// A branch's stations name it: «شاخهٔ فرودگاه».
+  branch            String?
+  isInterchange     Boolean   @default(false)
+  underConstruction Boolean   @default(false)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([lineId, order])
+  @@map("metro_stations")
+}
+
+model MetroTrain {
+  id             String       @id @default(uuid())
+  organizationId String
+  lineId         String
+  line           MetroLine    @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  code           String
+  notes          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  wagons         MetroWagon[]
+
+  @@unique([lineId, code])
+  @@map("metro_trains")
+}
+
+model MetroWagon {
+  id             String         @id @default(uuid())
+  organizationId String
+  trainId        String
+  train          MetroTrain     @relation(fields: [trainId], references: [id], onDelete: Cascade)
+  number         Int
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  spaces         MetroAdSpace[]
+
+  @@unique([trainId, number])
+  @@map("metro_wagons")
+}
+
+model MetroAdSpace {
+  id             String             @id @default(uuid())
+  organizationId String
+  wagonId        String
+  wagon          MetroWagon         @relation(fields: [wagonId], references: [id], onDelete: Cascade)
+  /// BODY | KATIBEH | HANDLE
+  kind           String
+  label          String?
+  /// Units of it sold separately: forty handles, eight panels, one body.
+  quantity       Int                @default(1)
+  widthCm        Int?
+  heightCm       Int?
+  /// One unit for thirty days.
+  monthlyPrice   Decimal            @default(0) @db.Decimal(20, 2)
+  isActive       Boolean            @default(true)
+  notes          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  bookingItems   MetroBookingItem[]
+
+  @@index([wagonId, kind])
+  @@map("metro_ad_spaces")
+}
+
+model MetroBooking {
+  id               String             @id @default(uuid())
+  organizationId   String
+  code             String
+  title            String?
+  companyId        String?
+  company          Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  clientName       String?
+  projectId        String?
+  project          Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  startDate        DateTime           @db.Date
+  endDate          DateTime           @db.Date
+  /// HOLD | CONFIRMED | ACTIVE | ENDED | CANCELLED
+  state            String             @default("HOLD")
+  amount           Decimal            @default(0) @db.Decimal(20, 2)
+  currency         String             @default("IRR")
+  ownerId          String?
+  createdById      String
+  notes            String?
+  endingNotifiedAt DateTime?
+  holdNotifiedAt   DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  items            MetroBookingItem[]
+  payments         MetroPayment[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, state, startDate])
+  @@map("metro_bookings")
+}
+
+model MetroBookingItem {
+  id           String       @id @default(uuid())
+  bookingId    String
+  booking      MetroBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  spaceId      String
+  space        MetroAdSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  quantity     Int          @default(1)
+  monthlyPrice Decimal      @default(0) @db.Decimal(20, 2)
+
+  @@index([spaceId])
+  @@map("metro_booking_items")
+}
+
+model MetroPayment {
+  id           String       @id @default(uuid())
+  bookingId    String
+  booking      MetroBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount       Decimal      @db.Decimal(20, 2)
+  paidAt       DateTime     @db.Date
+  method       String?
+  reference    String?
+  note         String?
+  recordedById String
+  createdAt    DateTime     @default(now())
+
+  @@map("metro_payments")
+}
+
+/// One per organisation: when its catalogue was laid down, and its reminders' timing.
+model MetroSettings {
+  organizationId String   @id
+  seededAt       DateTime @default(now())
+  endingSoonDays Int      @default(7)
+  holdDays       Int      @default(3)
+  updatedAt      DateTime @updatedAt
+
+  @@map("metro_settings")
 }
