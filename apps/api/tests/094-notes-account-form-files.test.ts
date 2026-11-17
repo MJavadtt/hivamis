@@ -53,6 +53,8 @@ describe('Account colleagues edit anything (ADR-134)', () => {
     const dry = await run(['roles:add-defaults', '--role', 'ACCOUNT_EXEC', '--as', 'admin@hiva.local']) as { dryRun: boolean; adding: string[] };
     expect(dry.dryRun).toBe(true);
     expect(dry.adding).toContain('record.edit_all');
+    const narrow = await run(['roles:add-defaults', '--role', 'ACCOUNT_EXEC', '--as', 'admin@hiva.local', '--only', 'record.edit_all,record.see_all']) as { adding: string[] };
+    expect(narrow.adding.sort()).toEqual(['record.edit_all', 'record.see_all']);
     const done = await run(['roles:add-defaults', '--role', 'ACCOUNT_EXEC', '--as', 'admin@hiva.local', '--commit']) as { added: string[] };
     expect(done.added).toContain('record.edit_all');
     const live = await prisma.roleGrant.findFirstOrThrow({ where: { organizationId: admin.organizationId, roleCode: 'ACCOUNT_EXEC', supersededAt: null } });

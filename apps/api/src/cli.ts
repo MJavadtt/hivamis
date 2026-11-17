@@ -18,7 +18,7 @@
  *                          a fresh start that keeps every colleague (ADR-130): every client and project
  *                          record deleted, the people, the suppliers, the referrers, the invoice sellers and
  *                          the history kept, done as that system administrator. Without --yes, what it would delete.
- *   roles:add-defaults     --role CODE --as EMAIL [--slug s] [--commit]
+ *   roles:add-defaults     --role CODE --as EMAIL [--only p1,p2] [--slug s] [--commit]
  *                          a role whose permissions the organisation saved gains what the role's default now
  *                          holds and the saved set lacks (ADR-134), as a new version of the grant, done as that
  *                          system administrator; nothing is taken away. Without --commit, what it would add.
@@ -169,7 +169,9 @@ export async function run(argv: string[]): Promise<unknown> {
       // What the organisation saved, read now — not the effective set, which is the default when nothing is saved.
       const saved = (await prisma.roleGrant.findFirst({ where: { organizationId, roleCode: role, supersededAt: null }, orderBy: { createdAt: 'desc' } }))?.permissions;
       if (!saved) return { role, saved: false, note: 'no saved grant: the role already holds its default' };
-      const adding = defaults.filter((p) => !saved.includes(p));
+      // `--only`: of what the default gained, just these — what the organisation took away on purpose stays away.
+      const only = one(flags, 'only')?.split(',').map((p) => p.trim()).filter(Boolean);
+      const adding = defaults.filter((p) => !saved.includes(p) && (!only || only.includes(p)));
       if (!flags.commit) return { dryRun: true, role, adding };
       if (!adding.length) return { role, adding };
       const r = await prisma.$transaction(async (tx) => {
