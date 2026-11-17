@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { FileShelf, sendFiles } from '../components/RecordFiles';
 import { useSystemAdmin } from '../lib/auth';
 import { offlineQuery } from '../lib/offline';
 import { useSearchParams } from 'react-router-dom';
@@ -453,11 +454,7 @@ export function FormField({ field, value, onChange, error, writeKind }: {
         </Field>
       );
     case 'attachment':
-      return (
-        <Field label={t(field, "label")} hint={tr('پیوست‌ها پس از ثبت فرم، از صفحه فرم قابل بارگذاری هستند.')} error={error}>
-          <div className="rounded-lg border border-dashed border-ink-300 px-3 py-4 text-center text-xs text-ink-400">{tr('بارگذاری پیوست پس از ثبت')}</div>
-        </Field>
-      );
+      return <AttachmentField label={t(field, 'label')} value={Array.isArray(value) ? (value as string[]) : []} onChange={onChange} error={error} />;
     case 'table':
       return <TableField field={field} value={(value as Record<string, unknown>[]) ?? []} onChange={onChange} error={error} />;
     default:
@@ -467,6 +464,45 @@ export function FormField({ field, value, onChange, error, writeKind }: {
         </Field>
       );
   }
+}
+
+/**
+ * Files in a form, attached while it is filled in (the owner, 2026-11-17; ADR-134): they go up as they
+ * are chosen and belong to the form once it is saved — no longer «after the form is submitted».
+ */
+function AttachmentField({ label, value, onChange, error }: { label: string; value: string[]; onChange: (v: unknown) => void; error?: string }) {
+  const toast = useToast();
+  const picker = useRef<HTMLInputElement>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const add = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setBusy(true);
+    const { sent, failed } = await sendFiles({}, Array.from(list));
+    setBusy(false);
+    if (picker.current) picker.current.value = '';
+    if (failed.length) toast(failed.join(' '), 'danger');
+    setNames((n) => ({ ...n, ...Object.fromEntries(sent.map((d) => [d.id, d.fileName])) }));
+    onChange([...value, ...sent.map((d) => d.id)]);
+  };
+  return (
+    <Field label={label} error={error} hint={tr('فایل‌ها همین حالا بارگذاری می‌شوند و با ثبت فرم به آن می‌پیوندند.')}>
+      <div className="rounded-lg border border-dashed border-ink-300 px-3 py-3" data-testid="form-attachment">
+        {value.length > 0 && (
+          <ul className="mb-2 flex flex-wrap gap-1.5">
+            {value.map((id, i) => (
+              <li key={id} className="inline-flex items-center gap-1 rounded-full bg-ink-50 px-2.5 py-0.5 text-xs ring-1 ring-ink-200">
+                {names[id] ?? tr('پیوست {0}', localDigits(i + 1))}
+                <button type="button" className="text-ink-400 hover:text-rose-700" aria-label={tr('برداشتن {0}', names[id] ?? '')} onClick={() => onChange(value.filter((x) => x !== id))}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <input ref={picker} type="file" multiple className="hidden" onChange={(e) => void add(e.target.files)} aria-label={label} />
+        <Button size="sm" variant="secondary" loading={busy} onClick={() => picker.current?.click()}>{tr('الصاق فایل')}</Button>
+      </div>
+    </Field>
+  );
 }
 
 function TableField({ field, value, onChange, error }: {
@@ -753,6 +789,11 @@ function DecisionModal({ submission, onClose }: { submission: Submission; onClos
       }
     >
       {versionNote && <p className="mb-3 text-xs text-ink-500">{versionNote}</p>}
+      {/* The form's files and notes, for whoever decides on it (ADR-134). */}
+      <details className="mb-3 rounded-lg bg-ink-50/60 px-3 py-2 text-sm" data-testid="submission-files">
+        <summary className="cursor-pointer text-xs font-bold text-ink-700">{tr('یادداشت‌ها و پیوست‌های فرم')}</summary>
+        <div className="mt-2"><FileShelf target={{ submissionId: submission.id }} /></div>
+      </details>
       {data?.stages && data.stages.length > 1 ? (
         <ol className="mb-3 space-y-1 rounded-lg bg-ink-50/60 px-3 py-2 text-xs" data-testid="decision-stages">
           {data.stages.map((st, i) => {

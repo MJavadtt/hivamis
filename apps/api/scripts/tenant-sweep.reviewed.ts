@@ -433,6 +433,9 @@ export const REVIEWED: Record<string, Verdict> = {
   ...of('LIST', ["setup/reset.ts#freshStartKeepingPeople"]),
   // ADR-132: a deletion reads what hangs off a record it found in the caller's organisation, by that record's ids.
   ...of('EARLIER', ["lib/purge.ts#walk", "routes/units.ts#DELETE /departments/:code", "routes/units.ts#DELETE /teams/:id"]),
+  // ADR-134: a record's notes, after assertMayNote found the record in the caller's organisation; a note
+  // taken back is checked against its author's organisation first.
+  ...of('EARLIER', ["routes/notes.ts#GET /notes", "routes/notes.ts#DELETE /notes/:id"]),
   ...of('OWN', ["auth/acting.ts#endActing", "auth/acting.ts#actingFor"]),
   // ADR-103: venues, deployment projects and rentals. Lists build their where-object (with the caller's
   // organisation) above the query; every change finds its record in the organisation first, then works

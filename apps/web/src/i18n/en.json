@@ -4404,5 +4404,19 @@
   "همراه یا ثابت — ۰۹۱۲… / ۰۲۱…": "Mobile or landline — 0912… / 021…",
   "شمارهٔ مخاطب اصلی درست نیست؛ همراه مثل ۰۹۱۲۳۴۵۶۷۸۹ یا ثابت با کد شهر مثل ۰۲۱۸۸۷۷۶۶۵۵.": "The main contact's number is not valid; a mobile like 09123456789 or a landline with its area code like 02188776655.",
   "شمارهٔ مخاطب اصلی پیش‌تر ثبت شده است:": "The main contact's number is already registered:",
-  "ایده و اجرا": "Idea & Execution"
+  "ایده و اجرا": "Idea & Execution",
+  "یادداشت ثبت شد.": "Note saved.",
+  "این یادداشت برداشته شود؟ فایل‌هایش روی رکورد می‌مانند.": "Take this note back? Its files stay on the record.",
+  "یادداشتی بنویسید — یا فقط فایلی همراه کنید…": "Write a note — or just attach a file…",
+  "فایل همراه یادداشت": "File for the note",
+  "{0} فایل": "{0} files",
+  "همراه کردن فایل": "Attach a file",
+  "برداشتن یادداشت": "Take the note back",
+  "یادداشت و پیوست {0}": "Notes and files of {0}",
+  "یادداشت و پیوست": "Notes and files",
+  "یادداشت و پیوست — {0}": "Notes and files — {0}",
+  "یادداشت‌ها و پیوست‌ها": "Notes and files",
+  "فایل‌ها همین حالا بارگذاری می‌شوند و با ثبت فرم به آن می‌پیوندند.": "Files upload now and join the form when it is saved.",
+  "پیوست {0}": "Attachment {0}",
+  "یادداشت‌ها و پیوست‌های فرم": "The form's notes and files"
 }

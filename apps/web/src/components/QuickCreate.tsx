@@ -10,7 +10,7 @@ import {
 } from '@hiva/contracts';
 import { currencyFa } from './Fx';
 import { apiGet, apiPatch, apiPost, type Page } from '../lib/api';
-import { useSystemAdmin } from '../lib/auth';
+import { useAuth, useSystemAdmin } from '../lib/auth';
 import { JalaliDateInput } from './JalaliDateInput';
 import { Button, Checkbox, Field, IconPencil, IconPlus, Input, LoadingBlock, Modal, Select, Textarea, useToast } from './ui';
 import { isEnglish, tr, trx } from '../i18n';
@@ -343,12 +343,14 @@ export function QuickEditForm({ kind, id, onClose }: { kind: RecordKind; id: str
 /** «ویرایش» on a record, for the system administrator: every part of it, past what the ordinary edit locks. */
 export function EditRecordButton({ path, id, compact }: { path: string; id: string; compact?: boolean }) {
   const systemAdmin = useSystemAdmin();
+  const { can } = useAuth();
   const [open, setOpen] = useState(false);
   const kind = RECORD_KINDS.find((k) => k.path === path);
   // «حذف کامل» sits wherever «ویرایش» does, for whoever may delete (ADR-132) — the administrator or not.
   const removable = deletableKind(path);
   const remove = removable ? <DeleteRecordButton kind={removable} id={id} compact={compact} /> : null;
-  if (!systemAdmin || !kind) return remove;
+  // Every field — the system administrator's, and whoever holds `record.edit_all` (account; ADR-134).
+  if (!(systemAdmin || can('record.edit_all')) || !kind) return remove;
   return (
     <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1">
       {remove}

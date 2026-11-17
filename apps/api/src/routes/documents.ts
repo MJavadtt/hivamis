@@ -57,7 +57,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
     preHandler: [app.authenticate, app.requirePermissions('document.read')],
   }, async (req) => {
     const actor = actorFrom(req);
-    const { projectId, companyId, contractId, deliverableId, proposalId, versions, venueId, siteProjectId, recordType, recordId } = req.query as Record<string, string | undefined>;
+    const { projectId, companyId, contractId, deliverableId, proposalId, submissionId, versions, venueId, siteProjectId, recordType, recordId } = req.query as Record<string, string | undefined>;
     const rows = await prisma.document.findMany({
       where: {
         // A file shared in a conversation is its members' (audit F-5), served by the chat alone.
@@ -68,7 +68,7 @@ const documentRoutes: FastifyPluginAsync = async (app) => {
         ...(versions === 'all' ? {} : { supersededAt: null }),
         ...(projectId ? { projectId } : {}), ...(companyId ? { companyId } : {}),
         ...(contractId ? { contractId } : {}), ...(deliverableId ? { deliverableId } : {}),
-        ...(proposalId ? { proposalId } : {}),
+        ...(proposalId ? { proposalId } : {}), ...(submissionId ? { submissionId } : {}),
         ...(venueId ? { venueId } : {}), ...(siteProjectId ? { siteProjectId } : {}),
         ...(recordType ? { recordType } : {}), ...(recordId ? { recordId } : {}),
       },

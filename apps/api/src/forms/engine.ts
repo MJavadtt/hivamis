@@ -166,6 +166,17 @@ export async function submitForm(input: SubmitFormInput) {
       },
     });
 
+    // Files picked in the form before it was saved (ADR-134) now belong to it: the writer's own,
+    // not yet filed elsewhere.
+    const attached = ((definition.schema as unknown as { key: string; type: string }[]) ?? [])
+      .filter((f) => f.type === 'attachment').flatMap((f) => (Array.isArray(clean[f.key]) ? (clean[f.key] as unknown[]).map(String) : []));
+    if (attached.length) {
+      await tx.document.updateMany({
+        where: { id: { in: attached }, organizationId: actor.organizationId, uploadedById: actor.id, submissionId: null },
+        data: { submissionId: submission.id },
+      });
+    }
+
     // A draft is not yet a business event: no binding runs and no SLA starts.
     if (input.asDraft) return { submission, bound: null as null | { entity: string; entityId: string } };
 

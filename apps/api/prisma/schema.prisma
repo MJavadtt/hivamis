@@ -2043,6 +2043,8 @@ model Comment {
   task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   body       String
   mentions   String[] @default([])
+  /// Files that came with the note (ADR-134): a note may be a file's word, or stand alone.
+  documentIds String[] @default([])
   authorId   String
   author     User     @relation(fields: [authorId], references: [id])
   createdAt  DateTime @default(now())

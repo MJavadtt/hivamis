@@ -189,6 +189,9 @@ export const PERMISSIONS = {
   'record.see_all': 'دیدن پرونده‌های همهٔ همکاران',
   // The owner (2026-11-16; ADR-132): «امکان حذف کامل سرنخ، مشتری و… وجود ندارد». A manager's, over the
   // records they see; what is deleted goes with everything that hangs off it, and the history says so.
+  // The owner (2026-11-17; ADR-134): «همکاران اکانت همگی امکان ویرایش هرچیزی را داشته باشند». Every field of
+  // a record, past what the ordinary edit locks — what only the system administrator could do before.
+  'record.edit_all': 'ویرایش همهٔ بخش‌های هر رکورد (فراتر از قفل‌های ویرایش معمول)',
   'record.delete': 'حذف کامل رکوردها (سرنخ، مشتری، پروژه و…) با هرچه به آن‌ها وابسته است',
 } as const;
 
@@ -329,7 +332,10 @@ export const NON_KEY_PERMISSIONS: Permission[] = [
  */
 export const FULL_ACCESS_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY', 'ACCOUNT_MANAGER'];
 /** «مدیران بالاتر»: who sees every colleague's records whatever is granted (the owner, 2026-11-14; ADR-127). */
-export const SEE_ALL_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY'];
+// Account works with every client and project (the owner, 2026-11-17; ADR-134): it sees them all.
+export const SEE_ALL_ROLES: readonly RoleCode[] = ['SUPER_ADMIN', 'CEO', 'DEPUTY', 'ACCOUNT_MANAGER', 'ACCOUNT_EXEC'];
+/** The system's own administration: users, roles, settings, the audit log, keys and the assistant's set-up. */
+export const SYSTEM_ADMIN_PERMISSIONS: readonly Permission[] = ['admin.users', 'admin.roles', 'admin.settings', 'admin.audit', 'admin.keys', 'ai.configure'];
 /** What each full-access role holds: everything, and as far as it sees. */
 const fullAccessFor = (role: RoleCode): Permission[] =>
   [...FULL_ACCESS_PERMISSIONS, ...(SEE_ALL_ROLES.includes(role) ? ['record.see_all' as const] : ['record.see_unit' as const])];
@@ -350,7 +356,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, Permission[]> = {
   ],
   SALES_REP: [...SALES_CORE, ...EVERYONE],
   ACCOUNT_MANAGER: fullAccessFor('ACCOUNT_MANAGER'),
-  ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), ...EVERYONE],
+  // Every account colleague may edit anything (ADR-134): every field of every record it sees — and it sees
+  // them all. Creating, approving and signing stay each role's own (Doc_H's separation of duties).
+  ACCOUNT_EXEC: [...ACCOUNT_CORE.filter((p) => p !== 'project.close'), 'crm.lead.read', 'record.edit_all', 'record.see_all', ...EVERYONE],
   UNIT_MANAGER: [...UNIT_CORE, 'record.delete', 'form.approve', 'proposal.unit_approve', 'supplier.write', 'supplier.evaluate', 'task.assign', 'brand.manage', 'chat.channel.create', 'meeting.approve', 'record.see_unit', ...EVERYONE],
   UNIT_MEMBER: [...UNIT_CORE, ...EVERYONE],
   PMO_MANAGER: [...PMO_CORE, 'record.delete', 'report.executive', 'form.approve', 'project.close', 'rules.manage', 'chat.channel.create', 'meeting.approve', 'venue.manage', 'venue.sms', 'site.close', 'site.configure', 'record.see_all', ...EVERYONE],

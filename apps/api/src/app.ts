@@ -38,6 +38,7 @@ import searchRoutes from './routes/search.js';
 import pdfRoutes from './routes/pdf.js';
 import historyRoutes from './routes/history.js';
 import recordsRoutes from './routes/records.js';
+import notesRoutes from './routes/notes.js';
 import myWorkRoutes from './routes/my-work.js';
 import memoryRoutes from './routes/memory.js';
 import securityRoutes from './routes/security.js';
@@ -230,6 +231,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(pdfRoutes);
     await api.register(historyRoutes);
     await api.register(recordsRoutes);
+    await api.register(notesRoutes);
     await api.register(myWorkRoutes);
     await api.register(delegationRoutes);
     await api.register(waiverRoutes);

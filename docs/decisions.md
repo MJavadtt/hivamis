@@ -4068,3 +4068,30 @@ document code, unit-type-serial/revision (`QA-FR-007/01`), with a two-letter cod
 **And simpler to use.** The sidebar keeps the everyday pages; the occasional ones (drafts, colleagues,
 changes, traffic, suppliers, overview, memory, rules, booking administration, onboarding) are under
 «بیشتر», open when one of them is on screen or the person opens it.
+
+## ADR-134 — Account edits anything; notes on every record; a form's files before it is saved
+
+**Context.** The owner (2026-11-17): every account colleague should be able to edit anything; a form's
+attachments waited for the form to be submitted — leave them open; every colleague should be able to
+write notes in every part of the system, and wherever files are attached, a note too — instead of a
+file or with it.
+
+**Decision — account.** `record.edit_all` edits every field of a record, as only the system
+administrator could (ADR-104): the generic edit takes the full schema and accepts the holder for every
+kind, whether or not it holds that kind's write permission. Both account roles hold it, and see every
+record (`record.see_all`); the account executive also reads leads. To fit Doc_H's separation of duties —
+which the governance tests hold the system to — editing is not creating, approving or signing: account
+still does not register or convert leads, sign off final QC, settle, or sign contracts. Where an
+organisation saved its own permissions for a role, `cli roles:add-defaults --role CODE --as EMAIL
+--commit` adds what the default gained, as a new version of the grant, taking nothing away.
+
+**Decision — notes.** `GET/POST /notes` and `DELETE /notes/:id` on the same targets as files (ADR-121),
+behind the same gate: whoever may read a record's files reads and writes its notes. A note is words,
+files, or both (`comments.documentIds`); it is taken back by its writer or the system administrator,
+and goes with its record when that is deleted (ADR-132). The files panel became «یادداشت و پیوست»:
+one box for a note and its files, the notes newest first with what came with each, then the files on
+their own — on every record page's header and every paperclip, venues and deployment projects added.
+
+**Decision — form files.** The attachment field uploads as files are chosen; when the form is saved,
+the writer's own unfiled files named in it are filed on the submission (`documents.submissionId`), and
+the decision dialog shows the form's notes and files.

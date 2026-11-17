@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { adminEditSchema, createProjectSchema, createTaskSchema } from '@hiva/contracts';
+import { ROLE_PERMISSIONS, adminEditSchema, createProjectSchema, createTaskSchema } from '@hiva/contracts';
+import { forgetGrants } from '../src/auth/grants.js';
 import { closeApp, expectOk, login, patch, post } from './helpers.js';
 import { prisma } from '../src/db.js';
 
@@ -51,10 +52,27 @@ describe('The system administrator edits every part of a record (owner’s instr
     expect(expectOk(await patch(`/tasks/${task.id}`, T.admin, { projectId: b.id }), 'move').projectId).toBe(b.id);
   });
 
-  it('leaves the ordinary edit as it was for everyone else: the client stays, the account owner moves', async () => {
-    const p = await newProject('پروژهٔ ویرایش عادی');
+  // The owner (2026-11-17; ADR-134): «همکاران اکانت همگی امکان ویرایش هرچیزی را داشته باشند» — account
+  // edits every part too (record.edit_all); a role without it keeps the ordinary edit.
+  it('gives account every part as well; a role without record.edit_all keeps the ordinary edit', async () => {
+    const p = await newProject('پروژهٔ ویرایش اکانت');
     const edited = expectOk(await patch(`/projects/${p.id}`, T.account, { companyId: companies[1]!.id, accountOwnerId: ids.pmo, legacyRef: 'H9-01' }), 'edit');
-    expect(edited).toMatchObject({ companyId: companies[0]!.id, accountOwnerId: ids.pmo, legacyRef: null });
+    expect(edited).toMatchObject({ companyId: companies[1]!.id, accountOwnerId: ids.pmo, legacyRef: 'H9-01' });
+
+    const admin = await prisma.user.findFirstOrThrow({ where: { email: 'admin@hiva.local' } });
+    const pmo = await prisma.user.findFirstOrThrow({ where: { email: 'pmo@hiva.local' } });
+    const before = await prisma.roleGrant.findFirst({ where: { organizationId: admin.organizationId, roleCode: 'PMO_MANAGER', supersededAt: null } });
+    await prisma.roleGrant.create({ data: { organizationId: admin.organizationId, roleCode: 'PMO_MANAGER', permissions: [...ROLE_PERMISSIONS.PMO_MANAGER, 'project.write'], grantedById: admin.id } });
+    try {
+      forgetGrants();
+      const q = await newProject('پروژهٔ ویرایش عادی');
+      const asPmo = await login(pmo.email);
+      const ordinary = expectOk(await patch(`/projects/${q.id}`, asPmo, { companyId: companies[1]!.id, legacyRef: 'H9-02' }), 'ordinary');
+      expect(ordinary).toMatchObject({ companyId: companies[0]!.id, legacyRef: null });
+    } finally {
+      await prisma.roleGrant.deleteMany({ where: { organizationId: admin.organizationId, roleCode: 'PMO_MANAGER', ...(before ? { createdAt: { gt: before.createdAt } } : {}) } });
+      forgetGrants();
+    }
   });
 
   it('still keeps the state for the workflow, and the record inside the organisation', async () => {

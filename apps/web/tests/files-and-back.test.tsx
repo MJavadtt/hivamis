@@ -28,6 +28,7 @@ function mount(node: React.ReactNode, at = '/', permissions = ['document.read', 
     if (p === '/auth/refresh') return json({ accessToken: 't', refreshToken: 'r' });
     if (p === '/auth/me') return json(USER(permissions));
     if (p === '/documents' && method === 'GET') return json(shelf);
+    if (p === '/notes' && method === 'GET') return json([]);
     if (p === '/documents' && method === 'POST' && refuse) return json({ error: { code: 'UNSUPPORTED_TYPE', message: refuse } }, 400);
     if (p.endsWith('/preview') || p.endsWith('/download')) return new Response('bytes', { headers: { 'content-disposition': `attachment; filename="${encodeURIComponent('پیشنهاد قیمت.xlsx')}"` } });
     return json({ id: 'new' }, 201);
@@ -86,12 +87,12 @@ describe('Files on every record', () => {
     expect(targetOfPage('/tasks')).toBeNull();
   });
 
-  it('puts «پیوست‌ها» with its count in a record page’s header, and only there', async () => {
+  it('puts «یادداشت و پیوست» with its count in a record page’s header, and only there', async () => {
     mount(<PageHeader title="وظیفه" />, '/tasks/t-1');
     const button = await screen.findByTestId('page-attachments');
     await waitFor(() => expect(button.textContent).toContain('(۱)'));
     fireEvent.click(button);
-    expect(await within(await screen.findByRole('dialog', { name: 'پیوست‌ها' })).findByRole('button', { name: 'quote.pdf' })).toBeTruthy();
+    expect(await within(await screen.findByRole('dialog', { name: 'یادداشت‌ها و پیوست‌ها' })).findByRole('button', { name: 'quote.pdf' })).toBeTruthy();
   });
 
   it('leaves a list’s header alone', async () => {
@@ -161,8 +162,8 @@ describe('Files on every record', () => {
   it('opens from a row without following the row’s link', async () => {
     const follow = vi.fn();
     mount(<div onClick={follow}><AttachButton target={onRecord('lead', 'l-1')} title="سرنخ نمونه" /></div>);
-    fireEvent.click(await screen.findByRole('button', { name: 'پیوست‌های سرنخ نمونه' }));
-    expect(await screen.findByRole('dialog', { name: 'پیوست‌های سرنخ نمونه' })).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'یادداشت و پیوست سرنخ نمونه' }));
+    expect(await screen.findByRole('dialog', { name: 'یادداشت و پیوست — سرنخ نمونه' })).toBeTruthy();
     expect(follow).not.toHaveBeenCalled();
   });
 });

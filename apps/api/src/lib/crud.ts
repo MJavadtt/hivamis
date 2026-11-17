@@ -11,6 +11,7 @@ import { allowedFor } from '../workflow/engine.js';
 import { nextCode } from './codes.js';
 import { assertOwnReferences, hasOrganizationColumn } from './scope.js';
 import { isSystemAdmin } from '../auth/grants.js';
+import { hasPermission } from '../auth/plugin.js';
 import { isVisibleModel, narrowed, reachFor } from '../auth/visibility.js';
 
 export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
@@ -157,11 +158,13 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
       return reply.code(201).send(record);
     });
 
-  app.patch(`/${opts.path}/:id`, { preHandler: [app.authenticate, app.requirePermissions(opts.permissions.write)] },
+  // Editing is the kind's writers' — and, for every kind, whoever holds `record.edit_all` (account; ADR-134).
+  app.patch(`/${opts.path}/:id`, { preHandler: [app.authenticate, (req) => (hasPermission(req, 'record.edit_all') ? Promise.resolve() : app.requirePermissions(opts.permissions.write)(req))] },
     async (req) => {
       const actor = actorFrom(req);
       const { id } = req.params as { id: string };
-      const input = parse(isSystemAdmin(actor) ? adminEdit : opts.updateSchema, req.body);
+      // Every field, for the system administrator and whoever holds `record.edit_all` (ADR-134).
+      const input = parse(isSystemAdmin(actor) || actor.permissions.includes('record.edit_all') ? adminEdit : opts.updateSchema, req.body);
       const before = await findScoped(req, id, actor.organizationId);
       if (!before) throw notFound();
       // `state` is owned exclusively by the workflow engine.

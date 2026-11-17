@@ -18,6 +18,10 @@
  *                          a fresh start that keeps every colleague (ADR-130): every client and project
  *                          record deleted, the people, the suppliers, the referrers, the invoice sellers and
  *                          the history kept, done as that system administrator. Without --yes, what it would delete.
+ *   roles:add-defaults     --role CODE --as EMAIL [--slug s] [--commit]
+ *                          a role whose permissions the organisation saved gains what the role's default now
+ *                          holds and the saved set lacks (ADR-134), as a new version of the grant, done as that
+ *                          system administrator; nothing is taken away. Without --commit, what it would add.
  *   import:mizito          --mizito FILE [--sheet FILE] [--extra FILE] --as EMAIL [--slug s] [--commit]
  *                          a move from Mizito and the client sheet (src/onboarding/mizito.ts), as that system
  *                          administrator: without --commit, what it would make; with it, made. Run again, it
@@ -27,6 +31,9 @@
  *                          changed at the first sign-in: without --commit, who; with it, set, and written to
  *                          FILE (made new, readable by its owner only) — never to the output.
  */
+import { ROLE_PERMISSIONS, type RoleCode } from '@hiva/contracts';
+import { setRoleGrant } from './auth/grants.js';
+import { audit } from './lib/audit.js';
 import { open, readFile } from 'node:fs/promises';
 import { prisma } from './db.js';
 import { AppError } from './lib/errors.js';
@@ -152,6 +159,28 @@ export async function run(argv: string[]): Promise<unknown> {
       const extraPath = one(flags, 'extra');
       const extra = extraPath ? JSON.parse(await readFile(extraPath, 'utf8')) : null;
       return runMigration(admin, fromMizito(mizito, sheet, extra), { commit: !!flags.commit });
+    }
+    case 'roles:add-defaults': {
+      const organizationId = await organizationFor(one(flags, 'slug'));
+      const admin = await systemAdminFor(organizationId, need(flags, 'as'));
+      const role = need(flags, 'role');
+      const defaults = ROLE_PERMISSIONS[role as RoleCode];
+      if (!defaults) throw new AppError(400, 'UNKNOWN_ROLE', `نقش «${role}» نقشی از سامانه نیست.`);
+      // What the organisation saved, read now — not the effective set, which is the default when nothing is saved.
+      const saved = (await prisma.roleGrant.findFirst({ where: { organizationId, roleCode: role, supersededAt: null }, orderBy: { createdAt: 'desc' } }))?.permissions;
+      if (!saved) return { role, saved: false, note: 'no saved grant: the role already holds its default' };
+      const adding = defaults.filter((p) => !saved.includes(p));
+      if (!flags.commit) return { dryRun: true, role, adding };
+      if (!adding.length) return { role, adding };
+      const r = await prisma.$transaction(async (tx) => {
+        const out = await setRoleGrant(tx, {
+          organizationId, roleCode: role, permissions: [...saved, ...adding], actorId: admin.id, mayGrantOversight: false,
+          note: 'همکاران اکانت همگی امکان ویرایش هرچیزی را داشته باشند (دستور مالک، ۱۴۰۵/۰۸/۲۶؛ ADR-134)',
+        });
+        await audit({ organizationId, actorId: admin.id, action: 'UPDATE', entityType: 'role', entityId: role, after: { added: out.added }, reason: 'role defaults added from the command line (ADR-134)' }, tx);
+        return out;
+      });
+      return { role, added: r.added };
     }
     case 'users:passwords': {
       const organizationId = await organizationFor(one(flags, 'slug'));

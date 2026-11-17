@@ -27,9 +27,9 @@ describe('Who may do what', () => {
 
   it('gives the managing director, deputy, system administrator and account manager the whole system — but oversight', async () => {
     // Every permission but oversight, and how far each sees others' records (ADR-127): the managing
-    // director, deputy and system administrator everyone's; the account manager, who heads a unit, that unit's.
+    // director, deputy and system administrator everyone's; and account, which works with every client and project, everyone's too (ADR-134).
     const everything = ALL_PERMISSIONS.filter((p) => !OVERSIGHT_PERMISSIONS.includes(p) && !RECORD_SCOPE_PERMISSIONS.includes(p));
-    for (const [email, scope] of [['ceo', 'record.see_all'], ['deputy', 'record.see_all'], ['admin', 'record.see_all'], ['account.manager', 'record.see_unit']] as const) {
+    for (const [email, scope] of [['ceo', 'record.see_all'], ['deputy', 'record.see_all'], ['admin', 'record.see_all'], ['account.manager', 'record.see_all']] as const) {
       const me = expectOk(await get('/auth/me', await login(`${email}@hiva.local`)), email);
       // Reading others' conversations is nobody's by default (audit F-5).
       expect([...me.permissions].sort(), email).toEqual([...everything, scope].sort());
