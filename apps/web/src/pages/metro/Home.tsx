@@ -10,6 +10,7 @@ import { Button, Card, EmptyState, ErrorBlock, Field, Input, LoadingBlock, Modal
 import { Money } from '../sites/shared';
 import { pair, tr } from '../../i18n';
 import { BookingState, LineChip, MetroNav, kindFa, type Line } from './shared';
+import { MetroIntro } from './Intro';
 
 interface Overview {
   lines: Line[]; counts: { lines: number; stations: number; trains: number; wagons: number };
@@ -88,6 +89,7 @@ export default function MetroHome() {
           </div>
         )}
         {adding && <LineEditor onClose={() => setAdding(false)} />}
+        <MetroIntro />
       </PageBody>
     </>
   );
