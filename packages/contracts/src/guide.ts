@@ -295,6 +295,15 @@ export const GUIDE: GuideSection[] = [
     keywords: 'گزارش مترو اشغال درآمد metro report occupancy revenue csv',
     steps: [step(undefined, t('بازه', 'The period'), t('بازه و خط را برگزینید؛ «خروجی CSV» رزروهای بازه را برای اکسل می‌دهد.', 'Choose the period and the line; «CSV export» gives the period\'s bookings for Excel.'))],
   },
+  // ADR-136: what the system flags for a person to decide, never merges by itself.
+  {
+    id: 'data-review', route: '^/data-review$', path: '/data-review', permission: 'crm.company.read', manual: 'Data review — «بازبینی داده»',
+    title: t('بازبینی داده', 'Data review'),
+    summary: t('مشتری‌های هم‌نام، یک شماره برای چند نفر، سرنخ‌های بی‌مشتری و واحدهای بی‌مدیر — برای تصمیم شما؛ چیزی خودکار ادغام نمی‌شود.',
+      'Clients with the same name, one number on several people, leads tied to no client and units without a manager, for you to decide. Nothing is merged automatically.'),
+    keywords: 'بازبینی داده تکراری ادغام هم‌نام یکپارچگی data review duplicate merge integrity',
+    steps: [step(undefined, t('پیوند سرنخ', 'Linking a lead'), t('اگر سرنخ همان مشتری است، مشتری را برگزینید و «پیوند» را بزنید؛ این کار در سابقه ثبت می‌شود.', 'If the lead is that client, choose the client and press «Link». This is recorded in the history.'))],
+  },
   // ADR-103: venues, deployment projects and rentals.
   {
     id: 'sites', route: '^/sites$', path: '/sites', anyOf: ['venue.read', 'site.read', 'rental.read'], manual: 'Venues and rentals — «مکان‌ها و اجاره‌داری»',

@@ -51,7 +51,7 @@ export const LEAD_WORKFLOW: WorkflowDef = {
   transitions: [
     { from: ['NEW'], to: 'CONTACTED', action: 'contact', labelFa: 'برقراری ارتباط', labelEn: 'Contact', permission: 'crm.lead.write', stopsSla: ['SLA_LEAD_CREATE'] },
     { from: ['CONTACTED'], to: 'QUALIFIED', action: 'qualify', labelFa: 'واجد شرایط', labelEn: 'Qualify', permission: 'crm.lead.write' },
-    { from: ['QUALIFIED'], to: 'CONVERTED', action: 'convert', labelFa: 'تبدیل به فرصت', labelEn: 'Convert', permission: 'crm.lead.convert' },
+    { from: ['QUALIFIED'], to: 'CONVERTED', action: 'convert', labelFa: 'تبدیل به فرصت', labelEn: 'Convert', permission: 'crm.lead.convert', guards: ['lead.throughConversion'] },
     { from: ['NEW', 'CONTACTED', 'QUALIFIED'], to: 'DISQUALIFIED', action: 'disqualify', labelFa: 'رد سرنخ', labelEn: 'Disqualify', permission: 'crm.lead.write', requiresReason: true },
   ],
 };

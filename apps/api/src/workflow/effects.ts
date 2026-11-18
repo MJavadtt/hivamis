@@ -1,5 +1,6 @@
 import type { Tx } from '../db.js';
 import { badRequest } from '../lib/errors.js';
+import { nextCode } from '../lib/codes.js';
 import { logTime } from '../reports/time.js';
 import { stageZero } from '../quality/stage-zero.js';
 import { cascadeState } from './engine.js';
@@ -145,7 +146,11 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
   },
   'deliverable.deliver': async () => ({ deliveredAt: new Date() }),
   'deliverable.client_accept': async () => ({ acceptedAt: new Date() }),
-  'deliverable.client_reject': async ({ reason }) => ({ rejectReason: reason ?? null }),
+  // «عدم تأیید — صدور اصلاحیه» promises a revision (Doc_H §10). The QC form makes one itself; a move
+  // from the deliverable's own buttons made none, and the deliverable sat in REVISION_REQUIRED with
+  // nothing for the unit to work from (ADR-136). Either way there is now exactly one open revision.
+  'deliverable.qc_reject': async (c) => { await ensureRevision(c, 'BRIEF_MISMATCH'); return {}; },
+  'deliverable.client_reject': async (c) => { await ensureRevision(c, 'CLIENT_FEEDBACK'); return { rejectReason: c.reason ?? null }; },
 
   'revision.approve': async () => ({ resolvedAt: new Date() }),
   'revision.reject': async ({ reason }) => ({ rejectNote: reason ?? null, round: { increment: 1 } }),
@@ -213,4 +218,18 @@ export const EFFECTS: Record<string, (c: EffectContext) => Promise<Record<string
 for (const [key, run] of Object.entries(EFFECTS)) {
   const [entity, action] = key.split('.') as [string, string];
   registerEffect({ key, entity, action, labelFa: key, source: 'core', run });
+}
+
+/** The deliverable's open revision, made from the move's reason when it has none (ADR-136). */
+const OPEN_REVISION = ['REQUESTED', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'IN_QC'];
+async function ensureRevision({ tx, id, record, reason, actorId, organizationId }: EffectContext, why: 'BRIEF_MISMATCH' | 'CLIENT_FEEDBACK') {
+  const open = await tx.revision.count({ where: { deliverableId: id, state: { in: OPEN_REVISION } } });
+  if (open) return;
+  await tx.revision.create({
+    data: {
+      organizationId, code: await nextCode(tx, 'revision'), deliverableId: id, reason: why,
+      requiredCorrection: reason?.trim() || 'اصلاح مطابق دلیل عدم تأیید',
+      responsibleDepartmentCode: record.departmentCode, dueDate: new Date(Date.now() + 2 * 86_400_000), requestedById: actorId,
+    },
+  });
 }

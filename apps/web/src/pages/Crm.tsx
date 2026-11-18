@@ -83,7 +83,8 @@ function LeadActions({ lead }: { lead: any }) {
 
   return (
     <div className="flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
-      <WorkflowActions entity="lead" id={lead.id} transitions={lead.availableTransitions} />
+      {/* Converting is the form beside it, which makes the client and the opportunity too (ADR-136). */}
+      <WorkflowActions entity="lead" id={lead.id} transitions={(lead.availableTransitions ?? []).filter((t: { action: string }) => t.action !== 'convert')} />
       {canConvert && (
         <Button size="sm" variant="primary" onClick={() => setConverting(true)}>{tr('تبدیل به فرصت')}</Button>
       )}
@@ -357,6 +358,47 @@ export function CompaniesList() {
   );
 }
 
+/* ── A client's other dealings (ADR-136) ─────────────────────────────────── */
+
+interface ClientServicesData {
+  leads: { id: string; code: string; name: string | null; companyName: string; state: string; createdAt: string }[];
+  siteProjects: { id: string; code: string; name: string; state: string; createdAt: string }[];
+  rentals: { id: string; code: string; title: string | null; state: string; startsAt: string; endsAt: string }[];
+  metroBookings: { id: string; code: string; title: string | null; state: string; startDate: string; endDate: string; amount: string }[];
+}
+const serviceCount = (s?: ClientServicesData) => (s ? s.leads.length + s.siteProjects.length + s.rentals.length + s.metroBookings.length : 0);
+
+/** One client, one page: the leads it came as, its out-of-home projects, rentals and metro bookings. */
+function ClientServices({ services: s }: { services: ClientServicesData }) {
+  const rows: { key: string; title: string; items: { id: string; code: string; name: string; state: string; when: string; href: string }[] }[] = [
+    { key: 'leads', title: tr('سرنخ‌ها'), items: s.leads.map((l) => ({ id: l.id, code: l.code, name: l.name || l.companyName, state: l.state, when: formatDate(l.createdAt), href: `/leads?q=${encodeURIComponent(l.code)}` })) },
+    { key: 'site', title: tr('پروژه‌های محیطی'), items: s.siteProjects.map((p) => ({ id: p.id, code: p.code, name: p.name, state: p.state, when: formatDate(p.createdAt), href: `/sites/projects/${p.id}` })) },
+    { key: 'rentals', title: tr('اجاره‌ها'), items: s.rentals.map((b) => ({ id: b.id, code: b.code, name: b.title ?? b.code, state: b.state, when: `${formatDate(b.startsAt)} — ${formatDate(b.endsAt)}`, href: `/sites/rentals?q=${encodeURIComponent(b.code)}` })) },
+    { key: 'metro', title: tr('رزروهای مترو'), items: s.metroBookings.map((b) => ({ id: b.id, code: b.code, name: b.title ?? b.code, state: b.state, when: `${formatDate(b.startDate)} — ${formatDate(b.endDate)}`, href: `/metro/bookings/${b.id}` })) },
+  ];
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      {rows.filter((r) => r.items.length).map((r) => (
+        <Card key={r.key} title={r.title}>
+          <ul className="divide-y divide-ink-100">
+            {r.items.map((i) => (
+              <li key={i.id}>
+                <Link to={i.href} className="flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-ink-50">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-ink-800">{i.name}</span>
+                    <span className="block text-xs text-ink-500"><Code>{i.code}</Code> · {i.when}</span>
+                  </span>
+                  <StateBadge state={i.state} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState('overview');
@@ -400,11 +442,13 @@ export function CompanyDetail() {
             { key: 'commercial', label: tr('تجاری'), count: data.opportunities.length + data.contracts.length },
             ...(data.finance ? [{ key: 'finance', label: tr('مالی') }] : []),
             { key: 'engagement', label: tr('ارتباطات'), count: data.activities.length + data.meetings.length },
+            ...(serviceCount(data.services) ? [{ key: 'services', label: tr('سرنخ‌ها و خدمات دیگر'), count: serviceCount(data.services) }] : []),
           ]}
         />
       </div>
 
       <PageBody className="space-y-5">
+        {tab === 'services' && data.services && <ClientServices services={data.services} />}
         {tab === 'overview' && (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

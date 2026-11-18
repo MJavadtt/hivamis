@@ -24,6 +24,7 @@ const of = (verdict: Verdict, keys: string[]) => Object.fromEntries(keys.map((k)
 
 export const REVIEWED: Record<string, Verdict> = {
   ...of('REFERENCE', [
+    "routes/data-review.ts#GET /data-review#department#1",
     "auth/grants.ts#grantSnapshot#roleGrant#1",
     // ADR-125: one per printed form — two.
     "routes/commercial.ts#GET /invoice-sellers#invoiceSeller#1",
@@ -228,6 +229,10 @@ export const REVIEWED: Record<string, Verdict> = {
     "security/scan.ts#scanOrganization#user#1",
   ]),
   ...of('NAMES', [
+    // ADR-136: the data review compares every client, person's phone and lead name of the organisation.
+    "routes/data-review.ts#GET /data-review#company#1",
+    "routes/data-review.ts#GET /data-review#contact#1",
+    "routes/data-review.ts#GET /data-review#lead#1",
     "ask/answer.ts#loadVocab#company#1",
     "ask/answer.ts#loadVocab#project#1",
     "ask/answer.ts#loadVocab#user#1",

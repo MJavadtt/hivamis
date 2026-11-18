@@ -4128,3 +4128,46 @@ notices, reports and attachments.
   state and client, and the period's bookings as a CSV Excel opens in Persian.
 - **Permissions.** `metro.read`, `metro.write` (inventory), `metro.book` (bookings and payments);
   operations write, account and sales book, units and finance read.
+
+## ADR-136 — One source of truth: missing links, conversion through its form, revisions on every rejection, one search, one client page, a data review
+
+**Context.** The owner's system-wide brief (2026-11-18) asks for a single source of truth across modules: records
+linked by key rather than matched by name or phone, centralised validation, consistent search and screens,
+and ambiguous records flagged rather than merged. The audit (docs/audit-2026-11-18.md) found, among others:
+eleven id columns naming another record with no foreign key; four converted leads on the server tied to no
+client, because the lead's bare state button converted without making the client and opportunity; a
+deliverable rejected from its own button sitting in REVISION_REQUIRED with no revision; a removed manager
+leaving a unit pointing at no one; global search covering seven kinds of record out of fifteen; and the
+client page missing the client's leads, out-of-home projects, rentals and metro bookings.
+
+**Decision.**
+- **Foreign keys** (migration `20261118120000_missing_links`) for `departments.managerId`, `handoffs.companyId`
+  and `.contractId`, `execution_authorizations.contractId` and `.invoiceId`, `settlements.projectId`,
+  `supplier_evaluations.projectId`, `media_orders.workOrderId`, `signature_signers.contactId`,
+  `site_reminders.siteProjectId`, `metro_bookings.ownerId`. The office server was checked read-only first: no
+  row points at a missing record. The migration rewrites nothing except a unit manager id that names a person
+  who no longer exists at all; if any other column has such a row, the constraint fails and the upgrade stops.
+  A unit's manager and a booking's owner are now history to `removeUser`. Removing such a person keeps their
+  name there instead of deleting them and leaving the id dangling. Deleting a client (ADR-132) now takes its
+  handoffs; before, they were left pointing at nothing.
+- **Converting a lead** goes only through its form (`POST /leads/:id/convert`), which makes or picks the
+  client and opens the opportunity in one transaction. The bare move is refused by the guard
+  `lead.throughConversion`, and the leads list no longer shows it beside the conversion button.
+- **Rejecting a deliverable** (`qc_reject`, `client_reject`) always leaves one open revision: the effect
+  makes it from the move's reason when the QC form has not already made one.
+- **Search** covers leads (phone in Persian digits included), a client's people, invoices, suppliers, venues,
+  out-of-home projects and metro bookings, each under its read permission and the caller's reach, and says
+  where each opens. Every list built on the shared CRUD searches by the record's code, and opens with `?q=`.
+- **The client page** gains «سرنخ‌ها و خدمات دیگر»: the leads it came as, its out-of-home projects, rentals
+  and metro bookings, each under its own permission.
+- **Data review** (`GET /data-review`, page `/data-review`): clients whose names mean the same thing
+  (Arabic/Persian letters, joiners, «شرکت» and spacing folded), one phone on several people, leads tied to no
+  client whose name is a client's or that were converted without one, and units whose manager is gone. It
+  merges and deletes nothing. The one action it offers is linking a lead to a client a person picks
+  (`POST /data-review/leads/:id/link`, `crm.lead.write`), and that action is audited.
+
+**Not done here, and why.** The remaining 120 id columns without a key are by design (polymorphic
+`entityType`/`entityId`, logs that outlive what they name) or name the person who acted (`createdById` and
+the like). Keying those changes who `removeUser` may delete, so it waits for the owner's word. The server's
+flagged records (7 groups of same-named clients, 5 shared phones, 36 leads named like a client, 4 converted
+leads without one, 1 unit whose manager left) are the owner's to resolve on the review page.

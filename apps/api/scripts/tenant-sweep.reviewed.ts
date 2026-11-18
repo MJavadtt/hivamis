@@ -27,6 +27,8 @@ const of = (verdict: Verdict, keys: string[]) => Object.fromEntries(keys.map((k)
 export const REVIEWED: Record<string, Verdict> = {
   ...of('EARLIER', [
     "accounting/export.ts#createExport",
+    // ADR-136: the lead was found in the caller's organisation, and the client too, before the link.
+    "routes/data-review.ts#POST /data-review/leads/:id/link",
     // Audit F-3: the role or the people were found in the caller's organisation first.
     "routes/admin.ts#DELETE /roles/:code",
     "routes/admin.ts#PATCH /roles/:code",
@@ -237,6 +239,8 @@ export const REVIEWED: Record<string, Verdict> = {
     "sla/engine.ts#loadCalendar",
   ]),
   ...of('ENGINE', [
+    // ADR-136: a rejected deliverable's revision, read and made by the deliverable's id.
+    "workflow/effects.ts#ensureRevision",
     "sla/engine.ts#cancelSla",
     "sla/engine.ts#closePause",
     "sla/engine.ts#pauseSla",

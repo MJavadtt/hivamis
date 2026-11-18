@@ -324,8 +324,9 @@ export function EntityList<T extends { id: string }>({
   extraQuery?: Record<string, string | undefined>;
 }) {
   const [page, setPage] = useState(1);
-  const [q, setQ] = useState('');
-  const [search, setSearch] = useState('');
+  // A list opened from the global search arrives with `?q=`, already searching for it (ADR-136).
+  const [q, setQ] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '');
+  const [search, setSearch] = useState(q);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 

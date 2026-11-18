@@ -3331,5 +3331,15 @@
   "رزرو مترو {0}: {1}": "Metro booking {0}: {1}",
   "آغاز": "Start",
   "پرداخت‌شده": "Paid",
-  "گزارش مترو {0} تا {1}.csv": "Metro report {0} to {1}.csv"
+  "گزارش مترو {0} تا {1}.csv": "Metro report {0} to {1}.csv",
+  "این سرنخ پیش‌تر به مشتری‌ای پیوند خورده است.": "This lead is already linked to a client.",
+  "بازبینی داده — پیوند سرنخ به مشتری": "Data review: lead linked to a client",
+  "سرنخ‌ها": "Leads",
+  "افراد مشتری": "Clients' people",
+  "فاکتورها": "Invoices",
+  "پروژه‌های محیطی": "Out-of-home projects",
+  "رزروهای مترو": "Metro bookings",
+  "اصلاح مطابق دلیل عدم تأیید": "Correct as the rejection reason says",
+  "سرنخ را با دکمهٔ «تبدیل به فرصت» در فهرست سرنخ‌ها تبدیل کنید تا مشتری و فرصت فروشش هم‌زمان ساخته شوند.": "Convert the lead with «Convert to opportunity» in the leads list, so its client and opportunity are made with it.",
+  "از فرم تبدیل سرنخ (با مشتری و فرصت فروش) انجام شود": "Done through the lead conversion form (with client and opportunity)"
 }

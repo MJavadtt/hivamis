@@ -80,6 +80,7 @@ const NAV: NavGroup[] = [
       { to: '/leads', label: tr('سرنخ‌ها'), icon: IconUsers, permission: 'crm.lead.read' },
       { to: '/opportunities', label: tr('فرصت‌های فروش'), icon: IconBriefcase, permission: 'crm.opportunity.read' },
       { to: '/companies', label: tr('مشتریان'), icon: IconUsers, permission: 'crm.company.read' },
+      { to: '/data-review', label: tr('بازبینی داده'), icon: IconAlert, more: true, permission: 'crm.company.read' },
     ],
   },
   {
@@ -418,6 +419,8 @@ interface SearchItem {
   id: string; code?: string; legalName?: string; title?: string; name?: string; state?: string;
   /** A line under the name: a colleague's job, the guide page a step is on. */
   sub?: string;
+  /** Where it opens, when the search says so itself (ADR-136). */
+  href?: string;
 }
 
 interface SearchGroup {
@@ -503,7 +506,7 @@ function GlobalSearch({ autoFocus }: { autoFocus?: boolean }) {
     if (entry.group === 'guide') {
       const [sectionId, step] = entry.item.id.split(':');
       guideBus.emit({ type: 'tour', sectionId: sectionId!, step: Number(step) || 0 });
-    } else navigate(`${SEARCH_ROUTES[entry.group] ?? '/'}/${entry.item.id}`);
+    } else navigate(entry.item.href ?? `${SEARCH_ROUTES[entry.group] ?? '/'}/${entry.item.id}`);
     setOpen(false);
     setTerm('');
   };

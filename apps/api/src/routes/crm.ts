@@ -344,6 +344,16 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
         }),
       ]);
 
+    // The client's other dealings, each under its own permission (ADR-136): the leads it came as,
+    // its out-of-home projects, the spaces rented for it and its metro bookings — one client, one page.
+    const can = (p: string) => actor.permissions.includes(p);
+    const [leads, siteProjects, rentals, metroBookings] = await Promise.all([
+      can('crm.lead.read') ? prisma.lead.findMany({ where: { companyId: id, deletedAt: null }, select: { id: true, code: true, name: true, companyName: true, state: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 30 }) : [],
+      can('site.read') ? prisma.siteProject.findMany({ where: { companyId: id, archivedAt: null }, select: { id: true, code: true, name: true, state: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 30 }) : [],
+      can('rental.read') ? prisma.booking.findMany({ where: { companyId: id }, select: { id: true, code: true, title: true, state: true, startsAt: true, endsAt: true }, orderBy: { startsAt: 'desc' }, take: 30 }) : [],
+      can('metro.read') ? prisma.metroBooking.findMany({ where: { companyId: id }, select: { id: true, code: true, title: true, state: true, startDate: true, endDate: true, amount: true }, orderBy: { startDate: 'desc' }, take: 30 }) : [],
+    ]);
+
     const invoiced = invoices.reduce((s, i) => s + Number(i.total), 0);
     const received = invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
     const avgCsat = feedbacks.length
@@ -359,6 +369,7 @@ const crmRoutes: FastifyPluginAsync = async (app) => {
       meetings,
       feedbacks,
       documents,
+      services: { leads, siteProjects, rentals, metroBookings },
       // Financial figures are only present when the caller holds `finance.read`.
       finance: canSeeFinance
         ? { invoices, payments, totals: { invoiced, received, outstanding: invoiced - received } }

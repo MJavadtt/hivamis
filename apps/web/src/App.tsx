@@ -62,6 +62,7 @@ const MetroHome = lazy(() => import('./pages/metro/Home'));
 const MetroLine = lazy(() => import('./pages/metro/Line'));
 const MetroBookings = lazy(() => import('./pages/metro/Bookings'));
 const MetroReports = lazy(() => import('./pages/metro/Reports'));
+const DataReview = lazy(() => import('./pages/DataReview'));
 
 /** Renders `element` only when the user holds `permission` (or any of `anyOf`); otherwise sends them home. */
 function Guarded({ permission, anyOf, element }: { permission?: string; anyOf?: string[]; element: React.ReactNode }) {
@@ -177,6 +178,7 @@ export default function App() {
         <Route path="/metro/lines/:id" element={<Guarded permission="metro.read" element={<MetroLine />} />} />
         <Route path="/metro/bookings" element={<Guarded permission="metro.read" element={<MetroBookings />} />} />
         <Route path="/metro/bookings/:id" element={<Guarded permission="metro.read" element={<MetroBookings />} />} />
+        <Route path="/data-review" element={<Guarded permission="crm.company.read" element={<DataReview />} />} />
         <Route path="/metro/reports" element={<Guarded permission="metro.read" element={<MetroReports />} />} />
         <Route path="/sites/venues" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />
         <Route path="/sites/venues/:id" element={<Guarded permission="venue.read" element={<SiteVenues />} />} />

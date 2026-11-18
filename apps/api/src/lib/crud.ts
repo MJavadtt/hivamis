@@ -14,6 +14,9 @@ import { isSystemAdmin } from '../auth/grants.js';
 import { hasPermission } from '../auth/plugin.js';
 import { isVisibleModel, narrowed, reachFor } from '../auth/visibility.js';
 
+/** Whether a model carries a `code` column people see and search by. */
+const hasCode = (model: string) => Prisma.dmmf.datamodel.models.some((m) => m.name.toLowerCase() === model.toLowerCase() && m.fields.some((f) => f.name === 'code' && f.kind === 'scalar' && f.type === 'String'));
+
 export interface CrudOptions<C extends ZodTypeAny, U extends ZodTypeAny> {
   /** URL segment, e.g. "projects". */
   path: string;
@@ -88,7 +91,9 @@ export function registerCrud<C extends ZodTypeAny, U extends ZodTypeAny>(
         ...tenant(actor.organizationId),
       };
       if (q.q && opts.searchable?.length) {
-        own.OR = opts.searchable.map((f) => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
+        // A record's code is on every row and every document, so every list finds by it (ADR-136).
+        const fields = hasCode(opts.model) && !opts.searchable.includes('code') ? [...opts.searchable, 'code'] : opts.searchable;
+        own.OR = fields.map((f) => ({ [f]: { contains: q.q, mode: 'insensitive' } }));
       }
       const where = await inReach(req, own);
 

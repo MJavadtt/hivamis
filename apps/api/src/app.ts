@@ -35,6 +35,7 @@ import adminRoutes from './routes/admin.js';
 import documentRoutes from './routes/documents.js';
 import aiRoutes from './routes/ai.js';
 import searchRoutes from './routes/search.js';
+import dataReviewRoutes from './routes/data-review.js';
 import pdfRoutes from './routes/pdf.js';
 import historyRoutes from './routes/history.js';
 import recordsRoutes from './routes/records.js';
@@ -229,6 +230,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await api.register(documentRoutes);
     await api.register(aiRoutes);
     await api.register(searchRoutes);
+    await api.register(dataReviewRoutes);
     await api.register(pdfRoutes);
     await api.register(historyRoutes);
     await api.register(recordsRoutes);

@@ -55,6 +55,15 @@ const mediaOrders = (tx: Tx, proposalId: string) =>
   tx.workOrder.count({ where: { proposalId, targetDepartmentCode: 'ME', state: { not: 'CANCELLED' } } });
 
 export const GUARDS: Record<string, (c: GuardContext) => Promise<GuardResult>> = {
+  /**
+   * A lead is converted by its own form, which makes or picks the client and opens the opportunity
+   * in one step. The bare state move made neither, leaving converted leads tied to no client (found
+   * on the server, 2026-11-18; ADR-136).
+   */
+  'lead.throughConversion': async ({ payload }) => payload.companyId ? pass : {
+    ok: false, rule: 'ADR-136',
+    messageFa: 'سرنخ را با دکمهٔ «تبدیل به فرصت» در فهرست سرنخ‌ها تبدیل کنید تا مشتری و فرصت فروشش هم‌زمان ساخته شوند.',
+  },
   /** Doc_H control point A / cycle 1 — an incomplete brief may not be approved. */
   'brief.isComplete': async ({ record }) => {
     const { missing } = briefCompleteness(record);
@@ -549,6 +558,7 @@ export const mediaTolerance = (expected: number) => Math.max(1, Math.abs(expecte
  * A guard's own messageFa only exists on failure, so it cannot label a passing check.
  */
 export const GUARD_LABELS: Record<string, string> = {
+  'lead.throughConversion': 'از فرم تبدیل سرنخ (با مشتری و فرصت فروش) انجام شود',
   'brief.isComplete': 'بریف کامل باشد (Scope، خروجی‌ها، بودجه، زمان)',
   'opportunity.hasApprovedProposal': 'پروپوزال تأییدشده وجود داشته باشد',
   'proposal.allUnitOutputsAccepted': 'خروجی همهٔ واحدها از QC اکانت گذشته باشد',

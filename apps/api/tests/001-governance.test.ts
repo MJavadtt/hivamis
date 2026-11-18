@@ -536,7 +536,8 @@ describe('Process mining and conformance', () => {
     for (const l of [a, b]) {
       expectOk(await move('lead', l.id, 'contact', tokens.sales), 'contact');
       expectOk(await move('lead', l.id, 'qualify', tokens.sales), 'qualify');
-      expectOk(await move('lead', l.id, 'convert', tokens.sales), 'convert');
+      // Converted by the conversion form — the bare move is refused (ADR-136); it walks the same edge.
+      expectOk(await post(`/leads/${l.id}/convert`, tokens.sales, {}), 'convert');
     }
     expectOk(await move('lead', c.id, 'contact', tokens.sales), 'contact');
     expectOk(await move('lead', c.id, 'disqualify', tokens.sales, 'بودجه ندارد'), 'disqualify');
@@ -620,7 +621,7 @@ describe('The rule lab', () => {
     const lead = expectOk(await post('/leads', tokens.sales, { name: 'سرنخ آزمایشگاه', companyName: 'شرکت آزمایشگاه', ...directLead() }), 'lead');
     expectOk(await move('lead', lead.id, 'contact', tokens.sales), 'c');
     expectOk(await move('lead', lead.id, 'qualify', tokens.sales), 'q');
-    expectOk(await move('lead', lead.id, 'convert', tokens.sales), 'v');
+    expectOk(await post(`/leads/${lead.id}/convert`, tokens.sales, {}), 'v');
     const transitions = await prisma.stateTransition.count();
     const audits = await prisma.auditEvent.count();
 
